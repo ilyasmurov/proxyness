@@ -17,7 +17,7 @@ RUN mkdir -p server/internal/admin/static
 COPY --from=ui-builder /ui/dist/ server/internal/admin/static/
 
 # Use replace directive instead of workspace
-RUN cd server && go mod edit -replace smurov-proxy/pkg=../pkg
+RUN cd server && go mod edit -replace smurov-proxy/pkg=../pkg && go mod tidy
 WORKDIR /build/server
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /server ./cmd
 
