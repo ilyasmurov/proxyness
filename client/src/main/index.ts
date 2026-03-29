@@ -6,6 +6,7 @@ import path from "path";
 import { autoUpdater } from "electron-updater";
 import { startDaemon, stopDaemon, startHelper, stopHelper } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
+import { getInstalledApps } from "./apps";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -151,6 +152,8 @@ function setupAutoUpdater() {
       body: JSON.stringify(rules),
     }).catch(() => {});
   });
+
+  ipcMain.handle("get-installed-apps", () => getInstalledApps());
 
   autoUpdater.checkForUpdates().catch(() => {});
 }

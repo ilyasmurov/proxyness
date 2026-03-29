@@ -66,7 +66,14 @@ func (r *Rules) ShouldProxy(appPath string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	inList := r.apps[strings.ToLower(appPath)]
+	lower := strings.ToLower(appPath)
+	inList := false
+	for app := range r.apps {
+		if lower == app || strings.HasPrefix(lower, app+"/") || strings.HasPrefix(lower, app+"\\") {
+			inList = true
+			break
+		}
+	}
 
 	switch r.mode {
 	case ModeProxyAllExcept:

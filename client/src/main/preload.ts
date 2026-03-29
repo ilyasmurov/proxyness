@@ -29,4 +29,5 @@ contextBridge.exposeInMainWorld("tunProxy", {
   getStatus: () => ipcRenderer.invoke("tun-status"),
   getRules: () => ipcRenderer.invoke("tun-rules-get"),
   setRules: (rules: any) => ipcRenderer.send("tun-rules-set", rules),
+  getInstalledApps: () => ipcRenderer.invoke("get-installed-apps"),
 });

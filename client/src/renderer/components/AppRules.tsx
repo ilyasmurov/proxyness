@@ -8,119 +8,130 @@ declare global {
       getStatus: () => Promise<{ status: string }>;
       getRules: () => Promise<{ mode: string; apps: string[] }>;
       setRules: (rules: { mode: string; apps: string[] }) => void;
+      getInstalledApps: () => Promise<{ name: string; path: string }[]>;
     };
   }
 }
 
-type RuleMode = "proxy_all_except" | "proxy_only";
+type SplitMode = "all" | "all_except" | "only";
 
 interface Props {
   visible: boolean;
 }
 
 export function AppRules({ visible }: Props) {
-  const [mode, setMode] = useState<RuleMode>("proxy_all_except");
-  const [apps, setApps] = useState<string[]>([]);
-  const [newApp, setNewApp] = useState("");
+  const [mode, setMode] = useState<SplitMode>("all");
+  const [selectedApps, setSelectedApps] = useState<string[]>([]);
+  const [installedApps, setInstalledApps] = useState<{ name: string; path: string }[]>([]);
 
   useEffect(() => {
     if (!visible) return;
     window.tunProxy?.getRules().then((rules) => {
-      setMode((rules.mode as RuleMode) || "proxy_all_except");
-      setApps(rules.apps || []);
+      const apps = rules.apps || [];
+      if (rules.mode === "proxy_only") {
+        setMode("only");
+      } else if (apps.length > 0) {
+        setMode("all_except");
+      } else {
+        setMode("all");
+      }
+      setSelectedApps(apps);
+    });
+    window.tunProxy?.getInstalledApps().then((apps) => {
+      setInstalledApps(apps);
     });
   }, [visible]);
 
-  const save = (m: RuleMode, a: string[]) => {
-    window.tunProxy?.setRules({ mode: m, apps: a });
+  const save = (m: SplitMode, apps: string[]) => {
+    const daemonMode = m === "only" ? "proxy_only" : "proxy_all_except";
+    const daemonApps = m === "all" ? [] : apps;
+    window.tunProxy?.setRules({ mode: daemonMode, apps: daemonApps });
   };
 
-  const handleModeChange = (m: RuleMode) => {
+  const handleModeChange = (m: SplitMode) => {
     setMode(m);
-    save(m, apps);
+    save(m, selectedApps);
   };
 
-  const addApp = () => {
-    const trimmed = newApp.trim();
-    if (!trimmed || apps.includes(trimmed)) return;
-    const updated = [...apps, trimmed];
-    setApps(updated);
-    setNewApp("");
-    save(mode, updated);
-  };
-
-  const removeApp = (app: string) => {
-    const updated = apps.filter((a) => a !== app);
-    setApps(updated);
+  const toggleApp = (appPath: string) => {
+    const lower = appPath.toLowerCase();
+    const updated = selectedApps.includes(lower)
+      ? selectedApps.filter((a) => a !== lower)
+      : [...selectedApps, lower];
+    setSelectedApps(updated);
     save(mode, updated);
   };
 
   if (!visible) return null;
 
+  const modes: { key: SplitMode; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "all_except", label: "Exclude" },
+    { key: "only", label: "Select" },
+  ];
+
   return (
     <div style={{ marginTop: 16, padding: 12, background: "#111827", borderRadius: 8, border: "1px solid #333" }}>
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Split Tunneling</div>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Traffic</div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <button
-          onClick={() => handleModeChange("proxy_all_except")}
-          style={{
-            flex: 1, padding: "6px 0", fontSize: 11,
-            background: mode === "proxy_all_except" ? "#1a3a5c" : "transparent",
-            border: `1px solid ${mode === "proxy_all_except" ? "#3b82f6" : "#333"}`,
-            borderRadius: 6, color: mode === "proxy_all_except" ? "#fff" : "#888",
-            cursor: "pointer",
-          }}
-        >
-          Proxy all except...
-        </button>
-        <button
-          onClick={() => handleModeChange("proxy_only")}
-          style={{
-            flex: 1, padding: "6px 0", fontSize: 11,
-            background: mode === "proxy_only" ? "#1a3a5c" : "transparent",
-            border: `1px solid ${mode === "proxy_only" ? "#3b82f6" : "#333"}`,
-            borderRadius: 6, color: mode === "proxy_only" ? "#fff" : "#888",
-            cursor: "pointer",
-          }}
-        >
-          Proxy only...
-        </button>
-      </div>
-
-      {apps.map((app) => (
-        <div key={app} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", fontSize: 12, color: "#ccc" }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{app.split("/").pop()}</span>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {modes.map(({ key, label }) => (
           <button
-            onClick={() => removeApp(app)}
-            style={{ background: "transparent", border: "none", color: "#666", cursor: "pointer", fontSize: 14 }}
+            key={key}
+            onClick={() => handleModeChange(key)}
+            style={{
+              flex: 1, padding: "6px 0", fontSize: 11,
+              background: mode === key ? "#1a3a5c" : "transparent",
+              border: `1px solid ${mode === key ? "#3b82f6" : "#333"}`,
+              borderRadius: 6, color: mode === key ? "#fff" : "#888",
+              cursor: "pointer",
+            }}
           >
-            x
+            {label}
           </button>
-        </div>
-      ))}
-
-      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        <input
-          value={newApp}
-          onChange={(e) => setNewApp(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addApp()}
-          placeholder="App path..."
-          style={{
-            flex: 1, padding: "6px 8px", background: "#16213e",
-            border: "1px solid #333", borderRadius: 6, color: "#eee", fontSize: 12,
-          }}
-        />
-        <button
-          onClick={addApp}
-          style={{
-            padding: "6px 12px", background: "#3b82f6", color: "#fff",
-            border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer",
-          }}
-        >
-          Add
-        </button>
+        ))}
       </div>
+
+      {mode === "all" ? (
+        <div style={{ color: "#666", fontSize: 12, textAlign: "center", padding: "4px 0" }}>
+          All traffic goes through proxy
+        </div>
+      ) : (
+        <>
+          <div style={{ color: "#888", fontSize: 11, marginBottom: 6 }}>
+            {mode === "all_except" ? "Exclude from proxy:" : "Proxy only:"}
+          </div>
+          {installedApps.length > 0 ? (
+            <div style={{ maxHeight: 180, overflowY: "auto" }}>
+              {installedApps.map((app) => {
+                const checked = selectedApps.includes(app.path.toLowerCase());
+                return (
+                  <label
+                    key={app.path}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "4px 4px", fontSize: 12, color: "#ccc",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleApp(app.path)}
+                      style={{ accentColor: "#3b82f6" }}
+                    />
+                    {app.name}
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ color: "#555", fontSize: 12, textAlign: "center", padding: "8px 0" }}>
+              No apps detected
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
