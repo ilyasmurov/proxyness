@@ -28,13 +28,15 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
 
-  // Minimize to tray instead of closing
-  mainWindow.on("close", (e) => {
-    if (mainWindow && !(app as any).isQuitting) {
-      e.preventDefault();
-      mainWindow.hide();
-    }
-  });
+  // macOS: minimize to tray on close. Windows: quit on close.
+  if (process.platform === "darwin") {
+    mainWindow.on("close", (e) => {
+      if (mainWindow && !(app as any).isQuitting) {
+        e.preventDefault();
+        mainWindow.hide();
+      }
+    });
+  }
 }
 
 function createTray() {
