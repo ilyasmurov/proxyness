@@ -36,6 +36,9 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password string) *Handler {
 	mux.HandleFunc("GET /admin/api/stats/traffic", h.auth(h.statsTraffic))
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
 
+	// SPA static files
+	mux.Handle("/admin/", SPAHandler())
+
 	h.mux = mux
 	return h
 }
