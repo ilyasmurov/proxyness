@@ -1,9 +1,11 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /build
-COPY go.work go.work
 COPY pkg/ pkg/
 COPY server/ server/
+
+# Use replace directive instead of workspace for Docker build
+RUN cd server && go mod edit -replace smurov-proxy/pkg=../pkg
 
 WORKDIR /build/server
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /server ./cmd
