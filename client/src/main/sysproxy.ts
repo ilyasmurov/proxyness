@@ -1,4 +1,7 @@
 import { execSync } from "child_process";
+import { writeFileSync, unlinkSync } from "fs";
+import path from "path";
+import { app } from "electron";
 
 const PROXY_HOST = "127.0.0.1";
 const PROXY_PORT = "1080";
@@ -41,14 +44,22 @@ function macDisable() {
   }
 }
 
+function getPacPath(): string {
+  return path.join(app.getPath("userData"), "proxy.pac");
+}
+
 function winEnable() {
   try {
-    execSync(
-      `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 1 /f`,
-    );
-    execSync(
-      `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer /t REG_SZ /d "socks=${PROXY_HOST}:${PROXY_PORT}" /f`,
-    );
+    const pacContent = `function FindProxyForURL(url, host) {
+  if (host === "127.0.0.1" || host === "localhost") return "DIRECT";
+  return "SOCKS5 ${PROXY_HOST}:${PROXY_PORT}; SOCKS ${PROXY_HOST}:${PROXY_PORT}";
+}`;
+    const pacPath = getPacPath();
+    writeFileSync(pacPath, pacContent);
+    const pacUrl = `file:///${pacPath.replace(/\\/g, "/")}`;
+    const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
+    execSync(`reg add "${regBase}" /v AutoConfigURL /t REG_SZ /d "${pacUrl}" /f`);
+    execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
   } catch {
     // ignore
   }
@@ -56,9 +67,14 @@ function winEnable() {
 
 function winDisable() {
   try {
-    execSync(
-      `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable /t REG_DWORD /d 0 /f`,
-    );
+    const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
+    execSync(`reg delete "${regBase}" /v AutoConfigURL /f`);
+    execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
+  } catch {
+    // ignore
+  }
+  try {
+    unlinkSync(getPacPath());
   } catch {
     // ignore
   }
