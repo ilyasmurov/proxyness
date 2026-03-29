@@ -1,58 +1,40 @@
 import { useState, useEffect, useRef } from "react";
 import { useDaemon } from "./hooks/useDaemon";
 import { StatusBar } from "./components/StatusBar";
-import { Settings } from "./components/Settings";
 import { ConnectionButton } from "./components/ConnectionButton";
 import { UpdateBanner } from "./components/UpdateBanner";
 
-const STORAGE_KEY = "smurov-proxy-settings";
-
-function loadSettings() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { server: "", key: "" };
-}
-
-function saveSettings(server: string, key: string) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ server, key }));
-}
+const SERVER = "82.97.246.65:443";
+const STORAGE_KEY = "smurov-proxy-key";
 
 export function App() {
-  const saved = loadSettings();
-  const [server, setServer] = useState(saved.server);
-  const [key, setKey] = useState(saved.key);
-  const [showSettings, setShowSettings] = useState(!saved.server || !saved.key);
+  const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
+  const [showSetup, setShowSetup] = useState(!key);
   const { status, error, loading, connect, disconnect } = useDaemon();
   const autoConnected = useRef(false);
 
   const isConnected = status.status === "connected";
 
-  // Auto-connect on launch if settings are saved
+  // Auto-connect on launch if key is saved
   useEffect(() => {
-    if (!autoConnected.current && server && key && !isConnected && !loading) {
+    if (!autoConnected.current && key && !isConnected && !loading) {
       autoConnected.current = true;
-      connect(server, key);
+      connect(SERVER, key);
     }
-  }, [server, key, isConnected, loading, connect]);
+  }, [key, isConnected, loading, connect]);
 
   const handleConnect = () => {
-    saveSettings(server, key);
-    setShowSettings(false);
-    connect(server, key);
-  };
-
-  const handleDisconnect = () => {
-    disconnect();
+    if (!key.trim()) return;
+    localStorage.setItem(STORAGE_KEY, key.trim());
+    setShowSetup(false);
+    connect(SERVER, key.trim());
   };
 
   const handleReset = () => {
     disconnect();
     localStorage.removeItem(STORAGE_KEY);
-    setServer("");
     setKey("");
-    setShowSettings(true);
+    setShowSetup(true);
     autoConnected.current = false;
   };
 
@@ -64,33 +46,54 @@ export function App() {
       <UpdateBanner />
       <StatusBar status={status.status} uptime={status.uptime} error={error} />
 
-      {showSettings || !server || !key ? (
-        <>
-          <Settings
-            server={server}
-            secretKey={key}
-            onServerChange={setServer}
-            onKeyChange={setKey}
-            disabled={false}
-          />
-          <ConnectionButton
-            connected={false}
-            loading={loading}
-            onConnect={handleConnect}
-            onDisconnect={handleDisconnect}
-          />
-        </>
+      {showSetup ? (
+        <div>
+          <label style={{ display: "block", marginBottom: 16 }}>
+            <span style={{ fontSize: 13, color: "#aaa" }}>Access Key</span>
+            <input
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                background: "#16213e",
+                border: "1px solid #333",
+                borderRadius: 6,
+                color: "#eee",
+                fontSize: 14,
+                marginTop: 4,
+              }}
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="Paste your access key"
+              onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+            />
+          </label>
+          <button
+            onClick={handleConnect}
+            disabled={loading || !key.trim()}
+            style={{
+              width: "100%",
+              padding: "12px 0",
+              background: "#4caf50",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 16,
+              fontWeight: 600,
+              cursor: loading ? "wait" : "pointer",
+              opacity: loading || !key.trim() ? 0.7 : 1,
+            }}
+          >
+            {loading ? "..." : "Connect"}
+          </button>
+        </div>
       ) : (
         <>
-          <div style={{ marginBottom: 16, padding: 12, background: "#16213e", borderRadius: 8 }}>
-            <div style={{ fontSize: 13, color: "#aaa", marginBottom: 4 }}>Server</div>
-            <div style={{ fontSize: 14 }}>{server}</div>
-          </div>
           <ConnectionButton
             connected={isConnected}
             loading={loading}
-            onConnect={() => connect(server, key)}
-            onDisconnect={handleDisconnect}
+            onConnect={() => connect(SERVER, key)}
+            onDisconnect={disconnect}
           />
           <button
             onClick={handleReset}
@@ -106,7 +109,7 @@ export function App() {
               cursor: "pointer",
             }}
           >
-            Change settings
+            Change key
           </button>
         </>
       )}
