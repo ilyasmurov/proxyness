@@ -3,57 +3,58 @@ import { useState, useEffect } from "react";
 declare global {
   interface Window {
     updater?: {
-      onUpdateAvailable: (cb: (version: string) => void) => void;
-      onUpdateDownloaded: (cb: () => void) => void;
-      onUpdateProgress: (cb: (percent: number) => void) => void;
-      onUpdateNotAvailable: (cb: () => void) => void;
+      checkVersion: () => Promise<{ hasUpdate: boolean; latestVersion: string | null; error?: boolean }>;
       downloadUpdate: () => void;
       installUpdate: () => void;
-      checkForUpdates: () => void;
+      onUpdateProgress: (cb: (percent: number) => void) => void;
+      onUpdateDownloaded: (cb: () => void) => void;
     };
   }
 }
 
+type State = "idle" | "checking" | "update" | "downloading" | "ready" | "uptodate" | "error";
+
 export function UpdateBanner() {
-  const [version, setVersion] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [checking, setChecking] = useState(false);
+  const [state, setState] = useState<State>("idle");
+  const [version, setVersion] = useState("");
   const [progress, setProgress] = useState(0);
-  const [ready, setReady] = useState(false);
-  const [upToDate, setUpToDate] = useState(false);
 
   useEffect(() => {
     if (!window.updater) return;
-    window.updater.onUpdateAvailable((v) => { setVersion(v); setChecking(false); setUpToDate(false); });
     window.updater.onUpdateProgress((p) => setProgress(p));
-    window.updater.onUpdateDownloaded(() => { setDownloading(false); setReady(true); });
-    window.updater.onUpdateNotAvailable(() => {
-      setChecking(false);
-      setUpToDate(true);
-      setTimeout(() => setUpToDate(false), 3000);
-    });
+    window.updater.onUpdateDownloaded(() => setState("ready"));
+    // Silent auto-check on startup
+    window.updater.checkVersion().then((r) => {
+      if (r?.hasUpdate && r.latestVersion) {
+        setVersion(r.latestVersion);
+        setState("update");
+      }
+    }).catch(() => {});
   }, []);
 
-  const [error, setError] = useState(false);
-
-  const handleCheck = () => {
-    setChecking(true);
-    setUpToDate(false);
-    setError(false);
-    window.updater?.checkForUpdates();
-    // Timeout: if no response in 10s, show error and reset
-    setTimeout(() => {
-      setChecking((prev) => {
-        if (prev) {
-          setError(true);
-          setTimeout(() => setError(false), 3000);
-        }
-        return false;
-      });
-    }, 10000);
+  const handleCheck = async () => {
+    setState("checking");
+    try {
+      const r = await window.updater?.checkVersion();
+      if (!r || r.error) {
+        setState("error");
+        setTimeout(() => setState("idle"), 3000);
+        return;
+      }
+      if (r.hasUpdate && r.latestVersion) {
+        setVersion(r.latestVersion);
+        setState("update");
+      } else {
+        setState("uptodate");
+        setTimeout(() => setState("idle"), 3000);
+      }
+    } catch {
+      setState("error");
+      setTimeout(() => setState("idle"), 3000);
+    }
   };
 
-  if (error) {
+  if (state === "error") {
     return (
       <div style={{ padding: "10px 12px", marginBottom: 16, color: "#ef4444", fontSize: 13, textAlign: "center" }}>
         Connection error
@@ -61,7 +62,7 @@ export function UpdateBanner() {
     );
   }
 
-  if (!version && !checking && !upToDate) {
+  if (state === "idle") {
     return (
       <button
         onClick={handleCheck}
@@ -76,7 +77,7 @@ export function UpdateBanner() {
     );
   }
 
-  if (checking) {
+  if (state === "checking") {
     return (
       <div style={{ padding: "10px 12px", marginBottom: 16, color: "#888", fontSize: 13, textAlign: "center" }}>
         Checking for updates...
@@ -84,33 +85,21 @@ export function UpdateBanner() {
     );
   }
 
-  if (upToDate && !version) {
+  if (state === "uptodate") {
     return (
       <div style={{ padding: "10px 12px", marginBottom: 16, color: "#555", fontSize: 13, textAlign: "center" }}>
         Up to date
-        <button
-          onClick={() => setUpToDate(false)}
-          style={{
-            marginLeft: 8, background: "transparent", border: "none",
-            color: "#444", fontSize: 11, cursor: "pointer", textDecoration: "underline",
-          }}
-        >
-          ok
-        </button>
       </div>
     );
   }
 
   return (
     <div style={{
-      padding: "10px 12px",
-      marginBottom: 16,
-      background: "#1a2744",
-      border: "1px solid #2a4a7a",
-      borderRadius: 8,
-      fontSize: 13,
+      padding: "10px 12px", marginBottom: 16,
+      background: "#1a2744", border: "1px solid #2a4a7a",
+      borderRadius: 8, fontSize: 13,
     }}>
-      {ready ? (
+      {state === "ready" ? (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>v{version} ready</span>
           <button
@@ -123,7 +112,7 @@ export function UpdateBanner() {
             Restart & Update
           </button>
         </div>
-      ) : downloading ? (
+      ) : state === "downloading" ? (
         <div>
           <div style={{ marginBottom: 4 }}>Downloading v{version}... {progress}%</div>
           <div style={{ height: 4, background: "#333", borderRadius: 2 }}>
@@ -134,7 +123,7 @@ export function UpdateBanner() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>Update v{version} available</span>
           <button
-            onClick={() => { setDownloading(true); window.updater?.downloadUpdate(); }}
+            onClick={() => { setState("downloading"); window.updater?.downloadUpdate(); }}
             style={{
               padding: "4px 12px", background: "#3b82f6", color: "#fff",
               border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer",

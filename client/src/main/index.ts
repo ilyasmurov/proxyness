@@ -67,17 +67,19 @@ function createTray() {
   });
 }
 
+function isNewer(latest: string, current: string): boolean {
+  const l = latest.split(".").map(Number);
+  const c = current.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((l[i] || 0) > (c[i] || 0)) return true;
+    if ((l[i] || 0) < (c[i] || 0)) return false;
+  }
+  return false;
+}
+
 function setupAutoUpdater() {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.on("update-available", (info) => {
-    mainWindow?.webContents.send("update-available", info.version);
-  });
-
-  autoUpdater.on("update-not-available", () => {
-    mainWindow?.webContents.send("update-not-available");
-  });
 
   autoUpdater.on("update-downloaded", () => {
     mainWindow?.webContents.send("update-downloaded");
@@ -87,16 +89,35 @@ function setupAutoUpdater() {
     mainWindow?.webContents.send("update-progress", Math.round(progress.percent));
   });
 
-  ipcMain.on("download-update", () => {
-    autoUpdater.downloadUpdate();
+  ipcMain.handle("check-update-version", async () => {
+    try {
+      const ymlFile = process.platform === "darwin" ? "latest-mac.yml" : "latest.yml";
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(`https://82.97.246.65/download/${ymlFile}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const text = await res.text();
+      const match = text.match(/^version:\s*(.+)$/m);
+      if (!match) return { hasUpdate: false, latestVersion: null };
+      const latestVersion = match[1].trim();
+      const currentVersion = app.getVersion();
+      return { hasUpdate: isNewer(latestVersion, currentVersion), latestVersion };
+    } catch {
+      return { hasUpdate: false, latestVersion: null, error: true };
+    }
+  });
+
+  ipcMain.on("download-update", async () => {
+    try {
+      await autoUpdater.checkForUpdates();
+      autoUpdater.downloadUpdate();
+    } catch {}
   });
 
   ipcMain.on("install-update", () => {
     autoUpdater.quitAndInstall();
-  });
-
-  ipcMain.on("check-for-updates", () => {
-    autoUpdater.checkForUpdates().catch(() => {});
   });
 
   ipcMain.handle("get-version", () => app.getVersion());
@@ -154,8 +175,6 @@ function setupAutoUpdater() {
   });
 
   ipcMain.handle("get-installed-apps", () => getInstalledApps());
-
-  autoUpdater.checkForUpdates().catch(() => {});
 }
 
 app.whenReady().then(() => {
