@@ -1,0 +1,52 @@
+name: Build Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-clients:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build Go daemons
+        run: |
+          mkdir -p client/resources
+          cd daemon
+          GOOS=darwin GOARCH=arm64 go build -o ../client/resources/daemon-darwin-arm64 ./cmd
+          GOOS=darwin GOARCH=amd64 go build -o ../client/resources/daemon-darwin-amd64 ./cmd
+          GOOS=windows GOARCH=amd64 go build -o ../client/resources/daemon-windows.exe ./cmd
+
+      - name: Build Electron app
+        run: |
+          cd client
+          npm ci
+          npm run build
+          npx electron-builder --mac dmg --universal
+          npx electron-builder --win nsis --x64
+
+      - name: Rename artifacts
+        run: |
+          cd client/release
+          mv *.dmg SmurovProxy.dmg 2>/dev/null || true
+          mv *.exe SmurovProxy-Setup.exe 2>/dev/null || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            client/release/SmurovProxy.dmg
+            client/release/SmurovProxy-Setup.exe
+          generate_release_notes: true

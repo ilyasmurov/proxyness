@@ -39,6 +39,9 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password string) *Handler {
 	// SPA static files
 	mux.Handle("/admin/", SPAHandler())
 
+	// Landing page
+	mux.Handle("GET /{$}", LandingHandler())
+
 	h.mux = mux
 	return h
 }
