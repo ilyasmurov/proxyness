@@ -25,7 +25,8 @@
   },
   "win": {
     "target": ["nsis"],
-    "icon": null
+    "icon": null,
+    "requestedExecutionLevel": "requireAdministrator"
   },
   "nsis": {
     "oneClick": false,

@@ -8,6 +8,7 @@ declare global {
       installUpdate: () => void;
       onUpdateProgress: (cb: (percent: number) => void) => void;
       onUpdateDownloaded: (cb: () => void) => void;
+      onUpdateError: (cb: () => void) => void;
     };
   }
 }
@@ -21,8 +22,19 @@ export function UpdateBanner() {
 
   useEffect(() => {
     if (!window.updater) return;
-    window.updater.onUpdateProgress((p) => setProgress(p));
+    window.updater.onUpdateProgress((p) => {
+      if (p < 0) {
+        // No content-length: p is negative bytes downloaded
+        setProgress(Math.round(-p / 1024 / 1024));
+      } else {
+        setProgress(p);
+      }
+    });
     window.updater.onUpdateDownloaded(() => setState("ready"));
+    window.updater.onUpdateError(() => {
+      setState("error");
+      setTimeout(() => setState("idle"), 3000);
+    });
     // Silent auto-check on startup
     window.updater.checkVersion().then((r) => {
       if (r?.hasUpdate && r.latestVersion) {
@@ -114,7 +126,7 @@ export function UpdateBanner() {
         </div>
       ) : state === "downloading" ? (
         <div>
-          <div style={{ marginBottom: 4 }}>Downloading v{version}... {progress}%</div>
+          <div style={{ marginBottom: 4 }}>Downloading v{version}... {progress >= 0 ? `${progress}%` : `${-progress} MB`}</div>
           <div style={{ height: 4, background: "#333", borderRadius: 2 }}>
             <div style={{ height: 4, width: `${progress}%`, background: "#3b82f6", borderRadius: 2 }} />
           </div>

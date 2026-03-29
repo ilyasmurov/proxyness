@@ -116,33 +116,70 @@ function setupIpc() {
   ipcMain.on("download-update", async () => {
     try {
       const info = await fetchYml();
-      if (!info) return;
+      if (!info) {
+        mainWindow?.webContents.send("update-error");
+        return;
+      }
 
       const dest = path.join(app.getPath("temp"), info.filename);
       const file = fs.createWriteStream(dest);
 
-      https.get(`${UPDATE_BASE}/${info.filename}`, { rejectUnauthorized: false }, (res) => {
-        const total = parseInt(res.headers["content-length"] || "0", 10);
-        let downloaded = 0;
+      const req = https.get(`${UPDATE_BASE}/${info.filename}`, { rejectUnauthorized: false }, (res) => {
+        // Follow redirects
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          file.close();
+          https.get(res.headers.location, { rejectUnauthorized: false }, handleResponse).on("error", handleError);
+          return;
+        }
 
-        res.on("data", (chunk: Buffer) => {
-          downloaded += chunk.length;
-          file.write(chunk);
-          if (total > 0) {
-            mainWindow?.webContents.send("update-progress", Math.round((downloaded / total) * 100));
+        handleResponse(res);
+
+        function handleResponse(response: typeof res) {
+          if (response.statusCode !== 200) {
+            file.close();
+            mainWindow?.webContents.send("update-error");
+            return;
           }
-        });
 
-        res.on("end", () => {
-          file.end(() => {
-            installerPath = dest;
-            mainWindow?.webContents.send("update-downloaded");
+          const total = parseInt(response.headers["content-length"] || "0", 10);
+          let downloaded = 0;
+          let lastPercent = 0;
+
+          response.on("data", (chunk: Buffer) => {
+            downloaded += chunk.length;
+            file.write(chunk);
+            if (total > 0) {
+              const percent = Math.round((downloaded / total) * 100);
+              if (percent !== lastPercent) {
+                lastPercent = percent;
+                mainWindow?.webContents.send("update-progress", percent);
+              }
+            } else {
+              // No content-length: show MB downloaded
+              mainWindow?.webContents.send("update-progress", -downloaded);
+            }
           });
-        });
 
-        res.on("error", () => file.close());
-      }).on("error", () => file.close());
-    } catch {}
+          response.on("end", () => {
+            file.end(() => {
+              installerPath = dest;
+              mainWindow?.webContents.send("update-downloaded");
+            });
+          });
+
+          response.on("error", handleError);
+        }
+      });
+
+      function handleError() {
+        file.close();
+        mainWindow?.webContents.send("update-error");
+      }
+
+      req.on("error", handleError);
+    } catch {
+      mainWindow?.webContents.send("update-error");
+    }
   });
 
   ipcMain.on("install-update", () => {
