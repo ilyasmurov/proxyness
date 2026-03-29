@@ -34,9 +34,9 @@ jobs:
           cd client
           npm install
           npm run build
-          npx electron-builder --mac dmg --arm64
-          npx electron-builder --mac dmg --x64
-          npx electron-builder --win nsis --x64
+          npx electron-builder --mac dmg --arm64 --publish never
+          npx electron-builder --mac dmg --x64 --publish never
+          npx electron-builder --win nsis --x64 --publish never
 
       - name: Rename artifacts
         run: |
