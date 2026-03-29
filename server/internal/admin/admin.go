@@ -20,7 +20,7 @@ type Handler struct {
 }
 
 // NewHandler creates and wires up the admin HTTP handler.
-func NewHandler(d *db.DB, tr *stats.Tracker, user, password string) *Handler {
+func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string) *Handler {
 	h := &Handler{db: d, tracker: tr, user: user, password: password}
 	mux := http.NewServeMux()
 
@@ -35,6 +35,9 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password string) *Handler {
 	mux.HandleFunc("GET /admin/api/stats/active", h.auth(h.statsActive))
 	mux.HandleFunc("GET /admin/api/stats/traffic", h.auth(h.statsTraffic))
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
+
+	// Download files
+	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
 
 	// SPA static files
 	mux.Handle("/admin/", SPAHandler())

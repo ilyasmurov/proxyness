@@ -45,11 +45,25 @@ jobs:
           for f in *x64*.dmg *64*.dmg; do mv "$f" SmurovProxy-mac-x64.dmg 2>/dev/null; done || true
           for f in *.exe; do mv "$f" SmurovProxy-win-x64.exe 2>/dev/null; done || true
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload to VPS
+        uses: appleboy/scp-action@v0.1.7
         with:
-          files: |
-            client/release/SmurovProxy-mac-arm64.dmg
-            client/release/SmurovProxy-mac-x64.dmg
-            client/release/SmurovProxy-win-x64.exe
-          generate_release_notes: true
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          source: "client/release/SmurovProxy-mac-arm64.dmg,client/release/SmurovProxy-mac-x64.dmg,client/release/SmurovProxy-win-x64.exe"
+          target: /tmp/smurov-downloads
+          strip_components: 2
+
+      - name: Move files to container volume
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            docker exec smurov-proxy mkdir -p /data/downloads
+            for f in /tmp/smurov-downloads/*.dmg /tmp/smurov-downloads/*.exe; do
+              docker cp "$f" smurov-proxy:/data/downloads/
+            done
+            rm -rf /tmp/smurov-downloads

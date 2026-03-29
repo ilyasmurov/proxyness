@@ -70,7 +70,7 @@ func main() {
 	}
 	log.Printf("server listening on %s", *addr)
 
-	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass)
+	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, "/data/downloads")
 
 	m := mux.NewListenerMux(ln,
 		func(conn net.Conn) { handleProxy(conn, database, tracker) },
