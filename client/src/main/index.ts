@@ -72,6 +72,10 @@ function setupAutoUpdater() {
     mainWindow?.webContents.send("update-available", info.version);
   });
 
+  autoUpdater.on("update-not-available", () => {
+    mainWindow?.webContents.send("update-not-available");
+  });
+
   autoUpdater.on("update-downloaded", () => {
     mainWindow?.webContents.send("update-downloaded");
   });
@@ -86,6 +90,10 @@ function setupAutoUpdater() {
 
   ipcMain.on("install-update", () => {
     autoUpdater.quitAndInstall();
+  });
+
+  ipcMain.on("check-for-updates", () => {
+    autoUpdater.checkForUpdates().catch(() => {});
   });
 
   ipcMain.handle("get-version", () => app.getVersion());

@@ -7,8 +7,11 @@ contextBridge.exposeInMainWorld("updater", {
     ipcRenderer.on("update-downloaded", () => cb()),
   onUpdateProgress: (cb: (percent: number) => void) =>
     ipcRenderer.on("update-progress", (_e, percent) => cb(percent)),
+  onUpdateNotAvailable: (cb: () => void) =>
+    ipcRenderer.on("update-not-available", () => cb()),
   downloadUpdate: () => ipcRenderer.send("download-update"),
   installUpdate: () => ipcRenderer.send("install-update"),
+  checkForUpdates: () => ipcRenderer.send("check-for-updates"),
 });
 
 contextBridge.exposeInMainWorld("sysproxy", {
