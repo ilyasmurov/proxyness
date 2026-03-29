@@ -34,11 +34,32 @@ export function UpdateBanner() {
     });
   }, []);
 
+  const [error, setError] = useState(false);
+
   const handleCheck = () => {
     setChecking(true);
     setUpToDate(false);
+    setError(false);
     window.updater?.checkForUpdates();
+    // Timeout: if no response in 10s, show error and reset
+    setTimeout(() => {
+      setChecking((prev) => {
+        if (prev) {
+          setError(true);
+          setTimeout(() => setError(false), 3000);
+        }
+        return false;
+      });
+    }, 10000);
   };
+
+  if (error) {
+    return (
+      <div style={{ padding: "10px 12px", marginBottom: 16, color: "#ef4444", fontSize: 13, textAlign: "center" }}>
+        Connection error
+      </div>
+    );
+  }
 
   if (!version && !checking && !upToDate) {
     return (
