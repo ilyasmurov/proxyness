@@ -10,3 +10,8 @@ contextBridge.exposeInMainWorld("updater", {
   downloadUpdate: () => ipcRenderer.send("download-update"),
   installUpdate: () => ipcRenderer.send("install-update"),
 });
+
+contextBridge.exposeInMainWorld("sysproxy", {
+  enable: () => ipcRenderer.send("enable-proxy"),
+  disable: () => ipcRenderer.send("disable-proxy"),
+});

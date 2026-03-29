@@ -2,6 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 
 const API_BASE = "http://127.0.0.1:9090";
 
+declare global {
+  interface Window {
+    sysproxy: { enable: () => void; disable: () => void };
+  }
+}
+
 interface DaemonStatus {
   status: "connected" | "disconnected";
   uptime: number;
@@ -46,6 +52,7 @@ export function useDaemon() {
         if (!res.ok) {
           setError(await res.text());
         } else {
+          window.sysproxy.enable();
           await fetchStatus();
         }
       } catch {
@@ -60,6 +67,7 @@ export function useDaemon() {
   const disconnect = useCallback(async () => {
     setLoading(true);
     try {
+      window.sysproxy.disable();
       await fetch(`${API_BASE}/disconnect`, { method: "POST" });
       await fetchStatus();
     } catch {

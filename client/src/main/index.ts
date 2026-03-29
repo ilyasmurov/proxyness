@@ -2,6 +2,7 @@ import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from "electron";
 import path from "path";
 import { autoUpdater } from "electron-updater";
 import { startDaemon, stopDaemon } from "./daemon";
+import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -84,6 +85,14 @@ function setupAutoUpdater() {
     autoUpdater.quitAndInstall();
   });
 
+  ipcMain.on("enable-proxy", () => {
+    enableSystemProxy();
+  });
+
+  ipcMain.on("disable-proxy", () => {
+    disableSystemProxy();
+  });
+
   autoUpdater.checkForUpdates().catch(() => {});
 }
 
@@ -95,6 +104,7 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", () => {
+  disableSystemProxy();
   stopDaemon();
 });
 
