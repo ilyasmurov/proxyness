@@ -48,6 +48,26 @@ function getPacPath(): string {
   return path.join(app.getPath("userData"), "proxy.pac");
 }
 
+const WIN_REFRESH_PROXY = `
+Add-Type -TypeDefinition @'
+using System.Runtime.InteropServices;
+public class WinInet {
+    [DllImport("wininet.dll", SetLastError=true)]
+    public static extern bool InternetSetOption(int h, int o, int b, int l);
+}
+'@
+[WinInet]::InternetSetOption(0, 39, 0, 0)
+[WinInet]::InternetSetOption(0, 37, 0, 0)
+`;
+
+function winRefreshProxy() {
+  try {
+    execSync(`powershell -NoProfile -Command "${WIN_REFRESH_PROXY}"`, { windowsHide: true });
+  } catch {
+    // ignore
+  }
+}
+
 function winEnable() {
   try {
     const pacContent = `function FindProxyForURL(url, host) {
@@ -60,6 +80,7 @@ function winEnable() {
     const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
     execSync(`reg add "${regBase}" /v AutoConfigURL /t REG_SZ /d "${pacUrl}" /f`);
     execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
+    winRefreshProxy();
   } catch {
     // ignore
   }
@@ -70,6 +91,7 @@ function winDisable() {
     const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
     execSync(`reg delete "${regBase}" /v AutoConfigURL /f`);
     execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
+    winRefreshProxy();
   } catch {
     // ignore
   }
