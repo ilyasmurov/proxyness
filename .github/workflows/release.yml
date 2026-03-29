@@ -75,7 +75,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
-            docker exec smurov-proxy mkdir -p /data/downloads
+            docker exec smurov-proxy sh -c "rm -rf /data/downloads && mkdir -p /data/downloads"
             for f in /tmp/smurov-downloads/*; do
               docker cp "$f" smurov-proxy:/data/downloads/
             done
