@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"testing"
@@ -58,10 +60,17 @@ func TestValidateAuthMessage_WrongKey(t *testing.T) {
 
 func TestValidateAuthMessage_ExpiredTimestamp(t *testing.T) {
 	key := GenerateKey()
-	msg, _ := CreateAuthMessage(key)
-	// Set timestamp to 60 seconds ago
+	keyBytes, _ := hex.DecodeString(key)
+
+	msg := make([]byte, AuthMsgLen)
+	msg[0] = Version
 	ts := uint64(time.Now().Unix()) - 60
 	binary.BigEndian.PutUint64(msg[1:9], ts)
+
+	mac := hmac.New(sha256.New, keyBytes)
+	mac.Write(msg[1:9])
+	copy(msg[9:], mac.Sum(nil))
+
 	if err := ValidateAuthMessage(key, msg); err == nil {
 		t.Fatal("expected error for expired timestamp")
 	}
