@@ -129,6 +129,38 @@ func ReadConnect(conn net.Conn) (addr string, port uint16, err error) {
 	return
 }
 
+type countingWriter struct {
+	dst     net.Conn
+	onBytes func(n int64)
+}
+
+func (w *countingWriter) Write(p []byte) (int, error) {
+	n, err := w.dst.Write(p)
+	if n > 0 {
+		w.onBytes(int64(n))
+	}
+	return n, err
+}
+
+func CountingRelay(c1, c2 net.Conn, onBytes func(in, out int64)) error {
+	errc := make(chan error, 2)
+	go func() {
+		cw := &countingWriter{dst: c1, onBytes: func(n int64) { onBytes(n, 0) }}
+		_, err := io.Copy(cw, c2)
+		errc <- err
+	}()
+	go func() {
+		cw := &countingWriter{dst: c2, onBytes: func(n int64) { onBytes(0, n) }}
+		_, err := io.Copy(cw, c1)
+		errc <- err
+	}()
+	err := <-errc
+	c1.Close()
+	c2.Close()
+	<-errc
+	return err
+}
+
 // Relay copies data bidirectionally between two connections.
 // Returns when either direction hits an error or EOF.
 func Relay(c1, c2 net.Conn) error {

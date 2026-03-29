@@ -77,3 +77,22 @@ func ValidateAuthMessage(key string, msg []byte) error {
 
 	return nil
 }
+
+// ValidateAuthMessageMulti tries each key in turn and returns the first matching one.
+func ValidateAuthMessageMulti(keys []string, msg []byte) (string, error) {
+	if len(keys) == 0 {
+		return "", fmt.Errorf("no keys provided")
+	}
+	if len(msg) != AuthMsgLen {
+		return "", fmt.Errorf("invalid message length: %d", len(msg))
+	}
+	if msg[0] != Version {
+		return "", fmt.Errorf("unsupported version: %d", msg[0])
+	}
+	for _, key := range keys {
+		if err := ValidateAuthMessage(key, msg); err == nil {
+			return key, nil
+		}
+	}
+	return "", fmt.Errorf("no matching key found")
+}

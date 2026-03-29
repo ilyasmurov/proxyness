@@ -88,8 +88,10 @@ jobs:
               --restart unless-stopped \
               -p 443:443 \
               -v smurov-proxy-data:/data \
+              -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
+              -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
               ghcr.io/${{ github.repository }}:latest \
-              -key "${{ secrets.PROXY_KEY }}" \
               -addr ":443" \
+              -db /data/data.db \
               -cert /data/cert.pem \
               -keyfile /data/key.pem

@@ -8,6 +8,10 @@ client/dist/
 client/dist-electron/
 client/release/
 client/resources/daemon-*
+server/admin-ui/node_modules/
+server/admin-ui/dist/
+server/internal/admin/static/
+!server/internal/admin/static/.gitkeep
 
 # TLS certs
 cert.pem
