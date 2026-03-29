@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.26"
 
       - uses: actions/setup-node@v4
         with:
@@ -28,6 +28,13 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build -o ../client/resources/daemon-darwin-arm64 ./cmd
           GOOS=darwin GOARCH=amd64 go build -o ../client/resources/daemon-darwin-amd64 ./cmd
           GOOS=windows GOARCH=amd64 go build -o ../client/resources/daemon-windows.exe ./cmd
+
+      - name: Build Go helpers
+        run: |
+          cd helper
+          GOOS=darwin GOARCH=arm64 go build -o ../client/resources/helper-darwin-arm64 ./cmd
+          GOOS=darwin GOARCH=amd64 go build -o ../client/resources/helper-darwin-amd64 ./cmd
+          GOOS=windows GOARCH=amd64 go build -o ../client/resources/helper-windows.exe ./cmd
 
       - name: Build Electron app
         run: |

@@ -67,22 +67,32 @@ export function startHelper(): void {
   if (helperProcess) return;
 
   const helperPath = getHelperPath();
-  helperProcess = spawn(helperPath, [], {
-    stdio: "pipe",
-  });
+  try {
+    helperProcess = spawn(helperPath, [], {
+      stdio: "pipe",
+    });
 
-  helperProcess.stdout?.on("data", (data: Buffer) => {
-    console.log(`[helper] ${data.toString().trim()}`);
-  });
+    helperProcess.on("error", (err) => {
+      console.error(`[helper] failed to start: ${err.message}`);
+      helperProcess = null;
+    });
 
-  helperProcess.stderr?.on("data", (data: Buffer) => {
-    console.error(`[helper] ${data.toString().trim()}`);
-  });
+    helperProcess.stdout?.on("data", (data: Buffer) => {
+      console.log(`[helper] ${data.toString().trim()}`);
+    });
 
-  helperProcess.on("exit", (code) => {
-    console.log(`[helper] exited with code ${code}`);
+    helperProcess.stderr?.on("data", (data: Buffer) => {
+      console.error(`[helper] ${data.toString().trim()}`);
+    });
+
+    helperProcess.on("exit", (code) => {
+      console.log(`[helper] exited with code ${code}`);
+      helperProcess = null;
+    });
+  } catch {
+    console.error("[helper] spawn failed");
     helperProcess = null;
-  });
+  }
 }
 
 export function stopHelper(): void {
