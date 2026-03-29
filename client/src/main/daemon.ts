@@ -46,3 +46,48 @@ export function stopDaemon(): void {
     daemonProcess = null;
   }
 }
+
+let helperProcess: ChildProcess | null = null;
+
+function getHelperPath(): string {
+  const resourcesPath = app.isPackaged
+    ? path.join(process.resourcesPath, "resources")
+    : path.join(__dirname, "../../resources");
+
+  const platform = process.platform;
+  const arch = process.arch;
+
+  if (platform === "win32") {
+    return path.join(resourcesPath, "helper-windows.exe");
+  }
+  return path.join(resourcesPath, `helper-${platform}-${arch}`);
+}
+
+export function startHelper(): void {
+  if (helperProcess) return;
+
+  const helperPath = getHelperPath();
+  helperProcess = spawn(helperPath, [], {
+    stdio: "pipe",
+  });
+
+  helperProcess.stdout?.on("data", (data: Buffer) => {
+    console.log(`[helper] ${data.toString().trim()}`);
+  });
+
+  helperProcess.stderr?.on("data", (data: Buffer) => {
+    console.error(`[helper] ${data.toString().trim()}`);
+  });
+
+  helperProcess.on("exit", (code) => {
+    console.log(`[helper] exited with code ${code}`);
+    helperProcess = null;
+  });
+}
+
+export function stopHelper(): void {
+  if (helperProcess) {
+    helperProcess.kill();
+    helperProcess = null;
+  }
+}

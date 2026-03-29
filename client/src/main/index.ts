@@ -4,7 +4,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from "electron";
 import path from "path";
 import { autoUpdater } from "electron-updater";
-import { startDaemon, stopDaemon } from "./daemon";
+import { startDaemon, stopDaemon, startHelper, stopHelper } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 
 let mainWindow: BrowserWindow | null = null;
@@ -155,6 +155,7 @@ function setupAutoUpdater() {
 
 app.whenReady().then(() => {
   startDaemon();
+  startHelper();
   createWindow();
   createTray();
   setupAutoUpdater();
@@ -163,6 +164,7 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
   disableSystemProxy();
   stopDaemon();
+  stopHelper();
 });
 
 app.on("window-all-closed", () => {

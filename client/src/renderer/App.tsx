@@ -3,6 +3,8 @@ import { useDaemon } from "./hooks/useDaemon";
 import { StatusBar } from "./components/StatusBar";
 import { ConnectionButton } from "./components/ConnectionButton";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { ModeSelector, ProxyMode } from "./components/ModeSelector";
+import { AppRules } from "./components/AppRules";
 
 const SERVER = "82.97.246.65:443";
 const STORAGE_KEY = "smurov-proxy-key";
@@ -13,6 +15,9 @@ export function App() {
   const [version, setVersion] = useState("");
   const { status, error, loading, connect, disconnect } = useDaemon();
   const autoConnected = useRef(false);
+  const [proxyMode, setProxyMode] = useState<ProxyMode>(
+    () => (localStorage.getItem("smurov-proxy-mode") as ProxyMode) || "tun"
+  );
 
   useEffect(() => {
     (window as any).appInfo?.getVersion().then((v: string) => setVersion(v));
@@ -20,13 +25,22 @@ export function App() {
 
   const isConnected = status.status === "connected";
 
+  const handleModeChange = (m: ProxyMode) => {
+    setProxyMode(m);
+    localStorage.setItem("smurov-proxy-mode", m);
+  };
+
   // Auto-connect on launch if key is saved
   useEffect(() => {
     if (!autoConnected.current && key && !isConnected && !loading) {
       autoConnected.current = true;
-      connect(SERVER, key);
+      if (proxyMode === "tun") {
+        (window as any).tunProxy?.start(SERVER, key);
+      } else {
+        connect(SERVER, key);
+      }
     }
-  }, [key, isConnected, loading, connect]);
+  }, [key, isConnected, loading, connect, proxyMode]);
 
   const connectWithKey = (k: string) => {
     const trimmed = k.trim();
@@ -34,7 +48,11 @@ export function App() {
     localStorage.setItem(STORAGE_KEY, trimmed);
     setKey(trimmed);
     setShowSetup(false);
-    connect(SERVER, trimmed);
+    if (proxyMode === "tun") {
+      (window as any).tunProxy?.start(SERVER, trimmed);
+    } else {
+      connect(SERVER, trimmed);
+    }
   };
 
   const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
@@ -45,7 +63,11 @@ export function App() {
   };
 
   const handleReset = () => {
-    disconnect();
+    if (proxyMode === "tun") {
+      (window as any).tunProxy?.stop();
+    } else {
+      disconnect();
+    }
     localStorage.removeItem(STORAGE_KEY);
     setKey("");
     setShowSetup(true);
@@ -92,12 +114,26 @@ export function App() {
         </div>
       ) : (
         <>
+          <ModeSelector mode={proxyMode} onChange={handleModeChange} disabled={isConnected} />
           <ConnectionButton
             connected={isConnected}
             loading={loading}
-            onConnect={() => connect(SERVER, key)}
-            onDisconnect={disconnect}
+            onConnect={() => {
+              if (proxyMode === "tun") {
+                (window as any).tunProxy?.start(SERVER, key);
+              } else {
+                connect(SERVER, key);
+              }
+            }}
+            onDisconnect={() => {
+              if (proxyMode === "tun") {
+                (window as any).tunProxy?.stop();
+              } else {
+                disconnect();
+              }
+            }}
           />
+          <AppRules visible={proxyMode === "tun"} />
           <button
             onClick={handleReset}
             style={{
