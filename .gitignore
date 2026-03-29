@@ -1,0 +1,18 @@
+# Go
+dist/
+*.exe
+
+# Node
+client/node_modules/
+client/dist/
+client/dist-electron/
+client/release/
+client/resources/daemon-*
+
+# TLS certs
+cert.pem
+key.pem
+
+# OS
+.DS_Store
+Thumbs.db

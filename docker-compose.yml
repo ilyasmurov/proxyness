@@ -1,0 +1,13 @@
+services:
+  proxy-server:
+    image: ghcr.io/ilyasmurov/smurov-proxy:latest
+    container_name: smurov-proxy
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - proxy-data:/data
+    command: ["-key", "${PROXY_KEY}", "-addr", ":443", "-cert", "/data/cert.pem", "-keyfile", "/data/key.pem"]
+
+volumes:
+  proxy-data:

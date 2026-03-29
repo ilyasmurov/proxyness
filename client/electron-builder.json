@@ -1,0 +1,26 @@
+{
+  "appId": "com.smurov.proxy",
+  "productName": "SmurovProxy",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "resources/",
+      "to": "resources/",
+      "filter": ["daemon-*"]
+    }
+  ],
+  "mac": {
+    "target": ["dmg"],
+    "icon": null
+  },
+  "win": {
+    "target": ["nsis"],
+    "icon": null
+  }
+}
