@@ -1,7 +1,4 @@
 import { execSync } from "child_process";
-import { writeFileSync, unlinkSync } from "fs";
-import path from "path";
-import { app } from "electron";
 
 const PROXY_HOST = "127.0.0.1";
 const PROXY_PORT = "1080";
@@ -44,10 +41,6 @@ function macDisable() {
   }
 }
 
-function getPacPath(): string {
-  return path.join(app.getPath("userData"), "proxy.pac");
-}
-
 const WIN_REFRESH_PROXY = `
 Add-Type -TypeDefinition @'
 using System.Runtime.InteropServices;
@@ -70,13 +63,7 @@ function winRefreshProxy() {
 
 function winEnable() {
   try {
-    const pacContent = `function FindProxyForURL(url, host) {
-  if (host === "127.0.0.1" || host === "localhost") return "DIRECT";
-  return "SOCKS5 ${PROXY_HOST}:${PROXY_PORT}; SOCKS ${PROXY_HOST}:${PROXY_PORT}";
-}`;
-    const pacPath = getPacPath();
-    writeFileSync(pacPath, pacContent);
-    const pacUrl = `file:///${pacPath.replace(/\\/g, "/")}`;
+    const pacUrl = "http://127.0.0.1:9090/proxy.pac";
     const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
     execSync(`reg add "${regBase}" /v AutoConfigURL /t REG_SZ /d "${pacUrl}" /f`);
     execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
@@ -92,11 +79,6 @@ function winDisable() {
     execSync(`reg delete "${regBase}" /v AutoConfigURL /f`);
     execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
     winRefreshProxy();
-  } catch {
-    // ignore
-  }
-  try {
-    unlinkSync(getPacPath());
   } catch {
     // ignore
   }

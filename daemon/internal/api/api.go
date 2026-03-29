@@ -32,6 +32,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /disconnect", s.handleDisconnect)
 	mux.HandleFunc("GET /status", s.handleStatus)
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /proxy.pac", s.handlePAC)
 	return mux
 }
 
@@ -65,4 +66,12 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handlePAC(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig")
+	w.Write([]byte(`function FindProxyForURL(url, host) {
+  if (host === "127.0.0.1" || host === "localhost") return "DIRECT";
+  return "SOCKS5 127.0.0.1:1080; SOCKS 127.0.0.1:1080; DIRECT";
+}`))
 }
