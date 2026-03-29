@@ -72,7 +72,9 @@ func WriteConnect(conn net.Conn, addr string, port uint16) error {
 		copy(buf[1:17], ip16)
 		binary.BigEndian.PutUint16(buf[17:], port)
 	} else {
-		// Domain name
+		if len(addr) > 255 {
+			return fmt.Errorf("domain name too long: %d bytes", len(addr))
+		}
 		buf = make([]byte, 1+1+len(addr)+2)
 		buf[0] = AddrTypeDomain
 		buf[1] = byte(len(addr))
@@ -137,5 +139,9 @@ func Relay(c1, c2 net.Conn) error {
 	}
 	go cp(c1, c2)
 	go cp(c2, c1)
-	return <-errc
+	err := <-errc
+	c1.Close()
+	c2.Close()
+	<-errc
+	return err
 }
