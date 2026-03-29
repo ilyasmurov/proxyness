@@ -1,12 +1,14 @@
-// Allow self-signed cert on our VPS for auto-updater
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from "electron";
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell } from "electron";
 import path from "path";
-import { autoUpdater } from "electron-updater";
+import fs from "fs";
+import https from "https";
 import { startDaemon, stopDaemon, startHelper, stopHelper } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
+
+const UPDATE_BASE = "https://82.97.246.65/download";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -77,33 +79,35 @@ function isNewer(latest: string, current: string): boolean {
   return false;
 }
 
-function setupAutoUpdater() {
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+let installerPath = "";
 
-  autoUpdater.on("update-downloaded", () => {
-    mainWindow?.webContents.send("update-downloaded");
-  });
+async function fetchYml(): Promise<{ version: string; filename: string } | null> {
+  const ymlFile = process.platform === "darwin" ? "latest-mac.yml" : "latest.yml";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(`${UPDATE_BASE}/${ymlFile}`, { signal: controller.signal });
+    clearTimeout(timeout);
+    const text = await res.text();
+    const ver = text.match(/^version:\s*(.+)$/m);
+    const p = text.match(/^path:\s*(.+)$/m);
+    if (!ver || !p) return null;
+    return { version: ver[1].trim(), filename: p[1].trim() };
+  } catch {
+    clearTimeout(timeout);
+    return null;
+  }
+}
 
-  autoUpdater.on("download-progress", (progress) => {
-    mainWindow?.webContents.send("update-progress", Math.round(progress.percent));
-  });
-
+function setupIpc() {
   ipcMain.handle("check-update-version", async () => {
     try {
-      const ymlFile = process.platform === "darwin" ? "latest-mac.yml" : "latest.yml";
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      const res = await fetch(`https://82.97.246.65/download/${ymlFile}`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const text = await res.text();
-      const match = text.match(/^version:\s*(.+)$/m);
-      if (!match) return { hasUpdate: false, latestVersion: null };
-      const latestVersion = match[1].trim();
-      const currentVersion = app.getVersion();
-      return { hasUpdate: isNewer(latestVersion, currentVersion), latestVersion };
+      const info = await fetchYml();
+      if (!info) return { hasUpdate: false, latestVersion: null, error: true };
+      return {
+        hasUpdate: isNewer(info.version, app.getVersion()),
+        latestVersion: info.version,
+      };
     } catch {
       return { hasUpdate: false, latestVersion: null, error: true };
     }
@@ -111,13 +115,41 @@ function setupAutoUpdater() {
 
   ipcMain.on("download-update", async () => {
     try {
-      await autoUpdater.checkForUpdates();
-      autoUpdater.downloadUpdate();
+      const info = await fetchYml();
+      if (!info) return;
+
+      const dest = path.join(app.getPath("temp"), info.filename);
+      const file = fs.createWriteStream(dest);
+
+      https.get(`${UPDATE_BASE}/${info.filename}`, { rejectUnauthorized: false }, (res) => {
+        const total = parseInt(res.headers["content-length"] || "0", 10);
+        let downloaded = 0;
+
+        res.on("data", (chunk: Buffer) => {
+          downloaded += chunk.length;
+          file.write(chunk);
+          if (total > 0) {
+            mainWindow?.webContents.send("update-progress", Math.round((downloaded / total) * 100));
+          }
+        });
+
+        res.on("end", () => {
+          file.end(() => {
+            installerPath = dest;
+            mainWindow?.webContents.send("update-downloaded");
+          });
+        });
+
+        res.on("error", () => file.close());
+      }).on("error", () => file.close());
     } catch {}
   });
 
   ipcMain.on("install-update", () => {
-    autoUpdater.quitAndInstall();
+    if (installerPath) {
+      shell.openPath(installerPath);
+      setTimeout(() => app.quit(), 1000);
+    }
   });
 
   ipcMain.handle("get-version", () => app.getVersion());
@@ -193,7 +225,7 @@ app.whenReady().then(() => {
   startHelper();
   createWindow();
   createTray();
-  setupAutoUpdater();
+  setupIpc();
 });
 
 app.on("before-quit", () => {
