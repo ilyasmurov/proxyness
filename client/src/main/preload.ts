@@ -22,3 +22,11 @@ contextBridge.exposeInMainWorld("sysproxy", {
 contextBridge.exposeInMainWorld("appInfo", {
   getVersion: () => ipcRenderer.invoke("get-version"),
 });
+
+contextBridge.exposeInMainWorld("tunProxy", {
+  start: (server: string, key: string) => ipcRenderer.send("tun-start", server, key),
+  stop: () => ipcRenderer.send("tun-stop"),
+  getStatus: () => ipcRenderer.invoke("tun-status"),
+  getRules: () => ipcRenderer.invoke("tun-rules-get"),
+  setRules: (rules: any) => ipcRenderer.send("tun-rules-set", rules),
+});

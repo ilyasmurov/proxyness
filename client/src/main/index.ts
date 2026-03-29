@@ -106,6 +106,50 @@ function setupAutoUpdater() {
     disableSystemProxy();
   });
 
+  ipcMain.on("tun-start", (_e, server: string, key: string) => {
+    fetch("http://127.0.0.1:9090/tun/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        server,
+        key,
+        helper_addr: process.platform === "darwin"
+          ? "/var/run/smurov-helper.sock"
+          : "127.0.0.1:9091",
+      }),
+    }).catch(() => {});
+  });
+
+  ipcMain.on("tun-stop", () => {
+    fetch("http://127.0.0.1:9090/tun/stop", { method: "POST" }).catch(() => {});
+  });
+
+  ipcMain.handle("tun-status", async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:9090/tun/status");
+      return await res.json();
+    } catch {
+      return { status: "inactive" };
+    }
+  });
+
+  ipcMain.handle("tun-rules-get", async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:9090/tun/rules");
+      return await res.json();
+    } catch {
+      return { mode: "proxy_all_except", apps: [] };
+    }
+  });
+
+  ipcMain.on("tun-rules-set", (_e, rules: any) => {
+    fetch("http://127.0.0.1:9090/tun/rules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rules),
+    }).catch(() => {});
+  });
+
   autoUpdater.checkForUpdates().catch(() => {});
 }
 
