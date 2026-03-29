@@ -27,7 +27,11 @@ export function UpdateBanner() {
     window.updater.onUpdateAvailable((v) => { setVersion(v); setChecking(false); setUpToDate(false); });
     window.updater.onUpdateProgress((p) => setProgress(p));
     window.updater.onUpdateDownloaded(() => { setDownloading(false); setReady(true); });
-    window.updater.onUpdateNotAvailable(() => { setChecking(false); setUpToDate(true); });
+    window.updater.onUpdateNotAvailable(() => {
+      setChecking(false);
+      setUpToDate(true);
+      setTimeout(() => setUpToDate(false), 3000);
+    });
   }, []);
 
   const handleCheck = () => {
@@ -63,6 +67,15 @@ export function UpdateBanner() {
     return (
       <div style={{ padding: "10px 12px", marginBottom: 16, color: "#555", fontSize: 13, textAlign: "center" }}>
         Up to date
+        <button
+          onClick={() => setUpToDate(false)}
+          style={{
+            marginLeft: 8, background: "transparent", border: "none",
+            color: "#444", fontSize: 11, cursor: "pointer", textDecoration: "underline",
+          }}
+        >
+          ok
+        </button>
       </div>
     );
   }
