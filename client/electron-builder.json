@@ -26,5 +26,11 @@
   "win": {
     "target": ["nsis"],
     "icon": null
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": true,
+    "uninstallDisplayName": "SmurovProxy"
   }
 }
