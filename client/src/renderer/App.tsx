@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, ClipboardEvent } from "react";
+import { useState, useEffect, useRef, useCallback, ClipboardEvent } from "react";
 import { useDaemon } from "./hooks/useDaemon";
 import { StatusBar } from "./components/StatusBar";
 import { ConnectionButton } from "./components/ConnectionButton";
@@ -13,34 +13,87 @@ export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [showSetup, setShowSetup] = useState(!key);
   const [version, setVersion] = useState("");
-  const { status, error, loading, connect, disconnect } = useDaemon();
+  const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
   const autoConnected = useRef(false);
   const [proxyMode, setProxyMode] = useState<ProxyMode>(
     () => (localStorage.getItem("smurov-proxy-mode") as ProxyMode) || "tun"
   );
 
+  // TUN state
+  const [tunStatus, setTunStatus] = useState<"inactive" | "active">("inactive");
+  const [tunLoading, setTunLoading] = useState(false);
+  const [tunError, setTunError] = useState<string | null>(null);
+
   useEffect(() => {
     (window as any).appInfo?.getVersion().then((v: string) => setVersion(v));
   }, []);
 
-  const isConnected = status.status === "connected";
+  // Poll TUN status when in TUN mode
+  useEffect(() => {
+    if (proxyMode !== "tun") return;
+    const poll = async () => {
+      try {
+        const s = await (window as any).tunProxy?.getStatus();
+        if (s) setTunStatus(s.status === "active" ? "active" : "inactive");
+      } catch {}
+    };
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [proxyMode]);
+
+  // Effective state based on mode
+  const isConnected = proxyMode === "tun"
+    ? tunStatus === "active"
+    : socksStatus.status === "connected";
+  const isLoading = proxyMode === "tun" ? tunLoading : socksLoading;
+  const currentError = proxyMode === "tun" ? tunError : socksError;
+  const uptime = proxyMode === "tun" ? 0 : socksStatus.uptime;
 
   const handleModeChange = (m: ProxyMode) => {
     setProxyMode(m);
     localStorage.setItem("smurov-proxy-mode", m);
   };
 
+  const tunConnect = useCallback(async (server: string, k: string) => {
+    setTunLoading(true);
+    setTunError(null);
+    try {
+      const result = await (window as any).tunProxy?.start(server, k);
+      if (result && !result.ok) {
+        setTunError(result.error || "Failed to connect");
+      } else {
+        setTunStatus("active");
+      }
+    } catch {
+      setTunError("Failed to connect");
+    } finally {
+      setTunLoading(false);
+    }
+  }, []);
+
+  const tunDisconnect = useCallback(async () => {
+    setTunLoading(true);
+    try {
+      await (window as any).tunProxy?.stop();
+      setTunStatus("inactive");
+      setTunError(null);
+    } catch {} finally {
+      setTunLoading(false);
+    }
+  }, []);
+
   // Auto-connect on launch if key is saved
   useEffect(() => {
-    if (!autoConnected.current && key && !isConnected && !loading) {
+    if (!autoConnected.current && key && !isConnected && !isLoading) {
       autoConnected.current = true;
       if (proxyMode === "tun") {
-        (window as any).tunProxy?.start(SERVER, key);
+        tunConnect(SERVER, key);
       } else {
         connect(SERVER, key);
       }
     }
-  }, [key, isConnected, loading, connect, proxyMode]);
+  }, [key, isConnected, isLoading, connect, proxyMode, tunConnect]);
 
   const connectWithKey = (k: string) => {
     const trimmed = k.trim();
@@ -49,7 +102,7 @@ export function App() {
     setKey(trimmed);
     setShowSetup(false);
     if (proxyMode === "tun") {
-      (window as any).tunProxy?.start(SERVER, trimmed);
+      tunConnect(SERVER, trimmed);
     } else {
       connect(SERVER, trimmed);
     }
@@ -64,7 +117,7 @@ export function App() {
 
   const handleReset = () => {
     if (proxyMode === "tun") {
-      (window as any).tunProxy?.stop();
+      tunDisconnect();
     } else {
       disconnect();
     }
@@ -81,7 +134,7 @@ export function App() {
         {version && <span style={{ fontSize: 12, color: "#555" }}>v{version}</span>}
       </div>
       <UpdateBanner />
-      <StatusBar status={status.status} uptime={status.uptime} error={error} />
+      <StatusBar status={isConnected ? "connected" : "disconnected"} uptime={uptime} error={currentError} />
 
       {showSetup ? (
         <div>
@@ -106,7 +159,7 @@ export function App() {
               onKeyDown={(e) => e.key === "Enter" && connectWithKey(key)}
             />
           </label>
-          {loading && (
+          {isLoading && (
             <div style={{ color: "#aaa", fontSize: 13, marginTop: 8 }}>
               Connecting...
             </div>
@@ -117,17 +170,17 @@ export function App() {
           <ModeSelector mode={proxyMode} onChange={handleModeChange} disabled={isConnected} />
           <ConnectionButton
             connected={isConnected}
-            loading={loading}
+            loading={isLoading}
             onConnect={() => {
               if (proxyMode === "tun") {
-                (window as any).tunProxy?.start(SERVER, key);
+                tunConnect(SERVER, key);
               } else {
                 connect(SERVER, key);
               }
             }}
             onDisconnect={() => {
               if (proxyMode === "tun") {
-                (window as any).tunProxy?.stop();
+                tunDisconnect();
               } else {
                 disconnect();
               }

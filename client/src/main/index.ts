@@ -130,22 +130,33 @@ function setupAutoUpdater() {
     disableSystemProxy();
   });
 
-  ipcMain.on("tun-start", (_e, server: string, key: string) => {
-    fetch("http://127.0.0.1:9090/tun/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        server,
-        key,
-        helper_addr: process.platform === "darwin"
-          ? "/var/run/smurov-helper.sock"
-          : "127.0.0.1:9091",
-      }),
-    }).catch(() => {});
+  ipcMain.handle("tun-start", async (_e, server: string, key: string) => {
+    try {
+      const res = await fetch("http://127.0.0.1:9090/tun/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          server,
+          key,
+          helper_addr: process.platform === "darwin"
+            ? "/var/run/smurov-helper.sock"
+            : "127.0.0.1:9091",
+        }),
+      });
+      if (!res.ok) return { ok: false, error: await res.text() };
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Daemon not running" };
+    }
   });
 
-  ipcMain.on("tun-stop", () => {
-    fetch("http://127.0.0.1:9090/tun/stop", { method: "POST" }).catch(() => {});
+  ipcMain.handle("tun-stop", async () => {
+    try {
+      await fetch("http://127.0.0.1:9090/tun/stop", { method: "POST" });
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
   });
 
   ipcMain.handle("tun-status", async () => {
