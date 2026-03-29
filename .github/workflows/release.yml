@@ -38,21 +38,18 @@ jobs:
           npx electron-builder --mac dmg --x64 --publish never
           npx electron-builder --win nsis --x64 --publish never
 
-      - name: Rename artifacts
+      - name: Create stable download names
         run: |
           cd client/release
-          for f in *arm64*.dmg; do mv "$f" SmurovProxy-mac-arm64.dmg 2>/dev/null; done || true
-          for f in *x64*.dmg; do mv "$f" SmurovProxy-mac-x64.dmg 2>/dev/null; done || true
-          for f in *.exe; do mv "$f" SmurovProxy-win-x64.exe 2>/dev/null; done || true
+          for f in *arm64*.dmg; do cp "$f" SmurovProxy-mac-arm64.dmg 2>/dev/null; done || true
+          for f in *-x64.dmg *-x64-*.dmg; do cp "$f" SmurovProxy-mac-x64.dmg 2>/dev/null; done || true
+          for f in *.exe; do cp "$f" SmurovProxy-win-x64.exe 2>/dev/null; done || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: installers
-          path: |
-            client/release/SmurovProxy-mac-arm64.dmg
-            client/release/SmurovProxy-mac-x64.dmg
-            client/release/SmurovProxy-win-x64.exe
+          path: client/release/
 
   deploy-to-vps:
     needs: build-clients
@@ -82,7 +79,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
             docker exec smurov-proxy mkdir -p /data/downloads
-            for f in /tmp/smurov-downloads/*.dmg /tmp/smurov-downloads/*.exe; do
+            for f in /tmp/smurov-downloads/*; do
               docker cp "$f" smurov-proxy:/data/downloads/
             done
             rm -rf /tmp/smurov-downloads

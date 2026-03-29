@@ -16,9 +16,8 @@
     }
   ],
   "publish": {
-    "provider": "github",
-    "owner": "ilyasmurov",
-    "repo": "smurov-proxy"
+    "provider": "generic",
+    "url": "https://82.97.246.65/download/"
   },
   "mac": {
     "target": ["dmg"],

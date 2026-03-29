@@ -1,3 +1,6 @@
+// Allow self-signed cert on our VPS for auto-updater
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from "electron";
 import path from "path";
 import { autoUpdater } from "electron-updater";
