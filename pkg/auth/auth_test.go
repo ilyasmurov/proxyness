@@ -91,3 +91,33 @@ func TestValidateAuthMessage_BadVersion(t *testing.T) {
 		t.Fatal("expected error for wrong version")
 	}
 }
+
+func TestValidateAuthMessageMulti_Match(t *testing.T) {
+	key1 := GenerateKey()
+	key2 := GenerateKey()
+	key3 := GenerateKey()
+	msg, _ := CreateAuthMessage(key2)
+	matched, err := ValidateAuthMessageMulti([]string{key1, key2, key3}, msg)
+	if err != nil {
+		t.Fatalf("expected match: %v", err)
+	}
+	if matched != key2 {
+		t.Fatalf("expected key2")
+	}
+}
+
+func TestValidateAuthMessageMulti_NoMatch(t *testing.T) {
+	msg, _ := CreateAuthMessage(GenerateKey())
+	_, err := ValidateAuthMessageMulti([]string{GenerateKey(), GenerateKey()}, msg)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestValidateAuthMessageMulti_EmptyKeys(t *testing.T) {
+	msg, _ := CreateAuthMessage(GenerateKey())
+	_, err := ValidateAuthMessageMulti([]string{}, msg)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
