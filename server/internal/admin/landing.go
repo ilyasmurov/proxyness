@@ -41,6 +41,9 @@ h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 12px; background: linea
     <a href="https://github.com/ilyasmurov/smurov-proxy/releases/latest/download/SmurovProxy-mac-x64.dmg" class="download-btn mac">
       <span class="icon">&#63743;</span> macOS (Intel) <span class="badge">.dmg</span>
     </a>
+    <a href="https://github.com/ilyasmurov/smurov-proxy/releases/latest/download/SmurovProxy-win-x64.exe" class="download-btn win">
+      <span class="icon">&#9114;</span> Windows <span class="badge">.exe</span>
+    </a>
   </div>
 
   <div class="setup">
