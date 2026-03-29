@@ -19,7 +19,7 @@ COPY --from=ui-builder /ui/dist/ server/internal/admin/static/
 # Use replace directive instead of workspace
 RUN cd server && go mod edit -replace smurov-proxy/pkg=../pkg
 WORKDIR /build/server
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /server ./cmd
+RUN GOTOOLCHAIN=auto CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /server ./cmd
 
 # Stage 3: Runtime
 FROM alpine:3.20
