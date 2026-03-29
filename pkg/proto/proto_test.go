@@ -2,7 +2,9 @@ package proto
 
 import (
 	"net"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"smurov-proxy/pkg/auth"
 )
@@ -134,4 +136,34 @@ func TestRelay(t *testing.T) {
 	c2.Close()
 	c3.Close()
 	c4.Close()
+}
+
+func TestCountingRelay(t *testing.T) {
+	c1, c2 := net.Pipe()
+	c3, c4 := net.Pipe()
+
+	var totalIn, totalOut int64
+	go CountingRelay(c2, c3, func(in, out int64) {
+		atomic.AddInt64(&totalIn, in)
+		atomic.AddInt64(&totalOut, out)
+	})
+
+	go func() {
+		c1.Write([]byte("hello"))
+		c1.Close()
+	}()
+
+	buf := make([]byte, 10)
+	n, _ := c4.Read(buf)
+	if string(buf[:n]) != "hello" {
+		t.Fatalf("got %q", string(buf[:n]))
+	}
+	c2.Close()
+	c3.Close()
+	c4.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	if atomic.LoadInt64(&totalIn) == 0 && atomic.LoadInt64(&totalOut) == 0 {
+		t.Fatal("expected non-zero byte counts")
+	}
 }
