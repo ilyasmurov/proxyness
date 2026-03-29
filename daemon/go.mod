@@ -1,0 +1,5 @@
+module smurov-proxy/daemon
+
+go 1.26.1
+
+require smurov-proxy/pkg v0.0.0
