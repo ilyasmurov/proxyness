@@ -13,9 +13,9 @@ function getDaemonPath(): string {
   const arch = process.arch;
 
   if (platform === "win32") {
-    return path.join(resourcesPath, "resources", "daemon-windows.exe");
+    return path.join(resourcesPath, "daemon-windows.exe");
   }
-  return path.join(resourcesPath, "resources", `daemon-${platform}-${arch}`);
+  return path.join(resourcesPath, `daemon-${platform}-${arch}`);
 }
 
 export function startDaemon(): void {
