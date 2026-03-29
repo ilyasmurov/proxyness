@@ -88,6 +88,8 @@ function setupAutoUpdater() {
     autoUpdater.quitAndInstall();
   });
 
+  ipcMain.handle("get-version", () => app.getVersion());
+
   ipcMain.on("enable-proxy", () => {
     enableSystemProxy();
   });

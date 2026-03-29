@@ -10,8 +10,13 @@ const STORAGE_KEY = "smurov-proxy-key";
 export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [showSetup, setShowSetup] = useState(!key);
+  const [version, setVersion] = useState("");
   const { status, error, loading, connect, disconnect } = useDaemon();
   const autoConnected = useRef(false);
+
+  useEffect(() => {
+    (window as any).appInfo?.getVersion().then((v: string) => setVersion(v));
+  }, []);
 
   const isConnected = status.status === "connected";
 
@@ -49,9 +54,10 @@ export function App() {
 
   return (
     <div style={{ maxWidth: 360, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 20, marginBottom: 20, fontWeight: 700 }}>
-        SmurovProxy
-      </h1>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700 }}>SmurovProxy</h1>
+        {version && <span style={{ fontSize: 12, color: "#555" }}>v{version}</span>}
+      </div>
       <UpdateBanner />
       <StatusBar status={status.status} uptime={status.uptime} error={error} />
 

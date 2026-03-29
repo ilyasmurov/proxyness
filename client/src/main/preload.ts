@@ -15,3 +15,7 @@ contextBridge.exposeInMainWorld("sysproxy", {
   enable: () => ipcRenderer.send("enable-proxy"),
   disable: () => ipcRenderer.send("disable-proxy"),
 });
+
+contextBridge.exposeInMainWorld("appInfo", {
+  getVersion: () => ipcRenderer.invoke("get-version"),
+});
