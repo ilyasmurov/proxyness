@@ -49,12 +49,14 @@ function getWindowsApps(): InstalledApp[] {
   const seen = new Set<string>();
 
   const localAppData = path.join(os.homedir(), "AppData", "Local");
+  const roamingAppData = path.join(os.homedir(), "AppData", "Roaming");
 
   const dirs = [
     "C:\\Program Files",
     "C:\\Program Files (x86)",
     path.join(localAppData, "Programs"),
     localAppData,
+    roamingAppData,
   ];
 
   for (const dir of dirs) {
