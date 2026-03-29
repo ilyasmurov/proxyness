@@ -45,15 +45,34 @@ jobs:
           for f in *x64*.dmg *64*.dmg; do mv "$f" SmurovProxy-mac-x64.dmg 2>/dev/null; done || true
           for f in *.exe; do mv "$f" SmurovProxy-win-x64.exe 2>/dev/null; done || true
 
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers
+          path: |
+            client/release/SmurovProxy-mac-arm64.dmg
+            client/release/SmurovProxy-mac-x64.dmg
+            client/release/SmurovProxy-win-x64.exe
+
+  deploy-to-vps:
+    needs: build-clients
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: installers
+          path: installers
+
       - name: Upload to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
-          source: "client/release/SmurovProxy-mac-arm64.dmg,client/release/SmurovProxy-mac-x64.dmg,client/release/SmurovProxy-win-x64.exe"
+          source: "installers/*"
           target: /tmp/smurov-downloads
-          strip_components: 2
+          strip_components: 1
 
       - name: Move files to container volume
         uses: appleboy/ssh-action@v1
