@@ -2,8 +2,11 @@ package admin
 
 import (
 	"embed"
+	"io"
 	"io/fs"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 )
 
@@ -12,23 +15,31 @@ var staticFiles embed.FS
 
 func SPAHandler() http.Handler {
 	sub, _ := fs.Sub(staticFiles, "static")
-	fileServer := http.FileServer(http.FS(sub))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/admin")
-		if path == "" || path == "/" {
-			path = "/index.html"
+		path = strings.TrimPrefix(path, "/")
+		if path == "" {
+			path = "index.html"
 		}
 
-		f, err := sub.Open(strings.TrimPrefix(path, "/"))
+		f, err := sub.Open(path)
 		if err != nil {
-			// SPA fallback: serve index.html for client-side routes
-			r.URL.Path = "/index.html"
-			fileServer.ServeHTTP(w, r)
-			return
+			// SPA fallback: serve index.html for unknown routes
+			path = "index.html"
+			f, err = sub.Open(path)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
 		}
-		f.Close()
-		r.URL.Path = path
-		fileServer.ServeHTTP(w, r)
+		defer f.Close()
+
+		ct := mime.TypeByExtension(filepath.Ext(path))
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+		w.Header().Set("Content-Type", ct)
+		io.Copy(w, f.(io.Reader))
 	})
 }
