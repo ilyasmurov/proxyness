@@ -35,11 +35,11 @@ h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 12px; background: linea
   <p class="subtitle">Secure TLS proxy — fast, private, undetectable</p>
 
   <div class="downloads">
-    <a href="https://github.com/ilyasmurov/smurov-proxy/releases/latest/download/SmurovProxy.dmg" class="download-btn mac">
-      <span class="icon">&#63743;</span> Download for macOS <span class="badge">.dmg</span>
+    <a href="https://github.com/ilyasmurov/smurov-proxy/releases/latest/download/SmurovProxy-mac-arm64.dmg" class="download-btn mac">
+      <span class="icon">&#63743;</span> macOS (Apple Silicon) <span class="badge">.dmg</span>
     </a>
-    <a href="https://github.com/ilyasmurov/smurov-proxy/releases/latest/download/SmurovProxy-Setup.exe" class="download-btn win">
-      <span class="icon">&#8862;</span> Download for Windows <span class="badge">.exe</span>
+    <a href="https://github.com/ilyasmurov/smurov-proxy/releases/latest/download/SmurovProxy-mac-x64.dmg" class="download-btn mac">
+      <span class="icon">&#63743;</span> macOS (Intel) <span class="badge">.dmg</span>
     </a>
   </div>
 

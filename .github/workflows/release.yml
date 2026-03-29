@@ -34,19 +34,19 @@ jobs:
           cd client
           npm install
           npm run build
-          npx electron-builder --mac dmg --universal
-          npx electron-builder --win nsis --x64
+          npx electron-builder --mac dmg --arm64
+          npx electron-builder --mac dmg --x64
 
       - name: Rename artifacts
         run: |
           cd client/release
-          mv *.dmg SmurovProxy.dmg 2>/dev/null || true
-          mv *.exe SmurovProxy-Setup.exe 2>/dev/null || true
+          for f in *arm64*.dmg; do mv "$f" SmurovProxy-mac-arm64.dmg 2>/dev/null; done || true
+          for f in *x64*.dmg *64*.dmg; do mv "$f" SmurovProxy-mac-x64.dmg 2>/dev/null; done || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            client/release/SmurovProxy.dmg
-            client/release/SmurovProxy-Setup.exe
+            client/release/SmurovProxy-mac-arm64.dmg
+            client/release/SmurovProxy-mac-x64.dmg
           generate_release_notes: true
