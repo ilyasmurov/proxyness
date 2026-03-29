@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const API_BASE = "http://127.0.0.1:9090";
 
@@ -20,13 +20,22 @@ export function useDaemon() {
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const prevStatus = useRef<string>("disconnected");
 
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/status`);
       if (res.ok) {
-        setStatus(await res.json());
-        setError(null);
+        const data = await res.json();
+        // Server disconnected us (health check failure)
+        if (prevStatus.current === "connected" && data.status === "disconnected") {
+          window.sysproxy.disable();
+          if (data.error) {
+            setError(data.error);
+          }
+        }
+        prevStatus.current = data.status;
+        setStatus({ status: data.status, uptime: data.uptime });
       }
     } catch {
       setError("Daemon not running");

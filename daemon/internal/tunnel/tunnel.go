@@ -5,11 +5,19 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"smurov-proxy/daemon/internal/socks5"
 	"smurov-proxy/pkg/proto"
+)
+
+const (
+	maxRetries     = 3
+	retryDelay     = 3 * time.Second
+	dialTimeout    = 5 * time.Second
+	healthInterval = 30 * time.Second
 )
 
 type Status string
@@ -26,6 +34,8 @@ type Tunnel struct {
 	key        string
 	listener   net.Listener
 	startTime  time.Time
+	stopHealth chan struct{}
+	lastError  string
 }
 
 func New() *Tunnel {
@@ -34,33 +44,44 @@ func New() *Tunnel {
 
 func (t *Tunnel) Start(listenAddr, serverAddr, key string) error {
 	t.mu.Lock()
+	if t.status != Disconnected {
+		t.mu.Unlock()
+		return fmt.Errorf("tunnel already %s", t.status)
+	}
+	t.lastError = ""
+	t.mu.Unlock()
+
+	// Verify with retries (no lock held so status polling still works)
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			log.Printf("[tunnel] retry %d/%d in %s...", attempt, maxRetries, retryDelay)
+			time.Sleep(retryDelay)
+		}
+		log.Printf("[tunnel] verifying connection to %s (attempt %d/%d)...", serverAddr, attempt, maxRetries)
+		lastErr = verifyServer(serverAddr, key)
+		if lastErr == nil {
+			break
+		}
+		// Don't retry auth errors — wrong key won't fix itself
+		if strings.Contains(lastErr.Error(), "invalid key") {
+			return lastErr
+		}
+		log.Printf("[tunnel] attempt %d failed: %v", attempt, lastErr)
+	}
+	if lastErr != nil {
+		return fmt.Errorf("server temporarily unavailable, try again later")
+	}
+
+	log.Printf("[tunnel] key verified OK")
+
+	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	// Re-check in case Stop() was called during retries
 	if t.status != Disconnected {
 		return fmt.Errorf("tunnel already %s", t.status)
 	}
-
-	// Verify server is reachable and key is valid before starting
-	log.Printf("[tunnel] verifying connection to %s...", serverAddr)
-	tlsConn, err := tls.Dial("tcp", serverAddr, &tls.Config{
-		InsecureSkipVerify: true,
-	})
-	if err != nil {
-		return fmt.Errorf("server unreachable: %v", err)
-	}
-	if err := proto.WriteAuth(tlsConn, key); err != nil {
-		tlsConn.Close()
-		return fmt.Errorf("auth failed: %v", err)
-	}
-	ok, err := proto.ReadResult(tlsConn)
-	tlsConn.Close()
-	if err != nil {
-		return fmt.Errorf("auth failed: %v", err)
-	}
-	if !ok {
-		return fmt.Errorf("invalid key")
-	}
-	log.Printf("[tunnel] key verified OK")
 
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -72,18 +93,28 @@ func (t *Tunnel) Start(listenAddr, serverAddr, key string) error {
 	t.key = key
 	t.status = Connected
 	t.startTime = time.Now()
+	t.stopHealth = make(chan struct{})
 
 	go t.acceptLoop(ln)
+	go t.healthLoop()
 	return nil
 }
 
 func (t *Tunnel) Stop() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	t.lastError = ""
+	t.stopLocked()
+}
 
+func (t *Tunnel) stopLocked() {
 	if t.listener != nil {
 		t.listener.Close()
 		t.listener = nil
+	}
+	if t.stopHealth != nil {
+		close(t.stopHealth)
+		t.stopHealth = nil
 	}
 	t.status = Disconnected
 }
@@ -94,6 +125,12 @@ func (t *Tunnel) GetStatus() Status {
 	return t.status
 }
 
+func (t *Tunnel) LastError() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastError
+}
+
 func (t *Tunnel) Uptime() int64 {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -101,6 +138,42 @@ func (t *Tunnel) Uptime() int64 {
 		return 0
 	}
 	return int64(time.Since(t.startTime).Seconds())
+}
+
+func (t *Tunnel) healthLoop() {
+	ticker := time.NewTicker(healthInterval)
+	defer ticker.Stop()
+
+	failures := 0
+	for {
+		select {
+		case <-t.stopHealth:
+			return
+		case <-ticker.C:
+			t.mu.Lock()
+			addr := t.serverAddr
+			key := t.key
+			t.mu.Unlock()
+
+			if err := verifyServer(addr, key); err != nil {
+				failures++
+				log.Printf("[tunnel] health check failed (%d/%d): %v", failures, maxRetries, err)
+				if failures >= maxRetries {
+					log.Printf("[tunnel] server unreachable, disconnecting")
+					t.mu.Lock()
+					t.lastError = "Server temporarily unavailable, try again later"
+					t.stopLocked()
+					t.mu.Unlock()
+					return
+				}
+			} else {
+				if failures > 0 {
+					log.Printf("[tunnel] health check recovered after %d failures", failures)
+				}
+				failures = 0
+			}
+		}
+	}
 }
 
 func (t *Tunnel) acceptLoop(ln net.Listener) {
@@ -167,4 +240,28 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 	log.Printf("[tunnel] connected: %s", target)
 	socks5.SendSuccess(conn)
 	proto.Relay(conn, tlsConn)
+}
+
+func verifyServer(serverAddr, key string) error {
+	tlsConn, err := tls.DialWithDialer(
+		&net.Dialer{Timeout: dialTimeout},
+		"tcp", serverAddr,
+		&tls.Config{InsecureSkipVerify: true},
+	)
+	if err != nil {
+		return fmt.Errorf("server unreachable: %v", err)
+	}
+	defer tlsConn.Close()
+
+	if err := proto.WriteAuth(tlsConn, key); err != nil {
+		return fmt.Errorf("auth failed: %v", err)
+	}
+	ok, err := proto.ReadResult(tlsConn)
+	if err != nil {
+		return fmt.Errorf("auth failed: %v", err)
+	}
+	if !ok {
+		return fmt.Errorf("invalid key")
+	}
+	return nil
 }

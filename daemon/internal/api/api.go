@@ -22,6 +22,7 @@ type ConnectRequest struct {
 type StatusResponse struct {
 	Status string `json:"status"`
 	Uptime int64  `json:"uptime"`
+	Error  string `json:"error,omitempty"`
 }
 
 func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string) *Server {
@@ -69,6 +70,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(StatusResponse{
 		Status: string(s.tunnel.GetStatus()),
 		Uptime: s.tunnel.Uptime(),
+		Error:  s.tunnel.LastError(),
 	})
 }
 
