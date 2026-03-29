@@ -9,19 +9,16 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"flag"
-	"fmt"
-	"io"
 	"log"
 	"math/big"
 	"net"
 	"os"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	"smurov-proxy/pkg/proto"
 	"smurov-proxy/server/internal/admin"
 	"smurov-proxy/server/internal/db"
 	"smurov-proxy/server/internal/mux"
+	"smurov-proxy/server/internal/proxy"
 	"smurov-proxy/server/internal/stats"
 )
 
@@ -72,64 +69,12 @@ func main() {
 
 	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, "/data/downloads")
 
+	proxyHandler := &proxy.Handler{DB: database, Tracker: tracker}
 	m := mux.NewListenerMux(ln,
-		func(conn net.Conn) { handleProxy(conn, database, tracker) },
+		func(conn net.Conn) { proxyHandler.Handle(conn) },
 		adminHandler,
 	)
 	m.Serve()
-}
-
-func handleProxy(conn net.Conn, database *db.DB, tracker *stats.Tracker) {
-	defer conn.Close()
-
-	keys, err := database.GetActiveKeys()
-	if err != nil || len(keys) == 0 {
-		log.Printf("no active keys: %v", err)
-		return
-	}
-
-	msg := make([]byte, auth.AuthMsgLen)
-	if _, err := io.ReadFull(conn, msg); err != nil {
-		return
-	}
-	matchedKey, err := auth.ValidateAuthMessageMulti(keys, msg)
-	if err != nil {
-		proto.WriteResult(conn, false)
-		log.Printf("auth failed from %s: %v", conn.RemoteAddr(), err)
-		return
-	}
-	proto.WriteResult(conn, true)
-
-	device, err := database.GetDeviceByKey(matchedKey)
-	if err != nil {
-		log.Printf("device lookup: %v", err)
-		return
-	}
-
-	destAddr, port, err := proto.ReadConnect(conn)
-	if err != nil {
-		log.Printf("connect read: %v", err)
-		return
-	}
-
-	target, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", destAddr, port), 10*time.Second)
-	if err != nil {
-		proto.WriteResult(conn, false)
-		return
-	}
-	defer target.Close()
-	proto.WriteResult(conn, true)
-
-	connID := tracker.Add(device.ID, device.Name, device.UserName)
-	proto.CountingRelay(conn, target, func(in, out int64) {
-		tracker.AddBytes(connID, in, out)
-	})
-
-	info := tracker.Remove(connID)
-	if info != nil {
-		hour := time.Now().Truncate(time.Hour)
-		database.RecordTraffic(device.ID, hour, info.BytesIn, info.BytesOut, 1)
-	}
 }
 
 func ensureCert(certFile, keyFile string) error {

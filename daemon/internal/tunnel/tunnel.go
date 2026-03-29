@@ -146,6 +146,12 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 		return
 	}
 
+	if err := proto.WriteMsgType(tlsConn, proto.MsgTypeTCP); err != nil {
+		socks5.SendFailure(conn)
+		log.Printf("[tunnel] msg type write failed: %v", err)
+		return
+	}
+
 	if err := proto.WriteConnect(tlsConn, req.Addr, req.Port); err != nil {
 		socks5.SendFailure(conn)
 		log.Printf("[tunnel] connect write failed for %s: %v", target, err)
