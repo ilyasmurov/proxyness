@@ -1,4 +1,4 @@
-# Admin Panel + Multi-User Support
+# Admin Panel + Multi-User Support + Traffic Stats
 
 ## Контекст
 
@@ -47,6 +47,44 @@ CREATE TABLE devices (
 - `active` — 0/1, можно деактивировать девайс без удаления
 - ON DELETE CASCADE — удаление юзера удаляет все его девайсы
 
+### Статистика трафика
+
+```sql
+CREATE TABLE traffic_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    hour TIMESTAMP NOT NULL,
+    bytes_in INTEGER DEFAULT 0,
+    bytes_out INTEGER DEFAULT 0,
+    connections INTEGER DEFAULT 0
+);
+
+CREATE UNIQUE INDEX idx_traffic_device_hour ON traffic_stats(device_id, hour);
+```
+
+- Агрегация по часам: одна строка на девайс в час
+- `bytes_in` / `bytes_out` — входящий/исходящий трафик в байтах
+- `connections` — количество соединений за час
+- `UPSERT` при записи: `INSERT ... ON CONFLICT(device_id, hour) DO UPDATE SET bytes_in = bytes_in + ?, ...`
+- ~7000 строк в месяц при 10 девайсах
+
+### Активные соединения (in-memory)
+
+Текущие подключения хранятся в памяти (не в БД):
+
+```go
+type ActiveConn struct {
+    DeviceID   int
+    DeviceName string
+    UserName   string
+    StartedAt  time.Time
+    BytesIn    int64  // atomic counter
+    BytesOut   int64  // atomic counter
+}
+```
+
+Сервер ведёт `map[connID]*ActiveConn`, обновляемый при каждом relay. При завершении соединения — данные flush в traffic_stats и удаление из map.
+
 ## REST API (`/admin/api/*`)
 
 Все эндпоинты защищены Basic Auth (`ADMIN_USER` / `ADMIN_PASSWORD` env vars).
@@ -70,6 +108,19 @@ DELETE /admin/api/devices/:id        → 204
 
 При создании девайса ключ генерируется автоматически и возвращается в ответе. Это единственный момент когда ключ виден полностью.
 
+### Stats
+
+```
+GET    /admin/api/stats/active       → [{device_id, device_name, user_name, started_at, bytes_in, bytes_out}]
+GET    /admin/api/stats/traffic?period=day|week|month
+       → [{device_id, device_name, user_name, bytes_in, bytes_out, connections}]
+GET    /admin/api/stats/overview     → {total_bytes_in, total_bytes_out, active_connections, total_devices}
+```
+
+- `/active` — текущие соединения из in-memory map
+- `/traffic` — агрегированные данные из traffic_stats за период
+- `/overview` — общая сводка для дашборда
+
 ## Admin UI (React + shadcn/ui)
 
 SPA собирается Vite → статика встраивается в Go binary через `//go:embed`.
@@ -78,17 +129,23 @@ SPA собирается Vite → статика встраивается в Go 
 
 ### Страницы
 
-**Список юзеров** (`/admin/`)
-- Таблица: имя, кол-во девайсов, дата создания
+**Дашборд** (`/admin/`)
+- Карточки сводки: активные соединения, всего трафика за сегодня, всего девайсов
+- Список текущих активных подключений (девайс, юзер, время, байты in/out — live)
+- Кнопка перехода к юзерам
+
+**Список юзеров** (`/admin/users`)
+- Таблица: имя, кол-во девайсов, трафик за сегодня, дата создания
 - Кнопка "Add User" → диалог с полем name
 - Клик на юзера → страница девайсов
 
 **Девайсы юзера** (`/admin/users/:id`)
 - Имя юзера сверху, кнопка удалить юзера
-- Таблица девайсов: имя, статус (active/inactive), дата
+- Таблица девайсов: имя, статус (active/inactive), трафик за сегодня, дата
 - Кнопка "Add Device" → диалог с полем name → показывает сгенерированный ключ (скопировать)
 - Toggle active/inactive для каждого девайса
 - Кнопка удалить девайс
+- Простой график трафика по дням за последнюю неделю (per device)
 
 ### Стек
 
@@ -116,10 +173,21 @@ func ValidateAuthMessageMulti(keys []string, msg []byte) (matchedKey string, err
 - Мультиплексор: читает первый байт соединения, решает HTTP или прокси
 - Для прокси: получает активные ключи из БД, передаёт в `proto.ReadAuth`
 
+### `pkg/proto`
+
+`Relay` сейчас просто `io.Copy`. Добавить `CountingRelay` — обёртка, считающая байты через callback:
+
+```go
+func CountingRelay(c1, c2 net.Conn, onBytes func(in, out int64)) error
+```
+
+Сервер передаёт callback, который обновляет `ActiveConn.BytesIn/BytesOut` атомарно.
+
 ### Новые пакеты
 
-- `server/internal/db` — SQLite: миграции, CRUD для users/devices
+- `server/internal/db` — SQLite: миграции, CRUD для users/devices, traffic_stats
 - `server/internal/admin` — HTTP хендлеры для API + serving SPA
+- `server/internal/stats` — in-memory tracking активных соединений, flush в БД
 
 ### Dockerfile
 
@@ -157,6 +225,13 @@ docker run -d \
 - SQLite файл в Docker volume (персистентный)
 - PROXY_KEY env var больше не нужен (ключи в БД)
 
+## Приватность
+
+Статистика полностью анонимна:
+- НЕ записываются: адреса назначения, домены, URL, содержимое
+- Записываются ТОЛЬКО: объём байт, количество соединений, привязка к девайсу
+- В `ActiveConn` нет информации о целевых адресах
+
 ## Верификация
 
 1. Создать юзера через админку
@@ -164,3 +239,6 @@ docker run -d \
 3. Запустить демон с этим ключом — подключение работает
 4. Деактивировать девайс в админке — подключение отклоняется
 5. Удалить юзера — все его девайсы перестают работать
+6. Дашборд показывает активное соединение при подключённом демоне
+7. После отключения — трафик появляется в статистике за текущий час
+8. Графики за день/неделю отображают корректные данные
