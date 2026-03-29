@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, ClipboardEvent } from "react";
 import { useDaemon } from "./hooks/useDaemon";
 import { StatusBar } from "./components/StatusBar";
 import { ConnectionButton } from "./components/ConnectionButton";
@@ -23,11 +23,20 @@ export function App() {
     }
   }, [key, isConnected, loading, connect]);
 
-  const handleConnect = () => {
-    if (!key.trim()) return;
-    localStorage.setItem(STORAGE_KEY, key.trim());
+  const connectWithKey = (k: string) => {
+    const trimmed = k.trim();
+    if (!trimmed) return;
+    localStorage.setItem(STORAGE_KEY, trimmed);
+    setKey(trimmed);
     setShowSetup(false);
-    connect(SERVER, key.trim());
+    connect(SERVER, trimmed);
+  };
+
+  const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData("text");
+    if (pasted.trim()) {
+      connectWithKey(pasted);
+    }
   };
 
   const handleReset = () => {
@@ -65,27 +74,15 @@ export function App() {
               value={key}
               onChange={(e) => setKey(e.target.value)}
               placeholder="Paste your access key"
-              onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+              onPaste={handlePaste}
+              onKeyDown={(e) => e.key === "Enter" && connectWithKey(key)}
             />
           </label>
-          <button
-            onClick={handleConnect}
-            disabled={loading || !key.trim()}
-            style={{
-              width: "100%",
-              padding: "12px 0",
-              background: "#4caf50",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: loading ? "wait" : "pointer",
-              opacity: loading || !key.trim() ? 0.7 : 1,
-            }}
-          >
-            {loading ? "..." : "Connect"}
-          </button>
+          {loading && (
+            <div style={{ color: "#aaa", fontSize: 13, marginTop: 8 }}>
+              Connecting...
+            </div>
+          )}
         </div>
       ) : (
         <>

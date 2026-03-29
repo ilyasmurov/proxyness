@@ -40,6 +40,28 @@ func (t *Tunnel) Start(listenAddr, serverAddr, key string) error {
 		return fmt.Errorf("tunnel already %s", t.status)
 	}
 
+	// Verify server is reachable and key is valid before starting
+	log.Printf("[tunnel] verifying connection to %s...", serverAddr)
+	tlsConn, err := tls.Dial("tcp", serverAddr, &tls.Config{
+		InsecureSkipVerify: true,
+	})
+	if err != nil {
+		return fmt.Errorf("server unreachable: %v", err)
+	}
+	if err := proto.WriteAuth(tlsConn, key); err != nil {
+		tlsConn.Close()
+		return fmt.Errorf("auth failed: %v", err)
+	}
+	ok, err := proto.ReadResult(tlsConn)
+	tlsConn.Close()
+	if err != nil {
+		return fmt.Errorf("auth failed: %v", err)
+	}
+	if !ok {
+		return fmt.Errorf("invalid key")
+	}
+	log.Printf("[tunnel] key verified OK")
+
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return err
@@ -96,40 +118,47 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 
 	req, err := socks5.Handshake(conn)
 	if err != nil {
-		log.Printf("socks5 handshake: %v", err)
+		log.Printf("[socks5] handshake failed: %v", err)
 		return
 	}
+	target := fmt.Sprintf("%s:%d", req.Addr, req.Port)
+	log.Printf("[tunnel] new request: %s", target)
 
 	tlsConn, err := tls.Dial("tcp", t.serverAddr, &tls.Config{
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
 		socks5.SendFailure(conn)
-		log.Printf("tls dial %s: %v", t.serverAddr, err)
+		log.Printf("[tunnel] tls dial %s failed: %v", t.serverAddr, err)
 		return
 	}
 	defer tlsConn.Close()
 
 	if err := proto.WriteAuth(tlsConn, t.key); err != nil {
 		socks5.SendFailure(conn)
+		log.Printf("[tunnel] auth write failed: %v", err)
 		return
 	}
 	ok, err := proto.ReadResult(tlsConn)
 	if err != nil || !ok {
 		socks5.SendFailure(conn)
+		log.Printf("[tunnel] auth rejected (ok=%v, err=%v)", ok, err)
 		return
 	}
 
 	if err := proto.WriteConnect(tlsConn, req.Addr, req.Port); err != nil {
 		socks5.SendFailure(conn)
+		log.Printf("[tunnel] connect write failed for %s: %v", target, err)
 		return
 	}
 	ok, err = proto.ReadResult(tlsConn)
 	if err != nil || !ok {
 		socks5.SendFailure(conn)
+		log.Printf("[tunnel] connect rejected for %s (ok=%v, err=%v)", target, ok, err)
 		return
 	}
 
+	log.Printf("[tunnel] connected: %s", target)
 	socks5.SendSuccess(conn)
 	proto.Relay(conn, tlsConn)
 }
