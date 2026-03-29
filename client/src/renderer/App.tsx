@@ -3,6 +3,7 @@ import { useDaemon } from "./hooks/useDaemon";
 import { StatusBar } from "./components/StatusBar";
 import { Settings } from "./components/Settings";
 import { ConnectionButton } from "./components/ConnectionButton";
+import { UpdateBanner } from "./components/UpdateBanner";
 
 const STORAGE_KEY = "smurov-proxy-settings";
 
@@ -60,6 +61,7 @@ export function App() {
       <h1 style={{ fontSize: 20, marginBottom: 20, fontWeight: 700 }}>
         SmurovProxy
       </h1>
+      <UpdateBanner />
       <StatusBar status={status.status} uptime={status.uptime} error={error} />
 
       {showSettings || !server || !key ? (

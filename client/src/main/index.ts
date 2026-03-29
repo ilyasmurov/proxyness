@@ -1,5 +1,6 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage } from "electron";
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from "electron";
 import path from "path";
+import { autoUpdater } from "electron-updater";
 import { startDaemon, stopDaemon } from "./daemon";
 
 let mainWindow: BrowserWindow | null = null;
@@ -13,6 +14,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -58,10 +60,38 @@ function createTray() {
   });
 }
 
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("update-available", (info) => {
+    mainWindow?.webContents.send("update-available", info.version);
+  });
+
+  autoUpdater.on("update-downloaded", () => {
+    mainWindow?.webContents.send("update-downloaded");
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    mainWindow?.webContents.send("update-progress", Math.round(progress.percent));
+  });
+
+  ipcMain.on("download-update", () => {
+    autoUpdater.downloadUpdate();
+  });
+
+  ipcMain.on("install-update", () => {
+    autoUpdater.quitAndInstall();
+  });
+
+  autoUpdater.checkForUpdates().catch(() => {});
+}
+
 app.whenReady().then(() => {
   startDaemon();
   createWindow();
   createTray();
+  setupAutoUpdater();
 });
 
 app.on("before-quit", () => {
