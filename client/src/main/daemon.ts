@@ -6,7 +6,7 @@ let daemonProcess: ChildProcess | null = null;
 
 function getDaemonPath(): string {
   const resourcesPath = app.isPackaged
-    ? process.resourcesPath
+    ? path.join(process.resourcesPath, "resources")
     : path.join(__dirname, "../../resources");
 
   const platform = process.platform;
