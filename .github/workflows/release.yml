@@ -36,6 +36,12 @@ jobs:
           GOOS=darwin GOARCH=amd64 go build -o ../client/resources/helper-darwin-amd64 ./cmd
           GOOS=windows GOARCH=amd64 go build -o ../client/resources/helper-windows.exe ./cmd
 
+      - name: Download wintun.dll for Windows TUN
+        run: |
+          curl -L https://www.wintun.net/builds/wintun-0.14.1.zip -o wintun.zip
+          unzip wintun.zip
+          cp wintun/bin/amd64/wintun.dll client/resources/wintun.dll
+
       - name: Build Electron app
         run: |
           cd client

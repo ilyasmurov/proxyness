@@ -70,6 +70,7 @@ export function startHelper(): void {
   try {
     helperProcess = spawn(helperPath, [], {
       stdio: "pipe",
+      cwd: path.dirname(helperPath),
     });
 
     helperProcess.on("error", (err) => {
