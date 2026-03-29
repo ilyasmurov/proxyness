@@ -42,7 +42,7 @@ jobs:
         run: |
           cd client/release
           for f in *arm64*.dmg; do mv "$f" SmurovProxy-mac-arm64.dmg 2>/dev/null; done || true
-          for f in *x64*.dmg *64*.dmg; do mv "$f" SmurovProxy-mac-x64.dmg 2>/dev/null; done || true
+          for f in *x64*.dmg; do mv "$f" SmurovProxy-mac-x64.dmg 2>/dev/null; done || true
           for f in *.exe; do mv "$f" SmurovProxy-win-x64.exe 2>/dev/null; done || true
 
       - name: Upload artifacts
