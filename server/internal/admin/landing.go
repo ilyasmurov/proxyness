@@ -1,8 +1,24 @@
 package admin
 
-import "net/http"
+import (
+	"html/template"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
 
-const landingHTML = `<!DOCTYPE html>
+type downloadFile struct {
+	Name  string
+	URL   string
+	Label string
+	Class string
+	Icon  template.HTML
+	Badge string
+}
+
+var landingTmpl = template.Must(template.New("landing").Parse(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -35,22 +51,17 @@ h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 12px; background: linea
   <p class="subtitle">Secure TLS proxy — fast, private, undetectable</p>
 
   <div class="downloads">
-    <a href="/download/SmurovProxy-mac-arm64.dmg" class="download-btn mac">
-      <span class="icon">&#63743;</span> macOS (Apple Silicon) <span class="badge">.dmg</span>
+    {{range .}}<a href="{{.URL}}" class="download-btn {{.Class}}">
+      <span class="icon">{{.Icon}}</span> {{.Label}} <span class="badge">{{.Badge}}</span>
     </a>
-    <a href="/download/SmurovProxy-mac-x64.dmg" class="download-btn mac">
-      <span class="icon">&#63743;</span> macOS (Intel) <span class="badge">.dmg</span>
-    </a>
-    <a href="/download/SmurovProxy-win-x64.exe" class="download-btn win">
-      <span class="icon">&#9114;</span> Windows <span class="badge">.exe</span>
-    </a>
+    {{end}}
   </div>
 
   <div class="setup">
     <h3>Quick Start</h3>
     <ol>
       <li>Download and install the app</li>
-      <li>Enter server address and your access key</li>
+      <li>Enter your access key</li>
       <li>Click Connect</li>
     </ol>
   </div>
@@ -60,11 +71,65 @@ h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 12px; background: linea
   </div>
 </div>
 </body>
-</html>`
+</html>`))
 
-func LandingHandler() http.Handler {
+func LandingHandler(downloadsDir string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		files := scanDownloads(downloadsDir)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(landingHTML))
+		landingTmpl.Execute(w, files)
 	})
+}
+
+func scanDownloads(dir string) []downloadFile {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	var macArm, macIntel []string
+	var winExe []string
+
+	for _, e := range entries {
+		name := e.Name()
+		lower := strings.ToLower(name)
+		switch {
+		case strings.HasSuffix(lower, ".dmg") && strings.Contains(lower, "arm64"):
+			macArm = append(macArm, name)
+		case strings.HasSuffix(lower, ".dmg") && !strings.Contains(lower, "arm64"):
+			macIntel = append(macIntel, name)
+		case strings.HasSuffix(lower, ".exe") && strings.Contains(lower, "setup"):
+			winExe = append(winExe, name)
+		}
+	}
+
+	// Sort descending so newest version comes first
+	sortDesc := func(s []string) { sort.Sort(sort.Reverse(sort.StringSlice(s))) }
+	sortDesc(macArm)
+	sortDesc(macIntel)
+	sortDesc(winExe)
+
+	var result []downloadFile
+	if len(macArm) > 0 {
+		result = append(result, downloadFile{
+			Name: macArm[0], URL: "/download/" + macArm[0],
+			Label: "macOS Apple Silicon — " + macArm[0], Class: "mac",
+			Icon: "&#63743;", Badge: filepath.Ext(macArm[0]),
+		})
+	}
+	if len(macIntel) > 0 {
+		result = append(result, downloadFile{
+			Name: macIntel[0], URL: "/download/" + macIntel[0],
+			Label: "macOS Intel — " + macIntel[0], Class: "mac",
+			Icon: "&#63743;", Badge: filepath.Ext(macIntel[0]),
+		})
+	}
+	if len(winExe) > 0 {
+		result = append(result, downloadFile{
+			Name: winExe[0], URL: "/download/" + winExe[0],
+			Label: "Windows — " + winExe[0], Class: "win",
+			Icon: "&#9114;", Badge: filepath.Ext(winExe[0]),
+		})
+	}
+	return result
 }

@@ -43,7 +43,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.Handle("/admin/", SPAHandler())
 
 	// Landing page
-	mux.Handle("GET /{$}", LandingHandler())
+	mux.Handle("GET /{$}", LandingHandler(downloadsDir))
 
 	h.mux = mux
 	return h
