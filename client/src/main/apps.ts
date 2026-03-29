@@ -37,19 +37,30 @@ function getMacApps(): InstalledApp[] {
   return apps.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// Directories that are data/cache, not real apps
+const SKIP_DIRS = new Set([
+  "google", "microsoft", "packages", "temp", "comms", "connecteddevicesplatform",
+  "d3dscache", "deliveryoptimization", "gamingservices", "lxss", "publisher.mapdata",
+  "squirreltmp", "windowsapps", "fontcache", "placehodertiledatalayer",
+]);
+
 function getWindowsApps(): InstalledApp[] {
   const apps: InstalledApp[] = [];
   const seen = new Set<string>();
 
+  const localAppData = path.join(os.homedir(), "AppData", "Local");
+
   const dirs = [
     "C:\\Program Files",
     "C:\\Program Files (x86)",
-    path.join(os.homedir(), "AppData", "Local", "Programs"),
+    path.join(localAppData, "Programs"),
+    localAppData,
   ];
 
   for (const dir of dirs) {
     try {
       for (const entry of fs.readdirSync(dir)) {
+        if (entry.startsWith(".") || SKIP_DIRS.has(entry.toLowerCase())) continue;
         const fullPath = path.join(dir, entry);
         try {
           if (!fs.statSync(fullPath).isDirectory()) continue;
