@@ -9,7 +9,8 @@ import (
 )
 
 type Request struct {
-	Action string `json:"action"` // "create" or "destroy"
+	Action     string `json:"action"`      // "create" or "destroy"
+	ServerAddr string `json:"server_addr"` // server address for route exclusion (create only)
 }
 
 type Response struct {
@@ -52,8 +53,16 @@ func handleConn(conn net.Conn) {
 
 	switch req.Action {
 	case "create":
-		resp := createTUN()
+		resp := createTUN(req.ServerAddr)
 		writeResponse(conn, resp)
+		if resp.Error == "" {
+			relayPackets(conn)
+			// Relay stopped — auto-cleanup if daemon disconnected
+			if tunDevice != nil {
+				log.Printf("daemon disconnected, auto-cleanup")
+				destroyTUN()
+			}
+		}
 	case "destroy":
 		resp := destroyTUN()
 		writeResponse(conn, resp)

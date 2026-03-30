@@ -1,15 +1,24 @@
 package tun
 
 import (
+	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"gvisor.dev/gvisor/pkg/buffer"
+	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	"gvisor.dev/gvisor/pkg/tcpip/header"
+	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
@@ -26,20 +35,26 @@ const (
 )
 
 type Engine struct {
-	mu         sync.Mutex
-	status     Status
-	serverAddr string
-	key        string
-	rules      *Rules
-	procInfo   ProcessInfo
-	stack      *stack.Stack
-	helperAddr string
+	mu           sync.Mutex
+	status       Status
+	serverAddr   string
+	key          string
+	rules        *Rules
+	procInfo     ProcessInfo
+	stack        *stack.Stack
+	helperAddr   string
+	helperConn   net.Conn
+	endpoint     *channel.Endpoint
+	bridgeCancel context.CancelFunc
+	selfPath     string // daemon's own path — always bypassed to prevent loops
 }
 
 func NewEngine() *Engine {
+	selfPath, _ := os.Executable()
 	return &Engine{
-		status: StatusInactive,
-		rules:  NewRules(),
+		status:   StatusInactive,
+		rules:    NewRules(),
+		selfPath: selfPath,
 	}
 }
 
@@ -67,17 +82,21 @@ func (e *Engine) Start(req StartRequest) error {
 		return fmt.Errorf("TUN already active")
 	}
 
-	if err := e.requestHelper(req.HelperAddr, "create"); err != nil {
+	// Connect to helper and create TUN — keep connection open for packet relay
+	helperConn, err := e.connectAndCreate(req)
+	if err != nil {
 		return fmt.Errorf("helper create: %w", err)
 	}
 
-	s, _, err := newStack(1500)
+	s, ep, err := newStack(1500)
 	if err != nil {
-		e.requestHelper(req.HelperAddr, "destroy")
+		helperConn.Close()
 		return fmt.Errorf("create stack: %w", err)
 	}
 
 	e.stack = s
+	e.endpoint = ep
+	e.helperConn = helperConn
 	e.serverAddr = req.ServerAddr
 	e.key = req.Key
 	e.helperAddr = req.HelperAddr
@@ -93,6 +112,12 @@ func (e *Engine) Start(req StartRequest) error {
 	})
 	s.SetTransportProtocolHandler(udp.ProtocolNumber, udpFwd.HandlePacket)
 
+	// Start bridge: helper IPC ↔ gVisor channel endpoint
+	ctx, cancel := context.WithCancel(context.Background())
+	e.bridgeCancel = cancel
+	go e.bridgeInbound(helperConn, ep)
+	go e.bridgeOutbound(ctx, helperConn, ep)
+
 	e.status = StatusActive
 	log.Printf("[tun] engine started, server=%s", req.ServerAddr)
 	return nil
@@ -106,15 +131,117 @@ func (e *Engine) Stop() error {
 		return nil
 	}
 
+	// Cancel bridge goroutines
+	if e.bridgeCancel != nil {
+		e.bridgeCancel()
+		e.bridgeCancel = nil
+	}
+
 	if e.stack != nil {
 		e.stack.Close()
 		e.stack = nil
 	}
 
-	e.requestHelper(e.helperAddr, "destroy")
+	// Close relay connection — helper will auto-cleanup TUN device
+	if e.helperConn != nil {
+		e.helperConn.Close()
+		e.helperConn = nil
+	}
+
+	e.endpoint = nil
 	e.status = StatusInactive
 	log.Printf("[tun] engine stopped")
 	return nil
+}
+
+// connectAndCreate connects to helper, sends "create" with server address,
+// reads the JSON response, and returns the connection open for packet relay.
+func (e *Engine) connectAndCreate(req StartRequest) (net.Conn, error) {
+	conn, err := dialHelper(req.HelperAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	helperReq := map[string]string{
+		"action":      "create",
+		"server_addr": req.ServerAddr,
+	}
+	if err := json.NewEncoder(conn).Encode(helperReq); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	var resp struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if !resp.OK {
+		conn.Close()
+		return nil, fmt.Errorf("helper: %s", resp.Error)
+	}
+
+	return conn, nil
+}
+
+// bridgeInbound reads framed IP packets from helper and injects into gVisor stack.
+func (e *Engine) bridgeInbound(conn net.Conn, ep *channel.Endpoint) {
+	lenBuf := make([]byte, 2)
+	for {
+		if _, err := io.ReadFull(conn, lenBuf); err != nil {
+			log.Printf("[tun] bridge inbound closed: %v", err)
+			return
+		}
+		pktLen := int(binary.BigEndian.Uint16(lenBuf))
+		if pktLen == 0 {
+			continue
+		}
+
+		data := make([]byte, pktLen)
+		if _, err := io.ReadFull(conn, data); err != nil {
+			log.Printf("[tun] bridge inbound read: %v", err)
+			return
+		}
+
+		var proto tcpip.NetworkProtocolNumber
+		if data[0]>>4 == 4 {
+			proto = header.IPv4ProtocolNumber
+		} else {
+			proto = header.IPv6ProtocolNumber
+		}
+
+		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+			Payload: buffer.MakeWithData(data),
+		})
+		ep.InjectInbound(proto, pkt)
+		pkt.DecRef()
+	}
+}
+
+// bridgeOutbound reads outgoing packets from gVisor stack and sends to helper.
+func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.Endpoint) {
+	lenBuf := make([]byte, 2)
+	for {
+		pkt := ep.ReadContext(ctx)
+		if pkt == nil {
+			return
+		}
+
+		buf := pkt.ToBuffer()
+		data := buf.Flatten()
+		pkt.DecRef()
+
+		binary.BigEndian.PutUint16(lenBuf, uint16(len(data)))
+		if _, err := conn.Write(lenBuf); err != nil {
+			return
+		}
+		if _, err := conn.Write(data); err != nil {
+			return
+		}
+	}
 }
 
 func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
@@ -124,7 +251,9 @@ func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
 	srcPort := id.RemotePort
 
 	appPath, _ := e.procInfo.FindProcess("tcp", srcPort)
-	shouldProxy := e.rules.ShouldProxy(appPath)
+
+	// Always bypass daemon's own traffic to prevent routing loops
+	shouldProxy := !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
 
 	if appPath != "" {
 		log.Printf("[tun] TCP %s:%d from %s (proxy=%v)", dstAddr, dstPort, appPath, shouldProxy)
@@ -149,14 +278,22 @@ func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
 }
 
 func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16) {
-	tlsConn, err := tls.Dial("tcp", e.serverAddr, &tls.Config{
-		InsecureSkipVerify: true,
-	})
+	// Use protected dialer to bypass TUN routes
+	rawConn, err := protectedDial("tcp", e.serverAddr)
 	if err != nil {
-		log.Printf("[tun] tls dial failed: %v", err)
+		log.Printf("[tun] protected dial failed: %v", err)
 		return
 	}
+
+	tlsConn := tls.Client(rawConn, &tls.Config{
+		InsecureSkipVerify: true,
+	})
 	defer tlsConn.Close()
+
+	if err := tlsConn.Handshake(); err != nil {
+		log.Printf("[tun] tls handshake failed: %v", err)
+		return
+	}
 
 	if err := proto.WriteAuth(tlsConn, e.key); err != nil {
 		return
@@ -181,7 +318,8 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16) {
 }
 
 func (e *Engine) bypassTCP(local net.Conn, dstAddr string, dstPort uint16) {
-	target, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", dstAddr, dstPort), 10*time.Second)
+	// Use protected dialer to bypass TUN routes
+	target, err := protectedDial("tcp", fmt.Sprintf("%s:%d", dstAddr, dstPort))
 	if err != nil {
 		return
 	}
@@ -196,7 +334,7 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 	srcPort := id.RemotePort
 
 	appPath, _ := e.procInfo.FindProcess("udp", srcPort)
-	shouldProxy := e.rules.ShouldProxy(appPath)
+	shouldProxy := !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
 
 	var wq waiter.Queue
 	ep, udpErr := r.CreateEndpoint(&wq)
@@ -216,13 +354,19 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16) {
 	defer local.Close()
 
-	tlsConn, err := tls.Dial("tcp", e.serverAddr, &tls.Config{
-		InsecureSkipVerify: true,
-	})
+	rawConn, err := protectedDial("tcp", e.serverAddr)
 	if err != nil {
 		return
 	}
+
+	tlsConn := tls.Client(rawConn, &tls.Config{
+		InsecureSkipVerify: true,
+	})
 	defer tlsConn.Close()
+
+	if err := tlsConn.Handshake(); err != nil {
+		return
+	}
 
 	if err := proto.WriteAuth(tlsConn, e.key); err != nil {
 		return
@@ -275,11 +419,8 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16) {
 func (e *Engine) bypassUDP(local net.Conn, dstAddr string, dstPort uint16) {
 	defer local.Close()
 
-	raddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", dstAddr, dstPort))
-	if err != nil {
-		return
-	}
-	remote, err := net.DialUDP("udp", nil, raddr)
+	// Use protected dialer for bypass to avoid TUN routing loop
+	remote, err := protectedDial("udp", fmt.Sprintf("%s:%d", dstAddr, dstPort))
 	if err != nil {
 		return
 	}
@@ -313,29 +454,11 @@ func (e *Engine) bypassUDP(local net.Conn, dstAddr string, dstPort uint16) {
 	<-done
 }
 
-func (e *Engine) requestHelper(addr, action string) error {
-	conn, err := dialHelper(addr)
-	if err != nil {
-		return err
+func (e *Engine) isSelf(appPath string) bool {
+	if appPath == "" || e.selfPath == "" {
+		return false
 	}
-	defer conn.Close()
-
-	req := map[string]string{"action": action}
-	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return err
-	}
-
-	var resp struct {
-		OK    bool   `json:"ok"`
-		Error string `json:"error"`
-	}
-	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
-		return err
-	}
-	if !resp.OK {
-		return fmt.Errorf("helper: %s", resp.Error)
-	}
-	return nil
+	return strings.EqualFold(appPath, e.selfPath)
 }
 
 func dialHelper(addr string) (net.Conn, error) {
