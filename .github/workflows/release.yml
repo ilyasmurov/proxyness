@@ -47,8 +47,8 @@ jobs:
           cd client
           npm install
           npm run build
-          npx electron-builder --mac dmg --arm64 --publish never
-          npx electron-builder --mac dmg --x64 --publish never
+          npx electron-builder --mac pkg --arm64 --publish never
+          npx electron-builder --mac pkg --x64 --publish never
           npx electron-builder --win nsis --x64 --publish never
 
       - name: Upload artifacts
@@ -56,7 +56,7 @@ jobs:
         with:
           name: installers
           path: |
-            client/release/*.dmg
+            client/release/*.pkg
             client/release/*.exe
             client/release/*.yml
             client/release/*.blockmap

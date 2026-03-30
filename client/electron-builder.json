@@ -20,8 +20,12 @@
     "url": "https://82.97.246.65/download/"
   },
   "mac": {
-    "target": ["dmg"],
+    "target": ["pkg"],
     "icon": null
+  },
+  "pkg": {
+    "scripts": "build/pkg-scripts",
+    "installLocation": "/Applications"
   },
   "win": {
     "target": ["nsis"],
