@@ -136,6 +136,13 @@ export function App() {
         }
       }
     });
+    app.onTrayCheckUpdate?.(() => {
+      (window as any).updater?.checkVersion().then((r: any) => {
+        if (r?.hasUpdate) (window as any).updater?.downloadUpdate();
+      });
+    });
+    app.onTrayShowLogs?.(() => setShowLogs(true));
+    app.onTrayChangeKey?.(() => handleReset());
   }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect]);
 
   // Auto-connect on launch if key is saved
