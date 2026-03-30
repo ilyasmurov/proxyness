@@ -15,9 +15,11 @@ let tray: Tray | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 500,
+    width: 420,
+    height: 580,
     resizable: false,
+    frame: false,
+    transparent: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -194,6 +196,14 @@ function setupIpc() {
   });
 
   ipcMain.handle("get-version", () => app.getVersion());
+
+  ipcMain.on("window-close", () => {
+    if (process.platform === "darwin") {
+      mainWindow?.hide();
+    } else {
+      app.quit();
+    }
+  });
   ipcMain.handle("get-logs", () => getLogs());
   ipcMain.handle("clear-logs", () => clearLogs());
 

@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("appInfo", {
   getVersion: () => ipcRenderer.invoke("get-version"),
   getLogs: () => ipcRenderer.invoke("get-logs"),
   clearLogs: () => ipcRenderer.invoke("clear-logs"),
+  closeWindow: () => ipcRenderer.send("window-close"),
 });
 
 contextBridge.exposeInMainWorld("tunProxy", {

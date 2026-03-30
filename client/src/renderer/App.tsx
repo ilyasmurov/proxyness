@@ -151,10 +151,39 @@ export function App() {
   };
 
   return (
-    <div style={{ maxWidth: 360, margin: "0 auto" }}>
+    <div style={{ maxWidth: 380, margin: "0 auto", paddingTop: 36 }}>
+      {/* Custom title bar */}
+      <div
+        style={{
+          position: "fixed", top: 0, left: 0, right: 0, height: 36,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 12px", // @ts-ignore electron drag region
+          WebkitAppRegion: "drag", zIndex: 100,
+          background: "#0b0f1a",
+        }}
+      >
+        <div style={{ fontSize: 12, color: "#555", fontWeight: 600 }}>
+          SmurovProxy {version && <span style={{ fontWeight: 400 }}>v{version}</span>}
+        </div>
+        <button
+          onClick={() => (window as any).appInfo?.closeWindow()}
+          style={{
+            // @ts-ignore electron no-drag region
+            WebkitAppRegion: "no-drag",
+            width: 28, height: 28, borderRadius: 6,
+            background: "transparent", border: "none",
+            color: "#666", fontSize: 16, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#fff"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#666"; }}
+        >
+          ✕
+        </button>
+      </div>
+
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 20 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>SmurovProxy</h1>
-        {version && <span style={{ fontSize: 12, color: "#555" }}>v{version}</span>}
       </div>
       <UpdateBanner />
       <StatusBar status={isConnected ? "connected" : "disconnected"} uptime={uptime} error={currentError} />
