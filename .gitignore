@@ -19,6 +19,9 @@ server/internal/admin/static/
 cert.pem
 key.pem
 
+# Superpowers
+.superpowers/
+
 # OS
 .DS_Store
 Thumbs.db
