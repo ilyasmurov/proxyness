@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld("appInfo", {
   getLogs: () => ipcRenderer.invoke("get-logs"),
   clearLogs: () => ipcRenderer.invoke("clear-logs"),
   closeWindow: () => ipcRenderer.send("window-close"),
+  setTrayStatus: (connected: boolean) => ipcRenderer.send("tray-status", connected),
+  onTrayConnect: (cb: () => void) => ipcRenderer.on("tray-connect", () => cb()),
+  onTrayDisconnect: (cb: () => void) => ipcRenderer.on("tray-disconnect", () => cb()),
 });
 
 contextBridge.exposeInMainWorld("tunProxy", {

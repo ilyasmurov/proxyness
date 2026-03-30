@@ -109,6 +109,35 @@ export function App() {
     }
   }, [disconnect]);
 
+  // Update tray icon based on connection status
+  useEffect(() => {
+    (window as any).appInfo?.setTrayStatus(isConnected);
+  }, [isConnected]);
+
+  // Handle tray connect/disconnect clicks
+  useEffect(() => {
+    const app = (window as any).appInfo;
+    if (!app) return;
+    app.onTrayConnect(() => {
+      if (!isConnected && key) {
+        if (proxyMode === "tun") {
+          tunConnect(SERVER, key);
+        } else {
+          connect(SERVER, key);
+        }
+      }
+    });
+    app.onTrayDisconnect(() => {
+      if (isConnected) {
+        if (proxyMode === "tun") {
+          tunDisconnect();
+        } else {
+          disconnect();
+        }
+      }
+    });
+  }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect]);
+
   // Auto-connect on launch if key is saved
   useEffect(() => {
     if (!autoConnected.current && key && !isConnected && !isLoading) {

@@ -42,32 +42,39 @@ function createWindow() {
   });
 }
 
-function createTray() {
-  let iconPath: string;
+let trayConnected = false;
+
+function trayIconPath(connected: boolean): string {
+  const buildDir = app.isPackaged
+    ? path.join(process.resourcesPath, "app.asar", "build")
+    : path.join(__dirname, "../../build");
+
   if (process.platform === "darwin") {
-    // macOS Template image (auto light/dark mode)
-    iconPath = app.isPackaged
-      ? path.join(process.resourcesPath, "app.asar", "build", "trayTemplate.png")
-      : path.join(__dirname, "../../build/trayTemplate.png");
-  } else {
-    // Windows colored icon
-    iconPath = app.isPackaged
-      ? path.join(process.resourcesPath, "app.asar", "build", "tray.png")
-      : path.join(__dirname, "../../build/tray.png");
+    return path.join(buildDir, connected ? "trayConnectedTemplate.png" : "trayTemplate.png");
   }
+  return path.join(buildDir, connected ? "trayConnected.png" : "tray.png");
+}
 
-  const icon = nativeImage.createFromPath(iconPath);
-  if (process.platform === "darwin") {
-    icon.setTemplateImage(true);
-  }
+function loadTrayIcon(connected: boolean): Electron.NativeImage {
+  const icon = nativeImage.createFromPath(trayIconPath(connected));
+  if (process.platform === "darwin") icon.setTemplateImage(true);
+  return icon;
+}
 
-  tray = new Tray(icon);
-  tray.setToolTip("SmurovProxy");
-
+function updateTrayMenu() {
+  if (!tray) return;
+  const connectLabel = trayConnected ? "Disconnect" : "Connect";
   const contextMenu = Menu.buildFromTemplate([
     {
       label: "Show",
       click: () => mainWindow?.show(),
+    },
+    { type: "separator" },
+    {
+      label: connectLabel,
+      click: () => {
+        mainWindow?.webContents.send(trayConnected ? "tray-disconnect" : "tray-connect");
+      },
     },
     { type: "separator" },
     {
@@ -78,8 +85,20 @@ function createTray() {
       },
     },
   ]);
-
   tray.setContextMenu(contextMenu);
+}
+
+function setTrayConnected(connected: boolean) {
+  if (trayConnected === connected) return;
+  trayConnected = connected;
+  tray?.setImage(loadTrayIcon(connected));
+  updateTrayMenu();
+}
+
+function createTray() {
+  tray = new Tray(loadTrayIcon(false));
+  tray.setToolTip("SmurovProxy");
+  updateTrayMenu();
 
   tray.on("double-click", () => {
     mainWindow?.show();
@@ -282,6 +301,10 @@ function setupIpc() {
   });
 
   ipcMain.handle("get-installed-apps", () => getInstalledApps());
+
+  ipcMain.on("tray-status", (_e, connected: boolean) => {
+    setTrayConnected(connected);
+  });
 }
 
 app.whenReady().then(() => {
