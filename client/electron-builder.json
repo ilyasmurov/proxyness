@@ -24,8 +24,9 @@
     "icon": null
   },
   "pkg": {
-    "scripts": "build/pkg-scripts",
-    "installLocation": "/Applications"
+    "scripts": "pkg-scripts",
+    "installLocation": "/Applications",
+    "isRelocatable": false
   },
   "win": {
     "target": ["nsis"],
