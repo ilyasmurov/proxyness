@@ -4,7 +4,7 @@ import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell } from "ele
 import path from "path";
 import fs from "fs";
 import https from "https";
-import { startDaemon, stopDaemon, startHelper, stopHelper } from "./daemon";
+import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
 
@@ -190,6 +190,8 @@ function setupIpc() {
   });
 
   ipcMain.handle("get-version", () => app.getVersion());
+  ipcMain.handle("get-logs", () => getLogs());
+  ipcMain.handle("clear-logs", () => clearLogs());
 
   ipcMain.on("enable-proxy", () => {
     enableSystemProxy();

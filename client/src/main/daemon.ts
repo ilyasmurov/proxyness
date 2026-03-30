@@ -4,6 +4,27 @@ import { app } from "electron";
 
 let daemonProcess: ChildProcess | null = null;
 
+const MAX_LOG_LINES = 500;
+const logLines: string[] = [];
+
+function addLog(source: string, data: string) {
+  const ts = new Date().toLocaleTimeString("en-GB", { hour12: false });
+  for (const line of data.trim().split("\n")) {
+    if (line) {
+      logLines.push(`${ts} [${source}] ${line}`);
+      if (logLines.length > MAX_LOG_LINES) logLines.shift();
+    }
+  }
+}
+
+export function getLogs(): string[] {
+  return [...logLines];
+}
+
+export function clearLogs(): void {
+  logLines.length = 0;
+}
+
 function getDaemonPath(): string {
   const resourcesPath = app.isPackaged
     ? path.join(process.resourcesPath, "resources")
@@ -27,15 +48,15 @@ export function startDaemon(): void {
   });
 
   daemonProcess.stdout?.on("data", (data: Buffer) => {
-    console.log(`[daemon] ${data.toString().trim()}`);
+    addLog("daemon", data.toString());
   });
 
   daemonProcess.stderr?.on("data", (data: Buffer) => {
-    console.error(`[daemon] ${data.toString().trim()}`);
+    addLog("daemon", data.toString());
   });
 
   daemonProcess.on("exit", (code) => {
-    console.log(`[daemon] exited with code ${code}`);
+    addLog("daemon", `exited with code ${code}`);
     daemonProcess = null;
   });
 }
@@ -77,24 +98,24 @@ export function startHelper(): void {
     });
 
     helperProcess.on("error", (err) => {
-      console.error(`[helper] failed to start: ${err.message}`);
+      addLog("helper", `failed to start: ${err.message}`);
       helperProcess = null;
     });
 
     helperProcess.stdout?.on("data", (data: Buffer) => {
-      console.log(`[helper] ${data.toString().trim()}`);
+      addLog("helper", data.toString());
     });
 
     helperProcess.stderr?.on("data", (data: Buffer) => {
-      console.error(`[helper] ${data.toString().trim()}`);
+      addLog("helper", data.toString());
     });
 
     helperProcess.on("exit", (code) => {
-      console.log(`[helper] exited with code ${code}`);
+      addLog("helper", `exited with code ${code}`);
       helperProcess = null;
     });
   } catch {
-    console.error("[helper] spawn failed");
+    addLog("helper", "spawn failed");
     helperProcess = null;
   }
 }

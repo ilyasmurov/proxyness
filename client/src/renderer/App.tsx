@@ -13,6 +13,9 @@ export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [showSetup, setShowSetup] = useState(!key);
   const [version, setVersion] = useState("");
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const logsEndRef = useRef<HTMLDivElement>(null);
   const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
   const autoConnected = useRef(false);
   const [proxyMode, setProxyMode] = useState<ProxyMode>(
@@ -27,6 +30,23 @@ export function App() {
   useEffect(() => {
     (window as any).appInfo?.getVersion().then((v: string) => setVersion(v));
   }, []);
+
+  // Poll logs when panel is open
+  useEffect(() => {
+    if (!showLogs) return;
+    const poll = async () => {
+      const l = await (window as any).appInfo?.getLogs();
+      if (l) setLogs(l);
+    };
+    poll();
+    const interval = setInterval(poll, 1000);
+    return () => clearInterval(interval);
+  }, [showLogs]);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
 
   // Poll TUN status when in TUN mode
   useEffect(() => {
@@ -204,6 +224,49 @@ export function App() {
             Change key
           </button>
         </>
+      )}
+
+      <button
+        onClick={() => setShowLogs(!showLogs)}
+        style={{
+          width: "100%",
+          marginTop: 12,
+          padding: "8px 0",
+          background: "transparent",
+          border: "1px solid #333",
+          borderRadius: 8,
+          color: showLogs ? "#4fc3f7" : "#666",
+          fontSize: 13,
+          cursor: "pointer",
+        }}
+      >
+        {showLogs ? "Hide Logs" : "Logs"}
+      </button>
+
+      {showLogs && (
+        <div
+          style={{
+            marginTop: 8,
+            background: "#0a0e1a",
+            border: "1px solid #222",
+            borderRadius: 8,
+            padding: 8,
+            maxHeight: 200,
+            overflowY: "auto",
+            fontSize: 11,
+            fontFamily: "monospace",
+            color: "#aaa",
+            lineHeight: 1.5,
+          }}
+        >
+          {logs.length === 0 && <div style={{ color: "#555" }}>No logs yet</div>}
+          {logs.map((line, i) => (
+            <div key={i} style={{ color: line.includes("[helper]") ? "#81c784" : "#90caf9" }}>
+              {line}
+            </div>
+          ))}
+          <div ref={logsEndRef} />
+        </div>
       )}
     </div>
   );

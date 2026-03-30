@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld("sysproxy", {
 
 contextBridge.exposeInMainWorld("appInfo", {
   getVersion: () => ipcRenderer.invoke("get-version"),
+  getLogs: () => ipcRenderer.invoke("get-logs"),
+  clearLogs: () => ipcRenderer.invoke("clear-logs"),
 });
 
 contextBridge.exposeInMainWorld("tunProxy", {
