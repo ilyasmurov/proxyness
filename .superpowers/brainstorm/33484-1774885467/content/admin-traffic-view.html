@@ -1,0 +1,88 @@
+<h2>Графики трафика в admin-панели</h2>
+<p class="subtitle">Как показать real-time скорость по устройствам на Dashboard?</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#fff;border-radius:8px;padding:16px;font-family:system-ui;color:#333;font-size:12px;">
+        <div style="font-weight:600;margin-bottom:8px;font-size:14px;">Active Connections</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <tr style="border-bottom:1px solid #eee;color:#888;">
+            <td style="padding:4px;">Device</td>
+            <td style="padding:4px;">↓ Speed</td>
+            <td style="padding:4px;">↑ Speed</td>
+            <td style="padding:4px;">Total</td>
+            <td style="padding:4px;width:100px;">Graph</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f5f5f5;">
+            <td style="padding:4px;">MacBook Pro</td>
+            <td style="padding:4px;color:#16a34a;">3.2 MB/s</td>
+            <td style="padding:4px;color:#2563eb;">180 KB/s</td>
+            <td style="padding:4px;">1.4 GB</td>
+            <td style="padding:4px;"><svg viewBox="0 0 100 20" style="width:100px;height:20px;"><polyline points="0,18 10,15 20,10 30,12 40,5 50,8 60,3 70,6 80,4 90,7 100,5" fill="none" stroke="#16a34a" stroke-width="1.5"/></svg></td>
+          </tr>
+          <tr style="border-bottom:1px solid #f5f5f5;">
+            <td style="padding:4px;">Windows PC</td>
+            <td style="padding:4px;color:#16a34a;">850 KB/s</td>
+            <td style="padding:4px;color:#2563eb;">42 KB/s</td>
+            <td style="padding:4px;">380 MB</td>
+            <td style="padding:4px;"><svg viewBox="0 0 100 20" style="width:100px;height:20px;"><polyline points="0,12 10,14 20,16 30,10 40,13 50,15 60,11 70,14 80,12 90,15 100,13" fill="none" stroke="#16a34a" stroke-width="1.5"/></svg></td>
+          </tr>
+          <tr>
+            <td style="padding:4px;">iPhone</td>
+            <td style="padding:4px;color:#16a34a;">0 B/s</td>
+            <td style="padding:4px;color:#2563eb;">0 B/s</td>
+            <td style="padding:4px;">12 MB</td>
+            <td style="padding:4px;"><svg viewBox="0 0 100 20" style="width:100px;height:20px;"><polyline points="0,18 10,18 20,18 30,18 40,18 50,18 60,18 70,18 80,18 90,18 100,18" fill="none" stroke="#ccc" stroke-width="1.5"/></svg></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Таблица + мини-спарклайны</h3>
+      <p>Компактно. Колонки: device, ↓/↑ speed, total, мини-график. Вписывается в текущий Dashboard.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#fff;border-radius:8px;padding:16px;font-family:system-ui;color:#333;font-size:12px;">
+        <div style="font-weight:600;margin-bottom:8px;font-size:14px;">Active Connections</div>
+        <!-- Device card 1 -->
+        <div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-weight:600;">MacBook Pro</span>
+            <span style="font-size:10px;color:#888;">1.4 GB total</span>
+          </div>
+          <div style="display:flex;gap:12px;font-size:10px;margin-bottom:4px;">
+            <span style="color:#16a34a;">↓ 3.2 MB/s</span>
+            <span style="color:#2563eb;">↑ 180 KB/s</span>
+          </div>
+          <svg viewBox="0 0 280 40" style="width:100%;height:40px;">
+            <polyline points="0,35 20,30 40,22 60,25 80,12 100,18 120,8 140,14 160,6 180,10 200,5 220,9 240,12 260,7 280,5" fill="none" stroke="#16a34a" stroke-width="1.5"/>
+            <polyline points="0,37 20,36 40,35 60,36 80,34 100,35 120,33 140,34 160,32 180,33 200,32 220,34 240,35 260,33 280,34" fill="none" stroke="#2563eb" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <!-- Device card 2 -->
+        <div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-weight:600;">Windows PC</span>
+            <span style="font-size:10px;color:#888;">380 MB total</span>
+          </div>
+          <div style="display:flex;gap:12px;font-size:10px;margin-bottom:4px;">
+            <span style="color:#16a34a;">↓ 850 KB/s</span>
+            <span style="color:#2563eb;">↑ 42 KB/s</span>
+          </div>
+          <svg viewBox="0 0 280 40" style="width:100%;height:40px;">
+            <polyline points="0,25 20,28 40,32 60,20 80,26 100,30 120,22 140,28 160,24 180,30 200,26 220,28 240,24 260,30 280,26" fill="none" stroke="#16a34a" stroke-width="1.5"/>
+            <polyline points="0,36 20,37 40,36 60,37 80,36 100,37 120,36 140,37 160,36 180,37 200,36 220,37 240,36 260,37 280,36" fill="none" stroke="#2563eb" stroke-width="1.5"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Карточки с графиками</h3>
+      <p>Каждое устройство — карточка с большим графиком. Нагляднее, но занимает больше места.</p>
+    </div>
+  </div>
+</div>

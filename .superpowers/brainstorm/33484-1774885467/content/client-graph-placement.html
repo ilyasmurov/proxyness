@@ -1,0 +1,88 @@
+<h2>Где разместить график скорости в клиенте?</h2>
+<p class="subtitle">Клиент — компактное frameless окно. Куда вписать спарклайн?</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;width:220px;margin:0 auto;font-family:system-ui;color:#e0e0e0;">
+        <div style="text-align:center;margin-bottom:8px;">
+          <div style="font-size:11px;color:#888;">SmurovProxy</div>
+        </div>
+        <!-- sparkline area -->
+        <div style="background:#12122a;border-radius:6px;padding:8px;margin-bottom:10px;height:48px;position:relative;overflow:hidden;">
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:#888;margin-bottom:4px;">
+            <span>↓ 2.4 MB/s</span>
+            <span>↑ 340 KB/s</span>
+          </div>
+          <svg viewBox="0 0 200 28" style="width:100%;height:28px;">
+            <polyline points="0,25 15,22 30,18 45,20 60,12 75,8 90,14 105,10 120,6 135,9 150,5 165,8 180,12 200,7" fill="none" stroke="#4ade80" stroke-width="1.5"/>
+            <polyline points="0,26 15,25 30,24 45,25 60,23 75,22 90,24 105,23 120,21 135,22 150,20 165,22 180,23 200,21" fill="none" stroke="#60a5fa" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <!-- connect button -->
+        <div style="background:#4ade80;color:#000;border-radius:20px;padding:8px;text-align:center;font-size:13px;font-weight:600;">
+          Connected
+        </div>
+        <div style="text-align:center;font-size:10px;color:#888;margin-top:6px;">02:34:15</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Над кнопкой</h3>
+      <p>Спарклайн между заголовком и кнопкой. Всегда видно, компактно.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;width:220px;margin:0 auto;font-family:system-ui;color:#e0e0e0;">
+        <div style="text-align:center;margin-bottom:8px;">
+          <div style="font-size:11px;color:#888;">SmurovProxy</div>
+        </div>
+        <!-- connect button -->
+        <div style="background:#4ade80;color:#000;border-radius:20px;padding:8px;text-align:center;font-size:13px;font-weight:600;">
+          Connected
+        </div>
+        <div style="text-align:center;font-size:10px;color:#888;margin-top:6px;">02:34:15</div>
+        <!-- sparkline area below -->
+        <div style="background:#12122a;border-radius:6px;padding:8px;margin-top:10px;height:48px;position:relative;overflow:hidden;">
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:#888;margin-bottom:4px;">
+            <span>↓ 2.4 MB/s</span>
+            <span>↑ 340 KB/s</span>
+          </div>
+          <svg viewBox="0 0 200 28" style="width:100%;height:28px;">
+            <polyline points="0,25 15,22 30,18 45,20 60,12 75,8 90,14 105,10 120,6 135,9 150,5 165,8 180,12 200,7" fill="none" stroke="#4ade80" stroke-width="1.5"/>
+            <polyline points="0,26 15,25 30,24 45,25 60,23 75,22 90,24 105,23 120,21 135,22 150,20 165,22 180,23 200,21" fill="none" stroke="#60a5fa" stroke-width="1.5"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Под кнопкой</h3>
+      <p>Спарклайн внизу, после uptime. Кнопка остаётся на привычном месте.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;width:220px;margin:0 auto;font-family:system-ui;color:#e0e0e0;">
+        <div style="text-align:center;margin-bottom:8px;">
+          <div style="font-size:11px;color:#888;">SmurovProxy</div>
+        </div>
+        <!-- connect button -->
+        <div style="background:#4ade80;color:#000;border-radius:20px;padding:8px;text-align:center;font-size:13px;font-weight:600;">
+          Connected
+        </div>
+        <!-- speed as text inline with uptime -->
+        <div style="display:flex;justify-content:center;gap:12px;font-size:10px;color:#888;margin-top:6px;">
+          <span>02:34:15</span>
+          <span style="color:#4ade80;">↓ 2.4 MB/s</span>
+          <span style="color:#60a5fa;">↑ 340 KB/s</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C: Только цифры</h3>
+      <p>Без графика — скорость текстом рядом с uptime. Минимально, не увеличивает окно.</p>
+    </div>
+  </div>
+</div>
