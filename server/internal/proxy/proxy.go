@@ -44,6 +44,12 @@ func (h *Handler) Handle(conn net.Conn) {
 		return
 	}
 
+	remoteIP := conn.RemoteAddr().(*net.TCPAddr).IP.String()
+	if !h.Tracker.CheckDeviceAccess(device.ID, remoteIP) {
+		log.Printf("device %q already in use from another IP, rejected %s", device.Name, remoteIP)
+		return
+	}
+
 	msgType, err := proto.ReadMsgType(conn)
 	if err != nil {
 		log.Printf("read msg type: %v", err)

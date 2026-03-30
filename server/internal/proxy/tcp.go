@@ -25,7 +25,7 @@ func (h *Handler) handleTCP(conn net.Conn, device *db.Device) {
 	defer target.Close()
 	proto.WriteResult(conn, true)
 
-	connID := h.Tracker.Add(device.ID, device.Name, device.UserName, device.Version)
+	connID := h.Tracker.Add(device.ID, device.Name, device.UserName, device.Version, conn.RemoteAddr().(*net.TCPAddr).IP.String())
 	proto.CountingRelay(conn, target, func(in, out int64) {
 		h.Tracker.AddBytes(connID, in, out)
 	})

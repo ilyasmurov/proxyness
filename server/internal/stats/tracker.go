@@ -19,9 +19,10 @@ type ConnInfo struct {
 }
 
 type Tracker struct {
-	mu     sync.RWMutex
-	conns  map[int64]*ConnInfo
-	nextID int64
+	mu        sync.RWMutex
+	conns     map[int64]*ConnInfo
+	nextID    int64
+	deviceIPs map[int]string // deviceID -> remote IP
 
 	bufMu         sync.RWMutex
 	deviceBuffers map[int]*pkgstats.RingBuffer
@@ -31,6 +32,7 @@ type Tracker struct {
 func New() *Tracker {
 	t := &Tracker{
 		conns:         make(map[int64]*ConnInfo),
+		deviceIPs:     make(map[int]string),
 		deviceBuffers: make(map[int]*pkgstats.RingBuffer),
 		stop:          make(chan struct{}),
 	}
@@ -155,7 +157,15 @@ func (t *Tracker) Rates() []DeviceRate {
 	return result
 }
 
-func (t *Tracker) Add(deviceID int, deviceName, userName, version string) int64 {
+// CheckDeviceAccess returns true if the device is not in use or is used from the same IP.
+func (t *Tracker) CheckDeviceAccess(deviceID int, remoteIP string) bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	existing, ok := t.deviceIPs[deviceID]
+	return !ok || existing == remoteIP
+}
+
+func (t *Tracker) Add(deviceID int, deviceName, userName, version, remoteIP string) int64 {
 	id := atomic.AddInt64(&t.nextID, 1)
 	t.mu.Lock()
 	t.conns[id] = &ConnInfo{
@@ -165,6 +175,7 @@ func (t *Tracker) Add(deviceID int, deviceName, userName, version string) int64 
 		Version:    version,
 		StartedAt:  time.Now(),
 	}
+	t.deviceIPs[deviceID] = remoteIP
 	t.mu.Unlock()
 	return id
 }
@@ -200,6 +211,10 @@ func (t *Tracker) Remove(id int64) *ConnInfo {
 	t.mu.Unlock()
 
 	if !hasMore {
+		t.mu.Lock()
+		delete(t.deviceIPs, deviceID)
+		t.mu.Unlock()
+
 		t.bufMu.Lock()
 		delete(t.deviceBuffers, deviceID)
 		t.bufMu.Unlock()

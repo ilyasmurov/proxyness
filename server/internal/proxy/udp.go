@@ -15,7 +15,7 @@ const udpTimeout = 60 * time.Second
 const udpBufSize = 65535
 
 func (h *Handler) handleUDP(conn net.Conn, device *db.Device) {
-	connID := h.Tracker.Add(device.ID, device.Name, device.UserName, device.Version)
+	connID := h.Tracker.Add(device.ID, device.Name, device.UserName, device.Version, conn.RemoteAddr().(*net.TCPAddr).IP.String())
 	var totalIn, totalOut int64
 	var mu sync.Mutex
 
