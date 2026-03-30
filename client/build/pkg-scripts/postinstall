@@ -1,3 +1,47 @@
 #!/bin/bash
-xattr -cr "/Applications/SmurovProxy.app" 2>/dev/null || true
+
+APP_PATH="/Applications/SmurovProxy.app"
+HELPER_DIR="/Library/PrivilegedHelperTools"
+HELPER_BIN="$HELPER_DIR/smurov-helper"
+PLIST_PATH="/Library/LaunchDaemons/com.smurov.proxy.helper.plist"
+
+# Clear quarantine
+xattr -cr "$APP_PATH" 2>/dev/null || true
+
+# Install helper binary
+mkdir -p "$HELPER_DIR"
+HELPER_SRC=$(find "$APP_PATH/Contents/Resources/resources" -name "helper-darwin-*" | head -1)
+if [ -n "$HELPER_SRC" ]; then
+    # Unload previous version if running
+    launchctl bootout system/com.smurov.proxy.helper 2>/dev/null || true
+
+    cp "$HELPER_SRC" "$HELPER_BIN"
+    chmod 755 "$HELPER_BIN"
+    chown root:wheel "$HELPER_BIN"
+
+    # Install launchd plist
+    cat > "$PLIST_PATH" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.smurov.proxy.helper</string>
+    <key>Program</key>
+    <string>/Library/PrivilegedHelperTools/smurov-helper</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+PLIST
+
+    chmod 644 "$PLIST_PATH"
+    chown root:wheel "$PLIST_PATH"
+
+    # Start the daemon
+    launchctl bootstrap system "$PLIST_PATH"
+fi
+
 exit 0

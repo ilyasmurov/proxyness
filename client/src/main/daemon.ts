@@ -66,6 +66,9 @@ function getHelperPath(): string {
 export function startHelper(): void {
   if (helperProcess) return;
 
+  // On macOS, helper is managed by launchd (installed via PKG postinstall)
+  if (process.platform === "darwin" && app.isPackaged) return;
+
   const helperPath = getHelperPath();
   try {
     helperProcess = spawn(helperPath, [], {
