@@ -4,6 +4,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	pkgstats "smurov-proxy/pkg/stats"
 )
 
 type ConnInfo struct {
@@ -19,10 +21,134 @@ type Tracker struct {
 	mu     sync.RWMutex
 	conns  map[int64]*ConnInfo
 	nextID int64
+
+	bufMu         sync.RWMutex
+	deviceBuffers map[int]*pkgstats.RingBuffer
+	stop          chan struct{}
 }
 
 func New() *Tracker {
-	return &Tracker{conns: make(map[int64]*ConnInfo)}
+	t := &Tracker{
+		conns:         make(map[int64]*ConnInfo),
+		deviceBuffers: make(map[int]*pkgstats.RingBuffer),
+		stop:          make(chan struct{}),
+	}
+	go t.rateTicker()
+	return t
+}
+
+func (t *Tracker) Stop() {
+	close(t.stop)
+}
+
+func (t *Tracker) rateTicker() {
+	prev := make(map[int64][2]int64) // connID -> [prevBytesIn, prevBytesOut]
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			t.computeRates(prev)
+		case <-t.stop:
+			return
+		}
+	}
+}
+
+func (t *Tracker) computeRates(prev map[int64][2]int64) {
+	type delta struct{ in, out int64 }
+	deltas := make(map[int]delta)
+	seen := make(map[int64]bool)
+
+	t.mu.RLock()
+	for id, c := range t.conns {
+		seen[id] = true
+		curIn := atomic.LoadInt64(&c.BytesIn)
+		curOut := atomic.LoadInt64(&c.BytesOut)
+		p := prev[id]
+		d := deltas[c.DeviceID]
+		d.in += curIn - p[0]
+		d.out += curOut - p[1]
+		deltas[c.DeviceID] = d
+		prev[id] = [2]int64{curIn, curOut}
+	}
+	t.mu.RUnlock()
+
+	for id := range prev {
+		if !seen[id] {
+			delete(prev, id)
+		}
+	}
+
+	now := time.Now().Unix()
+	t.bufMu.Lock()
+	for deviceID, d := range deltas {
+		buf := t.deviceBuffers[deviceID]
+		if buf == nil {
+			buf = pkgstats.NewRingBuffer()
+			t.deviceBuffers[deviceID] = buf
+		}
+		buf.Add(pkgstats.RatePoint{Timestamp: now, BytesIn: d.in, BytesOut: d.out})
+	}
+	t.bufMu.Unlock()
+}
+
+type DeviceRate struct {
+	DeviceID    int                  `json:"device_id"`
+	DeviceName  string               `json:"device_name"`
+	UserName    string               `json:"user_name"`
+	Download    int64                `json:"download"`
+	Upload      int64                `json:"upload"`
+	TotalBytes  int64                `json:"total_bytes"`
+	Connections int                  `json:"connections"`
+	History     []pkgstats.RatePoint `json:"history"`
+}
+
+func (t *Tracker) Rates() []DeviceRate {
+	type devInfo struct {
+		name       string
+		userName   string
+		totalBytes int64
+		connCount  int
+	}
+	devices := make(map[int]*devInfo)
+
+	t.mu.RLock()
+	for _, c := range t.conns {
+		d := devices[c.DeviceID]
+		if d == nil {
+			d = &devInfo{name: c.DeviceName, userName: c.UserName}
+			devices[c.DeviceID] = d
+		}
+		d.totalBytes += atomic.LoadInt64(&c.BytesIn) + atomic.LoadInt64(&c.BytesOut)
+		d.connCount++
+	}
+	t.mu.RUnlock()
+
+	t.bufMu.RLock()
+	defer t.bufMu.RUnlock()
+
+	result := make([]DeviceRate, 0, len(devices))
+	for id, info := range devices {
+		dr := DeviceRate{
+			DeviceID:    id,
+			DeviceName:  info.name,
+			UserName:    info.userName,
+			TotalBytes:  info.totalBytes,
+			Connections: info.connCount,
+			History:     []pkgstats.RatePoint{},
+		}
+		if buf := t.deviceBuffers[id]; buf != nil {
+			dr.History = buf.Slice()
+			if len(dr.History) > 0 {
+				last := dr.History[len(dr.History)-1]
+				dr.Download = last.BytesIn
+				dr.Upload = last.BytesOut
+			}
+		}
+		result = append(result, dr)
+	}
+	return result
 }
 
 func (t *Tracker) Add(deviceID int, deviceName, userName string) int64 {
@@ -51,17 +177,36 @@ func (t *Tracker) AddBytes(id, bytesIn, bytesOut int64) {
 func (t *Tracker) Remove(id int64) *ConnInfo {
 	t.mu.Lock()
 	c, ok := t.conns[id]
-	if ok {
-		delete(t.conns, id)
-	}
-	t.mu.Unlock()
 	if !ok {
+		t.mu.Unlock()
 		return nil
 	}
+	delete(t.conns, id)
+
+	// Check if any connections remain for this device
+	deviceID := c.DeviceID
+	hasMore := false
+	for _, other := range t.conns {
+		if other.DeviceID == deviceID {
+			hasMore = true
+			break
+		}
+	}
+	t.mu.Unlock()
+
+	if !hasMore {
+		t.bufMu.Lock()
+		delete(t.deviceBuffers, deviceID)
+		t.bufMu.Unlock()
+	}
+
 	return &ConnInfo{
-		DeviceID: c.DeviceID, DeviceName: c.DeviceName,
-		UserName: c.UserName, StartedAt: c.StartedAt,
-		BytesIn: atomic.LoadInt64(&c.BytesIn), BytesOut: atomic.LoadInt64(&c.BytesOut),
+		DeviceID:   c.DeviceID,
+		DeviceName: c.DeviceName,
+		UserName:   c.UserName,
+		StartedAt:  c.StartedAt,
+		BytesIn:    atomic.LoadInt64(&c.BytesIn),
+		BytesOut:   atomic.LoadInt64(&c.BytesOut),
 	}
 }
 
