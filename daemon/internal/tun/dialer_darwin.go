@@ -5,7 +5,9 @@ package tun
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
+	"os/exec"
 	"strings"
 	"syscall"
 	"time"
@@ -14,28 +16,23 @@ import (
 const ipBoundIF = 25 // IP_BOUND_IF setsockopt on macOS
 
 func getPhysicalInterfaceIndex() (int, error) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return 0, err
-	}
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-		if strings.HasPrefix(iface.Name, "utun") {
-			continue
-		}
-		addrs, err := iface.Addrs()
-		if err != nil || len(addrs) == 0 {
-			continue
-		}
-		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-				return iface.Index, nil
+	// Use "route -n get default" to find the actual default interface
+	out, err := exec.Command("route", "-n", "get", "default").Output()
+	if err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "interface:") {
+				ifName := strings.TrimSpace(strings.TrimPrefix(line, "interface:"))
+				iface, err := net.InterfaceByName(ifName)
+				if err == nil {
+					log.Printf("[tun] default route interface: %s (index %d)", ifName, iface.Index)
+					return iface.Index, nil
+				}
 			}
 		}
 	}
-	return 0, fmt.Errorf("no physical interface found")
+
+	return 0, fmt.Errorf("no default route interface found")
 }
 
 // protectedDial creates a connection that bypasses TUN routing by binding
@@ -43,6 +40,7 @@ func getPhysicalInterfaceIndex() (int, error) {
 func protectedDial(network, address string) (net.Conn, error) {
 	ifIndex, err := getPhysicalInterfaceIndex()
 	if err != nil {
+		log.Printf("[tun] protectedDial fallback (no interface): %v", err)
 		return net.DialTimeout(network, address, 10*time.Second)
 	}
 
