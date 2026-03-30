@@ -374,6 +374,11 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 	dstPort := id.LocalPort
 	srcPort := id.RemotePort
 
+	// Block QUIC (UDP 443) — forces Chrome to fall back to TCP/HTTPS
+	if dstPort == 443 {
+		return
+	}
+
 	appPath, _ := e.procInfo.FindProcess("udp", srcPort)
 	shouldProxy := !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
 
