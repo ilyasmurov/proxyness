@@ -94,9 +94,9 @@ func scanDownloads(dir string) []downloadFile {
 		name := e.Name()
 		lower := strings.ToLower(name)
 		switch {
-		case strings.HasSuffix(lower, ".dmg") && strings.Contains(lower, "arm64"):
+		case (strings.HasSuffix(lower, ".dmg") || strings.HasSuffix(lower, ".pkg")) && strings.Contains(lower, "arm64"):
 			macArm = append(macArm, name)
-		case strings.HasSuffix(lower, ".dmg") && !strings.Contains(lower, "arm64"):
+		case (strings.HasSuffix(lower, ".dmg") || strings.HasSuffix(lower, ".pkg")) && !strings.Contains(lower, "arm64"):
 			macIntel = append(macIntel, name)
 		case strings.HasSuffix(lower, ".exe") && strings.Contains(lower, "setup"):
 			winExe = append(winExe, name)
