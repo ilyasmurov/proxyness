@@ -44,39 +44,8 @@ jobs:
           name: go-binaries
           path: resources/
 
-  # Windows installer on Linux (1:1 minutes)
-  build-windows:
-    needs: build-go
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: go-binaries
-          path: client/resources
-
-      - name: Build Windows installer
-        run: |
-          cd client
-          npm install
-          npm run build
-          npx electron-builder --win nsis --x64 --publish never
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: |
-            client/release/*.exe
-            client/release/*.yml
-            client/release/*.blockmap
-
-  # macOS PKG on macOS (10:1 minutes, minimized)
-  build-macos:
+  # Electron apps on macOS (Windows NSIS + macOS PKG)
+  build-clients:
     needs: build-go
     runs-on: macos-latest
     steps:
@@ -91,13 +60,14 @@ jobs:
           name: go-binaries
           path: client/resources
 
-      - name: Build macOS installers
+      - name: Build Electron app
         run: |
           cd client
           npm install
           npm run build
           npx electron-builder --mac pkg --arm64 --publish never
           npx electron-builder --mac pkg --x64 --publish never
+          npx electron-builder --win nsis --x64 --publish never
 
       - name: Generate latest-mac.yml
         run: |
@@ -125,23 +95,20 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-installer
+          name: installers
           path: |
             client/release/*.pkg
-            client/release/latest-mac.yml
+            client/release/*.exe
+            client/release/*.yml
+            client/release/*.blockmap
 
   deploy-to-vps:
-    needs: [build-windows, build-macos]
+    needs: build-clients
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: windows-installer
-          path: installers
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: macos-installer
+          name: installers
           path: installers
 
       - name: Upload to VPS
