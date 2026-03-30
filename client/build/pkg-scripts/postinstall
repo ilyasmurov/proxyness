@@ -5,8 +5,10 @@ HELPER_DIR="/Library/PrivilegedHelperTools"
 HELPER_BIN="$HELPER_DIR/smurov-helper"
 PLIST_PATH="/Library/LaunchDaemons/com.smurov.proxy.helper.plist"
 
-# Clear quarantine
+# Clear quarantine and fix permissions on bundled binaries
 xattr -cr "$APP_PATH" 2>/dev/null || true
+chmod +x "$APP_PATH/Contents/Resources/resources"/daemon-* 2>/dev/null || true
+chmod +x "$APP_PATH/Contents/Resources/resources"/helper-* 2>/dev/null || true
 
 # Install helper binary
 mkdir -p "$HELPER_DIR"
