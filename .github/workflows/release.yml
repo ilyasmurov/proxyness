@@ -8,8 +8,9 @@ permissions:
   contents: write
 
 jobs:
-  build-clients:
-    runs-on: macos-latest
+  # Go binaries + wintun on Linux (1:1 minutes)
+  build-go:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -17,58 +18,105 @@ jobs:
         with:
           go-version: "1.26"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
       - name: Build Go daemons
         run: |
-          mkdir -p client/resources
+          mkdir -p resources
           cd daemon
-          GOOS=darwin GOARCH=arm64 go build -o ../client/resources/daemon-darwin-arm64 ./cmd
-          GOOS=darwin GOARCH=amd64 go build -o ../client/resources/daemon-darwin-amd64 ./cmd
-          GOOS=windows GOARCH=amd64 go build -o ../client/resources/daemon-windows.exe ./cmd
+          GOOS=darwin GOARCH=arm64 go build -o ../resources/daemon-darwin-arm64 ./cmd
+          GOOS=darwin GOARCH=amd64 go build -o ../resources/daemon-darwin-amd64 ./cmd
+          GOOS=windows GOARCH=amd64 go build -o ../resources/daemon-windows.exe ./cmd
 
       - name: Build Go helpers
         run: |
           cd helper
-          GOOS=darwin GOARCH=arm64 go build -o ../client/resources/helper-darwin-arm64 ./cmd
-          GOOS=darwin GOARCH=amd64 go build -o ../client/resources/helper-darwin-amd64 ./cmd
-          GOOS=windows GOARCH=amd64 go build -o ../client/resources/helper-windows.exe ./cmd
+          GOOS=darwin GOARCH=arm64 go build -o ../resources/helper-darwin-arm64 ./cmd
+          GOOS=darwin GOARCH=amd64 go build -o ../resources/helper-darwin-amd64 ./cmd
+          GOOS=windows GOARCH=amd64 go build -o ../resources/helper-windows.exe ./cmd
 
-      - name: Download wintun.dll for Windows TUN
+      - name: Download wintun.dll
         run: |
           curl -L https://www.wintun.net/builds/wintun-0.14.1.zip -o wintun.zip
           unzip wintun.zip
-          cp wintun/bin/amd64/wintun.dll client/resources/wintun.dll
+          cp wintun/bin/amd64/wintun.dll resources/wintun.dll
 
-      - name: Build Electron app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-binaries
+          path: resources/
+
+  # Windows installer on Linux (1:1 minutes)
+  build-windows:
+    needs: build-go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: go-binaries
+          path: client/resources
+
+      - name: Build Windows installer
+        run: |
+          cd client
+          npm install
+          npm run build
+          npx electron-builder --win nsis --x64 --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            client/release/*.exe
+            client/release/*.yml
+            client/release/*.blockmap
+
+  # macOS PKG on macOS (10:1 minutes, minimized)
+  build-macos:
+    needs: build-go
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: go-binaries
+          path: client/resources
+
+      - name: Build macOS installers
         run: |
           cd client
           npm install
           npm run build
           npx electron-builder --mac pkg --arm64 --publish never
           npx electron-builder --mac pkg --x64 --publish never
-          npx electron-builder --win nsis --x64 --publish never
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: installers
+          name: macos-installer
           path: |
             client/release/*.pkg
-            client/release/*.exe
-            client/release/*.yml
-            client/release/*.blockmap
 
   deploy-to-vps:
-    needs: build-clients
+    needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: installers
+          name: windows-installer
+          path: installers
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-installer
           path: installers
 
       - name: Upload to VPS
