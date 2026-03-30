@@ -61,6 +61,17 @@ export interface DailyTraffic {
   connections: number;
 }
 
+export interface DeviceRate {
+  device_id: number;
+  device_name: string;
+  user_name: string;
+  download: number;
+  upload: number;
+  total_bytes: number;
+  connections: number;
+  history: Array<{ t: number; down: number; up: number }>;
+}
+
 export const api = {
   listUsers: (): Promise<User[]> => request("/users"),
   createUser: (name: string): Promise<User> =>
@@ -81,4 +92,5 @@ export const api = {
     request(`/stats/traffic?period=${period}`),
   trafficDaily: (deviceId: number): Promise<DailyTraffic[]> =>
     request(`/stats/traffic/${deviceId}/daily`),
+  rate: (): Promise<DeviceRate[]> => request("/stats/rate"),
 };

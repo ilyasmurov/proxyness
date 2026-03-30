@@ -1,56 +1,23 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import type { Overview, ActiveConn } from "@/lib/api";
-import { formatBytes, formatDuration } from "@/lib/format";
-
-interface DeviceGroup {
-  device_name: string;
-  user_name: string;
-  connections: ActiveConn[];
-  total_in: number;
-  total_out: number;
-}
+import type { Overview, DeviceRate } from "@/lib/api";
+import { formatBytes, formatSpeed } from "../lib/format";
 
 export function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [active, setActive] = useState<ActiveConn[]>([]);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [rates, setRates] = useState<DeviceRate[]>([]);
 
   useEffect(() => {
     const load = () => {
       api.overview().then(setOverview).catch(() => {});
-      api.activeConns().then(setActive).catch(() => {});
+      api.rate().then(setRates).catch(() => {});
     };
     load();
     const interval = setInterval(load, 3000);
     return () => clearInterval(interval);
   }, []);
-
-  const groups = useMemo(() => {
-    const map = new Map<string, DeviceGroup>();
-    for (const c of active) {
-      const key = `${c.device_name}::${c.user_name}`;
-      let g = map.get(key);
-      if (!g) {
-        g = { device_name: c.device_name, user_name: c.user_name, connections: [], total_in: 0, total_out: 0 };
-        map.set(key, g);
-      }
-      g.connections.push(c);
-      g.total_in += c.bytes_in;
-      g.total_out += c.bytes_out;
-    }
-    return Array.from(map.values());
-  }, [active]);
-
-  const toggle = (key: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -70,50 +37,69 @@ export function Dashboard() {
         </Card>
       </div>
       <Card>
-        <CardHeader><CardTitle>Active Connections</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Active Devices</CardTitle></CardHeader>
         <CardContent>
-          {groups.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No active connections</p>
+          {rates.length === 0 ? (
+            <p style={{ color: "#888" }}>No active connections</p>
           ) : (
-            <Table>
-              <TableHeader><TableRow>
-                <TableHead>Device</TableHead><TableHead>User</TableHead>
-                <TableHead>Connections</TableHead><TableHead>In</TableHead><TableHead>Out</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {groups.map((g) => {
-                  const key = `${g.device_name}::${g.user_name}`;
-                  const isOpen = expanded.has(key);
-                  return (
-                    <>
-                      <TableRow
-                        key={key}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => toggle(key)}
-                      >
-                        <TableCell className="font-medium">
-                          <span className="mr-2 inline-block w-4 text-muted-foreground">{isOpen ? "▾" : "▸"}</span>
-                          {g.device_name}
-                        </TableCell>
-                        <TableCell>{g.user_name}</TableCell>
-                        <TableCell>{g.connections.length}</TableCell>
-                        <TableCell>{formatBytes(g.total_in)}</TableCell>
-                        <TableCell>{formatBytes(g.total_out)}</TableCell>
-                      </TableRow>
-                      {isOpen && g.connections.map((c, i) => (
-                        <TableRow key={`${key}-${i}`} className="bg-muted/20">
-                          <TableCell className="pl-10 text-muted-foreground text-xs">connection #{i + 1}</TableCell>
-                          <TableCell></TableCell>
-                          <TableCell className="text-xs">{formatDuration(c.started_at)}</TableCell>
-                          <TableCell className="text-xs">{formatBytes(c.bytes_in)}</TableCell>
-                          <TableCell className="text-xs">{formatBytes(c.bytes_out)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {rates
+                .sort((a, b) => b.download + b.upload - (a.download + a.upload))
+                .map((device) => (
+                  <div
+                    key={device.device_id}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      padding: 16,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <div>
+                        <strong>{device.device_name}</strong>
+                        <span style={{ color: "#888", marginLeft: 8, fontSize: 13 }}>
+                          {device.user_name}
+                        </span>
+                      </div>
+                      <span style={{ color: "#888", fontSize: 13 }}>
+                        {formatBytes(device.total_bytes)} total · {device.connections} conn
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", gap: 16, marginBottom: 8, fontSize: 14 }}>
+                      <span style={{ color: "#16a34a" }}>↓ {formatSpeed(device.download)}</span>
+                      <span style={{ color: "#2563eb" }}>↑ {formatSpeed(device.upload)}</span>
+                    </div>
+                    <ResponsiveContainer width="100%" height={80}>
+                      <LineChart data={device.history}>
+                        <XAxis dataKey="t" hide />
+                        <YAxis hide />
+                        <Tooltip
+                          formatter={(value, name) =>
+                            [formatSpeed(Number(value)), name === "down" ? "Download" : "Upload"]
+                          }
+                          labelFormatter={() => ""}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="down"
+                          stroke="#16a34a"
+                          strokeWidth={1.5}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="up"
+                          stroke="#2563eb"
+                          strokeWidth={1.5}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ))}
+            </div>
           )}
         </CardContent>
       </Card>
