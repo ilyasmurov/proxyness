@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/daemon/internal/tun"
 	"smurov-proxy/daemon/internal/tunnel"
 	"smurov-proxy/pkg/auth"
@@ -70,8 +71,9 @@ func startMockServer(t *testing.T) string {
 }
 
 func TestHealthEndpoint(t *testing.T) {
-	tnl := tunnel.New()
-	srv := New(tnl, tun.NewEngine(), "127.0.0.1:1080")
+	meter := dstats.NewRateMeter()
+	tnl := tunnel.New(meter)
+	srv := New(tnl, tun.NewEngine(meter), "127.0.0.1:1080", meter)
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
@@ -83,8 +85,9 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestStatusEndpoint_Disconnected(t *testing.T) {
-	tnl := tunnel.New()
-	srv := New(tnl, tun.NewEngine(), "127.0.0.1:1080")
+	meter := dstats.NewRateMeter()
+	tnl := tunnel.New(meter)
+	srv := New(tnl, tun.NewEngine(meter), "127.0.0.1:1080", meter)
 
 	req := httptest.NewRequest("GET", "/status", nil)
 	w := httptest.NewRecorder()
@@ -102,8 +105,9 @@ func TestStatusEndpoint_Disconnected(t *testing.T) {
 }
 
 func TestConnectEndpoint_BadJSON(t *testing.T) {
-	tnl := tunnel.New()
-	srv := New(tnl, tun.NewEngine(), "127.0.0.1:1080")
+	meter := dstats.NewRateMeter()
+	tnl := tunnel.New(meter)
+	srv := New(tnl, tun.NewEngine(meter), "127.0.0.1:1080", meter)
 
 	req := httptest.NewRequest("POST", "/connect", strings.NewReader("not json"))
 	w := httptest.NewRecorder()
@@ -115,8 +119,9 @@ func TestConnectEndpoint_BadJSON(t *testing.T) {
 }
 
 func TestDisconnectEndpoint(t *testing.T) {
-	tnl := tunnel.New()
-	srv := New(tnl, tun.NewEngine(), "127.0.0.1:1080")
+	meter := dstats.NewRateMeter()
+	tnl := tunnel.New(meter)
+	srv := New(tnl, tun.NewEngine(meter), "127.0.0.1:1080", meter)
 
 	req := httptest.NewRequest("POST", "/disconnect", nil)
 	w := httptest.NewRecorder()
@@ -129,8 +134,9 @@ func TestDisconnectEndpoint(t *testing.T) {
 
 func TestConnectDisconnectFlow(t *testing.T) {
 	mockAddr := startMockServer(t)
-	tnl := tunnel.New()
-	srv := New(tnl, tun.NewEngine(), "127.0.0.1:0")
+	meter := dstats.NewRateMeter()
+	tnl := tunnel.New(meter)
+	srv := New(tnl, tun.NewEngine(meter), "127.0.0.1:0", meter)
 
 	// Connect
 	body := fmt.Sprintf(`{"server":"%s","key":"%s"}`, mockAddr, testKey)
