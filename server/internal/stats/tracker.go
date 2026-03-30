@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,11 +19,16 @@ type ConnInfo struct {
 	BytesOut   int64     `json:"bytes_out"`
 }
 
+type deviceLock struct {
+	sessionID string
+	lockedAt  time.Time
+}
+
 type Tracker struct {
-	mu        sync.RWMutex
-	conns     map[int64]*ConnInfo
-	nextID    int64
-	deviceIPs map[int]string // deviceID -> remote IP
+	mu          sync.RWMutex
+	conns       map[int64]*ConnInfo
+	nextID      int64
+	deviceLocks map[int]*deviceLock
 
 	bufMu         sync.RWMutex
 	deviceBuffers map[int]*pkgstats.RingBuffer
@@ -32,7 +38,7 @@ type Tracker struct {
 func New() *Tracker {
 	t := &Tracker{
 		conns:         make(map[int64]*ConnInfo),
-		deviceIPs:     make(map[int]string),
+		deviceLocks:   make(map[int]*deviceLock),
 		deviceBuffers: make(map[int]*pkgstats.RingBuffer),
 		stop:          make(chan struct{}),
 	}
@@ -157,15 +163,46 @@ func (t *Tracker) Rates() []DeviceRate {
 	return result
 }
 
-// CheckDeviceAccess returns true if the device is not in use or is used from the same IP.
-func (t *Tracker) CheckDeviceAccess(deviceID int, remoteIP string) bool {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	existing, ok := t.deviceIPs[deviceID]
-	return !ok || existing == remoteIP
+const lockTimeout = 2 * time.Minute
+
+// LockDevice locks a device for a session. Returns error if already locked by a different session.
+func (t *Tracker) LockDevice(deviceID int, sessionID string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if existing, ok := t.deviceLocks[deviceID]; ok {
+		if existing.sessionID == sessionID {
+			existing.lockedAt = time.Now()
+			return nil
+		}
+		// Check if lock expired (no active connections + timeout)
+		hasConns := false
+		for _, c := range t.conns {
+			if c.DeviceID == deviceID {
+				hasConns = true
+				break
+			}
+		}
+		if !hasConns && time.Since(existing.lockedAt) > lockTimeout {
+			// Expired lock, allow override
+		} else {
+			return fmt.Errorf("device already in use")
+		}
+	}
+	t.deviceLocks[deviceID] = &deviceLock{sessionID: sessionID, lockedAt: time.Now()}
+	return nil
 }
 
-func (t *Tracker) Add(deviceID int, deviceName, userName, version, remoteIP string) int64 {
+// UnlockDevice unlocks a device if the session matches.
+func (t *Tracker) UnlockDevice(deviceID int, sessionID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if existing, ok := t.deviceLocks[deviceID]; ok && existing.sessionID == sessionID {
+		delete(t.deviceLocks, deviceID)
+	}
+}
+
+func (t *Tracker) Add(deviceID int, deviceName, userName, version string) int64 {
 	id := atomic.AddInt64(&t.nextID, 1)
 	t.mu.Lock()
 	t.conns[id] = &ConnInfo{
@@ -175,7 +212,6 @@ func (t *Tracker) Add(deviceID int, deviceName, userName, version, remoteIP stri
 		Version:    version,
 		StartedAt:  time.Now(),
 	}
-	t.deviceIPs[deviceID] = remoteIP
 	t.mu.Unlock()
 	return id
 }
@@ -211,10 +247,6 @@ func (t *Tracker) Remove(id int64) *ConnInfo {
 	t.mu.Unlock()
 
 	if !hasMore {
-		t.mu.Lock()
-		delete(t.deviceIPs, deviceID)
-		t.mu.Unlock()
-
 		t.bufMu.Lock()
 		delete(t.deviceBuffers, deviceID)
 		t.bufMu.Unlock()

@@ -37,8 +37,10 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
 	mux.HandleFunc("GET /admin/api/stats/rate", h.auth(h.statsRate))
 
-	// Public endpoints (no auth)
+	// Public endpoints (no auth, device key for identification)
 	mux.HandleFunc("POST /api/report-version", h.reportVersion)
+	mux.HandleFunc("POST /api/lock-device", h.lockDevice)
+	mux.HandleFunc("POST /api/unlock-device", h.unlockDevice)
 
 	// Download files
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
@@ -277,5 +279,49 @@ func (h *Handler) reportVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.db.UpdateDeviceVersion(req.Key, req.Version)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) lockDevice(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Key       string `json:"key"`
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if req.Key == "" || req.SessionID == "" {
+		http.Error(w, "key and session_id required", http.StatusBadRequest)
+		return
+	}
+	device, err := h.db.GetDeviceByKey(req.Key)
+	if err != nil {
+		http.Error(w, "unknown device", http.StatusNotFound)
+		return
+	}
+	if err := h.tracker.LockDevice(device.ID, req.SessionID); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) unlockDevice(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Key       string `json:"key"`
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	device, err := h.db.GetDeviceByKey(req.Key)
+	if err != nil {
+		return
+	}
+	h.tracker.UnlockDevice(device.ID, req.SessionID)
 	w.WriteHeader(http.StatusOK)
 }

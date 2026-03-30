@@ -1,7 +1,9 @@
 package api
 
 import (
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,6 +20,9 @@ type Server struct {
 	tunEngine  *tun.Engine
 	listenAddr string
 	meter      *dstats.RateMeter
+	sessionID  string
+	serverAddr string // remembered for unlock on disconnect
+	key        string
 }
 
 type ConnectRequest struct {
@@ -33,7 +38,9 @@ type StatusResponse struct {
 }
 
 func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string, meter *dstats.RateMeter) *Server {
-	return &Server{tunnel: t, tunEngine: te, listenAddr: listenAddr, meter: meter}
+	b := make([]byte, 16)
+	rand.Read(b)
+	return &Server{tunnel: t, tunEngine: te, listenAddr: listenAddr, meter: meter, sessionID: hex.EncodeToString(b)}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -60,10 +67,20 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Lock device on server before connecting
+	if err := lockDevice(req.ServerAddr, req.Key, s.sessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+
 	if err := s.tunnel.Start(s.listenAddr, req.ServerAddr, req.Key); err != nil {
+		go unlockDevice(req.ServerAddr, req.Key, s.sessionID)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	s.serverAddr = req.ServerAddr
+	s.key = req.Key
 
 	if req.Version != "" {
 		go reportVersion(req.ServerAddr, req.Key, req.Version)
@@ -72,19 +89,48 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func reportVersion(serverAddr, key, version string) {
-	client := &http.Client{
+func serverHTTPClient() *http.Client {
+	return &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 		Timeout: 5 * time.Second,
 	}
+}
+
+func lockDevice(serverAddr, key, sessionID string) error {
+	data := fmt.Sprintf(`{"key":%q,"session_id":%q}`, key, sessionID)
+	resp, err := serverHTTPClient().Post("https://"+serverAddr+"/api/lock-device", "application/json", strings.NewReader(data))
+	if err != nil {
+		return nil // server unreachable, allow connection anyway
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusConflict {
+		var body struct{ Error string `json:"error"` }
+		json.NewDecoder(resp.Body).Decode(&body)
+		if body.Error != "" {
+			return fmt.Errorf("%s", body.Error)
+		}
+		return fmt.Errorf("device already in use")
+	}
+	return nil
+}
+
+func unlockDevice(serverAddr, key, sessionID string) {
+	data := fmt.Sprintf(`{"key":%q,"session_id":%q}`, key, sessionID)
+	serverHTTPClient().Post("https://"+serverAddr+"/api/unlock-device", "application/json", strings.NewReader(data))
+}
+
+func reportVersion(serverAddr, key, version string) {
 	data := fmt.Sprintf(`{"key":%q,"version":%q}`, key, version)
-	client.Post("https://"+serverAddr+"/api/report-version", "application/json", strings.NewReader(data))
+	serverHTTPClient().Post("https://"+serverAddr+"/api/report-version", "application/json", strings.NewReader(data))
 }
 
 func (s *Server) handleDisconnect(w http.ResponseWriter, r *http.Request) {
 	s.tunnel.Stop()
+	if s.serverAddr != "" && s.key != "" {
+		go unlockDevice(s.serverAddr, s.key, s.sessionID)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
