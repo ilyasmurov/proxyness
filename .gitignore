@@ -1,6 +1,7 @@
 # Go
 dist/
 *.exe
+/cmd
 
 # Node
 client/node_modules/
@@ -8,6 +9,7 @@ client/dist/
 client/dist-electron/
 client/release/
 client/resources/daemon-*
+client/resources/helper-*
 server/admin-ui/node_modules/
 server/admin-ui/dist/
 server/internal/admin/static/
