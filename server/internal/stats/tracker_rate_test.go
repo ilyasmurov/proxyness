@@ -9,8 +9,8 @@ func TestTrackerRates(t *testing.T) {
 	tr := New()
 	defer tr.Stop()
 
-	id1 := tr.Add(1, "MacBook", "ilya")
-	id2 := tr.Add(1, "MacBook", "ilya")
+	id1 := tr.Add(1, "MacBook", "ilya", "")
+	id2 := tr.Add(1, "MacBook", "ilya", "")
 
 	tr.AddBytes(id1, 1000, 100)
 	tr.AddBytes(id2, 2000, 200)
@@ -40,7 +40,7 @@ func TestTrackerRatesAfterRemove(t *testing.T) {
 	tr := New()
 	defer tr.Stop()
 
-	id := tr.Add(1, "MacBook", "ilya")
+	id := tr.Add(1, "MacBook", "ilya", "")
 	tr.AddBytes(id, 1000, 100)
 
 	time.Sleep(1200 * time.Millisecond)
@@ -57,8 +57,8 @@ func TestTrackerRatesMultipleDevices(t *testing.T) {
 	tr := New()
 	defer tr.Stop()
 
-	id1 := tr.Add(1, "MacBook", "ilya")
-	id2 := tr.Add(2, "iPhone", "ilya")
+	id1 := tr.Add(1, "MacBook", "ilya", "")
+	id2 := tr.Add(2, "iPhone", "ilya", "")
 
 	tr.AddBytes(id1, 5000, 500)
 	tr.AddBytes(id2, 1000, 100)

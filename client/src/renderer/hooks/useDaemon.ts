@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 const API_BASE = "http://127.0.0.1:9090";
 
+declare const __APP_VERSION__: string;
+
 declare global {
   interface Window {
     sysproxy: { enable: () => void; disable: () => void };
@@ -56,7 +58,7 @@ export function useDaemon() {
         const res = await fetch(`${API_BASE}/connect`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ server, key }),
+          body: JSON.stringify({ server, key, version: __APP_VERSION__ }),
         });
         if (!res.ok) {
           setError(await res.text());

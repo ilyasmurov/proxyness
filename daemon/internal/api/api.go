@@ -1,8 +1,12 @@
 package api
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/daemon/internal/tun"
@@ -19,6 +23,7 @@ type Server struct {
 type ConnectRequest struct {
 	ServerAddr string `json:"server"`
 	Key        string `json:"key"`
+	Version    string `json:"version,omitempty"`
 }
 
 type StatusResponse struct {
@@ -60,7 +65,22 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Version != "" {
+		go reportVersion(req.ServerAddr, req.Key, req.Version)
+	}
+
 	w.WriteHeader(http.StatusOK)
+}
+
+func reportVersion(serverAddr, key, version string) {
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: 5 * time.Second,
+	}
+	data := fmt.Sprintf(`{"key":%q,"version":%q}`, key, version)
+	client.Post("https://"+serverAddr+"/api/report-version", "application/json", strings.NewReader(data))
 }
 
 func (s *Server) handleDisconnect(w http.ResponseWriter, r *http.Request) {

@@ -37,6 +37,9 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
 	mux.HandleFunc("GET /admin/api/stats/rate", h.auth(h.statsRate))
 
+	// Public endpoints (no auth)
+	mux.HandleFunc("POST /api/report-version", h.reportVersion)
+
 	// Download files
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
 
@@ -258,4 +261,21 @@ func (h *Handler) statsTrafficDaily(w http.ResponseWriter, r *http.Request) {
 		data = []map[string]interface{}{}
 	}
 	writeJSON(w, http.StatusOK, data)
+}
+
+func (h *Handler) reportVersion(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Key     string `json:"key"`
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if req.Key == "" || req.Version == "" {
+		http.Error(w, "key and version required", http.StatusBadRequest)
+		return
+	}
+	h.db.UpdateDeviceVersion(req.Key, req.Version)
+	w.WriteHeader(http.StatusOK)
 }

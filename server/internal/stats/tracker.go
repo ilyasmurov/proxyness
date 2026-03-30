@@ -12,6 +12,7 @@ type ConnInfo struct {
 	DeviceID   int       `json:"device_id"`
 	DeviceName string    `json:"device_name"`
 	UserName   string    `json:"user_name"`
+	Version    string    `json:"version,omitempty"`
 	StartedAt  time.Time `json:"started_at"`
 	BytesIn    int64     `json:"bytes_in"`
 	BytesOut   int64     `json:"bytes_out"`
@@ -97,6 +98,7 @@ type DeviceRate struct {
 	DeviceID    int                  `json:"device_id"`
 	DeviceName  string               `json:"device_name"`
 	UserName    string               `json:"user_name"`
+	Version     string               `json:"version,omitempty"`
 	Download    int64                `json:"download"`
 	Upload      int64                `json:"upload"`
 	TotalBytes  int64                `json:"total_bytes"`
@@ -108,6 +110,7 @@ func (t *Tracker) Rates() []DeviceRate {
 	type devInfo struct {
 		name       string
 		userName   string
+		version    string
 		totalBytes int64
 		connCount  int
 	}
@@ -117,7 +120,7 @@ func (t *Tracker) Rates() []DeviceRate {
 	for _, c := range t.conns {
 		d := devices[c.DeviceID]
 		if d == nil {
-			d = &devInfo{name: c.DeviceName, userName: c.UserName}
+			d = &devInfo{name: c.DeviceName, userName: c.UserName, version: c.Version}
 			devices[c.DeviceID] = d
 		}
 		d.totalBytes += atomic.LoadInt64(&c.BytesIn) + atomic.LoadInt64(&c.BytesOut)
@@ -134,6 +137,7 @@ func (t *Tracker) Rates() []DeviceRate {
 			DeviceID:    id,
 			DeviceName:  info.name,
 			UserName:    info.userName,
+			Version:     info.version,
 			TotalBytes:  info.totalBytes,
 			Connections: info.connCount,
 			History:     []pkgstats.RatePoint{},
@@ -151,13 +155,14 @@ func (t *Tracker) Rates() []DeviceRate {
 	return result
 }
 
-func (t *Tracker) Add(deviceID int, deviceName, userName string) int64 {
+func (t *Tracker) Add(deviceID int, deviceName, userName, version string) int64 {
 	id := atomic.AddInt64(&t.nextID, 1)
 	t.mu.Lock()
 	t.conns[id] = &ConnInfo{
 		DeviceID:   deviceID,
 		DeviceName: deviceName,
 		UserName:   userName,
+		Version:    version,
 		StartedAt:  time.Now(),
 	}
 	t.mu.Unlock()
@@ -204,6 +209,7 @@ func (t *Tracker) Remove(id int64) *ConnInfo {
 		DeviceID:   c.DeviceID,
 		DeviceName: c.DeviceName,
 		UserName:   c.UserName,
+		Version:    c.Version,
 		StartedAt:  c.StartedAt,
 		BytesIn:    atomic.LoadInt64(&c.BytesIn),
 		BytesOut:   atomic.LoadInt64(&c.BytesOut),
@@ -217,7 +223,7 @@ func (t *Tracker) Active() []ConnInfo {
 	for _, c := range t.conns {
 		result = append(result, ConnInfo{
 			DeviceID: c.DeviceID, DeviceName: c.DeviceName,
-			UserName: c.UserName, StartedAt: c.StartedAt,
+			UserName: c.UserName, Version: c.Version, StartedAt: c.StartedAt,
 			BytesIn: atomic.LoadInt64(&c.BytesIn), BytesOut: atomic.LoadInt64(&c.BytesOut),
 		})
 	}

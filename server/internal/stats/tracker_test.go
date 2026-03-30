@@ -4,7 +4,7 @@ import "testing"
 
 func TestAddRemoveConn(t *testing.T) {
 	tr := New()
-	id := tr.Add(1, "MacBook", "Alice")
+	id := tr.Add(1, "MacBook", "Alice", "")
 	conns := tr.Active()
 	if len(conns) != 1 { t.Fatalf("expected 1, got %d", len(conns)) }
 	if conns[0].DeviceName != "MacBook" || conns[0].UserName != "Alice" { t.Fatalf("unexpected: %+v", conns[0]) }
@@ -15,7 +15,7 @@ func TestAddRemoveConn(t *testing.T) {
 
 func TestUpdateBytes(t *testing.T) {
 	tr := New()
-	id := tr.Add(1, "MacBook", "Alice")
+	id := tr.Add(1, "MacBook", "Alice", "")
 	tr.AddBytes(id, 100, 200)
 	tr.AddBytes(id, 50, 30)
 	conns := tr.Active()
@@ -26,7 +26,7 @@ func TestUpdateBytes(t *testing.T) {
 
 func TestActiveCount(t *testing.T) {
 	tr := New()
-	tr.Add(1, "A", "U")
-	tr.Add(2, "B", "U")
+	tr.Add(1, "A", "U", "")
+	tr.Add(2, "B", "U", "")
 	if tr.ActiveCount() != 2 { t.Fatalf("expected 2, got %d", tr.ActiveCount()) }
 }

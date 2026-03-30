@@ -65,6 +65,7 @@ export interface DeviceRate {
   device_id: number;
   device_name: string;
   user_name: string;
+  version: string;
   download: number;
   upload: number;
   total_bytes: number;

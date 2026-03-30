@@ -31,6 +31,7 @@ type Device struct {
 	Name      string    `json:"name"`
 	Key       string    `json:"key"`
 	Active    bool      `json:"active"`
+	Version   string    `json:"version,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -95,6 +96,9 @@ func Open(path string) (*DB, error) {
 		sqlDB.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+
+	// Migrations (ignore errors — columns may already exist)
+	sqlDB.Exec(`ALTER TABLE devices ADD COLUMN client_version TEXT DEFAULT ''`)
 
 	return &DB{sql: sqlDB}, nil
 }
@@ -184,7 +188,7 @@ func (d *DB) CreateDevice(userID int, name string) (Device, error) {
 // ListDevices returns all devices for the given user.
 func (d *DB) ListDevices(userID int) ([]Device, error) {
 	rows, err := d.sql.Query(`
-		SELECT id, user_id, name, key, active, created_at
+		SELECT id, user_id, name, key, active, client_version, created_at
 		FROM devices
 		WHERE user_id = ?
 		ORDER BY id
@@ -249,7 +253,7 @@ func (d *DB) GetActiveKeys() ([]string, error) {
 // GetDeviceByKey looks up a device by its key, populating UserName via JOIN.
 func (d *DB) GetDeviceByKey(key string) (Device, error) {
 	row := d.sql.QueryRow(`
-		SELECT d.id, d.user_id, u.name, d.name, d.key, d.active, d.created_at
+		SELECT d.id, d.user_id, u.name, d.name, d.key, d.active, d.client_version, d.created_at
 		FROM devices d
 		JOIN users u ON u.id = d.user_id
 		WHERE d.key = ?
@@ -258,7 +262,7 @@ func (d *DB) GetDeviceByKey(key string) (Device, error) {
 	var dev Device
 	var activeInt int
 	var createdAt string
-	err := row.Scan(&dev.ID, &dev.UserID, &dev.UserName, &dev.Name, &dev.Key, &activeInt, &createdAt)
+	err := row.Scan(&dev.ID, &dev.UserID, &dev.UserName, &dev.Name, &dev.Key, &activeInt, &dev.Version, &createdAt)
 	if err == sql.ErrNoRows {
 		return Device{}, fmt.Errorf("device not found for key %q", key)
 	}
@@ -389,10 +393,16 @@ func (d *DB) GetTrafficByDay(deviceID int, days int) ([]map[string]interface{}, 
 
 func (d *DB) deviceByID(id int) (Device, error) {
 	row := d.sql.QueryRow(`
-		SELECT id, user_id, name, key, active, created_at
+		SELECT id, user_id, name, key, active, client_version, created_at
 		FROM devices WHERE id = ?
 	`, id)
 	return scanDeviceRow(row)
+}
+
+// UpdateDeviceVersion updates the client_version for a device identified by key.
+func (d *DB) UpdateDeviceVersion(key string, version string) error {
+	_, err := d.sql.Exec(`UPDATE devices SET client_version = ? WHERE key = ?`, version, key)
+	return err
 }
 
 // rowScanner is satisfied by both *sql.Row and *sql.Rows.
@@ -404,7 +414,7 @@ func scanDeviceRow(row *sql.Row) (Device, error) {
 	var dev Device
 	var activeInt int
 	var createdAt string
-	if err := row.Scan(&dev.ID, &dev.UserID, &dev.Name, &dev.Key, &activeInt, &createdAt); err != nil {
+	if err := row.Scan(&dev.ID, &dev.UserID, &dev.Name, &dev.Key, &activeInt, &dev.Version, &createdAt); err != nil {
 		return Device{}, fmt.Errorf("scan device: %w", err)
 	}
 	dev.Active = activeInt != 0
@@ -416,7 +426,7 @@ func scanDevice(rows *sql.Rows) (Device, error) {
 	var dev Device
 	var activeInt int
 	var createdAt string
-	if err := rows.Scan(&dev.ID, &dev.UserID, &dev.Name, &dev.Key, &activeInt, &createdAt); err != nil {
+	if err := rows.Scan(&dev.ID, &dev.UserID, &dev.Name, &dev.Key, &activeInt, &dev.Version, &createdAt); err != nil {
 		return Device{}, fmt.Errorf("scan device row: %w", err)
 	}
 	dev.Active = activeInt != 0
