@@ -184,8 +184,12 @@ function setupIpc() {
 
   ipcMain.on("install-update", () => {
     if (installerPath) {
+      // Kill child processes so installer can replace files
+      stopDaemon();
+      stopHelper();
       shell.openPath(installerPath);
-      setTimeout(() => app.quit(), 1000);
+      // app.exit() is immediate — no event handlers can block it
+      setTimeout(() => app.exit(0), 500);
     }
   });
 
