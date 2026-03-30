@@ -20,7 +20,7 @@ func setup(t *testing.T) *Handler {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { d.Close() })
-	return NewHandler(d, stats.New(), "admin", "secret")
+	return NewHandler(d, stats.New(), "admin", "secret", "")
 }
 
 func authed(req *http.Request) *http.Request {

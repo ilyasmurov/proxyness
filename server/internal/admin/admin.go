@@ -35,6 +35,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("GET /admin/api/stats/active", h.auth(h.statsActive))
 	mux.HandleFunc("GET /admin/api/stats/traffic", h.auth(h.statsTraffic))
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
+	mux.HandleFunc("GET /admin/api/stats/rate", h.auth(h.statsRate))
 
 	// Download files
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
@@ -230,6 +231,11 @@ func (h *Handler) statsTraffic(w http.ResponseWriter, r *http.Request) {
 		traffic = []db.TrafficStat{}
 	}
 	writeJSON(w, http.StatusOK, traffic)
+}
+
+func (h *Handler) statsRate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(h.tracker.Rates())
 }
 
 func (h *Handler) statsTrafficDaily(w http.ResponseWriter, r *http.Request) {
