@@ -195,10 +195,13 @@ func (e *Engine) connectAndCreate(req StartRequest) (net.Conn, io.Reader, error)
 
 // bridgeInbound reads framed IP packets from helper and injects into gVisor stack.
 func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
+	log.Printf("[tun] bridgeInbound started")
 	lenBuf := make([]byte, 2)
+	var count int64
+	var ipv4Count, ipv6Count int64
 	for {
 		if _, err := io.ReadFull(r, lenBuf); err != nil {
-			log.Printf("[tun] bridge inbound closed: %v", err)
+			log.Printf("[tun] bridgeInbound closed (after %d packets): %v", count, err)
 			return
 		}
 		pktLen := int(binary.BigEndian.Uint16(lenBuf))
@@ -208,15 +211,26 @@ func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 
 		data := make([]byte, pktLen)
 		if _, err := io.ReadFull(r, data); err != nil {
-			log.Printf("[tun] bridge inbound read: %v", err)
+			log.Printf("[tun] bridgeInbound read error (after %d packets): %v", count, err)
 			return
 		}
 
 		var proto tcpip.NetworkProtocolNumber
-		if data[0]>>4 == 4 {
+		ipVer := data[0] >> 4
+		if ipVer == 4 {
 			proto = header.IPv4ProtocolNumber
+			ipv4Count++
 		} else {
 			proto = header.IPv6ProtocolNumber
+			ipv6Count++
+		}
+
+		count++
+		if count == 1 {
+			log.Printf("[tun] bridgeInbound first packet: %d bytes, IPv%d", pktLen, ipVer)
+		}
+		if count%100 == 0 {
+			log.Printf("[tun] bridgeInbound injected %d packets (IPv4=%d, IPv6=%d)", count, ipv4Count, ipv6Count)
 		}
 
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
@@ -229,11 +243,18 @@ func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 
 // bridgeOutbound reads outgoing packets from gVisor stack and sends to helper.
 func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.Endpoint) {
+	log.Printf("[tun] bridgeOutbound started")
 	lenBuf := make([]byte, 2)
+	var count int64
 	for {
 		pkt := ep.ReadContext(ctx)
 		if pkt == nil {
+			log.Printf("[tun] bridgeOutbound closed (after %d packets)", count)
 			return
+		}
+		count++
+		if count == 1 {
+			log.Printf("[tun] bridgeOutbound first packet out")
 		}
 
 		buf := pkt.ToBuffer()
