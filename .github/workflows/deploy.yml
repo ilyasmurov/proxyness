@@ -86,6 +86,7 @@ jobs:
             docker run -d \
               --name smurov-proxy \
               --restart unless-stopped \
+              --ulimit nofile=32768:32768 \
               -p 443:443 \
               -v smurov-proxy-data:/data \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
