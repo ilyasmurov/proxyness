@@ -25,9 +25,6 @@ contextBridge.exposeInMainWorld("appInfo", {
   setTrayStatus: (connected: boolean) => ipcRenderer.send("tray-status", connected),
   onTrayConnect: (cb: () => void) => ipcRenderer.on("tray-connect", () => cb()),
   onTrayDisconnect: (cb: () => void) => ipcRenderer.on("tray-disconnect", () => cb()),
-  onTrayCheckUpdate: (cb: () => void) => ipcRenderer.on("tray-check-update", () => cb()),
-  onTrayShowLogs: (cb: () => void) => ipcRenderer.on("tray-show-logs", () => cb()),
-  onTrayChangeKey: (cb: () => void) => ipcRenderer.on("tray-change-key", () => cb()),
 });
 
 contextBridge.exposeInMainWorld("tunProxy", {

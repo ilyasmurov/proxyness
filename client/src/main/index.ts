@@ -78,28 +78,6 @@ function updateTrayMenu() {
     },
     { type: "separator" },
     {
-      label: "Check for Updates",
-      click: () => {
-        mainWindow?.show();
-        mainWindow?.webContents.send("tray-check-update");
-      },
-    },
-    {
-      label: "Logs",
-      click: () => {
-        mainWindow?.show();
-        mainWindow?.webContents.send("tray-show-logs");
-      },
-    },
-    {
-      label: "Change Key",
-      click: () => {
-        mainWindow?.show();
-        mainWindow?.webContents.send("tray-change-key");
-      },
-    },
-    { type: "separator" },
-    {
       label: "Quit",
       click: () => {
         (app as any).isQuitting = true;

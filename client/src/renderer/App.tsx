@@ -16,6 +16,7 @@ export function App() {
   const [showSetup, setShowSetup] = useState(!key);
   const [version, setVersion] = useState("");
   const [showLogs, setShowLogs] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
@@ -136,13 +137,6 @@ export function App() {
         }
       }
     });
-    app.onTrayCheckUpdate?.(() => {
-      (window as any).updater?.checkVersion().then((r: any) => {
-        if (r?.hasUpdate) (window as any).updater?.downloadUpdate();
-      });
-    });
-    app.onTrayShowLogs?.(() => setShowLogs(true));
-    app.onTrayChangeKey?.(() => handleReset());
   }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect]);
 
   // Auto-connect on launch if key is saved
@@ -204,21 +198,35 @@ export function App() {
         <div style={{ fontSize: 12, color: "#555", fontWeight: 600 }}>
           SmurovProxy {version && <span style={{ fontWeight: 400 }}>v{version}</span>}
         </div>
-        <button
-          onClick={() => (window as any).appInfo?.closeWindow()}
-          style={{
-            // @ts-ignore electron no-drag region
-            WebkitAppRegion: "no-drag",
-            width: 28, height: 28, borderRadius: 6,
-            background: "transparent", border: "none",
-            color: "#666", fontSize: 16, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#fff"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#666"; }}
-        >
-          ✕
-        </button>
+        {/* @ts-ignore */}
+        <div style={{ display: "flex", gap: 4, WebkitAppRegion: "no-drag" }}>
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            style={{
+              width: 28, height: 28, borderRadius: 6,
+              background: showSettings ? "#1e2a3a" : "transparent", border: "none",
+              color: showSettings ? "#fff" : "#666", fontSize: 15, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#fff"; }}
+            onMouseLeave={(e) => { if (!showSettings) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#666"; } }}
+          >
+            ⚙
+          </button>
+          <button
+            onClick={() => (window as any).appInfo?.closeWindow()}
+            style={{
+              width: 28, height: 28, borderRadius: 6,
+              background: "transparent", border: "none",
+              color: "#666", fontSize: 16, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#fff"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#666"; }}
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 20 }}>
@@ -285,41 +293,53 @@ export function App() {
             }}
           />
           <AppRules visible={proxyMode === "tun"} />
-          <button
-            onClick={handleReset}
-            style={{
-              width: "100%",
-              marginTop: 12,
-              padding: "8px 0",
-              background: "transparent",
-              border: "1px solid #333",
-              borderRadius: 8,
-              color: "#888",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            Change key
-          </button>
         </>
       )}
 
-      <button
-        onClick={() => setShowLogs(!showLogs)}
-        style={{
-          width: "100%",
-          marginTop: 12,
-          padding: "8px 0",
-          background: "transparent",
-          border: "1px solid #333",
-          borderRadius: 8,
-          color: showLogs ? "#4fc3f7" : "#666",
-          fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        {showLogs ? "Hide Logs" : "Logs"}
-      </button>
+      {showSettings && (
+        <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 4 }}>Settings</div>
+          <button
+            onClick={() => {
+              (window as any).updater?.checkVersion().then((r: any) => {
+                if (r?.hasUpdate) (window as any).updater?.downloadUpdate();
+              });
+            }}
+            style={{
+              width: "100%", padding: "8px 12px",
+              background: "transparent", border: "1px solid #333",
+              borderRadius: 8, color: "#aaa", fontSize: 13,
+              cursor: "pointer", textAlign: "left",
+            }}
+          >
+            Check for Updates
+          </button>
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            style={{
+              width: "100%", padding: "8px 12px",
+              background: "transparent", border: "1px solid #333",
+              borderRadius: 8, color: showLogs ? "#4fc3f7" : "#aaa", fontSize: 13,
+              cursor: "pointer", textAlign: "left",
+            }}
+          >
+            {showLogs ? "Hide Logs" : "Logs"}
+          </button>
+          {!showSetup && (
+            <button
+              onClick={handleReset}
+              style={{
+                width: "100%", padding: "8px 12px",
+                background: "transparent", border: "1px solid #333",
+                borderRadius: 8, color: "#aaa", fontSize: 13,
+                cursor: "pointer", textAlign: "left",
+              }}
+            >
+              Change Key
+            </button>
+          )}
+        </div>
+      )}
 
       {showLogs && (
         <div
