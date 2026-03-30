@@ -25,7 +25,6 @@ interface KnownApp {
 const KNOWN_APPS: KnownApp[] = [
   { id: "telegram", name: "Telegram", color: "#27A7E7", letter: "T", keywords: ["telegram"] },
   { id: "discord", name: "Discord", color: "#5865F2", letter: "D", keywords: ["discord"] },
-  { id: "browsers", name: "Browsers", color: "#4285F4", letter: "B", keywords: ["chrome", "firefox", "edge", "safari", "opera", "brave", "yandex", "browser"], alwaysShow: true },
   { id: "claude", name: "Claude Code", color: "#D97757", letter: "C", keywords: ["claude"] },
   { id: "cursor", name: "Cursor", color: "#00D1FF", letter: "Cu", keywords: ["cursor"] },
   { id: "slack", name: "Slack", color: "#E01E5A", letter: "S", keywords: ["slack"] },

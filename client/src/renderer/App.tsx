@@ -75,6 +75,11 @@ export function App() {
     setTunLoading(true);
     setTunError(null);
     try {
+      // Start SOCKS5 tunnel for browsers
+      await connect(server, k);
+      (window as any).sysproxy?.enable();
+
+      // Start TUN for apps
       const result = await (window as any).tunProxy?.start(server, k);
       if (result && !result.ok) {
         setTunError(result.error || "Failed to connect");
@@ -86,18 +91,20 @@ export function App() {
     } finally {
       setTunLoading(false);
     }
-  }, []);
+  }, [connect]);
 
   const tunDisconnect = useCallback(async () => {
     setTunLoading(true);
     try {
       await (window as any).tunProxy?.stop();
+      (window as any).sysproxy?.disable();
+      disconnect();
       setTunStatus("inactive");
       setTunError(null);
     } catch {} finally {
       setTunLoading(false);
     }
-  }, []);
+  }, [disconnect]);
 
   // Auto-connect on launch if key is saved
   useEffect(() => {
