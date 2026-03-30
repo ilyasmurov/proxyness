@@ -83,7 +83,7 @@ func (e *Engine) Start(req StartRequest) error {
 	}
 
 	// Connect to helper and create TUN — keep connection open for packet relay
-	helperConn, err := e.connectAndCreate(req)
+	helperConn, relayReader, err := e.connectAndCreate(req)
 	if err != nil {
 		return fmt.Errorf("helper create: %w", err)
 	}
@@ -115,7 +115,7 @@ func (e *Engine) Start(req StartRequest) error {
 	// Start bridge: helper IPC ↔ gVisor channel endpoint
 	ctx, cancel := context.WithCancel(context.Background())
 	e.bridgeCancel = cancel
-	go e.bridgeInbound(helperConn, ep)
+	go e.bridgeInbound(relayReader, ep)
 	go e.bridgeOutbound(ctx, helperConn, ep)
 
 	e.status = StatusActive
@@ -155,11 +155,13 @@ func (e *Engine) Stop() error {
 }
 
 // connectAndCreate connects to helper, sends "create" with server address,
-// reads the JSON response, and returns the connection open for packet relay.
-func (e *Engine) connectAndCreate(req StartRequest) (net.Conn, error) {
+// reads the JSON response, and returns the connection plus a relay reader.
+// The relay reader drains any bytes buffered by the JSON decoder before
+// reading from conn, preventing framing desync.
+func (e *Engine) connectAndCreate(req StartRequest) (net.Conn, io.Reader, error) {
 	conn, err := dialHelper(req.HelperAddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	helperReq := map[string]string{
@@ -168,30 +170,34 @@ func (e *Engine) connectAndCreate(req StartRequest) (net.Conn, error) {
 	}
 	if err := json.NewEncoder(conn).Encode(helperReq); err != nil {
 		conn.Close()
-		return nil, err
+		return nil, nil, err
 	}
 
 	var resp struct {
 		OK    bool   `json:"ok"`
 		Error string `json:"error"`
 	}
-	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
+	dec := json.NewDecoder(conn)
+	if err := dec.Decode(&resp); err != nil {
 		conn.Close()
-		return nil, err
+		return nil, nil, err
 	}
 	if !resp.OK {
 		conn.Close()
-		return nil, fmt.Errorf("helper: %s", resp.Error)
+		return nil, nil, fmt.Errorf("helper: %s", resp.Error)
 	}
 
-	return conn, nil
+	// dec.Buffered() returns any bytes the JSON decoder read ahead from conn
+	// but didn't consume. These are the start of the relay stream.
+	relayReader := io.MultiReader(dec.Buffered(), conn)
+	return conn, relayReader, nil
 }
 
 // bridgeInbound reads framed IP packets from helper and injects into gVisor stack.
-func (e *Engine) bridgeInbound(conn net.Conn, ep *channel.Endpoint) {
+func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 	lenBuf := make([]byte, 2)
 	for {
-		if _, err := io.ReadFull(conn, lenBuf); err != nil {
+		if _, err := io.ReadFull(r, lenBuf); err != nil {
 			log.Printf("[tun] bridge inbound closed: %v", err)
 			return
 		}
@@ -201,7 +207,7 @@ func (e *Engine) bridgeInbound(conn net.Conn, ep *channel.Endpoint) {
 		}
 
 		data := make([]byte, pktLen)
-		if _, err := io.ReadFull(conn, data); err != nil {
+		if _, err := io.ReadFull(r, data); err != nil {
 			log.Printf("[tun] bridge inbound read: %v", err)
 			return
 		}
