@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback, ClipboardEvent } from "react";
 import { useDaemon } from "./hooks/useDaemon";
+import { useStats } from "./hooks/useStats";
 import { StatusBar } from "./components/StatusBar";
 import { ConnectionButton } from "./components/ConnectionButton";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { ModeSelector, ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
+import { SpeedGraph } from "./components/SpeedGraph";
 
 const SERVER = "82.97.246.65:443";
 const STORAGE_KEY = "smurov-proxy-key";
@@ -65,6 +67,7 @@ export function App() {
   const isLoading = proxyMode === "tun" ? tunLoading : socksLoading;
   const currentError = proxyMode === "tun" ? tunError : socksError;
   const uptime = proxyMode === "tun" ? 0 : socksStatus.uptime;
+  const stats = useStats(isConnected);
 
   const handleModeChange = (m: ProxyMode) => {
     setProxyMode(m);
@@ -187,6 +190,13 @@ export function App() {
       </div>
       <UpdateBanner />
       <StatusBar status={isConnected ? "connected" : "disconnected"} uptime={uptime} error={currentError} />
+      {isConnected && (
+        <SpeedGraph
+          download={stats.download}
+          upload={stats.upload}
+          history={stats.history}
+        />
+      )}
 
       {showSetup ? (
         <div>
