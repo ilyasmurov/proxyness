@@ -47,6 +47,11 @@ export function startDaemon(): void {
     stdio: "pipe",
   });
 
+  daemonProcess.on("error", (err) => {
+    addLog("daemon", `failed to start: ${err.message}`);
+    daemonProcess = null;
+  });
+
   daemonProcess.stdout?.on("data", (data: Buffer) => {
     addLog("daemon", data.toString());
   });
