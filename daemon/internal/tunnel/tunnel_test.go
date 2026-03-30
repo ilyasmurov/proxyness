@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/pkg/auth"
 	"smurov-proxy/pkg/proto"
 )
@@ -64,7 +65,7 @@ func startMockServer(t *testing.T) string {
 }
 
 func TestNew(t *testing.T) {
-	tun := New()
+	tun := New(dstats.NewRateMeter())
 	if tun.GetStatus() != Disconnected {
 		t.Fatalf("expected disconnected, got %s", tun.GetStatus())
 	}
@@ -75,7 +76,7 @@ func TestNew(t *testing.T) {
 
 func TestStartStop(t *testing.T) {
 	addr := startMockServer(t)
-	tun := New()
+	tun := New(dstats.NewRateMeter())
 
 	err := tun.Start("127.0.0.1:0", addr, testKey)
 	if err != nil {
@@ -93,7 +94,7 @@ func TestStartStop(t *testing.T) {
 
 func TestDoubleStart(t *testing.T) {
 	addr := startMockServer(t)
-	tun := New()
+	tun := New(dstats.NewRateMeter())
 
 	err := tun.Start("127.0.0.1:0", addr, testKey)
 	if err != nil {
@@ -109,7 +110,7 @@ func TestDoubleStart(t *testing.T) {
 
 func TestUptime(t *testing.T) {
 	addr := startMockServer(t)
-	tun := New()
+	tun := New(dstats.NewRateMeter())
 	err := tun.Start("127.0.0.1:0", addr, testKey)
 	if err != nil {
 		t.Fatal(err)

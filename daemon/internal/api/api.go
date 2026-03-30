@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/daemon/internal/tun"
 	"smurov-proxy/daemon/internal/tunnel"
 )
@@ -12,6 +13,7 @@ type Server struct {
 	tunnel     *tunnel.Tunnel
 	tunEngine  *tun.Engine
 	listenAddr string
+	meter      *dstats.RateMeter
 }
 
 type ConnectRequest struct {
@@ -25,8 +27,8 @@ type StatusResponse struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string) *Server {
-	return &Server{tunnel: t, tunEngine: te, listenAddr: listenAddr}
+func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string, meter *dstats.RateMeter) *Server {
+	return &Server{tunnel: t, tunEngine: te, listenAddr: listenAddr, meter: meter}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -42,6 +44,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /tun/status", s.handleTUNStatus)
 	mux.HandleFunc("POST /tun/rules", s.handleTUNRulesUpdate)
 	mux.HandleFunc("GET /tun/rules", s.handleTUNRulesGet)
+	mux.HandleFunc("GET /stats", s.handleStats)
 	return mux
 }
 
@@ -130,4 +133,9 @@ func (s *Server) handleTUNRulesUpdate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTUNRulesGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(s.tunEngine.GetRules().ToJSON())
+}
+
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(s.meter.Snapshot())
 }

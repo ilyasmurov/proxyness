@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"smurov-proxy/daemon/internal/socks5"
+	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/pkg/proto"
 )
 
@@ -36,10 +37,11 @@ type Tunnel struct {
 	startTime  time.Time
 	stopHealth chan struct{}
 	lastError  string
+	meter      *dstats.RateMeter
 }
 
-func New() *Tunnel {
-	return &Tunnel{status: Disconnected}
+func New(meter *dstats.RateMeter) *Tunnel {
+	return &Tunnel{status: Disconnected, meter: meter}
 }
 
 func (t *Tunnel) Start(listenAddr, serverAddr, key string) error {
@@ -239,7 +241,9 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 
 	log.Printf("[tunnel] connected: %s", target)
 	socks5.SendSuccess(conn)
-	proto.Relay(conn, tlsConn)
+	proto.CountingRelay(conn, tlsConn, func(in, out int64) {
+		t.meter.Add(in, out)
+	})
 }
 
 func verifyServer(serverAddr, key string) error {

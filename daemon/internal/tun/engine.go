@@ -24,6 +24,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
+	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/pkg/proto"
 )
 
@@ -47,14 +48,16 @@ type Engine struct {
 	endpoint     *channel.Endpoint
 	bridgeCancel context.CancelFunc
 	selfPath     string // daemon's own path — always bypassed to prevent loops
+	meter        *dstats.RateMeter
 }
 
-func NewEngine() *Engine {
+func NewEngine(meter *dstats.RateMeter) *Engine {
 	selfPath, _ := os.Executable()
 	return &Engine{
 		status:   StatusInactive,
 		rules:    NewRules(),
 		selfPath: selfPath,
+		meter:    meter,
 	}
 }
 
@@ -355,7 +358,9 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16) {
 		return
 	}
 
-	proto.Relay(local, tlsConn)
+	proto.CountingRelay(local, tlsConn, func(in, out int64) {
+		e.meter.Add(in, out)
+	})
 }
 
 func (e *Engine) bypassTCP(local net.Conn, dstAddr string, dstPort uint16) {
@@ -443,6 +448,7 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16) {
 			if err := proto.WriteUDPFrame(tlsConn, dstAddr, dstPort, buf[:n]); err != nil {
 				return
 			}
+			e.meter.Add(0, int64(n))
 		}
 	}()
 
@@ -453,6 +459,7 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16) {
 			if err != nil {
 				return
 			}
+			e.meter.Add(int64(len(payload)), 0)
 			if _, err := local.Write(payload); err != nil {
 				return
 			}

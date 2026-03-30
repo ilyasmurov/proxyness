@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"smurov-proxy/daemon/internal/api"
+	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/daemon/internal/tun"
 	"smurov-proxy/daemon/internal/tunnel"
 )
@@ -17,8 +18,9 @@ func main() {
 	apiAddr := flag.String("api", "127.0.0.1:9090", "HTTP API listen address")
 	flag.Parse()
 
-	tnl := tunnel.New()
-	tunEngine := tun.NewEngine()
+	meter := dstats.NewRateMeter()
+	tnl := tunnel.New(meter)
+	tunEngine := tun.NewEngine(meter)
 
 	if *serverAddr != "" && *key != "" {
 		if err := tnl.Start(*listenAddr, *serverAddr, *key); err != nil {
@@ -27,7 +29,7 @@ func main() {
 		log.Printf("tunnel connected to %s, SOCKS5 on %s", *serverAddr, *listenAddr)
 	}
 
-	srv := api.New(tnl, tunEngine, *listenAddr)
+	srv := api.New(tnl, tunEngine, *listenAddr, meter)
 	log.Printf("API listening on %s", *apiAddr)
 	if err := http.ListenAndServe(*apiAddr, srv.Handler()); err != nil {
 		log.Fatalf("api: %v", err)
