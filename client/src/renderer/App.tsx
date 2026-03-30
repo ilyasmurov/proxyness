@@ -43,10 +43,6 @@ export function App() {
     return () => clearInterval(interval);
   }, [showLogs]);
 
-  // Auto-scroll logs
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
 
   // Poll TUN status when in TUN mode
   useEffect(() => {
@@ -265,7 +261,6 @@ export function App() {
               {line}
             </div>
           ))}
-          <div ref={logsEndRef} />
         </div>
       )}
     </div>
