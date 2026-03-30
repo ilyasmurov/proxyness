@@ -33,19 +33,34 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
 
-  // macOS: minimize to tray on close. Windows: quit on close.
-  if (process.platform === "darwin") {
-    mainWindow.on("close", (e) => {
-      if (mainWindow && !(app as any).isQuitting) {
-        e.preventDefault();
-        mainWindow.hide();
-      }
-    });
-  }
+  // Minimize to tray on close (both platforms)
+  mainWindow.on("close", (e) => {
+    if (mainWindow && !(app as any).isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
 }
 
 function createTray() {
-  const icon = nativeImage.createEmpty();
+  let iconPath: string;
+  if (process.platform === "darwin") {
+    // macOS Template image (auto light/dark mode)
+    iconPath = app.isPackaged
+      ? path.join(process.resourcesPath, "app.asar", "build", "trayTemplate.png")
+      : path.join(__dirname, "../../build/trayTemplate.png");
+  } else {
+    // Windows colored icon
+    iconPath = app.isPackaged
+      ? path.join(process.resourcesPath, "app.asar", "build", "tray.png")
+      : path.join(__dirname, "../../build/tray.png");
+  }
+
+  const icon = nativeImage.createFromPath(iconPath);
+  if (process.platform === "darwin") {
+    icon.setTemplateImage(true);
+  }
+
   tray = new Tray(icon);
   tray.setToolTip("SmurovProxy");
 
@@ -198,11 +213,7 @@ function setupIpc() {
   ipcMain.handle("get-version", () => app.getVersion());
 
   ipcMain.on("window-close", () => {
-    if (process.platform === "darwin") {
-      mainWindow?.hide();
-    } else {
-      app.quit();
-    }
+    mainWindow?.hide();
   });
   ipcMain.handle("get-logs", () => getLogs());
   ipcMain.handle("clear-logs", () => clearLogs());
