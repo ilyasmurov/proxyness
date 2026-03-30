@@ -52,7 +52,7 @@ func protectedDial(network, address string) (net.Conn, error) {
 			return c.Control(func(fd uintptr) {
 				// IP_UNICAST_IF expects index in network byte order in upper 16 bits
 				idx := uint32(ifIndex) << 16
-				syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, ipUnicastIF, int(idx))
+				syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, ipUnicastIF, int(idx))
 			})
 		},
 	}
