@@ -2,6 +2,7 @@ package mux
 
 import (
 	"bufio"
+	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
@@ -95,3 +96,70 @@ func (l *chanListener) Accept() (net.Conn, error) {
 
 func (l *chanListener) Close() error   { return nil }
 func (l *chanListener) Addr() net.Addr { return l.addr }
+
+// PreTLSMux sits in front of ListenerMux. It peeks the first byte of each
+// raw TCP connection to decide whether to perform a TLS handshake.
+//
+//	0x16 = TLS ClientHello → wrap in TLS → route via existing mux logic (proxy + HTTP admin)
+//	0x01 = raw proxy protocol → send directly to proxy handler (no TLS)
+type PreTLSMux struct {
+	ln           net.Listener
+	tlsCfg       *tls.Config
+	proxyHandler func(net.Conn)
+	httpHandler  http.Handler
+}
+
+func NewPreTLSMux(ln net.Listener, tlsCfg *tls.Config, proxyHandler func(net.Conn), httpHandler http.Handler) *PreTLSMux {
+	return &PreTLSMux{ln: ln, tlsCfg: tlsCfg, proxyHandler: proxyHandler, httpHandler: httpHandler}
+}
+
+func (m *PreTLSMux) Serve() error {
+	httpConns := make(chan net.Conn, 64)
+	httpLn := &chanListener{ch: httpConns, addr: m.ln.Addr()}
+	go http.Serve(httpLn, m.httpHandler)
+
+	for {
+		conn, err := m.ln.Accept()
+		if err != nil {
+			close(httpConns)
+			return err
+		}
+		go m.route(conn, httpConns)
+	}
+}
+
+func (m *PreTLSMux) route(conn net.Conn, httpConns chan net.Conn) {
+	pc := NewPeekConn(conn)
+	b, err := pc.PeekByte()
+	if err != nil {
+		conn.Close()
+		return
+	}
+
+	if b == 0x16 {
+		// TLS ClientHello — handshake, then route by next byte (proxy vs HTTP)
+		tlsConn := tls.Server(pc, m.tlsCfg)
+		if err := tlsConn.Handshake(); err != nil {
+			tlsConn.Close()
+			return
+		}
+		inner := NewPeekConn(tlsConn)
+		ib, err := inner.PeekByte()
+		if err != nil {
+			tlsConn.Close()
+			return
+		}
+		if IsProxyProtocol(ib) {
+			m.proxyHandler(inner)
+		} else {
+			httpConns <- inner
+		}
+	} else if IsProxyProtocol(b) {
+		// Raw proxy protocol — no TLS
+		m.proxyHandler(pc)
+	} else {
+		conn.Close()
+	}
+}
+
+func (m *PreTLSMux) Close() error { return m.ln.Close() }

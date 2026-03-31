@@ -61,7 +61,7 @@ func main() {
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	ln, err := tls.Listen("tcp", *addr, tlsCfg)
+	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		log.Fatalf("listen: %v", err)
 	}
@@ -70,7 +70,7 @@ func main() {
 	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, "/data/downloads")
 
 	proxyHandler := &proxy.Handler{DB: database, Tracker: tracker}
-	m := mux.NewListenerMux(ln,
+	m := mux.NewPreTLSMux(ln, tlsCfg,
 		func(conn net.Conn) { proxyHandler.Handle(conn) },
 		adminHandler,
 	)
