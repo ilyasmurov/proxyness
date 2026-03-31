@@ -18,12 +18,16 @@ function getNetworkServices(): string[] {
   }
 }
 
-const PAC_URL = `http://${PROXY_HOST}:9090/proxy.pac`;
+function pacUrl() {
+  // Unique URL each time forces macOS and browsers to re-fetch the PAC file
+  return `http://${PROXY_HOST}:9090/proxy.pac?t=${Date.now()}`;
+}
 
 function macEnable() {
+  const url = pacUrl();
   for (const svc of getNetworkServices()) {
     try {
-      execSync(`networksetup -setautoproxyurl "${svc}" "${PAC_URL}"`);
+      execSync(`networksetup -setautoproxyurl "${svc}" "${url}"`);
       execSync(`networksetup -setautoproxystate "${svc}" on`);
       // Disable plain SOCKS in case it was set before
       execSync(`networksetup -setsocksfirewallproxystate "${svc}" off`);
@@ -65,9 +69,9 @@ function winRefreshProxy() {
 
 function winEnable() {
   try {
-    const pacUrl = "http://127.0.0.1:9090/proxy.pac";
+    const url = pacUrl();
     const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
-    execSync(`reg add "${regBase}" /v AutoConfigURL /t REG_SZ /d "${pacUrl}" /f`);
+    execSync(`reg add "${regBase}" /v AutoConfigURL /t REG_SZ /d "${url}" /f`);
     execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
     winRefreshProxy();
   } catch {
