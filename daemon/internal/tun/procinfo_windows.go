@@ -70,8 +70,20 @@ func (w *windowsProcessInfo) FindProcess(network string, localPort uint16) (stri
 		return "", fmt.Errorf("unsupported network: %s", network)
 	}
 
+	// Port not in cached table — force refresh and retry once.
+	// Handles connections established between cache refreshes.
 	if !found {
-		return "", nil
+		switch network {
+		case "tcp":
+			w.refreshTCP()
+			pid, found = w.tcpPorts[localPort]
+		case "udp":
+			w.refreshUDP()
+			pid, found = w.udpPorts[localPort]
+		}
+		if !found {
+			return "", nil
+		}
 	}
 
 	// PID → path cache (permanent — paths don't change for a running process)
