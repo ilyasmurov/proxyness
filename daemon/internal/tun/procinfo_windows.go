@@ -5,16 +5,28 @@ package tun
 import (
 	"encoding/binary"
 	"fmt"
+	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
-type windowsProcessInfo struct{}
+type windowsProcessInfo struct {
+	mu    sync.Mutex
+	cache map[string]cachedProc
+}
+
+type cachedProc struct {
+	path string
+	ts   time.Time
+}
+
+const procCacheTTL = 2 * time.Second
 
 func newProcessInfo() ProcessInfo {
-	return &windowsProcessInfo{}
+	return &windowsProcessInfo{cache: make(map[string]cachedProc)}
 }
 
 var (
@@ -24,14 +36,31 @@ var (
 )
 
 func (w *windowsProcessInfo) FindProcess(network string, localPort uint16) (string, error) {
+	key := fmt.Sprintf("%s:%d", network, localPort)
+	w.mu.Lock()
+	if c, ok := w.cache[key]; ok && time.Since(c.ts) < procCacheTTL {
+		w.mu.Unlock()
+		return c.path, nil
+	}
+	w.mu.Unlock()
+
+	var path string
+	var err error
 	switch network {
 	case "tcp":
-		return w.findTCP(localPort)
+		path, err = w.findTCP(localPort)
 	case "udp":
-		return w.findUDP(localPort)
+		path, err = w.findUDP(localPort)
 	default:
 		return "", fmt.Errorf("unsupported network: %s", network)
 	}
+
+	if err == nil && path != "" {
+		w.mu.Lock()
+		w.cache[key] = cachedProc{path: path, ts: time.Now()}
+		w.mu.Unlock()
+	}
+	return path, err
 }
 
 func (w *windowsProcessInfo) findTCP(localPort uint16) (string, error) {

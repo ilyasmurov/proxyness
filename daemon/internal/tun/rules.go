@@ -62,6 +62,17 @@ func (r *Rules) GetApps() []string {
 	return apps
 }
 
+// NeedProcessLookup returns false when we can skip the expensive process
+// identification (e.g. proxy_all_except with empty exclusion list).
+func (r *Rules) NeedProcessLookup() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.mode == ModeProxyAllExcept && len(r.apps) == 0 {
+		return false
+	}
+	return true
+}
+
 func (r *Rules) ShouldProxy(appPath string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

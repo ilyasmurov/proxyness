@@ -435,10 +435,12 @@ func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
 	dstPort := id.LocalPort
 	srcPort := id.RemotePort
 
-	appPath, _ := e.procInfo.FindProcess("tcp", srcPort)
-
-	// Always bypass daemon's own traffic to prevent routing loops
-	shouldProxy := !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
+	var appPath string
+	shouldProxy := true
+	if e.rules.NeedProcessLookup() {
+		appPath, _ = e.procInfo.FindProcess("tcp", srcPort)
+		shouldProxy = !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
+	}
 
 	if appPath != "" {
 		log.Printf("[tun] TCP %s:%d from %s (proxy=%v)", dstAddr, dstPort, appPath, shouldProxy)
@@ -545,8 +547,12 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 		return
 	}
 
-	appPath, _ := e.procInfo.FindProcess("udp", srcPort)
-	shouldProxy := !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
+	var appPath string
+	shouldProxy := true
+	if e.rules.NeedProcessLookup() {
+		appPath, _ = e.procInfo.FindProcess("udp", srcPort)
+		shouldProxy = !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
+	}
 
 	var wq waiter.Queue
 	ep, udpErr := r.CreateEndpoint(&wq)
