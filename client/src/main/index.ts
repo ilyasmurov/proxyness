@@ -317,7 +317,9 @@ function setupIpc() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
-    }).catch(() => {});
+    })
+      .then(() => enableSystemProxy())
+      .catch(() => {});
   });
 
   ipcMain.handle("tun-start", async (_e, server: string, key: string) => {

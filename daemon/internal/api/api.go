@@ -165,6 +165,8 @@ func (s *Server) handlePacSitesUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.pacSites.Set(req.ProxyAll, req.Sites)
+	// Close existing SOCKS5 connections so browsers reconnect with updated PAC
+	s.tunnel.CloseAllConns()
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -211,7 +213,7 @@ func (s *Server) handleTUNRulesUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := s.tunEngine.GetRules().FromJSON(body); err != nil {
+	if err := s.tunEngine.UpdateRules(body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

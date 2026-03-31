@@ -38,10 +38,47 @@ type Tunnel struct {
 	stopHealth chan struct{}
 	lastError  string
 	meter      *dstats.RateMeter
+
+	connsMu sync.Mutex
+	conns   map[uint64]net.Conn
+	connSeq uint64
 }
 
 func New(meter *dstats.RateMeter) *Tunnel {
-	return &Tunnel{status: Disconnected, meter: meter}
+	return &Tunnel{status: Disconnected, meter: meter, conns: make(map[uint64]net.Conn)}
+}
+
+func (t *Tunnel) trackConn(c net.Conn) uint64 {
+	t.connsMu.Lock()
+	defer t.connsMu.Unlock()
+	t.connSeq++
+	id := t.connSeq
+	t.conns[id] = c
+	return id
+}
+
+func (t *Tunnel) untrackConn(id uint64) {
+	t.connsMu.Lock()
+	defer t.connsMu.Unlock()
+	delete(t.conns, id)
+}
+
+// CloseAllConns closes all active SOCKS5 relay connections,
+// forcing browsers to reconnect and re-evaluate the PAC file.
+func (t *Tunnel) CloseAllConns() {
+	t.connsMu.Lock()
+	snapshot := make(map[uint64]net.Conn, len(t.conns))
+	for k, v := range t.conns {
+		snapshot[k] = v
+	}
+	t.connsMu.Unlock()
+
+	for _, c := range snapshot {
+		c.Close()
+	}
+	if len(snapshot) > 0 {
+		log.Printf("[tunnel] closed %d connections after PAC update", len(snapshot))
+	}
 }
 
 func (t *Tunnel) Start(listenAddr, serverAddr, key string) error {
@@ -189,7 +226,11 @@ func (t *Tunnel) acceptLoop(ln net.Listener) {
 }
 
 func (t *Tunnel) handleSOCKS(conn net.Conn) {
-	defer conn.Close()
+	connID := t.trackConn(conn)
+	defer func() {
+		t.untrackConn(connID)
+		conn.Close()
+	}()
 
 	req, err := socks5.Handshake(conn)
 	if err != nil {

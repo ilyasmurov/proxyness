@@ -49,6 +49,10 @@ type Engine struct {
 	bridgeCancel context.CancelFunc
 	selfPath     string // daemon's own path — always bypassed to prevent loops
 	meter        *dstats.RateMeter
+
+	connsMu sync.Mutex
+	conns   map[uint64]net.Conn
+	connSeq uint64
 }
 
 func NewEngine(meter *dstats.RateMeter) *Engine {
@@ -58,6 +62,7 @@ func NewEngine(meter *dstats.RateMeter) *Engine {
 		rules:    NewRules(),
 		selfPath: selfPath,
 		meter:    meter,
+		conns:    make(map[uint64]net.Conn),
 	}
 }
 
@@ -69,6 +74,45 @@ func (e *Engine) GetStatus() Status {
 
 func (e *Engine) GetRules() *Rules {
 	return e.rules
+}
+
+// UpdateRules applies new rules and closes all active connections so apps
+// reconnect with the updated routing policy.
+func (e *Engine) UpdateRules(data []byte) error {
+	if err := e.rules.FromJSON(data); err != nil {
+		return err
+	}
+	e.closeAllConns()
+	return nil
+}
+
+func (e *Engine) trackConn(c net.Conn) uint64 {
+	e.connsMu.Lock()
+	defer e.connsMu.Unlock()
+	e.connSeq++
+	id := e.connSeq
+	e.conns[id] = c
+	return id
+}
+
+func (e *Engine) untrackConn(id uint64) {
+	e.connsMu.Lock()
+	defer e.connsMu.Unlock()
+	delete(e.conns, id)
+}
+
+func (e *Engine) closeAllConns() {
+	e.connsMu.Lock()
+	snapshot := make(map[uint64]net.Conn, len(e.conns))
+	for k, v := range e.conns {
+		snapshot[k] = v
+	}
+	e.connsMu.Unlock()
+
+	for _, c := range snapshot {
+		c.Close()
+	}
+	log.Printf("[tun] closed %d connections after rules update", len(snapshot))
 }
 
 type StartRequest struct {
@@ -312,7 +356,11 @@ func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
 	r.Complete(false)
 
 	conn := gonet.NewTCPConn(&wq, ep)
-	defer conn.Close()
+	connID := e.trackConn(conn)
+	defer func() {
+		e.untrackConn(connID)
+		conn.Close()
+	}()
 
 	if shouldProxy {
 		e.proxyTCP(conn, dstAddr, dstPort)
@@ -394,11 +442,18 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 	}
 
 	conn := gonet.NewUDPConn(&wq, ep)
+	connID := e.trackConn(conn)
 
 	if shouldProxy {
-		go e.proxyUDP(conn, dstAddr, dstPort)
+		go func() {
+			defer e.untrackConn(connID)
+			e.proxyUDP(conn, dstAddr, dstPort)
+		}()
 	} else {
-		go e.bypassUDP(conn, dstAddr, dstPort)
+		go func() {
+			defer e.untrackConn(connID)
+			e.bypassUDP(conn, dstAddr, dstPort)
+		}()
 	}
 }
 
