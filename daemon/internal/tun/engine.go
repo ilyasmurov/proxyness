@@ -525,6 +525,22 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 		return
 	}
 
+	// DNS (port 53) always bypasses — needed for system resolver to work
+	if dstPort == 53 {
+		var wq waiter.Queue
+		ep, udpErr := r.CreateEndpoint(&wq)
+		if udpErr != nil {
+			return
+		}
+		conn := gonet.NewUDPConn(&wq, ep)
+		connID := e.trackConn(conn)
+		go func() {
+			defer e.untrackConn(connID)
+			e.bypassUDP(conn, dstAddr, dstPort)
+		}()
+		return
+	}
+
 	appPath, _ := e.procInfo.FindProcess("udp", srcPort)
 	shouldProxy := !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
 
