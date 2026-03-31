@@ -623,9 +623,6 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 	if err := proto.WriteMsgType(server, proto.MsgTypeUDP); err != nil {
 		return
 	}
-	if err := proto.WriteConnect(server, dstAddr, dstPort); err != nil {
-		return
-	}
 
 	done := make(chan struct{}, 2)
 
