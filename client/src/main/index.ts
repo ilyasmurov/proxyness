@@ -11,6 +11,7 @@ import { getInstalledApps } from "./apps";
 const UPDATE_BASE = "https://82.97.246.65/download";
 
 let mainWindow: BrowserWindow | null = null;
+let logsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
 function createWindow() {
@@ -236,6 +237,36 @@ function setupIpc() {
   });
   ipcMain.handle("get-logs", () => getLogs());
   ipcMain.handle("clear-logs", () => clearLogs());
+
+  ipcMain.on("open-logs", () => {
+    if (logsWindow) {
+      logsWindow.focus();
+      return;
+    }
+    logsWindow = new BrowserWindow({
+      width: 600,
+      height: 400,
+      minWidth: 400,
+      minHeight: 200,
+      title: "SmurovProxy — Logs",
+      backgroundColor: "#0b0f1a",
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, "preload-logs.js"),
+      },
+    });
+
+    if (process.env.VITE_DEV_SERVER_URL) {
+      logsWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}logs.html`);
+    } else {
+      logsWindow.loadFile(path.join(__dirname, "../../dist/logs.html"));
+    }
+
+    logsWindow.on("closed", () => {
+      logsWindow = null;
+    });
+  });
 
   ipcMain.on("enable-proxy", () => {
     enableSystemProxy();

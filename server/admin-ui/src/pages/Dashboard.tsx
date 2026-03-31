@@ -44,7 +44,7 @@ export function Dashboard() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {rates
-                .sort((a, b) => b.download + b.upload - (a.download + a.upload))
+                .sort((a, b) => a.device_id - b.device_id)
                 .map((device) => (
                   <div
                     key={device.device_id}

@@ -3,7 +3,6 @@ import { useDaemon } from "./hooks/useDaemon";
 import { useStats } from "./hooks/useStats";
 import { StatusBar } from "./components/StatusBar";
 import { ConnectionButton } from "./components/ConnectionButton";
-import { UpdateBanner } from "./components/UpdateBanner";
 import { ModeSelector, ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
 import { SpeedGraph } from "./components/SpeedGraph";
@@ -15,10 +14,8 @@ export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [showSetup, setShowSetup] = useState(!key);
   const [version, setVersion] = useState("");
-  const [showLogs, setShowLogs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
   const autoConnected = useRef(false);
   const [proxyMode, setProxyMode] = useState<ProxyMode>(
@@ -34,17 +31,17 @@ export function App() {
     (window as any).appInfo?.getVersion().then((v: string) => setVersion(v));
   }, []);
 
-  // Poll logs when panel is open
+  // Close settings dropdown on outside click
   useEffect(() => {
-    if (!showLogs) return;
-    const poll = async () => {
-      const l = await (window as any).appInfo?.getLogs();
-      if (l) setLogs(l);
+    if (!showSettings) return;
+    const handler = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
+      }
     };
-    poll();
-    const interval = setInterval(poll, 1000);
-    return () => clearInterval(interval);
-  }, [showLogs]);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSettings]);
 
 
   // Poll TUN status when in TUN mode
@@ -200,19 +197,53 @@ export function App() {
         </div>
         {/* @ts-ignore */}
         <div style={{ display: "flex", gap: 4, WebkitAppRegion: "no-drag" }}>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            style={{
-              width: 28, height: 28, borderRadius: 6,
-              background: showSettings ? "#1e2a3a" : "transparent", border: "none",
-              color: showSettings ? "#fff" : "#666", fontSize: 15, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={(e) => { if (!showSettings) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#666"; } }}
-          >
-            ⚙
-          </button>
+          <div ref={settingsRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              style={{
+                width: 28, height: 28, borderRadius: 6,
+                background: showSettings ? "#1e2a3a" : "transparent", border: "none",
+                color: showSettings ? "#fff" : "#666", fontSize: 15, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={(e) => { if (!showSettings) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#666"; } }}
+            >
+              ⚙
+            </button>
+            {showSettings && (
+              <div style={{
+                position: "absolute", top: 32, right: 0, minWidth: 160,
+                background: "#1a1f2e", border: "1px solid #333", borderRadius: 8,
+                padding: 4, zIndex: 200, boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+              }}>
+                {[
+                  { label: "Check for Updates", onClick: () => {
+                    setShowSettings(false);
+                    (window as any).updater?.checkVersion().then((r: any) => {
+                      if (r?.hasUpdate) (window as any).updater?.downloadUpdate();
+                    });
+                  }},
+                  ...(!showSetup ? [{ label: "Change Key", onClick: () => { setShowSettings(false); handleReset(); } }] : []),
+                  { label: "Logs", onClick: () => { setShowSettings(false); (window as any).appInfo?.openLogs(); } },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={item.onClick}
+                    style={{
+                      display: "block", width: "100%", padding: "6px 10px",
+                      background: "transparent", border: "none", borderRadius: 4,
+                      color: "#ccc", fontSize: 13, cursor: "pointer", textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#2a3040"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => (window as any).appInfo?.closeWindow()}
             style={{
@@ -232,7 +263,6 @@ export function App() {
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 20 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>SmurovProxy</h1>
       </div>
-      <UpdateBanner />
       <StatusBar status={isConnected ? "connected" : "disconnected"} uptime={uptime} error={currentError} />
       {isConnected && (
         <SpeedGraph
@@ -296,75 +326,6 @@ export function App() {
         </>
       )}
 
-      {showSettings && (
-        <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 4 }}>Settings</div>
-          <button
-            onClick={() => {
-              (window as any).updater?.checkVersion().then((r: any) => {
-                if (r?.hasUpdate) (window as any).updater?.downloadUpdate();
-              });
-            }}
-            style={{
-              width: "100%", padding: "8px 12px",
-              background: "transparent", border: "1px solid #333",
-              borderRadius: 8, color: "#aaa", fontSize: 13,
-              cursor: "pointer", textAlign: "left",
-            }}
-          >
-            Check for Updates
-          </button>
-          <button
-            onClick={() => setShowLogs(!showLogs)}
-            style={{
-              width: "100%", padding: "8px 12px",
-              background: "transparent", border: "1px solid #333",
-              borderRadius: 8, color: showLogs ? "#4fc3f7" : "#aaa", fontSize: 13,
-              cursor: "pointer", textAlign: "left",
-            }}
-          >
-            {showLogs ? "Hide Logs" : "Logs"}
-          </button>
-          {!showSetup && (
-            <button
-              onClick={handleReset}
-              style={{
-                width: "100%", padding: "8px 12px",
-                background: "transparent", border: "1px solid #333",
-                borderRadius: 8, color: "#aaa", fontSize: 13,
-                cursor: "pointer", textAlign: "left",
-              }}
-            >
-              Change Key
-            </button>
-          )}
-        </div>
-      )}
-
-      {showLogs && (
-        <div
-          style={{
-            marginTop: 8,
-            background: "#0a0e1a",
-            border: "1px solid #222",
-            borderRadius: 8,
-            padding: 8,
-            maxHeight: 200,
-            overflowY: "auto",
-            fontSize: 11,
-            fontFamily: "monospace",
-            color: "#aaa",
-            lineHeight: 1.5,
-          }}
-        >
-          {logs.length === 0 && <div style={{ color: "#555" }}>No logs yet</div>}
-          {logs.map((line, i) => (
-            <div key={i} style={{ color: line.includes("[helper]") ? "#81c784" : "#90caf9" }}>
-              {line}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

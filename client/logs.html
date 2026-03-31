@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SmurovProxy — Logs</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+        background: #0b0f1a;
+        color: #aaa;
+        min-height: 100vh;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      #toolbar {
+        position: sticky;
+        top: 0;
+        background: #0b0f1a;
+        border-bottom: 1px solid #1a1f2e;
+        padding: 6px 12px;
+        display: flex;
+        justify-content: flex-end;
+      }
+      #toolbar button {
+        background: transparent;
+        border: 1px solid #333;
+        border-radius: 4px;
+        color: #888;
+        font-size: 11px;
+        padding: 2px 10px;
+        cursor: pointer;
+      }
+      #toolbar button:hover { background: #1a1f2e; color: #ccc; }
+      #logs {
+        padding: 8px 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .line-helper { color: #81c784; }
+      .line-daemon { color: #90caf9; }
+    </style>
+  </head>
+  <body>
+    <div id="toolbar">
+      <button id="clear-btn">Clear</button>
+    </div>
+    <div id="logs"></div>
+    <script>
+      const logsEl = document.getElementById("logs");
+      const clearBtn = document.getElementById("clear-btn");
+      let prevCount = 0;
+
+      function renderLogs(lines) {
+        if (lines.length === prevCount) return;
+        prevCount = lines.length;
+        logsEl.innerHTML = "";
+        for (const line of lines) {
+          const div = document.createElement("div");
+          div.textContent = line;
+          if (line.includes("[helper]")) div.className = "line-helper";
+          else div.className = "line-daemon";
+          logsEl.appendChild(div);
+        }
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+
+      async function poll() {
+        const lines = await window.logsApi?.getLogs();
+        if (lines) renderLogs(lines);
+      }
+
+      clearBtn.addEventListener("click", async () => {
+        await window.logsApi?.clearLogs();
+        prevCount = 0;
+        logsEl.innerHTML = "";
+      });
+
+      poll();
+      setInterval(poll, 1000);
+    </script>
+  </body>
+</html>

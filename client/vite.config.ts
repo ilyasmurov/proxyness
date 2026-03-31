@@ -10,6 +10,14 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        logs: "logs.html",
+      },
+    },
+  },
   plugins: [
     react(),
     electron([
@@ -23,6 +31,14 @@ export default defineConfig({
       },
       {
         entry: "src/main/preload.ts",
+        vite: {
+          build: {
+            outDir: "dist-electron/main",
+          },
+        },
+      },
+      {
+        entry: "src/main/preload-logs.ts",
         vite: {
           build: {
             outDir: "dist-electron/main",
