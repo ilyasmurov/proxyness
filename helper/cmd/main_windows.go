@@ -102,6 +102,17 @@ func createTUN(serverAddr string) Response {
 		runLog("route", "add", "128.0.0.0", "mask", "128.0.0.0", "10.0.85.1", "metric", "5")
 	}
 
+	// Add bypass routes via physical interface for IP_UNICAST_IF (like -ifscope on macOS).
+	// Higher metric so TUN routes win by default; IP_UNICAST_IF selects these.
+	if gw != "" {
+		physIdx := getPhysicalInterfaceIndex()
+		if physIdx > 0 {
+			runLog("route", "add", "0.0.0.0", "mask", "128.0.0.0", gw, "IF", fmt.Sprintf("%d", physIdx), "metric", "9999")
+			runLog("route", "add", "128.0.0.0", "mask", "128.0.0.0", gw, "IF", fmt.Sprintf("%d", physIdx), "metric", "9999")
+			log.Printf("added bypass routes via IF %d (gw %s)", physIdx, gw)
+		}
+	}
+
 	return Response{TUNName: name}
 }
 
@@ -112,6 +123,13 @@ func destroyTUN() Response {
 
 	run("route", "delete", "0.0.0.0", "mask", "128.0.0.0")
 	run("route", "delete", "128.0.0.0", "mask", "128.0.0.0")
+
+	// Remove bypass routes (may fail if not added, that's ok)
+	physIdx := getPhysicalInterfaceIndex()
+	if physIdx > 0 {
+		run("route", "delete", "0.0.0.0", "mask", "128.0.0.0", "IF", fmt.Sprintf("%d", physIdx))
+		run("route", "delete", "128.0.0.0", "mask", "128.0.0.0", "IF", fmt.Sprintf("%d", physIdx))
+	}
 
 	// Remove DNS routes
 	for _, dns := range getSystemDNS() {
@@ -237,6 +255,32 @@ func relayPackets(conn net.Conn) {
 	t2d := tunToDaemon.Load()
 	d2t := daemonToTun.Load()
 	log.Printf("packet relay stopped (TUN→daemon=%d, daemon→TUN=%d)", t2d, d2t)
+}
+
+func getPhysicalInterfaceIndex() int {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return 0
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		lower := strings.ToLower(iface.Name)
+		if strings.Contains(lower, "smurovproxy") || strings.Contains(lower, "wintun") || strings.Contains(lower, "loopback") {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil || len(addrs) == 0 {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
+				return iface.Index
+			}
+		}
+	}
+	return 0
 }
 
 func getInterfaceIndex(name string) int {
