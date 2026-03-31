@@ -13,6 +13,7 @@ const UPDATE_BASE = "https://82.97.246.65/download";
 
 let mainWindow: BrowserWindow | null = null;
 let logsWindow: BrowserWindow | null = null;
+let updateWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
 function createWindow() {
@@ -137,6 +138,11 @@ async function fetchYml(): Promise<{ version: string; filename: string } | null>
   }
 }
 
+function sendUpdate(channel: string, ...args: any[]) {
+  mainWindow?.webContents.send(channel, ...args);
+  updateWindow?.webContents.send(channel, ...args);
+}
+
 function setupIpc() {
   ipcMain.handle("check-update-version", async () => {
     try {
@@ -155,7 +161,7 @@ function setupIpc() {
     try {
       const info = await fetchYml();
       if (!info) {
-        mainWindow?.webContents.send("update-error");
+        sendUpdate("update-error");
         return;
       }
 
@@ -175,7 +181,7 @@ function setupIpc() {
         function handleResponse(response: typeof res) {
           if (response.statusCode !== 200) {
             file.close();
-            mainWindow?.webContents.send("update-error");
+            sendUpdate("update-error");
             return;
           }
 
@@ -190,18 +196,18 @@ function setupIpc() {
               const percent = Math.round((downloaded / total) * 100);
               if (percent !== lastPercent) {
                 lastPercent = percent;
-                mainWindow?.webContents.send("update-progress", percent);
+                sendUpdate("update-progress", percent);
               }
             } else {
               // No content-length: show MB downloaded
-              mainWindow?.webContents.send("update-progress", -downloaded);
+              sendUpdate("update-progress", -downloaded);
             }
           });
 
           response.on("end", () => {
             file.end(() => {
               installerPath = dest;
-              mainWindow?.webContents.send("update-downloaded");
+              sendUpdate("update-downloaded");
             });
           });
 
@@ -211,12 +217,12 @@ function setupIpc() {
 
       function handleError() {
         file.close();
-        mainWindow?.webContents.send("update-error");
+        sendUpdate("update-error");
       }
 
       req.on("error", handleError);
     } catch {
-      mainWindow?.webContents.send("update-error");
+      sendUpdate("update-error");
     }
   });
 
@@ -266,6 +272,35 @@ function setupIpc() {
 
     logsWindow.on("closed", () => {
       logsWindow = null;
+    });
+  });
+
+  ipcMain.on("open-update", () => {
+    if (updateWindow) {
+      updateWindow.focus();
+      return;
+    }
+    updateWindow = new BrowserWindow({
+      width: 360,
+      height: 200,
+      resizable: false,
+      title: "SmurovProxy — Updates",
+      backgroundColor: "#0b0f1a",
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, "preload-update.js"),
+      },
+    });
+
+    if (process.env.VITE_DEV_SERVER_URL) {
+      updateWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}update.html`);
+    } else {
+      updateWindow.loadFile(path.join(__dirname, "../../dist/update.html"));
+    }
+
+    updateWindow.on("closed", () => {
+      updateWindow = null;
     });
   });
 

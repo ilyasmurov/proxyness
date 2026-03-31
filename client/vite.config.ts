@@ -15,6 +15,7 @@ export default defineConfig({
       input: {
         main: "index.html",
         logs: "logs.html",
+        update: "update.html",
       },
     },
   },
@@ -39,6 +40,14 @@ export default defineConfig({
       },
       {
         entry: "src/main/preload-logs.ts",
+        vite: {
+          build: {
+            outDir: "dist-electron/main",
+          },
+        },
+      },
+      {
+        entry: "src/main/preload-update.ts",
         vite: {
           build: {
             outDir: "dist-electron/main",

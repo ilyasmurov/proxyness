@@ -220,9 +220,7 @@ export function App() {
                 {[
                   { label: "Check for Updates", onClick: () => {
                     setShowSettings(false);
-                    (window as any).updater?.checkVersion().then((r: any) => {
-                      if (r?.hasUpdate) (window as any).updater?.downloadUpdate();
-                    });
+                    (window as any).appInfo?.openUpdate();
                   }},
                   ...(!showSetup ? [{ label: "Change Key", onClick: () => { setShowSettings(false); handleReset(); } }] : []),
                   { label: "Logs", onClick: () => { setShowSettings(false); (window as any).appInfo?.openLogs(); } },

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SmurovProxy — Updates</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0b0f1a;
+        color: #eee;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .container { width: 100%; max-width: 320px; text-align: center; }
+      .status { color: #888; font-size: 14px; margin-bottom: 16px; }
+      .version { color: #3b82f6; font-weight: 600; }
+      .btn {
+        padding: 8px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      .btn:hover { opacity: 0.85; }
+      .btn-primary { background: #3b82f6; color: #fff; }
+      .btn-secondary { background: transparent; border: 1px solid #333; color: #888; }
+      .progress-bar {
+        height: 6px;
+        background: #1a1f2e;
+        border-radius: 3px;
+        margin-top: 12px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        background: #3b82f6;
+        border-radius: 3px;
+        transition: width 0.3s;
+      }
+      .error { color: #ef4444; }
+      .success { color: #22c55e; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div id="checking" class="status">Checking for updates...</div>
+
+      <div id="uptodate" class="hidden">
+        <div class="status success">You're up to date</div>
+        <button class="btn btn-secondary" onclick="window.close()">Close</button>
+      </div>
+
+      <div id="available" class="hidden">
+        <div class="status">Update <span id="ver" class="version"></span> available</div>
+        <button id="download-btn" class="btn btn-primary">Download</button>
+      </div>
+
+      <div id="downloading" class="hidden">
+        <div class="status">Downloading <span id="dl-ver" class="version"></span>... <span id="dl-progress">0%</span></div>
+        <div class="progress-bar"><div id="dl-fill" class="progress-fill" style="width:0%"></div></div>
+      </div>
+
+      <div id="ready" class="hidden">
+        <div class="status"><span id="ready-ver" class="version"></span> ready to install</div>
+        <button id="install-btn" class="btn btn-primary">Restart & Update</button>
+      </div>
+
+      <div id="error" class="hidden">
+        <div class="status error">Connection error</div>
+        <button class="btn btn-secondary" onclick="checkUpdate()">Retry</button>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let latestVersion = "";
+
+      function showOnly(id) {
+        for (const el of ["checking", "uptodate", "available", "downloading", "ready", "error"]) {
+          $(el).classList.toggle("hidden", el !== id);
+        }
+      }
+
+      async function checkUpdate() {
+        showOnly("checking");
+        try {
+          const r = await window.updaterApi.checkVersion();
+          if (!r || r.error) { showOnly("error"); return; }
+          if (r.hasUpdate && r.latestVersion) {
+            latestVersion = r.latestVersion;
+            $("ver").textContent = "v" + latestVersion;
+            $("dl-ver").textContent = "v" + latestVersion;
+            $("ready-ver").textContent = "v" + latestVersion;
+            showOnly("available");
+          } else {
+            showOnly("uptodate");
+          }
+        } catch {
+          showOnly("error");
+        }
+      }
+
+      $("download-btn").addEventListener("click", () => {
+        showOnly("downloading");
+        window.updaterApi.downloadUpdate();
+      });
+
+      $("install-btn").addEventListener("click", () => {
+        window.updaterApi.installUpdate();
+      });
+
+      window.updaterApi.onUpdateProgress((p) => {
+        if (p < 0) {
+          $("dl-progress").textContent = Math.round(-p / 1024 / 1024) + " MB";
+          $("dl-fill").style.width = "50%";
+        } else {
+          $("dl-progress").textContent = p + "%";
+          $("dl-fill").style.width = p + "%";
+        }
+      });
+
+      window.updaterApi.onUpdateDownloaded(() => showOnly("ready"));
+      window.updaterApi.onUpdateError(() => showOnly("error"));
+
+      checkUpdate();
+    </script>
+  </body>
+</html>
