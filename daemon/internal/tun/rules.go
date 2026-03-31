@@ -14,20 +14,23 @@ const (
 )
 
 type Rules struct {
-	mu   sync.RWMutex
-	mode Mode
-	apps map[string]bool
+	mu        sync.RWMutex
+	mode      Mode
+	apps      map[string]bool
+	noTLSApps map[string]bool
 }
 
 type rulesJSON struct {
-	Mode Mode     `json:"mode"`
-	Apps []string `json:"apps"`
+	Mode      Mode     `json:"mode"`
+	Apps      []string `json:"apps"`
+	NoTLSApps []string `json:"no_tls_apps,omitempty"`
 }
 
 func NewRules() *Rules {
 	return &Rules{
-		mode: ModeProxyAllExcept,
-		apps: make(map[string]bool),
+		mode:      ModeProxyAllExcept,
+		apps:      make(map[string]bool),
+		noTLSApps: make(map[string]bool),
 	}
 }
 
@@ -60,6 +63,27 @@ func (r *Rules) GetApps() []string {
 		apps = append(apps, a)
 	}
 	return apps
+}
+
+func (r *Rules) SetNoTLSApps(apps []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.noTLSApps = make(map[string]bool, len(apps))
+	for _, a := range apps {
+		r.noTLSApps[strings.ToLower(a)] = true
+	}
+}
+
+func (r *Rules) ShouldUseTLS(appPath string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	lower := strings.ToLower(appPath)
+	for app := range r.noTLSApps {
+		if lower == app || strings.HasPrefix(lower, app+"/") || strings.HasPrefix(lower, app+"\\") {
+			return false
+		}
+	}
+	return true
 }
 
 // NeedProcessLookup returns false when we can skip the expensive process
@@ -103,9 +127,14 @@ func (r *Rules) ToJSON() []byte {
 	for a := range r.apps {
 		apps = append(apps, a)
 	}
+	noTLSApps := make([]string, 0, len(r.noTLSApps))
+	for a := range r.noTLSApps {
+		noTLSApps = append(noTLSApps, a)
+	}
 	data, _ := json.Marshal(rulesJSON{
-		Mode: r.mode,
-		Apps: apps,
+		Mode:      r.mode,
+		Apps:      apps,
+		NoTLSApps: noTLSApps,
 	})
 	return data
 }
@@ -117,5 +146,6 @@ func (r *Rules) FromJSON(data []byte) error {
 	}
 	r.SetMode(rj.Mode)
 	r.SetApps(rj.Apps)
+	r.SetNoTLSApps(rj.NoTLSApps)
 	return nil
 }
