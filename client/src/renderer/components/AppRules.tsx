@@ -332,9 +332,9 @@ export function AppRules({ visible }: Props) {
                 padding: "6px 8px", borderRadius: 6, cursor: "pointer",
                 background: browsersOn ? "rgba(59,130,246,0.08)" : "transparent",
               }}
+              onClick={() => setShowSites(!showSites)}
             >
               <div
-                onClick={() => setShowSites(!showSites)}
                 style={{
                   width: 28, height: 28, borderRadius: 6,
                   background: browsersOn ? "#4285F4" : "#333",
@@ -345,16 +345,15 @@ export function AppRules({ visible }: Props) {
               >
                 B
               </div>
-              <div onClick={() => setShowSites(!showSites)} style={{ flex: 1, fontSize: 13, color: browsersOn ? "#eee" : "#666", cursor: "pointer" }}>
+              <div style={{ flex: 1, fontSize: 13, color: browsersOn ? "#eee" : "#666" }}>
                 Browsers
                 <span style={{ fontSize: 10, color: "#555", marginLeft: 6 }}>
                   {enabledSites.has("*") ? "all sites" : `${enabledSites.size} site${enabledSites.size !== 1 ? "s" : ""}`}
                 </span>
               </div>
               <span
-                onClick={() => setShowSites(!showSites)}
                 style={{
-                  fontSize: 10, color: "#555", cursor: "pointer",
+                  fontSize: 10, color: "#555",
                   transition: "transform 0.2s",
                   transform: showSites ? "rotate(90deg)" : "rotate(0deg)",
                   display: "inline-block", userSelect: "none",
@@ -363,7 +362,7 @@ export function AppRules({ visible }: Props) {
                 ▶
               </span>
               <div
-                onClick={toggleBrowsers}
+                onClick={(e) => { e.stopPropagation(); toggleBrowsers(); }}
                 style={{
                   width: 36, height: 20, borderRadius: 10,
                   background: browsersOn ? "#3b82f6" : "#333",
@@ -383,11 +382,10 @@ export function AppRules({ visible }: Props) {
                 {sites.map((site) => {
                   const isOn = enabledSites.has(site.domain);
                   return (
-                    <div key={site.domain} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0" }}>
+                    <div key={site.domain} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", cursor: "pointer" }} onClick={() => toggleSite(site.domain)}>
                       <div
-                        onClick={() => toggleSite(site.domain)}
                         style={{
-                          width: 16, height: 16, borderRadius: 4, cursor: "pointer",
+                          width: 16, height: 16, borderRadius: 4,
                           background: isOn ? "#3b82f6" : "transparent",
                           border: `1.5px solid ${isOn ? "#3b82f6" : "#555"}`,
                           display: "flex", alignItems: "center", justifyContent: "center",
@@ -399,7 +397,7 @@ export function AppRules({ visible }: Props) {
                       <span style={{ flex: 1, fontSize: 12, color: isOn ? "#ccc" : "#666" }}>{site.label}</span>
                       {!site.builtin && (
                         <button
-                          onClick={() => removeSite(site.domain)}
+                          onClick={(e) => { e.stopPropagation(); removeSite(site.domain); }}
                           style={{
                             background: "transparent", border: "none", color: "#555",
                             fontSize: 14, cursor: "pointer", padding: "0 4px", lineHeight: 1,
