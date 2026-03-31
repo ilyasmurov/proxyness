@@ -49,6 +49,9 @@ type Engine struct {
 	bridgeCancel context.CancelFunc
 	selfPath     string // daemon's own path — always bypassed to prevent loops
 	meter        *dstats.RateMeter
+	startTime    time.Time
+	lastError    string
+	stopHealth   chan struct{}
 
 	connsMu sync.Mutex
 	conns   map[uint64]net.Conn
@@ -74,6 +77,21 @@ func (e *Engine) GetStatus() Status {
 
 func (e *Engine) GetRules() *Rules {
 	return e.rules
+}
+
+func (e *Engine) GetUptime() int64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.status != StatusActive {
+		return 0
+	}
+	return int64(time.Since(e.startTime).Seconds())
+}
+
+func (e *Engine) GetLastError() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lastError
 }
 
 // UpdateRules applies new rules and closes all active connections so apps
@@ -126,7 +144,8 @@ func (e *Engine) Start(req StartRequest) error {
 	defer e.mu.Unlock()
 
 	if e.status == StatusActive {
-		return fmt.Errorf("TUN already active")
+		log.Printf("[tun] already active, restarting...")
+		e.stopLocked()
 	}
 
 	// Connect to helper and create TUN — keep connection open for packet relay
@@ -166,6 +185,11 @@ func (e *Engine) Start(req StartRequest) error {
 	go e.bridgeOutbound(ctx, helperConn, ep)
 
 	e.status = StatusActive
+	e.startTime = time.Now()
+	e.lastError = ""
+	e.stopHealth = make(chan struct{})
+	go e.healthLoop()
+
 	log.Printf("[tun] engine started, server=%s", req.ServerAddr)
 	return nil
 }
@@ -173,9 +197,17 @@ func (e *Engine) Start(req StartRequest) error {
 func (e *Engine) Stop() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	return e.stopLocked()
+}
 
+func (e *Engine) stopLocked() error {
 	if e.status == StatusInactive {
 		return nil
+	}
+
+	if e.stopHealth != nil {
+		close(e.stopHealth)
+		e.stopHealth = nil
 	}
 
 	// Cancel bridge goroutines
@@ -330,6 +362,67 @@ func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.
 			return
 		}
 	}
+}
+
+func (e *Engine) healthLoop() {
+	const maxFailures = 3
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	failures := 0
+	for {
+		select {
+		case <-e.stopHealth:
+			return
+		case <-ticker.C:
+			e.mu.Lock()
+			addr := e.serverAddr
+			key := e.key
+			e.mu.Unlock()
+
+			if err := e.healthCheck(addr, key); err != nil {
+				failures++
+				log.Printf("[tun] health check failed (%d/%d): %v", failures, maxFailures, err)
+				if failures >= maxFailures {
+					log.Printf("[tun] server unreachable, stopping engine")
+					e.mu.Lock()
+					e.lastError = "Server temporarily unavailable"
+					e.stopLocked()
+					e.mu.Unlock()
+					return
+				}
+			} else {
+				if failures > 0 {
+					log.Printf("[tun] health check recovered after %d failures", failures)
+				}
+				failures = 0
+			}
+		}
+	}
+}
+
+func (e *Engine) healthCheck(serverAddr, key string) error {
+	conn, err := protectedDial("tcp", serverAddr)
+	if err != nil {
+		return fmt.Errorf("server unreachable: %w", err)
+	}
+	tlsConn := tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
+	defer tlsConn.Close()
+
+	if err := tlsConn.Handshake(); err != nil {
+		return fmt.Errorf("tls failed: %w", err)
+	}
+	if err := proto.WriteAuth(tlsConn, key); err != nil {
+		return fmt.Errorf("auth failed: %w", err)
+	}
+	ok, err := proto.ReadResult(tlsConn)
+	if err != nil {
+		return fmt.Errorf("auth failed: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("invalid key")
+	}
+	return nil
 }
 
 func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {

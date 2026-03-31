@@ -202,9 +202,14 @@ func (s *Server) handleTUNStop(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTUNStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	resp := map[string]any{
 		"status": string(s.tunEngine.GetStatus()),
-	})
+		"uptime": s.tunEngine.GetUptime(),
+	}
+	if e := s.tunEngine.GetLastError(); e != "" {
+		resp["error"] = e
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (s *Server) handleTUNRulesUpdate(w http.ResponseWriter, r *http.Request) {

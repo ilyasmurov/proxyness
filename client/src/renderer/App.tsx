@@ -17,15 +17,18 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
-  const autoConnected = useRef(false);
   const [proxyMode, setProxyMode] = useState<ProxyMode>(
     () => (localStorage.getItem("smurov-proxy-mode") as ProxyMode) || "tun"
   );
 
   // TUN state
   const [tunStatus, setTunStatus] = useState<"inactive" | "active">("inactive");
+  const [tunUptime, setTunUptime] = useState(0);
   const [tunLoading, setTunLoading] = useState(false);
   const [tunError, setTunError] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasConnected = useRef(false);
 
   useEffect(() => {
     (window as any).appInfo?.getVersion().then((v: string) => setVersion(v));
@@ -44,27 +47,88 @@ export function App() {
   }, [showSettings]);
 
 
+  const maxRetries = 5;
+  const retryDelay = 5000;
+
+  const startReconnect = useCallback(() => {
+    if (reconnecting || !key) return;
+    setReconnecting(true);
+    setTunError(null);
+    let attempt = 0;
+
+    const tryReconnect = async () => {
+      attempt++;
+      console.log(`[reconnect] attempt ${attempt}/${maxRetries}`);
+      try {
+        if (proxyMode === "tun") {
+          await connect(SERVER, key);
+          const result = await (window as any).tunProxy?.start(SERVER, key);
+          if (result && !result.ok) throw new Error(result.error);
+          setTunStatus("active");
+          wasConnected.current = true;
+        } else {
+          await connect(SERVER, key);
+        }
+        setReconnecting(false);
+        setTunError(null);
+      } catch {
+        if (attempt >= maxRetries) {
+          setReconnecting(false);
+          setTunError("Server unavailable");
+        } else {
+          reconnectRef.current = setTimeout(tryReconnect, retryDelay);
+        }
+      }
+    };
+
+    tryReconnect();
+  }, [reconnecting, key, proxyMode, connect]);
+
+  // Cleanup reconnect timer on unmount
+  useEffect(() => {
+    return () => {
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+    };
+  }, []);
+
   // Poll TUN status when in TUN mode
   useEffect(() => {
     if (proxyMode !== "tun") return;
     const poll = async () => {
       try {
         const s = await (window as any).tunProxy?.getStatus();
-        if (s) setTunStatus(s.status === "active" ? "active" : "inactive");
+        if (s) {
+          const active = s.status === "active";
+          setTunStatus(active ? "active" : "inactive");
+          setTunUptime(s.uptime || 0);
+          if (s.error) setTunError(s.error);
+          if (wasConnected.current && !active && s.error) {
+            startReconnect();
+          }
+          wasConnected.current = active;
+        }
       } catch {}
     };
     poll();
     const interval = setInterval(poll, 2000);
     return () => clearInterval(interval);
-  }, [proxyMode]);
+  }, [proxyMode, startReconnect]);
+
+  // Detect SOCKS5 server loss and auto-reconnect
+  useEffect(() => {
+    if (proxyMode !== "socks5") return;
+    if (socksError && !reconnecting && key) {
+      startReconnect();
+    }
+  }, [socksError, proxyMode, reconnecting, key, startReconnect]);
 
   // Effective state based on mode
   const isConnected = proxyMode === "tun"
     ? tunStatus === "active"
     : socksStatus.status === "connected";
-  const isLoading = proxyMode === "tun" ? tunLoading : socksLoading;
-  const currentError = proxyMode === "tun" ? tunError : socksError;
-  const uptime = proxyMode === "tun" ? 0 : socksStatus.uptime;
+  const isLoading = reconnecting || (proxyMode === "tun" ? tunLoading : socksLoading);
+  const currentError = reconnecting ? null : (proxyMode === "tun" ? tunError : socksError);
+  const uptime = proxyMode === "tun" ? tunUptime : socksStatus.uptime;
   const stats = useStats(isConnected);
 
   const handleModeChange = (m: ProxyMode) => {
@@ -95,7 +159,17 @@ export function App() {
     }
   }, [connect]);
 
+  const stopReconnect = useCallback(() => {
+    if (reconnectRef.current) {
+      clearTimeout(reconnectRef.current);
+      reconnectRef.current = null;
+    }
+    setReconnecting(false);
+    wasConnected.current = false;
+  }, []);
+
   const tunDisconnect = useCallback(async () => {
+    stopReconnect();
     setTunLoading(true);
     try {
       await (window as any).tunProxy?.stop();
@@ -137,17 +211,6 @@ export function App() {
     });
   }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect]);
 
-  // Auto-connect on launch if key is saved
-  useEffect(() => {
-    if (!autoConnected.current && key && !isConnected && !isLoading) {
-      autoConnected.current = true;
-      if (proxyMode === "tun") {
-        tunConnect(SERVER, key);
-      } else {
-        connect(SERVER, key);
-      }
-    }
-  }, [key, isConnected, isLoading, connect, proxyMode, tunConnect]);
 
   const connectWithKey = (k: string) => {
     const trimmed = k.trim();
@@ -178,7 +241,6 @@ export function App() {
     localStorage.removeItem(STORAGE_KEY);
     setKey("");
     setShowSetup(true);
-    autoConnected.current = false;
   };
 
   return (
@@ -306,6 +368,7 @@ export function App() {
           <ConnectionButton
             connected={isConnected}
             loading={isLoading}
+            reconnecting={reconnecting}
             onConnect={() => {
               if (proxyMode === "tun") {
                 tunConnect(SERVER, key);

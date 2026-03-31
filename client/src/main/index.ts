@@ -230,9 +230,12 @@ function setupIpc() {
     if (installerPath) {
       stopDaemon();
       stopHelper();
-      // Launch installer detached so it survives app exit
-      const child = spawn(installerPath, [], { detached: true, stdio: "ignore" });
-      child.unref();
+      // Open PKG installer (macOS) or run exe (Windows)
+      if (process.platform === "darwin") {
+        spawn("open", [installerPath], { detached: true, stdio: "ignore" }).unref();
+      } else {
+        spawn(installerPath, [], { detached: true, stdio: "ignore" }).unref();
+      }
       app.exit(0);
     }
   });

@@ -304,6 +304,17 @@ export function AppRules({ visible }: Props) {
                   {enabledSites.has("*") ? "all sites" : `${enabledSites.size} site${enabledSites.size !== 1 ? "s" : ""}`}
                 </span>
               </div>
+              <span
+                onClick={() => setShowSites(!showSites)}
+                style={{
+                  fontSize: 10, color: "#555", cursor: "pointer",
+                  transition: "transform 0.2s",
+                  transform: showSites ? "rotate(90deg)" : "rotate(0deg)",
+                  display: "inline-block", userSelect: "none",
+                }}
+              >
+                ▶
+              </span>
               <div
                 onClick={toggleBrowsers}
                 style={{
