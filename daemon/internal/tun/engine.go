@@ -462,50 +462,56 @@ func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
 	}()
 
 	if shouldProxy {
-		e.proxyTCP(conn, dstAddr, dstPort)
+		e.proxyTCP(conn, dstAddr, dstPort, appPath)
 	} else {
 		e.bypassTCP(conn, dstAddr, dstPort)
 	}
 }
 
-func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16) {
-	// Use protected dialer to bypass TUN routes
+func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPath string) {
 	rawConn, err := protectedDial("tcp", e.serverAddr)
 	if err != nil {
 		log.Printf("[tun] protected dial failed: %v", err)
 		return
 	}
 
-	tlsConn := tls.Client(rawConn, &tls.Config{
-		InsecureSkipVerify: true,
-	})
-	defer tlsConn.Close()
+	var server net.Conn
+	if e.rules.ShouldUseTLS(appPath) {
+		tlsConn := tls.Client(rawConn, &tls.Config{
+			InsecureSkipVerify: true,
+		})
+		if err := tlsConn.Handshake(); err != nil {
+			log.Printf("[tun] tls handshake failed: %v", err)
+			rawConn.Close()
+			return
+		}
+		server = tlsConn
+	} else {
+		server = rawConn
+		log.Printf("[tun] TCP %s:%d — raw (no TLS)", dstAddr, dstPort)
+	}
+	defer server.Close()
 
-	if err := tlsConn.Handshake(); err != nil {
-		log.Printf("[tun] tls handshake failed: %v", err)
+	if err := proto.WriteAuth(server, e.key); err != nil {
 		return
 	}
-
-	if err := proto.WriteAuth(tlsConn, e.key); err != nil {
-		return
-	}
-	ok, err := proto.ReadResult(tlsConn)
+	ok, err := proto.ReadResult(server)
 	if err != nil || !ok {
 		return
 	}
 
-	if err := proto.WriteMsgType(tlsConn, proto.MsgTypeTCP); err != nil {
+	if err := proto.WriteMsgType(server, proto.MsgTypeTCP); err != nil {
 		return
 	}
-	if err := proto.WriteConnect(tlsConn, dstAddr, dstPort); err != nil {
+	if err := proto.WriteConnect(server, dstAddr, dstPort); err != nil {
 		return
 	}
-	ok, err = proto.ReadResult(tlsConn)
+	ok, err = proto.ReadResult(server)
 	if err != nil || !ok {
 		return
 	}
 
-	proto.CountingRelay(local, tlsConn, func(in, out int64) {
+	proto.CountingRelay(local, server, func(in, out int64) {
 		e.meter.Add(in, out)
 	})
 }
@@ -573,7 +579,7 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 	if shouldProxy {
 		go func() {
 			defer e.untrackConn(connID)
-			e.proxyUDP(conn, dstAddr, dstPort)
+			e.proxyUDP(conn, dstAddr, dstPort, appPath)
 		}()
 	} else {
 		go func() {
@@ -583,7 +589,7 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 	}
 }
 
-func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16) {
+func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPath string) {
 	defer local.Close()
 
 	rawConn, err := protectedDial("tcp", e.serverAddr)
@@ -591,27 +597,33 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16) {
 		return
 	}
 
-	tlsConn := tls.Client(rawConn, &tls.Config{
-		InsecureSkipVerify: true,
-	})
-	defer tlsConn.Close()
+	var server net.Conn
+	if e.rules.ShouldUseTLS(appPath) {
+		tlsConn := tls.Client(rawConn, &tls.Config{
+			InsecureSkipVerify: true,
+		})
+		if err := tlsConn.Handshake(); err != nil {
+			rawConn.Close()
+			return
+		}
+		server = tlsConn
+	} else {
+		server = rawConn
+	}
+	defer server.Close()
 
-	if err := tlsConn.Handshake(); err != nil {
+	if err := proto.WriteAuth(server, e.key); err != nil {
 		return
 	}
-
-	if err := proto.WriteAuth(tlsConn, e.key); err != nil {
-		return
-	}
-	ok, err := proto.ReadResult(tlsConn)
+	ok, err := proto.ReadResult(server)
 	if err != nil || !ok {
 		return
 	}
 
-	if err := proto.WriteMsgType(tlsConn, proto.MsgTypeUDP); err != nil {
+	if err := proto.WriteMsgType(server, proto.MsgTypeUDP); err != nil {
 		return
 	}
-	if err := proto.WriteConnect(tlsConn, dstAddr, dstPort); err != nil {
+	if err := proto.WriteConnect(server, dstAddr, dstPort); err != nil {
 		return
 	}
 
@@ -626,7 +638,7 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16) {
 			if err != nil {
 				return
 			}
-			if err := proto.WriteUDPFrame(tlsConn, dstAddr, dstPort, buf[:n]); err != nil {
+			if err := proto.WriteUDPFrame(server, dstAddr, dstPort, buf[:n]); err != nil {
 				return
 			}
 			e.meter.Add(0, int64(n))
@@ -636,7 +648,7 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16) {
 	go func() {
 		defer func() { done <- struct{}{} }()
 		for {
-			_, _, payload, err := proto.ReadUDPFrame(tlsConn)
+			_, _, payload, err := proto.ReadUDPFrame(server)
 			if err != nil {
 				return
 			}
