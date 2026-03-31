@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { execSync } from "child_process";
 
 export interface InstalledApp {
   name: string;
@@ -62,6 +63,41 @@ function getWindowsApps(): InstalledApp[] {
   const apps: InstalledApp[] = [];
   const seen = new Set<string>();
 
+  // 1. Registry: most reliable, finds apps regardless of install location
+  const regKeys = [
+    "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+    "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+    "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+  ];
+  for (const key of regKeys) {
+    try {
+      const out = execSync(`reg query "${key}" /s`, { encoding: "utf-8", timeout: 5000 });
+      let name = "";
+      let loc = "";
+      for (const line of out.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("HKEY_")) {
+          if (name && loc && !seen.has(name.toLowerCase())) {
+            seen.add(name.toLowerCase());
+            apps.push({ name, path: loc });
+          }
+          name = "";
+          loc = "";
+        }
+        const match = trimmed.match(/^\s*(\w+)\s+REG_SZ\s+(.+)$/);
+        if (match) {
+          if (match[1] === "DisplayName") name = match[2].trim();
+          if (match[1] === "InstallLocation") loc = match[2].trim().replace(/\\$/, "");
+        }
+      }
+      if (name && loc && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        apps.push({ name, path: loc });
+      }
+    } catch {}
+  }
+
+  // 2. Directory scan: fallback for apps without registry entries
   const localAppData = path.join(os.homedir(), "AppData", "Local");
   const roamingAppData = path.join(os.homedir(), "AppData", "Roaming");
 
