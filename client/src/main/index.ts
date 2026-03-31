@@ -260,6 +260,7 @@ function setupIpc() {
       minHeight: 200,
       title: "SmurovProxy — Logs",
       backgroundColor: "#0b0f1a",
+      autoHideMenuBar: true,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -289,6 +290,7 @@ function setupIpc() {
       resizable: false,
       title: "SmurovProxy — Updates",
       backgroundColor: "#0b0f1a",
+      autoHideMenuBar: true,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,

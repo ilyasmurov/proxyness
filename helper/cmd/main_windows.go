@@ -84,6 +84,14 @@ func createTUN(serverAddr string) Response {
 	ifIndex := getInterfaceIndex(name)
 	log.Printf("TUN interface index: %d", ifIndex)
 
+	// Route DNS servers via gateway to keep resolution working
+	if gw != "" {
+		for _, dns := range getSystemDNS() {
+			runLog("route", "add", dns, "mask", "255.255.255.255", gw, "metric", "1")
+			log.Printf("added DNS route: %s via %s", dns, gw)
+		}
+	}
+
 	// Add routes through TUN using interface index (more reliable than gateway IP)
 	if ifIndex > 0 {
 		runLog("route", "add", "0.0.0.0", "mask", "128.0.0.0", "0.0.0.0", "IF", fmt.Sprintf("%d", ifIndex), "metric", "5")
@@ -104,6 +112,11 @@ func destroyTUN() Response {
 
 	run("route", "delete", "0.0.0.0", "mask", "128.0.0.0")
 	run("route", "delete", "128.0.0.0", "mask", "128.0.0.0")
+
+	// Remove DNS routes
+	for _, dns := range getSystemDNS() {
+		run("route", "delete", dns)
+	}
 
 	// Remove server routes
 	if serverHost != "" {
@@ -251,6 +264,26 @@ func getDefaultGateway() string {
 		}
 	}
 	return ""
+}
+
+func getSystemDNS() []string {
+	out, err := exec.Command("cmd", "/c", "netsh", "interface", "ip", "show", "dns").Output()
+	if err != nil {
+		return nil
+	}
+	var servers []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		// Lines like "DNS Servers:                  8.8.8.8" or just "8.8.8.8"
+		parts := strings.Split(line, ":")
+		candidate := strings.TrimSpace(parts[len(parts)-1])
+		if net.ParseIP(candidate) != nil && !seen[candidate] {
+			seen[candidate] = true
+			servers = append(servers, candidate)
+		}
+	}
+	return servers
 }
 
 // runLog runs a command and always logs output (for debugging)
