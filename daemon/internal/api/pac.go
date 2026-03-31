@@ -7,9 +7,10 @@ import (
 )
 
 type PacSites struct {
-	mu       sync.RWMutex
-	proxyAll bool
-	sites    []string
+	mu           sync.RWMutex
+	proxyAll     bool
+	sites        []string
+	forceProxAll bool // when TUN is active, DIRECT doesn't work
 }
 
 func NewPacSites() *PacSites {
@@ -21,6 +22,12 @@ func (p *PacSites) Set(proxyAll bool, sites []string) {
 	defer p.mu.Unlock()
 	p.proxyAll = proxyAll
 	p.sites = sites
+}
+
+func (p *PacSites) SetForceProxyAll(v bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.forceProxAll = v
 }
 
 func (p *PacSites) Get() (bool, []string) {
@@ -39,7 +46,9 @@ func (p *PacSites) GeneratePAC() string {
 
 	proxy := `"SOCKS5 127.0.0.1:1080; SOCKS 127.0.0.1:1080; DIRECT"`
 
-	if p.proxyAll {
+	// When TUN is active, DIRECT doesn't work (TUN routes break it),
+	// so all browser traffic must go through SOCKS5.
+	if p.forceProxAll || p.proxyAll {
 		b.WriteString(fmt.Sprintf("  return %s;\n", proxy))
 	} else if len(p.sites) == 0 {
 		b.WriteString(`  return "DIRECT";` + "\n")
@@ -49,7 +58,6 @@ func (p *PacSites) GeneratePAC() string {
 			if site == "" {
 				continue
 			}
-			// Match domain and all subdomains
 			b.WriteString(fmt.Sprintf("  if (host === %q || dnsDomainIs(host, %q)) return %s;\n",
 				site, "."+site, proxy))
 		}
