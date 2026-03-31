@@ -148,6 +148,9 @@ func (e *Engine) Start(req StartRequest) error {
 		e.stopLocked()
 	}
 
+	// Cache physical interface before TUN routes are added
+	CachePhysicalInterface()
+
 	// Connect to helper and create TUN — keep connection open for packet relay
 	helperConn, err := e.connectAndCreate(req)
 	if err != nil {
@@ -229,6 +232,7 @@ func (e *Engine) stopLocked() error {
 
 	e.endpoint = nil
 	e.status = StatusInactive
+	ClearPhysicalInterfaceCache()
 	log.Printf("[tun] engine stopped")
 	return nil
 }

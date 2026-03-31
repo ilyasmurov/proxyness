@@ -7,32 +7,80 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
 
 const ipBoundIF = 25 // IP_BOUND_IF setsockopt on macOS
 
-func getPhysicalInterfaceIndex() (int, error) {
-	// Use "route -n get default" to find the actual default interface
-	out, err := exec.Command("route", "-n", "get", "default").Output()
-	if err == nil {
-		for _, line := range strings.Split(string(out), "\n") {
-			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "interface:") {
-				ifName := strings.TrimSpace(strings.TrimPrefix(line, "interface:"))
-				iface, err := net.InterfaceByName(ifName)
-				if err == nil {
-					log.Printf("[tun] default route interface: %s (index %d)", ifName, iface.Index)
-					return iface.Index, nil
-				}
+var (
+	cachedIfIndex int
+	cachedIfMu    sync.RWMutex
+	cachedIfSet   bool
+)
+
+// CachePhysicalInterface detects and caches the physical interface index.
+// Must be called before TUN routes are added, because after that
+// the routing table points to utun as default.
+func CachePhysicalInterface() {
+	idx, err := detectPhysicalInterface()
+	if err != nil {
+		log.Printf("[tun] failed to cache physical interface: %v", err)
+		return
+	}
+	cachedIfMu.Lock()
+	cachedIfIndex = idx
+	cachedIfSet = true
+	cachedIfMu.Unlock()
+}
+
+func ClearPhysicalInterfaceCache() {
+	cachedIfMu.Lock()
+	cachedIfSet = false
+	cachedIfMu.Unlock()
+}
+
+func detectPhysicalInterface() (int, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return 0, err
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		// Skip TUN/virtual interfaces
+		if strings.HasPrefix(iface.Name, "utun") || strings.HasPrefix(iface.Name, "lo") ||
+			strings.HasPrefix(iface.Name, "bridge") || strings.HasPrefix(iface.Name, "awdl") ||
+			strings.HasPrefix(iface.Name, "llw") || strings.HasPrefix(iface.Name, "anpi") {
+			continue
+		}
+		// Must have an IPv4 address
+		addrs, err := iface.Addrs()
+		if err != nil || len(addrs) == 0 {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
+				log.Printf("[tun] physical interface: %s (index %d, ip %s)", iface.Name, iface.Index, ipnet.IP)
+				return iface.Index, nil
 			}
 		}
 	}
+	return 0, fmt.Errorf("no physical interface found")
+}
 
-	return 0, fmt.Errorf("no default route interface found")
+func getPhysicalInterfaceIndex() (int, error) {
+	cachedIfMu.RLock()
+	if cachedIfSet {
+		idx := cachedIfIndex
+		cachedIfMu.RUnlock()
+		return idx, nil
+	}
+	cachedIfMu.RUnlock()
+	return detectPhysicalInterface()
 }
 
 // protectedDial creates a connection that bypasses TUN routing by binding
