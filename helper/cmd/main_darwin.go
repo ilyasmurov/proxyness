@@ -74,6 +74,14 @@ func createTUN(serverAddr string) Response {
 		}
 	}
 
+	// Route system DNS servers via gateway to keep resolution working
+	if gw != "" {
+		for _, dns := range getSystemDNS() {
+			run("route", "add", "-host", dns, gw)
+			log.Printf("added DNS route: %s via %s", dns, gw)
+		}
+	}
+
 	// Assign IP to TUN interface
 	run("ifconfig", name, "10.0.85.1", "10.0.85.1", "up")
 
@@ -91,6 +99,11 @@ func destroyTUN() Response {
 
 	run("route", "delete", "-net", "0.0.0.0/1")
 	run("route", "delete", "-net", "128.0.0.0/1")
+
+	// Remove DNS routes
+	for _, dns := range getSystemDNS() {
+		run("route", "delete", "-host", dns)
+	}
 
 	// Remove server routes
 	if serverHost != "" {
@@ -196,6 +209,21 @@ func getDefaultGateway() string {
 		}
 	}
 	return ""
+}
+
+func getSystemDNS() []string {
+	out, err := exec.Command("networksetup", "-getdnsservers", "Wi-Fi").Output()
+	if err != nil {
+		return nil
+	}
+	var servers []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if net.ParseIP(line) != nil {
+			servers = append(servers, line)
+		}
+	}
+	return servers
 }
 
 func run(name string, args ...string) {
