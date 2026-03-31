@@ -17,6 +17,11 @@ export function getInstalledApps(): InstalledApp[] {
   return [];
 }
 
+// Well-known CLI apps installed outside /Applications
+const MAC_CLI_APPS: { name: string; dir: string }[] = [
+  { name: "claude", dir: path.join(os.homedir(), ".local/share/claude") },
+];
+
 function getMacApps(): InstalledApp[] {
   const apps: InstalledApp[] = [];
   const dirs = ["/Applications", path.join(os.homedir(), "Applications")];
@@ -30,6 +35,15 @@ function getMacApps(): InstalledApp[] {
             path: path.join(dir, entry),
           });
         }
+      }
+    } catch {}
+  }
+
+  // Add known CLI apps
+  for (const cli of MAC_CLI_APPS) {
+    try {
+      if (fs.existsSync(cli.dir)) {
+        apps.push({ name: cli.name, path: cli.dir });
       }
     } catch {}
   }
