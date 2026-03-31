@@ -312,6 +312,14 @@ function setupIpc() {
     disableSystemProxy();
   });
 
+  ipcMain.on("pac-sites", (_e, data: { proxy_all: boolean; sites: string[] }) => {
+    fetch("http://127.0.0.1:9090/pac/sites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).catch(() => {});
+  });
+
   ipcMain.handle("tun-start", async (_e, server: string, key: string) => {
     try {
       const res = await fetch("http://127.0.0.1:9090/tun/start", {

@@ -23,6 +23,7 @@ type Server struct {
 	sessionID  string
 	serverAddr string // remembered for unlock on disconnect
 	key        string
+	pacSites   *PacSites
 }
 
 type ConnectRequest struct {
@@ -40,7 +41,7 @@ type StatusResponse struct {
 func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string, meter *dstats.RateMeter) *Server {
 	b := make([]byte, 16)
 	rand.Read(b)
-	return &Server{tunnel: t, tunEngine: te, listenAddr: listenAddr, meter: meter, sessionID: hex.EncodeToString(b)}
+	return &Server{tunnel: t, tunEngine: te, listenAddr: listenAddr, meter: meter, sessionID: hex.EncodeToString(b), pacSites: NewPacSites()}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -50,6 +51,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /status", s.handleStatus)
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /proxy.pac", s.handlePAC)
+	mux.HandleFunc("POST /pac/sites", s.handlePacSitesUpdate)
+	mux.HandleFunc("GET /pac/sites", s.handlePacSitesGet)
 	// TUN endpoints
 	mux.HandleFunc("POST /tun/start", s.handleTUNStart)
 	mux.HandleFunc("POST /tun/stop", s.handleTUNStop)
@@ -149,10 +152,29 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePAC(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig")
-	w.Write([]byte(`function FindProxyForURL(url, host) {
-  if (host === "127.0.0.1" || host === "localhost") return "DIRECT";
-  return "SOCKS5 127.0.0.1:1080; SOCKS 127.0.0.1:1080; DIRECT";
-}`))
+	w.Write([]byte(s.pacSites.GeneratePAC()))
+}
+
+func (s *Server) handlePacSitesUpdate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ProxyAll bool     `json:"proxy_all"`
+		Sites    []string `json:"sites"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.pacSites.Set(req.ProxyAll, req.Sites)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handlePacSitesGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	proxyAll, sites := s.pacSites.Get()
+	json.NewEncoder(w).Encode(map[string]any{
+		"proxy_all": proxyAll,
+		"sites":     sites,
+	})
 }
 
 func (s *Server) handleTUNStart(w http.ResponseWriter, r *http.Request) {

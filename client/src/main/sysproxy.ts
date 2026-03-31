@@ -18,13 +18,15 @@ function getNetworkServices(): string[] {
   }
 }
 
+const PAC_URL = `http://${PROXY_HOST}:9090/proxy.pac`;
+
 function macEnable() {
   for (const svc of getNetworkServices()) {
     try {
-      execSync(
-        `networksetup -setsocksfirewallproxy "${svc}" ${PROXY_HOST} ${PROXY_PORT}`,
-      );
-      execSync(`networksetup -setsocksfirewallproxystate "${svc}" on`);
+      execSync(`networksetup -setautoproxyurl "${svc}" "${PAC_URL}"`);
+      execSync(`networksetup -setautoproxystate "${svc}" on`);
+      // Disable plain SOCKS in case it was set before
+      execSync(`networksetup -setsocksfirewallproxystate "${svc}" off`);
     } catch {
       // skip services that don't support proxy (e.g. Bluetooth)
     }
@@ -34,7 +36,7 @@ function macEnable() {
 function macDisable() {
   for (const svc of getNetworkServices()) {
     try {
-      execSync(`networksetup -setsocksfirewallproxystate "${svc}" off`);
+      execSync(`networksetup -setautoproxystate "${svc}" off`);
     } catch {
       // ignore
     }

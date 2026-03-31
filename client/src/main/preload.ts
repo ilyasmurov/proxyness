@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("updater", {
 contextBridge.exposeInMainWorld("sysproxy", {
   enable: () => ipcRenderer.send("enable-proxy"),
   disable: () => ipcRenderer.send("disable-proxy"),
+  setPacSites: (data: { proxy_all: boolean; sites: string[] }) => ipcRenderer.send("pac-sites", data),
 });
 
 contextBridge.exposeInMainWorld("appInfo", {
