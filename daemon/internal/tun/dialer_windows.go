@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unsafe"
 )
 
 const ipUnicastIF = 31 // IP_UNICAST_IF setsockopt on Windows
@@ -55,9 +56,12 @@ func protectedDial(network, address string) (net.Conn, error) {
 		Timeout: 10 * time.Second,
 		Control: func(_, _ string, c syscall.RawConn) error {
 			return c.Control(func(fd uintptr) {
-				// IP_UNICAST_IF expects index in network byte order in upper 16 bits
-				idx := uint32(ifIndex) << 16
-				syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, ipUnicastIF, int(idx))
+				// IP_UNICAST_IF expects the interface index in network byte order
+				// (big-endian) as a 4-byte value with index in the upper 16 bits.
+				val := uint32(ifIndex) << 16
+				// Use raw setsockopt to ensure correct 4-byte representation
+				syscall.Setsockopt(syscall.Handle(fd), syscall.IPPROTO_IP, ipUnicastIF,
+					(*byte)(unsafe.Pointer(&val)), int32(unsafe.Sizeof(val)))
 			})
 		},
 	}
