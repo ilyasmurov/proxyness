@@ -8,8 +8,8 @@ permissions:
   contents: write
 
 jobs:
-  # Go binaries + wintun on Linux (1:1 minutes)
-  build-go:
+  # Windows binaries + wintun on Linux (no CGo needed)
+  build-go-windows:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,20 +18,13 @@ jobs:
         with:
           go-version: "1.26"
 
-      - name: Build Go daemons
+      - name: Build Windows binaries
         run: |
           mkdir -p resources
           cd daemon
-          GOOS=darwin GOARCH=arm64 go build -o ../resources/daemon-darwin-arm64 ./cmd
-          GOOS=darwin GOARCH=amd64 go build -o ../resources/daemon-darwin-amd64 ./cmd
-          GOOS=windows GOARCH=amd64 go build -o ../resources/daemon-windows.exe ./cmd
-
-      - name: Build Go helpers
-        run: |
-          cd helper
-          GOOS=darwin GOARCH=arm64 go build -o ../resources/helper-darwin-arm64 ./cmd
-          GOOS=darwin GOARCH=amd64 go build -o ../resources/helper-darwin-amd64 ./cmd
-          GOOS=windows GOARCH=amd64 go build -o ../resources/helper-windows.exe ./cmd
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o ../resources/daemon-windows.exe ./cmd
+          cd ../helper
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o ../resources/helper-windows.exe ./cmd
 
       - name: Download wintun.dll
         run: |
@@ -41,15 +34,19 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: go-binaries
+          name: go-binaries-windows
           path: resources/
 
-  # Electron apps on macOS (Windows NSIS + macOS PKG)
+  # Electron apps on macOS (builds darwin Go binaries natively for CGo support)
   build-clients:
-    needs: build-go
+    needs: build-go-windows
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
 
       - uses: actions/setup-node@v4
         with:
@@ -57,8 +54,17 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: go-binaries
+          name: go-binaries-windows
           path: client/resources
+
+      - name: Build macOS Go binaries
+        run: |
+          cd daemon
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o ../client/resources/daemon-darwin-arm64 ./cmd
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o ../client/resources/daemon-darwin-amd64 ./cmd
+          cd ../helper
+          GOOS=darwin GOARCH=arm64 go build -o ../client/resources/helper-darwin-arm64 ./cmd
+          GOOS=darwin GOARCH=amd64 go build -o ../client/resources/helper-darwin-amd64 ./cmd
 
       - name: Build Electron app
         run: |
