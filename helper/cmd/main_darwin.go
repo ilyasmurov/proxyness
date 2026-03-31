@@ -20,6 +20,8 @@ const socketPath = "/var/run/smurov-helper.sock"
 var tunDevice tun.Device
 var tunName string
 var serverHost string // stored for route cleanup
+var origGateway string // stored for bypass routes
+var origInterface string // stored for bypass routes
 
 func listenIPC() (net.Listener, error) {
 	os.Remove(socketPath)
@@ -51,8 +53,10 @@ func createTUN(serverAddr string) Response {
 	tunName = name
 	log.Printf("created TUN device: %s", name)
 
-	// Get default gateway before adding TUN routes
+	// Get default gateway and interface before adding TUN routes
 	gw := getDefaultGateway()
+	origGateway = gw
+	origInterface = getDefaultInterface()
 
 	// Add server route via original gateway to prevent routing loop
 	if serverAddr != "" && gw != "" {
@@ -89,6 +93,15 @@ func createTUN(serverAddr string) Response {
 	run("route", "add", "-net", "0.0.0.0/1", "-interface", name)
 	run("route", "add", "-net", "128.0.0.0/1", "-interface", name)
 
+	// Add interface-scoped bypass routes via physical interface.
+	// These only match when socket has IP_BOUND_IF set to the physical interface,
+	// allowing protectedDial to bypass TUN for excluded apps.
+	if origInterface != "" && gw != "" {
+		run("route", "add", "-net", "0.0.0.0/1", gw, "-ifscope", origInterface)
+		run("route", "add", "-net", "128.0.0.0/1", gw, "-ifscope", origInterface)
+		log.Printf("added bypass routes via %s (gw %s)", origInterface, gw)
+	}
+
 	return Response{TUNName: name}
 }
 
@@ -99,6 +112,14 @@ func destroyTUN() Response {
 
 	run("route", "delete", "-net", "0.0.0.0/1")
 	run("route", "delete", "-net", "128.0.0.0/1")
+
+	// Remove bypass scoped routes
+	if origInterface != "" {
+		run("route", "delete", "-net", "0.0.0.0/1", "-ifscope", origInterface)
+		run("route", "delete", "-net", "128.0.0.0/1", "-ifscope", origInterface)
+		origGateway = ""
+		origInterface = ""
+	}
 
 	// Remove DNS routes
 	for _, dns := range getSystemDNS() {
@@ -198,17 +219,30 @@ func relayPackets(conn net.Conn) {
 }
 
 func getDefaultGateway() string {
+	gw, _ := parseDefaultRoute()
+	return gw
+}
+
+func getDefaultInterface() string {
+	_, iface := parseDefaultRoute()
+	return iface
+}
+
+func parseDefaultRoute() (gateway, iface string) {
 	out, err := exec.Command("route", "-n", "get", "default").Output()
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "gateway:") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "gateway:"))
+			gateway = strings.TrimSpace(strings.TrimPrefix(line, "gateway:"))
+		}
+		if strings.HasPrefix(line, "interface:") {
+			iface = strings.TrimSpace(strings.TrimPrefix(line, "interface:"))
 		}
 	}
-	return ""
+	return
 }
 
 func getSystemDNS() []string {

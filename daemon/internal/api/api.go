@@ -192,7 +192,6 @@ func (s *Server) handleTUNStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.pacSites.SetForceProxyAll(true)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -201,7 +200,6 @@ func (s *Server) handleTUNStop(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.pacSites.SetForceProxyAll(false)
 	w.WriteHeader(http.StatusOK)
 }
 

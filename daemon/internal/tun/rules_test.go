@@ -7,12 +7,8 @@ func TestRulesProxyAll(t *testing.T) {
 	r.SetMode(ModeProxyAllExcept)
 	r.SetApps([]string{"/usr/bin/curl"})
 
-	// Browsers always bypass TUN (they use SOCKS5/PAC)
-	if r.ShouldProxy("/usr/bin/firefox") {
-		t.Error("firefox (browser) should bypass TUN")
-	}
-	if !r.ShouldProxy("/usr/bin/some-app") {
-		t.Error("non-browser app should be proxied in proxy-all mode")
+	if !r.ShouldProxy("/usr/bin/firefox") {
+		t.Error("firefox should be proxied in proxy-all mode")
 	}
 	if r.ShouldProxy("/usr/bin/curl") {
 		t.Error("curl should be excluded")
