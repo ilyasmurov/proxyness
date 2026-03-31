@@ -6,8 +6,8 @@ declare global {
       start: (server: string, key: string) => void;
       stop: () => void;
       getStatus: () => Promise<{ status: string }>;
-      getRules: () => Promise<{ mode: string; apps: string[] }>;
-      setRules: (rules: { mode: string; apps: string[] }) => void;
+      getRules: () => Promise<{ mode: string; apps: string[]; no_tls_apps?: string[] }>;
+      setRules: (rules: { mode: string; apps: string[]; no_tls_apps?: string[] }) => void;
       getInstalledApps: () => Promise<{ name: string; path: string }[]>;
     };
   }
@@ -79,6 +79,7 @@ const RELATED_DOMAINS: Record<string, string[]> = {
 
 const STORAGE_KEY_SITES = "smurov-proxy-sites";
 const STORAGE_KEY_ENABLED_SITES = "smurov-proxy-enabled-sites";
+const STORAGE_KEY_NO_TLS = "smurov-proxy-no-tls";
 
 function loadSites(): BrowserSite[] {
   const custom = localStorage.getItem(STORAGE_KEY_SITES);
@@ -107,6 +108,18 @@ function saveEnabledSites(enabled: Set<string>) {
   localStorage.setItem(STORAGE_KEY_ENABLED_SITES, JSON.stringify([...enabled]));
 }
 
+function loadNoTLS(): Set<string> {
+  const saved = localStorage.getItem(STORAGE_KEY_NO_TLS);
+  if (saved) {
+    try { return new Set(JSON.parse(saved)); } catch {}
+  }
+  return new Set();
+}
+
+function saveNoTLS(noTLS: Set<string>) {
+  localStorage.setItem(STORAGE_KEY_NO_TLS, JSON.stringify([...noTLS]));
+}
+
 type Mode = "all" | "selected";
 
 interface ResolvedApp {
@@ -126,6 +139,7 @@ export function AppRules({ visible }: Props) {
   // Browser sites
   const [sites, setSites] = useState<BrowserSite[]>(loadSites);
   const [enabledSites, setEnabledSites] = useState<Set<string>>(loadEnabledSites);
+  const [noTLS, setNoTLS] = useState<Set<string>>(loadNoTLS);
   const [browsersOn, setBrowsersOn] = useState(() => localStorage.getItem("smurov-proxy-browsers-on") !== "false");
   const [showSites, setShowSites] = useState(false);
   const [newSite, setNewSite] = useState("");
@@ -168,6 +182,22 @@ export function AppRules({ visible }: Props) {
           }
           setEnabled(enabledIds);
         }
+
+        // Restore noTLS from daemon rules
+        if (rules.no_tls_apps?.length) {
+          const noTLSPaths = new Set(rules.no_tls_apps.map((a) => a.toLowerCase()));
+          const noTLSIds = new Set<string>();
+          for (const app of KNOWN_APPS) {
+            for (const sp of noTLSPaths) {
+              if (app.keywords.some((kw) => sp.includes(kw))) {
+                noTLSIds.add(app.id);
+                break;
+              }
+            }
+          }
+          setNoTLS(noTLSIds);
+          saveNoTLS(noTLSIds);
+        }
       }
     });
   }, [visible]);
@@ -195,26 +225,30 @@ export function AppRules({ visible }: Props) {
     window.sysproxy?.enable();
   }, [expandDomains]);
 
-  const applyRules = useCallback((m: Mode, enabledIds: Set<string>, resolvedApps: ResolvedApp[], bOn: boolean, eSites: Set<string>) => {
+  const applyRules = useCallback((m: Mode, enabledIds: Set<string>, resolvedApps: ResolvedApp[], bOn: boolean, eSites: Set<string>, noTLSIds: Set<string>) => {
     if (m === "all") {
       window.tunProxy?.setRules({ mode: "proxy_all_except", apps: [] });
       window.sysproxy?.setPacSites({ proxy_all: true, sites: [] });
       window.sysproxy?.enable();
     } else {
       const paths: string[] = [];
+      const noTLSPaths: string[] = [];
       for (const r of resolvedApps) {
         if (enabledIds.has(r.app.id)) {
           paths.push(...r.paths);
+          if (noTLSIds.has(r.app.id)) {
+            noTLSPaths.push(...r.paths);
+          }
         }
       }
-      window.tunProxy?.setRules({ mode: "proxy_only", apps: paths });
+      window.tunProxy?.setRules({ mode: "proxy_only", apps: paths, no_tls_apps: noTLSPaths });
       applyPac(bOn, eSites);
     }
   }, [applyPac]);
 
   const handleModeChange = (m: Mode) => {
     setMode(m);
-    applyRules(m, enabled, resolved, browsersOn, enabledSites);
+    applyRules(m, enabled, resolved, browsersOn, enabledSites, noTLS);
   };
 
   const toggleApp = (appId: string) => {
@@ -222,7 +256,18 @@ export function AppRules({ visible }: Props) {
       const next = new Set(prev);
       if (next.has(appId)) next.delete(appId);
       else next.add(appId);
-      applyRules(mode, next, resolved, browsersOn, enabledSites);
+      applyRules(mode, next, resolved, browsersOn, enabledSites, noTLS);
+      return next;
+    });
+  };
+
+  const toggleNoTLS = (appId: string) => {
+    setNoTLS((prev) => {
+      const next = new Set(prev);
+      if (next.has(appId)) next.delete(appId);
+      else next.add(appId);
+      saveNoTLS(next);
+      applyRules(mode, enabled, resolved, browsersOn, enabledSites, next);
       return next;
     });
   };
@@ -438,7 +483,7 @@ export function AppRules({ visible }: Props) {
 
           {/* App toggles */}
           {resolved.map(({ app }) => (
-            <AppToggle key={app.id} app={app} isOn={enabled.has(app.id)} onToggle={toggleApp} />
+            <AppToggle key={app.id} app={app} isOn={enabled.has(app.id)} noTLS={noTLS.has(app.id)} onToggle={toggleApp} onToggleTLS={toggleNoTLS} />
           ))}
         </div>
       )}
@@ -446,33 +491,64 @@ export function AppRules({ visible }: Props) {
   );
 }
 
-function AppToggle({ app, isOn, onToggle }: { app: KnownApp; isOn: boolean; onToggle: (id: string) => void }) {
+function AppToggle({ app, isOn, noTLS, onToggle, onToggleTLS }: {
+  app: KnownApp;
+  isOn: boolean;
+  noTLS: boolean;
+  onToggle: (id: string) => void;
+  onToggleTLS: (id: string) => void;
+}) {
   return (
     <div
-      onClick={() => onToggle(app.id)}
       style={{
         display: "flex", alignItems: "center", gap: 10,
-        padding: "6px 8px", borderRadius: 6, cursor: "pointer",
+        padding: "6px 8px", borderRadius: 6,
         background: isOn ? "rgba(59,130,246,0.08)" : "transparent",
       }}
     >
-      <div style={{
-        width: 28, height: 28, borderRadius: 6,
-        background: isOn ? app.color : "#333",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 12, fontWeight: 700, color: isOn ? "#fff" : "#666",
-        flexShrink: 0,
-      }}>
-        {app.letter}
+      <div
+        onClick={() => onToggle(app.id)}
+        style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: "pointer" }}
+      >
+        <div style={{
+          width: 28, height: 28, borderRadius: 6,
+          background: isOn ? app.color : "#333",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 12, fontWeight: 700, color: isOn ? "#fff" : "#666",
+          flexShrink: 0,
+        }}>
+          {app.letter}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, color: isOn ? "#eee" : "#666" }}>{app.name}</div>
+          {isOn && noTLS && (
+            <div style={{ fontSize: 10, color: "#f59e0b" }}>without TLS</div>
+          )}
+        </div>
       </div>
-      <div style={{ flex: 1, fontSize: 13, color: isOn ? "#eee" : "#666" }}>
-        {app.name}
-      </div>
-      <div style={{
-        width: 36, height: 20, borderRadius: 10,
-        background: isOn ? "#3b82f6" : "#333",
-        position: "relative", transition: "background 0.2s",
-      }}>
+      {isOn && (
+        <div
+          onClick={() => onToggleTLS(app.id)}
+          title={noTLS ? "TLS off \u2014 raw connection" : "TLS on \u2014 encrypted"}
+          style={{
+            fontSize: 10, padding: "2px 6px", borderRadius: 4, cursor: "pointer",
+            background: noTLS ? "rgba(245,158,11,0.15)" : "rgba(34,197,94,0.15)",
+            color: noTLS ? "#f59e0b" : "#22c55e",
+            border: `1px solid ${noTLS ? "#f59e0b33" : "#22c55e33"}`,
+            whiteSpace: "nowrap",
+          }}
+        >
+          TLS {noTLS ? "OFF" : "ON"}
+        </div>
+      )}
+      <div
+        onClick={() => onToggle(app.id)}
+        style={{
+          width: 36, height: 20, borderRadius: 10,
+          background: isOn ? "#3b82f6" : "#333",
+          position: "relative", transition: "background 0.2s", cursor: "pointer",
+        }}
+      >
         <div style={{
           width: 16, height: 16, borderRadius: 8, background: "#fff",
           position: "absolute", top: 2, left: isOn ? 18 : 2,
