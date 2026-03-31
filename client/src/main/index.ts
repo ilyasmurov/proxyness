@@ -233,10 +233,14 @@ function setupIpc() {
       // Open PKG installer (macOS) or run exe (Windows)
       if (process.platform === "darwin") {
         spawn("open", [installerPath], { detached: true, stdio: "ignore" }).unref();
+        app.exit(0);
       } else {
-        spawn(installerPath, [], { detached: true, stdio: "ignore" }).unref();
+        // Windows: delay spawn to let child processes release file locks
+        setTimeout(() => {
+          spawn(installerPath, [], { detached: true, stdio: "ignore" }).unref();
+          app.exit(0);
+        }, 1000);
       }
-      app.exit(0);
     }
   });
 
