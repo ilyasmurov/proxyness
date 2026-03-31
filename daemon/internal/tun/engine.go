@@ -554,6 +554,13 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 		shouldProxy = !e.isSelf(appPath) && e.rules.ShouldProxy(appPath)
 	}
 
+	// Voice/video UDP (high ports) from known apps bypass TUN proxy
+	// to avoid latency from UDP-over-TLS/TCP wrapping.
+	if shouldProxy && dstPort >= 50000 && isVoiceApp(appPath) {
+		shouldProxy = false
+		log.Printf("[tun] UDP %s:%d from %s → bypass (voice)", dstAddr, dstPort, appPath)
+	}
+
 	var wq waiter.Queue
 	ep, udpErr := r.CreateEndpoint(&wq)
 	if udpErr != nil {
@@ -679,6 +686,19 @@ func (e *Engine) bypassUDP(local net.Conn, dstAddr string, dstPort uint16) {
 		}
 	}()
 	<-done
+}
+
+// isVoiceApp returns true for apps that use UDP voice/video
+// which should bypass TUN proxy to avoid latency.
+func isVoiceApp(appPath string) bool {
+	lower := strings.ToLower(appPath)
+	voiceApps := []string{"discord", "telegram", "slack", "zoom", "teams"}
+	for _, app := range voiceApps {
+		if strings.Contains(lower, app) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Engine) isSelf(appPath string) bool {
