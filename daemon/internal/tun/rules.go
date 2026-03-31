@@ -62,11 +62,34 @@ func (r *Rules) GetApps() []string {
 	return apps
 }
 
+// Browsers are routed via SOCKS5/PAC, never through TUN proxy.
+// Their "DIRECT" traffic must always bypass TUN to avoid routing conflicts.
+var browserKeywords = []string{
+	"google chrome", "firefox", "safari", "brave browser",
+	"microsoft edge", "arc", "opera", "vivaldi", "yandex",
+	"chromium", "webkit",
+}
+
+func isBrowser(lowerPath string) bool {
+	for _, kw := range browserKeywords {
+		if strings.Contains(lowerPath, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Rules) ShouldProxy(appPath string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	lower := strings.ToLower(appPath)
+
+	// Browsers always bypass TUN — they use SOCKS5/PAC
+	if isBrowser(lower) {
+		return false
+	}
+
 	inList := false
 	for app := range r.apps {
 		if lower == app || strings.HasPrefix(lower, app+"/") || strings.HasPrefix(lower, app+"\\") {
