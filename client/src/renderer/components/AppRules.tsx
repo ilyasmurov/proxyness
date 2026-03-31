@@ -22,15 +22,10 @@ interface KnownApp {
   browser?: boolean;
 }
 
+const BROWSER_ID = "browsers";
+
 const KNOWN_APPS: KnownApp[] = [
-  // Browsers (control SOCKS5 system proxy)
-  { id: "chrome", name: "Google Chrome", color: "#4285F4", letter: "G", keywords: ["chrome", "google chrome"], browser: true },
-  { id: "safari", name: "Safari", color: "#006CFF", letter: "Sa", keywords: ["safari"], browser: true },
-  { id: "firefox", name: "Firefox", color: "#FF7139", letter: "F", keywords: ["firefox"], browser: true },
-  { id: "edge", name: "Microsoft Edge", color: "#0078D7", letter: "E", keywords: ["edge"], browser: true },
-  { id: "yandex", name: "Yandex Browser", color: "#FC3F1D", letter: "Y", keywords: ["yandex"], browser: true },
-  { id: "opera", name: "Opera", color: "#FF1B2D", letter: "O", keywords: ["opera"], browser: true },
-  { id: "arc", name: "Arc", color: "#FCBFBD", letter: "A", keywords: ["arc"], browser: true },
+  { id: BROWSER_ID, name: "Browsers", color: "#4285F4", letter: "B", keywords: [], browser: true },
   // Apps (control TUN routing)
   { id: "telegram", name: "Telegram", color: "#27A7E7", letter: "T", keywords: ["telegram"] },
   { id: "discord", name: "Discord", color: "#5865F2", letter: "D", keywords: ["discord"] },
@@ -68,7 +63,6 @@ export function AppRules({ visible }: Props) {
             paths.push(inst.path.toLowerCase());
           }
         }
-        // Always show browsers (they control system proxy, not TUN paths)
         if (paths.length > 0 || app.browser) {
           results.push({ app, paths });
         }
@@ -93,12 +87,9 @@ export function AppRules({ visible }: Props) {
               }
             }
           }
-          // Restore browser state from localStorage
-          const savedBrowsers = localStorage.getItem("smurov-proxy-browsers");
-          if (savedBrowsers) {
-            for (const id of JSON.parse(savedBrowsers)) {
-              enabledIds.add(id);
-            }
+          // Restore browser toggle from localStorage
+          if (localStorage.getItem("smurov-proxy-browsers-on") !== "false") {
+            enabledIds.add(BROWSER_ID);
           }
           setEnabled(enabledIds);
         }
@@ -120,17 +111,13 @@ export function AppRules({ visible }: Props) {
       }
       window.tunProxy?.setRules({ mode: "proxy_only", apps: paths });
 
-      // SOCKS5: enable if any browser is selected
-      const anyBrowser = KNOWN_APPS.some((a) => a.browser && enabledIds.has(a.id));
-      if (anyBrowser) {
+      // SOCKS5: enable/disable based on browser toggle
+      if (enabledIds.has(BROWSER_ID)) {
         window.sysproxy?.enable();
       } else {
         window.sysproxy?.disable();
       }
-
-      // Save browser state
-      const browserIds = KNOWN_APPS.filter((a) => a.browser && enabledIds.has(a.id)).map((a) => a.id);
-      localStorage.setItem("smurov-proxy-browsers", JSON.stringify(browserIds));
+      localStorage.setItem("smurov-proxy-browsers-on", enabledIds.has(BROWSER_ID) ? "true" : "false");
     }
   }, []);
 
@@ -150,9 +137,6 @@ export function AppRules({ visible }: Props) {
   };
 
   if (!visible) return null;
-
-  const browsers = resolved.filter((r) => r.app.browser);
-  const apps = resolved.filter((r) => !r.app.browser);
 
   return (
     <div style={{ marginTop: 16, padding: 12, background: "#111827", borderRadius: 8, border: "1px solid #333" }}>
@@ -182,22 +166,9 @@ export function AppRules({ visible }: Props) {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {browsers.length > 0 && (
-            <>
-              <div style={{ fontSize: 11, color: "#555", fontWeight: 600, padding: "4px 8px 0" }}>Browsers</div>
-              {browsers.map(({ app }) => (
-                <AppToggle key={app.id} app={app} isOn={enabled.has(app.id)} onToggle={toggle} />
-              ))}
-            </>
-          )}
-          {apps.length > 0 && (
-            <>
-              <div style={{ fontSize: 11, color: "#555", fontWeight: 600, padding: "8px 8px 0" }}>Apps</div>
-              {apps.map(({ app }) => (
-                <AppToggle key={app.id} app={app} isOn={enabled.has(app.id)} onToggle={toggle} />
-              ))}
-            </>
-          )}
+          {resolved.map(({ app }) => (
+            <AppToggle key={app.id} app={app} isOn={enabled.has(app.id)} onToggle={toggle} />
+          ))}
         </div>
       )}
     </div>
