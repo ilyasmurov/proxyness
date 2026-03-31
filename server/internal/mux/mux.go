@@ -105,11 +105,11 @@ func (l *chanListener) Addr() net.Addr { return l.addr }
 type PreTLSMux struct {
 	ln           net.Listener
 	tlsCfg       *tls.Config
-	proxyHandler func(net.Conn)
+	proxyHandler func(net.Conn, bool) // conn, isTLS
 	httpHandler  http.Handler
 }
 
-func NewPreTLSMux(ln net.Listener, tlsCfg *tls.Config, proxyHandler func(net.Conn), httpHandler http.Handler) *PreTLSMux {
+func NewPreTLSMux(ln net.Listener, tlsCfg *tls.Config, proxyHandler func(net.Conn, bool), httpHandler http.Handler) *PreTLSMux {
 	return &PreTLSMux{ln: ln, tlsCfg: tlsCfg, proxyHandler: proxyHandler, httpHandler: httpHandler}
 }
 
@@ -150,13 +150,13 @@ func (m *PreTLSMux) route(conn net.Conn, httpConns chan net.Conn) {
 			return
 		}
 		if IsProxyProtocol(ib) {
-			m.proxyHandler(inner)
+			m.proxyHandler(inner, true)
 		} else {
 			httpConns <- inner
 		}
 	} else if IsProxyProtocol(b) {
 		// Raw proxy protocol — no TLS
-		m.proxyHandler(pc)
+		m.proxyHandler(pc, false)
 	} else {
 		conn.Close()
 	}

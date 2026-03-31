@@ -17,7 +17,7 @@ type Handler struct {
 	Tracker *stats.Tracker
 }
 
-func (h *Handler) Handle(conn net.Conn) {
+func (h *Handler) Handle(conn net.Conn, isTLS bool) {
 	defer conn.Close()
 
 	keys, err := h.DB.GetActiveKeys()
@@ -52,9 +52,9 @@ func (h *Handler) Handle(conn net.Conn) {
 
 	switch msgType {
 	case proto.MsgTypeTCP:
-		h.handleTCP(conn, &device)
+		h.handleTCP(conn, &device, isTLS)
 	case proto.MsgTypeUDP:
-		h.handleUDP(conn, &device)
+		h.handleUDP(conn, &device, isTLS)
 	default:
 		log.Printf("unknown msg type: 0x%02x", msgType)
 	}

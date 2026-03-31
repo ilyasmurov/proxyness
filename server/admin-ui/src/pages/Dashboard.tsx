@@ -68,6 +68,16 @@ export function Dashboard() {
                       </div>
                       <span style={{ color: "#888", fontSize: 13 }}>
                         {formatBytes(device.total_bytes)} total · {device.connections} conn
+                        {device.raw_conns > 0 && (
+                          <span style={{ marginLeft: 8, color: "#f59e0b", fontWeight: 600 }}>
+                            {device.raw_conns} raw
+                          </span>
+                        )}
+                        {device.tls_conns > 0 && (
+                          <span style={{ marginLeft: 4, color: "#16a34a" }}>
+                            {device.tls_conns} TLS
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div style={{ display: "flex", gap: 16, marginBottom: 8, fontSize: 14 }}>

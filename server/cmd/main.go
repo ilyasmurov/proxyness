@@ -71,7 +71,7 @@ func main() {
 
 	proxyHandler := &proxy.Handler{DB: database, Tracker: tracker}
 	m := mux.NewPreTLSMux(ln, tlsCfg,
-		func(conn net.Conn) { proxyHandler.Handle(conn) },
+		func(conn net.Conn, isTLS bool) { proxyHandler.Handle(conn, isTLS) },
 		adminHandler,
 	)
 	m.Serve()

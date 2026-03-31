@@ -70,6 +70,8 @@ export interface DeviceRate {
   upload: number;
   total_bytes: number;
   connections: number;
+  tls_conns: number;
+  raw_conns: number;
   history: Array<{ t: number; down: number; up: number }>;
 }
 

@@ -14,6 +14,7 @@ type ConnInfo struct {
 	DeviceName string    `json:"device_name"`
 	UserName   string    `json:"user_name"`
 	Version    string    `json:"version,omitempty"`
+	TLS        bool      `json:"tls"`
 	StartedAt  time.Time `json:"started_at"`
 	BytesIn    int64     `json:"bytes_in"`
 	BytesOut   int64     `json:"bytes_out"`
@@ -111,6 +112,8 @@ type DeviceRate struct {
 	Upload      int64                `json:"upload"`
 	TotalBytes  int64                `json:"total_bytes"`
 	Connections int                  `json:"connections"`
+	TLSConns    int                  `json:"tls_conns"`
+	RawConns    int                  `json:"raw_conns"`
 	History     []pkgstats.RatePoint `json:"history"`
 }
 
@@ -121,6 +124,8 @@ func (t *Tracker) Rates() []DeviceRate {
 		version    string
 		totalBytes int64
 		connCount  int
+		tlsConns   int
+		rawConns   int
 	}
 	devices := make(map[int]*devInfo)
 
@@ -133,6 +138,11 @@ func (t *Tracker) Rates() []DeviceRate {
 		}
 		d.totalBytes += atomic.LoadInt64(&c.BytesIn) + atomic.LoadInt64(&c.BytesOut)
 		d.connCount++
+		if c.TLS {
+			d.tlsConns++
+		} else {
+			d.rawConns++
+		}
 	}
 	t.mu.RUnlock()
 
@@ -148,6 +158,8 @@ func (t *Tracker) Rates() []DeviceRate {
 			Version:     info.version,
 			TotalBytes:  info.totalBytes,
 			Connections: info.connCount,
+			TLSConns:    info.tlsConns,
+			RawConns:    info.rawConns,
 			History:     []pkgstats.RatePoint{},
 		}
 		if buf := t.deviceBuffers[id]; buf != nil {
@@ -202,7 +214,7 @@ func (t *Tracker) UnlockDevice(deviceID int, sessionID string) {
 	}
 }
 
-func (t *Tracker) Add(deviceID int, deviceName, userName, version string) int64 {
+func (t *Tracker) Add(deviceID int, deviceName, userName, version string, isTLS bool) int64 {
 	id := atomic.AddInt64(&t.nextID, 1)
 	t.mu.Lock()
 	t.conns[id] = &ConnInfo{
@@ -210,6 +222,7 @@ func (t *Tracker) Add(deviceID int, deviceName, userName, version string) int64 
 		DeviceName: deviceName,
 		UserName:   userName,
 		Version:    version,
+		TLS:        isTLS,
 		StartedAt:  time.Now(),
 	}
 	t.mu.Unlock()
@@ -270,7 +283,7 @@ func (t *Tracker) Active() []ConnInfo {
 	for _, c := range t.conns {
 		result = append(result, ConnInfo{
 			DeviceID: c.DeviceID, DeviceName: c.DeviceName,
-			UserName: c.UserName, Version: c.Version, StartedAt: c.StartedAt,
+			UserName: c.UserName, Version: c.Version, TLS: c.TLS, StartedAt: c.StartedAt,
 			BytesIn: atomic.LoadInt64(&c.BytesIn), BytesOut: atomic.LoadInt64(&c.BytesOut),
 		})
 	}
