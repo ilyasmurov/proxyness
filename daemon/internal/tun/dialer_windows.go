@@ -13,6 +13,11 @@ import (
 
 const ipUnicastIF = 31 // IP_UNICAST_IF setsockopt on Windows
 
+// CachePhysicalInterface is a no-op on Windows — interface detection
+// already enumerates interfaces and skips TUN by name.
+func CachePhysicalInterface()          {}
+func ClearPhysicalInterfaceCache()     {}
+
 func getPhysicalInterfaceIndex() (int, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
