@@ -68,7 +68,7 @@ export function startDaemon(): void {
 
 export function stopDaemon(): void {
   if (daemonProcess) {
-    daemonProcess.kill();
+    daemonProcess.kill("SIGKILL");
     daemonProcess = null;
   }
 }
@@ -127,7 +127,7 @@ export function startHelper(): void {
 
 export function stopHelper(): void {
   if (helperProcess) {
-    helperProcess.kill();
+    helperProcess.kill("SIGKILL");
     helperProcess = null;
   }
 }

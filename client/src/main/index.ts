@@ -1,6 +1,7 @@
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell } from "electron";
+import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import https from "https";
@@ -221,12 +222,12 @@ function setupIpc() {
 
   ipcMain.on("install-update", () => {
     if (installerPath) {
-      // Kill child processes so installer can replace files
       stopDaemon();
       stopHelper();
-      shell.openPath(installerPath);
-      // app.exit() is immediate — no event handlers can block it
-      setTimeout(() => app.exit(0), 500);
+      // Launch installer detached so it survives app exit
+      const child = spawn(installerPath, [], { detached: true, stdio: "ignore" });
+      child.unref();
+      app.exit(0);
     }
   });
 
