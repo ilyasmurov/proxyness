@@ -76,7 +76,7 @@ export function App() {
     setTunLoading(true);
     setTunError(null);
     try {
-      // Start SOCKS5 tunnel for browsers
+      // Start SOCKS5 tunnel + enable system proxy (AppRules may adjust later)
       await connect(server, k);
       (window as any).sysproxy?.enable();
 
