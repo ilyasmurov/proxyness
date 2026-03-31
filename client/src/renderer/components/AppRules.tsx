@@ -40,7 +40,42 @@ const DEFAULT_SITES: BrowserSite[] = [
   { domain: "youtube.com", label: "YouTube", builtin: true },
   { domain: "instagram.com", label: "Instagram", builtin: true },
   { domain: "twitter.com", label: "Twitter / X", builtin: true },
+  { domain: "facebook.com", label: "Facebook", builtin: true },
+  { domain: "discord.com", label: "Discord (web)", builtin: true },
+  { domain: "linkedin.com", label: "LinkedIn", builtin: true },
+  { domain: "medium.com", label: "Medium", builtin: true },
+  { domain: "quora.com", label: "Quora", builtin: true },
+  { domain: "patreon.com", label: "Patreon", builtin: true },
+  { domain: "soundcloud.com", label: "SoundCloud", builtin: true },
+  { domain: "dailymotion.com", label: "Dailymotion", builtin: true },
 ];
+
+// Related domains that must be proxied together with the main domain
+const RELATED_DOMAINS: Record<string, string[]> = {
+  "youtube.com": [
+    "googlevideo.com", "ytimg.com", "ggpht.com",
+    "youtube-nocookie.com", "youtu.be",
+    "googleapis.com", "gstatic.com", "google.com",
+  ],
+  "instagram.com": [
+    "cdninstagram.com", "fbcdn.net", "facebook.com",
+    "fbsbx.com", "instagram.com",
+  ],
+  "twitter.com": [
+    "x.com", "twimg.com", "t.co", "abs.twimg.com",
+  ],
+  "facebook.com": [
+    "fbcdn.net", "fbsbx.com", "facebook.net",
+    "cdninstagram.com", "fb.com",
+  ],
+  "discord.com": [
+    "discordapp.com", "discordapp.net", "discord.gg",
+    "discord.media",
+  ],
+  "linkedin.com": [
+    "licdn.com", "linkedin.cn",
+  ],
+};
 
 const STORAGE_KEY_SITES = "smurov-proxy-sites";
 const STORAGE_KEY_ENABLED_SITES = "smurov-proxy-enabled-sites";
@@ -137,16 +172,28 @@ export function AppRules({ visible }: Props) {
     });
   }, [visible]);
 
+  const expandDomains = useCallback((domains: string[]): string[] => {
+    const all = new Set<string>();
+    for (const d of domains) {
+      all.add(d);
+      const related = RELATED_DOMAINS[d];
+      if (related) {
+        for (const r of related) all.add(r);
+      }
+    }
+    return [...all];
+  }, []);
+
   const applyPac = useCallback((on: boolean, eSites: Set<string>) => {
     if (!on) {
       window.sysproxy?.disable();
       return;
     }
     const proxyAll = eSites.has("*");
-    const siteDomains = proxyAll ? [] : [...eSites];
+    const siteDomains = proxyAll ? [] : expandDomains([...eSites]);
     window.sysproxy?.setPacSites({ proxy_all: proxyAll, sites: siteDomains });
     window.sysproxy?.enable();
-  }, []);
+  }, [expandDomains]);
 
   const applyRules = useCallback((m: Mode, enabledIds: Set<string>, resolvedApps: ResolvedApp[], bOn: boolean, eSites: Set<string>) => {
     if (m === "all") {
