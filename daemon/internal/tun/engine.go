@@ -26,6 +26,7 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 
 	dstats "smurov-proxy/daemon/internal/stats"
+	"smurov-proxy/pkg/machineid"
 	"smurov-proxy/pkg/proto"
 )
 
@@ -536,6 +537,15 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPat
 		return
 	}
 
+	fp := machineid.Fingerprint()
+	if err := proto.WriteMachineID(server, fp); err != nil {
+		return
+	}
+	ok, err = proto.ReadResult(server)
+	if err != nil || !ok {
+		return
+	}
+
 	if err := proto.WriteMsgType(server, proto.MsgTypeTCP); err != nil {
 		return
 	}
@@ -651,6 +661,15 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 		return
 	}
 	ok, err := proto.ReadResult(server)
+	if err != nil || !ok {
+		return
+	}
+
+	fp := machineid.Fingerprint()
+	if err := proto.WriteMachineID(server, fp); err != nil {
+		return
+	}
+	ok, err = proto.ReadResult(server)
 	if err != nil || !ok {
 		return
 	}

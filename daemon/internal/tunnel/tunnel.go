@@ -11,6 +11,7 @@ import (
 
 	"smurov-proxy/daemon/internal/socks5"
 	dstats "smurov-proxy/daemon/internal/stats"
+	"smurov-proxy/pkg/machineid"
 	"smurov-proxy/pkg/proto"
 )
 
@@ -259,6 +260,19 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 	if err != nil || !ok {
 		socks5.SendFailure(conn)
 		log.Printf("[tunnel] auth rejected (ok=%v, err=%v)", ok, err)
+		return
+	}
+
+	// Send machine fingerprint for device binding
+	fp := machineid.Fingerprint()
+	if err := proto.WriteMachineID(tlsConn, fp); err != nil {
+		socks5.SendFailure(conn)
+		return
+	}
+	ok, err = proto.ReadResult(tlsConn)
+	if err != nil || !ok {
+		socks5.SendFailure(conn)
+		log.Printf("[tunnel] machine ID rejected")
 		return
 	}
 

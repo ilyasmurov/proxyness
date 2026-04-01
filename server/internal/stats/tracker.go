@@ -1,7 +1,6 @@
 package stats
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,16 +19,11 @@ type ConnInfo struct {
 	BytesOut   int64     `json:"bytes_out"`
 }
 
-type deviceLock struct {
-	sessionID string
-	lockedAt  time.Time
-}
-
 type Tracker struct {
-	mu          sync.RWMutex
-	conns       map[int64]*ConnInfo
-	nextID      int64
-	deviceLocks map[int]*deviceLock
+	mu    sync.RWMutex
+	conns map[int64]*ConnInfo
+
+	nextID int64
 
 	bufMu         sync.RWMutex
 	deviceBuffers map[int]*pkgstats.RingBuffer
@@ -39,7 +33,6 @@ type Tracker struct {
 func New() *Tracker {
 	t := &Tracker{
 		conns:         make(map[int64]*ConnInfo),
-		deviceLocks:   make(map[int]*deviceLock),
 		deviceBuffers: make(map[int]*pkgstats.RingBuffer),
 		stop:          make(chan struct{}),
 	}
@@ -173,31 +166,6 @@ func (t *Tracker) Rates() []DeviceRate {
 		result = append(result, dr)
 	}
 	return result
-}
-
-// LockDevice locks a device to a client IP permanently (until server restart).
-// Same IP can reconnect freely. Different IP is always rejected.
-func (t *Tracker) LockDevice(deviceID int, sessionID string) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if existing, ok := t.deviceLocks[deviceID]; ok {
-		if existing.sessionID == sessionID {
-			return nil
-		}
-		return fmt.Errorf("device already in use")
-	}
-	t.deviceLocks[deviceID] = &deviceLock{sessionID: sessionID, lockedAt: time.Now()}
-	return nil
-}
-
-// UnlockDevice unlocks a device if the session matches.
-func (t *Tracker) UnlockDevice(deviceID int, sessionID string) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if existing, ok := t.deviceLocks[deviceID]; ok && existing.sessionID == sessionID {
-		delete(t.deviceLocks, deviceID)
-	}
 }
 
 func (t *Tracker) Add(deviceID int, deviceName, userName, version string, isTLS bool) int64 {

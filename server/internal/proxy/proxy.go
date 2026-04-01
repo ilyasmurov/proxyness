@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"encoding/hex"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -44,17 +46,35 @@ func (h *Handler) Handle(conn net.Conn, isTLS bool) {
 		return
 	}
 
-	// Lock device to this client IP — prevents same key on two machines
-	remoteIP, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-	if err := h.Tracker.LockDevice(device.ID, remoteIP); err != nil {
-		log.Printf("device %s locked: %v (from %s)", device.Name, err, remoteIP)
-		return
-	}
-
+	// Read msg type — may be MsgTypeMachineID (new clients) or TCP/UDP (old clients)
 	msgType, err := proto.ReadMsgType(conn)
 	if err != nil {
 		log.Printf("read msg type: %v", err)
 		return
+	}
+
+	// New clients send machine ID before msg type
+	if msgType == proto.MsgTypeMachineID {
+		machineID, err := proto.ReadMachineID(conn)
+		if err != nil {
+			log.Printf("read machine id: %v", err)
+			return
+		}
+
+		mid := hex.EncodeToString(machineID[:])
+		if err := h.checkMachineID(device.ID, device.Name, mid); err != nil {
+			log.Printf("device %s machine check failed: %v", device.Name, err)
+			proto.WriteResult(conn, false)
+			return
+		}
+		proto.WriteResult(conn, true)
+
+		// Read actual msg type
+		msgType, err = proto.ReadMsgType(conn)
+		if err != nil {
+			log.Printf("read msg type: %v", err)
+			return
+		}
 	}
 
 	switch msgType {
@@ -65,6 +85,24 @@ func (h *Handler) Handle(conn net.Conn, isTLS bool) {
 	default:
 		log.Printf("unknown msg type: 0x%02x", msgType)
 	}
+}
+
+// checkMachineID validates or binds a machine fingerprint to a device.
+// First connection: stores the fingerprint. Subsequent: checks match.
+func (h *Handler) checkMachineID(deviceID int, deviceName, machineID string) error {
+	stored, err := h.DB.GetDeviceMachineID(deviceID)
+	if err != nil {
+		return err
+	}
+	if stored == "" {
+		// First time — bind this machine to the device
+		log.Printf("device %s bound to machine %s", deviceName, machineID[:8])
+		return h.DB.SetDeviceMachineID(deviceID, machineID)
+	}
+	if stored != machineID {
+		return fmt.Errorf("bound to different machine")
+	}
+	return nil
 }
 
 func recordTraffic(database *db.DB, deviceID int, bytesIn, bytesOut int64) {

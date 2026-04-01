@@ -56,6 +56,22 @@ func ReadResult(conn net.Conn) (bool, error) {
 	return buf[0] == ResultOK, nil
 }
 
+// WriteMachineID sends 0x03 + 16-byte machine fingerprint.
+func WriteMachineID(conn net.Conn, id [16]byte) error {
+	buf := make([]byte, 1+MachineIDLen)
+	buf[0] = MsgTypeMachineID
+	copy(buf[1:], id[:])
+	_, err := conn.Write(buf)
+	return err
+}
+
+// ReadMachineID reads 16-byte machine fingerprint (after 0x03 type byte was already read).
+func ReadMachineID(conn net.Conn) ([16]byte, error) {
+	var id [16]byte
+	_, err := io.ReadFull(conn, id[:])
+	return id, err
+}
+
 // WriteConnect sends address type + address + port.
 func WriteConnect(conn net.Conn, addr string, port uint16) error {
 	ip := net.ParseIP(addr)

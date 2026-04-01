@@ -99,6 +99,7 @@ func Open(path string) (*DB, error) {
 
 	// Migrations (ignore errors — columns may already exist)
 	sqlDB.Exec(`ALTER TABLE devices ADD COLUMN client_version TEXT DEFAULT ''`)
+	sqlDB.Exec(`ALTER TABLE devices ADD COLUMN machine_id TEXT DEFAULT ''`)
 
 	return &DB{sql: sqlDB}, nil
 }
@@ -402,6 +403,19 @@ func (d *DB) deviceByID(id int) (Device, error) {
 // UpdateDeviceVersion updates the client_version for a device identified by key.
 func (d *DB) UpdateDeviceVersion(key string, version string) error {
 	_, err := d.sql.Exec(`UPDATE devices SET client_version = ? WHERE key = ?`, version, key)
+	return err
+}
+
+// GetDeviceMachineID returns the stored machine_id for a device.
+func (d *DB) GetDeviceMachineID(deviceID int) (string, error) {
+	var mid string
+	err := d.sql.QueryRow(`SELECT COALESCE(machine_id, '') FROM devices WHERE id = ?`, deviceID).Scan(&mid)
+	return mid, err
+}
+
+// SetDeviceMachineID stores the machine_id for a device (first-time binding).
+func (d *DB) SetDeviceMachineID(deviceID int, machineID string) error {
+	_, err := d.sql.Exec(`UPDATE devices SET machine_id = ? WHERE id = ?`, machineID, deviceID)
 	return err
 }
 

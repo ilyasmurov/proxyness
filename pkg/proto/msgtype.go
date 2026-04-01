@@ -1,8 +1,11 @@
 package proto
 
 const (
-	MsgTypeTCP = 0x01
-	MsgTypeUDP = 0x02
+	MsgTypeTCP       = 0x01
+	MsgTypeUDP       = 0x02
+	MsgTypeMachineID = 0x03
+
+	MachineIDLen = 16
 )
 
 // WriteMsgType sends a 1-byte message type.

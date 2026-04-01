@@ -300,11 +300,15 @@ func (h *Handler) lockDevice(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown device", http.StatusNotFound)
 		return
 	}
-	if err := h.tracker.LockDevice(device.ID, req.SessionID); err != nil {
+	mid, _ := h.db.GetDeviceMachineID(device.ID)
+	if mid != "" && mid != req.SessionID {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"error": "device bound to different machine"})
 		return
+	}
+	if mid == "" {
+		h.db.SetDeviceMachineID(device.ID, req.SessionID)
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -322,6 +326,6 @@ func (h *Handler) unlockDevice(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	h.tracker.UnlockDevice(device.ID, req.SessionID)
+	h.db.SetDeviceMachineID(device.ID, "")
 	w.WriteHeader(http.StatusOK)
 }
