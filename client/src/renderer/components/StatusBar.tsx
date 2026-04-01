@@ -1,3 +1,5 @@
+import { useState, useEffect, useRef } from "react";
+
 interface Props {
   status: string;
   uptime: number;
@@ -7,6 +9,22 @@ interface Props {
 export function StatusBar({ status, uptime, error }: Props) {
   const color = status === "connected" ? "#4caf50" : "#f44336";
   const label = status.charAt(0).toUpperCase() + status.slice(1);
+  const [dismissed, setDismissed] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevError = useRef(error);
+
+  useEffect(() => {
+    if (error !== prevError.current) {
+      setDismissed(false);
+      prevError.current = error;
+    }
+    if (!error) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDismissed(true), 15000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [error]);
+
+  const showError = error && !dismissed;
 
   return (
     <div style={{ marginBottom: 20 }}>
@@ -26,9 +44,18 @@ export function StatusBar({ status, uptime, error }: Props) {
           </span>
         )}
       </div>
-      {error && (
-        <div style={{ color: "#f44336", marginTop: 8, fontSize: 13 }}>
-          {error}
+      {showError && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+          <span style={{ color: "#f44336", fontSize: 13, flex: 1 }}>{error}</span>
+          <button
+            onClick={() => setDismissed(true)}
+            style={{
+              background: "none", border: "none", color: "#f44336",
+              cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>
