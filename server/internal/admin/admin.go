@@ -291,41 +291,21 @@ func (h *Handler) lockDevice(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if req.Key == "" || req.SessionID == "" {
-		http.Error(w, "key and session_id required", http.StatusBadRequest)
+	if req.Key == "" {
+		http.Error(w, "key required", http.StatusBadRequest)
 		return
 	}
-	device, err := h.db.GetDeviceByKey(req.Key)
+	_, err := h.db.GetDeviceByKey(req.Key)
 	if err != nil {
 		http.Error(w, "unknown device", http.StatusNotFound)
 		return
 	}
-	mid, _ := h.db.GetDeviceMachineID(device.ID)
-	if mid != "" && mid != req.SessionID {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"error": "device bound to different machine"})
-		return
-	}
-	if mid == "" {
-		h.db.SetDeviceMachineID(device.ID, req.SessionID)
-	}
+	// Machine binding is handled by hardware fingerprint in binary protocol.
+	// This endpoint only validates the key exists.
 	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) unlockDevice(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Key       string `json:"key"`
-		SessionID string `json:"session_id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	device, err := h.db.GetDeviceByKey(req.Key)
-	if err != nil {
-		return
-	}
-	h.db.SetDeviceMachineID(device.ID, "")
+	// No-op: machine binding is permanent and managed by hardware fingerprint.
 	w.WriteHeader(http.StatusOK)
 }
