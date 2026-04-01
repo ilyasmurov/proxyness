@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gvisor.dev/gvisor/pkg/buffer"
@@ -511,19 +512,18 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPat
 		return
 	}
 
-	proto.CountingRelay(local, server, func(in, out int64) {
+	idleRelay(local, server, func(in, out int64) {
 		e.meter.Add(in, out)
 	})
 }
 
 func (e *Engine) bypassTCP(local net.Conn, dstAddr string, dstPort uint16) {
-	// Use protected dialer to bypass TUN routes
 	target, err := protectedDial("tcp", fmt.Sprintf("%s:%d", dstAddr, dstPort))
 	if err != nil {
 		return
 	}
 	defer target.Close()
-	proto.Relay(local, target)
+	idleRelay(local, target, nil)
 }
 
 func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
@@ -715,6 +715,59 @@ func (e *Engine) isSelf(appPath string) bool {
 		return false
 	}
 	return strings.EqualFold(appPath, e.selfPath)
+}
+
+const tcpIdleTimeout = 5 * time.Minute
+
+// idleRelay copies data bidirectionally between c1 and c2.
+// If no data flows in EITHER direction for tcpIdleTimeout, both connections
+// are closed. This prevents goroutine leaks from idle TCP connections.
+// onBytes is optional (can be nil) for traffic counting.
+func idleRelay(c1, c2 net.Conn, onBytes func(in, out int64)) {
+	var active int64 = time.Now().UnixNano()
+
+	errc := make(chan error, 2)
+	pipe := func(dst, src net.Conn, counter func(int64)) {
+		buf := make([]byte, 32*1024)
+		for {
+			src.SetReadDeadline(time.Now().Add(tcpIdleTimeout))
+			n, err := src.Read(buf)
+			if n > 0 {
+				atomic.StoreInt64(&active, time.Now().UnixNano())
+				if _, werr := dst.Write(buf[:n]); werr != nil {
+					errc <- werr
+					return
+				}
+				if counter != nil {
+					counter(int64(n))
+				}
+			}
+			if err != nil {
+				if ne, ok := err.(net.Error); ok && ne.Timeout() {
+					if time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&active)) < tcpIdleTimeout {
+						continue
+					}
+				}
+				errc <- err
+				return
+			}
+		}
+	}
+
+	go pipe(c1, c2, func(n int64) {
+		if onBytes != nil {
+			onBytes(n, 0)
+		}
+	})
+	go pipe(c2, c1, func(n int64) {
+		if onBytes != nil {
+			onBytes(0, n)
+		}
+	})
+	<-errc
+	c1.Close()
+	c2.Close()
+	<-errc
 }
 
 func dialHelper(addr string) (net.Conn, error) {
