@@ -543,6 +543,11 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPat
 	}
 	ok, err = proto.ReadResult(server)
 	if err != nil || !ok {
+		log.Printf("[tun] machine ID rejected — stopping engine")
+		e.mu.Lock()
+		e.lastError = "Device is bound to a different machine"
+		e.stopLocked()
+		e.mu.Unlock()
 		return
 	}
 
@@ -671,6 +676,11 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 	}
 	ok, err = proto.ReadResult(server)
 	if err != nil || !ok {
+		log.Printf("[tun] machine ID rejected (UDP) — stopping engine")
+		e.mu.Lock()
+		e.lastError = "Device is bound to a different machine"
+		e.stopLocked()
+		e.mu.Unlock()
 		return
 	}
 

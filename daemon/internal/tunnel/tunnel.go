@@ -272,7 +272,11 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 	ok, err = proto.ReadResult(tlsConn)
 	if err != nil || !ok {
 		socks5.SendFailure(conn)
-		log.Printf("[tunnel] machine ID rejected")
+		log.Printf("[tunnel] machine ID rejected — disconnecting")
+		t.mu.Lock()
+		t.lastError = "Device is bound to a different machine"
+		t.stopLocked()
+		t.mu.Unlock()
 		return
 	}
 

@@ -103,7 +103,13 @@ export function App() {
           setTunUptime(s.uptime || 0);
           if (s.error) setTunError(s.error);
           if (wasConnected.current && !active && s.error) {
-            startReconnect();
+            if (s.error.includes("bound to a different machine")) {
+              localStorage.removeItem(STORAGE_KEY);
+              setKey("");
+              setShowSetup(true);
+            } else {
+              startReconnect();
+            }
           }
           wasConnected.current = active;
         }
@@ -118,7 +124,13 @@ export function App() {
   useEffect(() => {
     if (proxyMode !== "socks5") return;
     if (socksError && !reconnecting && key) {
-      startReconnect();
+      if (socksError.includes("bound to a different machine")) {
+        localStorage.removeItem(STORAGE_KEY);
+        setKey("");
+        setShowSetup(true);
+      } else {
+        startReconnect();
+      }
     }
   }, [socksError, proxyMode, reconnecting, key, startReconnect]);
 
