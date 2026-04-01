@@ -48,8 +48,10 @@ type Engine struct {
 	helperConn   net.Conn
 	endpoint     *channel.Endpoint
 	bridgeCancel context.CancelFunc
-	selfPath     string // daemon's own path — always bypassed to prevent loops
-	meter        *dstats.RateMeter
+	selfPath      string // daemon's own path — always bypassed to prevent loops
+	rawUDP        *RawUDPHandler
+	helperWriteMu sync.Mutex
+	meter         *dstats.RateMeter
 	startTime    time.Time
 	lastError    string
 	stopHealth   chan struct{}
@@ -172,6 +174,26 @@ func (e *Engine) Start(req StartRequest) error {
 	e.helperAddr = req.HelperAddr
 	e.procInfo = newProcessInfo()
 
+	nat := NewNATTable(func(pkt []byte) {
+		lenBuf := make([]byte, 2)
+		binary.BigEndian.PutUint16(lenBuf, uint16(len(pkt)))
+		e.helperWriteMu.Lock()
+		defer e.helperWriteMu.Unlock()
+		e.mu.Lock()
+		conn := e.helperConn
+		e.mu.Unlock()
+		if conn != nil {
+			conn.Write(lenBuf)
+			conn.Write(pkt)
+		}
+	})
+	e.rawUDP = &RawUDPHandler{
+		nat:      nat,
+		rules:    e.rules,
+		procInfo: e.procInfo,
+		selfPath: e.selfPath,
+	}
+
 	tcpFwd := tcp.NewForwarder(s, 0, 2048, func(r *tcp.ForwarderRequest) {
 		e.handleTCP(r)
 	})
@@ -218,6 +240,11 @@ func (e *Engine) stopLocked() error {
 	if e.bridgeCancel != nil {
 		e.bridgeCancel()
 		e.bridgeCancel = nil
+	}
+
+	if e.rawUDP != nil && e.rawUDP.nat != nil {
+		e.rawUDP.nat.Close()
+		e.rawUDP = nil
 	}
 
 	if e.stack != nil {
@@ -331,6 +358,11 @@ func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 			log.Printf("[tun] bridgeInbound injected %d packets (IPv4=%d, IPv6=%d)", count, ipv4Count, ipv6Count)
 		}
 
+		// Raw UDP bypass: handle before gVisor injection
+		if e.rawUDP != nil && e.rawUDP.Handle(data) {
+			continue
+		}
+
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
 			Payload: buffer.MakeWithData(data),
 		})
@@ -360,10 +392,13 @@ func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.
 		pkt.DecRef()
 
 		binary.BigEndian.PutUint16(lenBuf, uint16(len(data)))
-		if _, err := conn.Write(lenBuf); err != nil {
-			return
+		e.helperWriteMu.Lock()
+		_, err1 := conn.Write(lenBuf)
+		if err1 == nil {
+			_, err1 = conn.Write(data)
 		}
-		if _, err := conn.Write(data); err != nil {
+		e.helperWriteMu.Unlock()
+		if err1 != nil {
 			return
 		}
 	}
