@@ -717,7 +717,7 @@ func (e *Engine) isSelf(appPath string) bool {
 	return strings.EqualFold(appPath, e.selfPath)
 }
 
-const tcpIdleTimeout = 5 * time.Minute
+const tcpIdleTimeout = 2 * time.Minute
 
 // idleRelay copies data bidirectionally between c1 and c2.
 // If no data flows in EITHER direction for tcpIdleTimeout, both connections
