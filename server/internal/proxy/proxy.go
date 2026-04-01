@@ -44,6 +44,13 @@ func (h *Handler) Handle(conn net.Conn, isTLS bool) {
 		return
 	}
 
+	// Lock device to this client IP — prevents same key on two machines
+	remoteIP, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	if err := h.Tracker.LockDevice(device.ID, remoteIP); err != nil {
+		log.Printf("device %s locked: %v (from %s)", device.Name, err, remoteIP)
+		return
+	}
+
 	msgType, err := proto.ReadMsgType(conn)
 	if err != nil {
 		log.Printf("read msg type: %v", err)
