@@ -44,10 +44,8 @@ const DEFAULT_SITES: BrowserSite[] = [
   { domain: "discord.com", label: "Discord (web)", builtin: true },
   { domain: "linkedin.com", label: "LinkedIn", builtin: true },
   { domain: "medium.com", label: "Medium", builtin: true },
-  { domain: "quora.com", label: "Quora", builtin: true },
-  { domain: "patreon.com", label: "Patreon", builtin: true },
-  { domain: "soundcloud.com", label: "SoundCloud", builtin: true },
-  { domain: "dailymotion.com", label: "Dailymotion", builtin: true },
+  { domain: "claude.ai", label: "Claude", builtin: true },
+  { domain: "youtrack.cloud", label: "YouTrack", builtin: true },
 ];
 
 // Related domains that must be proxied together with the main domain
@@ -74,6 +72,12 @@ const RELATED_DOMAINS: Record<string, string[]> = {
   ],
   "linkedin.com": [
     "licdn.com", "linkedin.cn",
+  ],
+  "claude.ai": [
+    "anthropic.com",
+  ],
+  "youtrack.cloud": [
+    "jetbrains.com",
   ],
 };
 
