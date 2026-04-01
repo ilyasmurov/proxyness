@@ -175,31 +175,17 @@ func (t *Tracker) Rates() []DeviceRate {
 	return result
 }
 
-const lockTimeout = 2 * time.Minute
-
-// LockDevice locks a device for a session. Returns error if already locked by a different session.
+// LockDevice locks a device to a client IP permanently (until server restart).
+// Same IP can reconnect freely. Different IP is always rejected.
 func (t *Tracker) LockDevice(deviceID int, sessionID string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if existing, ok := t.deviceLocks[deviceID]; ok {
 		if existing.sessionID == sessionID {
-			existing.lockedAt = time.Now()
 			return nil
 		}
-		// Check if lock expired (no active connections + timeout)
-		hasConns := false
-		for _, c := range t.conns {
-			if c.DeviceID == deviceID {
-				hasConns = true
-				break
-			}
-		}
-		if !hasConns && time.Since(existing.lockedAt) > lockTimeout {
-			// Expired lock, allow override
-		} else {
-			return fmt.Errorf("device already in use")
-		}
+		return fmt.Errorf("device already in use")
 	}
 	t.deviceLocks[deviceID] = &deviceLock{sessionID: sessionID, lockedAt: time.Now()}
 	return nil
