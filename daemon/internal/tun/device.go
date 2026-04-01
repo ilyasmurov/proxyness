@@ -33,6 +33,22 @@ func newStack(mtu uint32) (*stack.Stack, *channel.Endpoint, error) {
 		},
 	})
 
+	// Cap TCP buffer sizes to prevent gVisor auto-tuning from growing
+	// to 4MB per connection. For a relay/proxy, 128KB max is plenty.
+	// Without this, 500 connections × 8MB = 4GB RAM on Windows.
+	tcpRecvBuf := tcpip.TCPReceiveBufferSizeRangeOption{
+		Min:     4096,
+		Default: 32768,
+		Max:     131072,
+	}
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &tcpRecvBuf)
+	tcpSendBuf := tcpip.TCPSendBufferSizeRangeOption{
+		Min:     4096,
+		Default: 32768,
+		Max:     131072,
+	}
+	s.SetTransportProtocolOption(tcp.ProtocolNumber, &tcpSendBuf)
+
 	nicID := tcpip.NICID(1)
 	if err := s.CreateNIC(nicID, ep); err != nil {
 		return nil, nil, fmt.Errorf("create NIC: %v", err)
