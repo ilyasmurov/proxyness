@@ -39,13 +39,13 @@ func newStack(mtu uint32) (*stack.Stack, *channel.Endpoint, error) {
 	tcpRecvBuf := tcpip.TCPReceiveBufferSizeRangeOption{
 		Min:     4096,
 		Default: 32768,
-		Max:     131072,
+		Max:     65536,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &tcpRecvBuf)
 	tcpSendBuf := tcpip.TCPSendBufferSizeRangeOption{
 		Min:     4096,
 		Default: 32768,
-		Max:     131072,
+		Max:     65536,
 	}
 	s.SetTransportProtocolOption(tcp.ProtocolNumber, &tcpSendBuf)
 

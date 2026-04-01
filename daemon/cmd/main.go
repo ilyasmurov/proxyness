@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"runtime/debug"
 
 	"smurov-proxy/daemon/internal/api"
 	dstats "smurov-proxy/daemon/internal/stats"
@@ -12,6 +13,8 @@ import (
 )
 
 func main() {
+	// Cap Go heap at 512MB — GC runs more aggressively near the limit
+	debug.SetMemoryLimit(512 * 1024 * 1024)
 	serverAddr := flag.String("server", "", "proxy server address (host:port)")
 	key := flag.String("key", "", "shared secret key (hex)")
 	listenAddr := flag.String("listen", "127.0.0.1:1080", "SOCKS5 listen address")
