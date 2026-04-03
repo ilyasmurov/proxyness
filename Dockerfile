@@ -26,5 +26,5 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /server /usr/local/bin/server
 COPY changelog.json /changelog.json
-EXPOSE 443
+EXPOSE 443/tcp 443/udp
 ENTRYPOINT ["server"]

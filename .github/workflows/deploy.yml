@@ -88,6 +88,7 @@ jobs:
               --restart unless-stopped \
               --ulimit nofile=32768:32768 \
               -p 443:443 \
+              -p 443:443/udp \
               -v smurov-proxy-data:/data \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
               -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
