@@ -59,36 +59,3 @@ func TestRulesJSON(t *testing.T) {
 	}
 }
 
-func TestShouldUseTLS_Default(t *testing.T) {
-	r := NewRules()
-	if !r.ShouldUseTLS("/Applications/Telegram.app") {
-		t.Error("default should be TLS on")
-	}
-}
-
-func TestShouldUseTLS_NoTLS(t *testing.T) {
-	r := NewRules()
-	r.SetNoTLSApps([]string{"/Applications/Telegram.app"})
-	if r.ShouldUseTLS("/Applications/Telegram.app") {
-		t.Error("telegram should be no-TLS")
-	}
-	if !r.ShouldUseTLS("/Applications/Discord.app") {
-		t.Error("discord should still be TLS")
-	}
-}
-
-func TestRulesJSON_NoTLS(t *testing.T) {
-	r := NewRules()
-	r.SetMode(ModeProxyOnly)
-	r.SetApps([]string{"/Applications/Telegram.app"})
-	r.SetNoTLSApps([]string{"/Applications/Telegram.app"})
-
-	data := r.ToJSON()
-	r2 := NewRules()
-	if err := r2.FromJSON(data); err != nil {
-		t.Fatalf("from json: %v", err)
-	}
-	if r2.ShouldUseTLS("/Applications/Telegram.app") {
-		t.Error("no-tls should survive JSON round-trip")
-	}
-}

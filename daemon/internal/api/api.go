@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	dstats "smurov-proxy/daemon/internal/stats"
@@ -19,16 +20,17 @@ import (
 )
 
 type Server struct {
-	tunnel        *tunnel.Tunnel
-	tunEngine     *tun.Engine
-	listenAddr    string
-	meter         *dstats.RateMeter
-	sessionID     string
-	serverAddr    string // remembered for unlock on disconnect
-	key           string
-	pacSites      *PacSites
-	transportMode string              // "auto", "udp", or "tls"
-	activeTransport transport.Transport // current transport instance
+	mu              sync.Mutex
+	tunnel          *tunnel.Tunnel
+	tunEngine       *tun.Engine
+	listenAddr      string
+	meter           *dstats.RateMeter
+	sessionID       string
+	serverAddr      string              // remembered for unlock on disconnect
+	key             string
+	pacSites        *PacSites
+	transportMode   string              // "auto", "udp", or "tls"
+	activeTransport transport.Transport  // current transport instance
 }
 
 type ConnectRequest struct {
@@ -93,28 +95,39 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create and connect transport
+	s.mu.Lock()
 	tr := s.createTransport()
+	s.mu.Unlock()
+
 	fp := machineid.Fingerprint()
 	if err := tr.Connect(req.ServerAddr, req.Key, fp); err != nil {
 		go unlockDevice(req.ServerAddr, req.Key, s.sessionID)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	s.mu.Lock()
 	s.activeTransport = tr
+	s.mu.Unlock()
+
 	s.tunnel.SetTransport(tr)
 	log.Printf("[api] transport connected: mode=%s", tr.Mode())
 
 	if err := s.tunnel.Start(s.listenAddr, req.ServerAddr, req.Key); err != nil {
 		tr.Close()
+		s.mu.Lock()
 		s.activeTransport = nil
+		s.mu.Unlock()
 		s.tunnel.SetTransport(nil)
 		go unlockDevice(req.ServerAddr, req.Key, s.sessionID)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	s.mu.Lock()
 	s.serverAddr = req.ServerAddr
 	s.key = req.Key
+	s.mu.Unlock()
 
 	if req.Version != "" {
 		go reportVersion(req.ServerAddr, req.Key, req.Version)
@@ -162,9 +175,14 @@ func reportVersion(serverAddr, key, version string) {
 
 func (s *Server) handleDisconnect(w http.ResponseWriter, r *http.Request) {
 	s.tunnel.Stop() // also closes tunnel's transport ref
+
+	s.mu.Lock()
 	s.activeTransport = nil
-	if s.serverAddr != "" && s.key != "" {
-		go unlockDevice(s.serverAddr, s.key, s.sessionID)
+	addr, key := s.serverAddr, s.key
+	s.mu.Unlock()
+
+	if addr != "" && key != "" {
+		go unlockDevice(addr, key, s.sessionID)
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -222,7 +240,9 @@ func (s *Server) handleTUNStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create transport for the TUN engine if not already active
+	s.mu.Lock()
 	tr := s.createTransport()
+	s.mu.Unlock()
 	fp := machineid.Fingerprint()
 	if err := tr.Connect(req.ServerAddr, req.Key, fp); err != nil {
 		http.Error(w, fmt.Sprintf("transport connect: %v", err), http.StatusInternalServerError)
@@ -295,13 +315,17 @@ func (s *Server) createTransport() transport.Transport {
 }
 
 func (s *Server) handleTransportGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	active := s.transportMode
+	s.mu.Lock()
+	mode := s.transportMode
+	active := mode
 	if s.activeTransport != nil {
 		active = s.activeTransport.Mode()
 	}
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"mode":   s.transportMode,
+		"mode":   mode,
 		"active": active,
 	})
 }
@@ -316,7 +340,9 @@ func (s *Server) handleTransportSet(w http.ResponseWriter, r *http.Request) {
 	}
 	switch req.Mode {
 	case transport.ModeAuto, transport.ModeUDP, transport.ModeTLS:
+		s.mu.Lock()
 		s.transportMode = req.Mode
+		s.mu.Unlock()
 	default:
 		http.Error(w, fmt.Sprintf("invalid mode: %q (expected auto, udp, or tls)", req.Mode), http.StatusBadRequest)
 		return
