@@ -61,10 +61,8 @@ jobs:
         run: |
           cd daemon
           GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o ../client/resources/daemon-darwin-arm64 ./cmd
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o ../client/resources/daemon-darwin-amd64 ./cmd
           cd ../helper
           GOOS=darwin GOARCH=arm64 go build -o ../client/resources/helper-darwin-arm64 ./cmd
-          GOOS=darwin GOARCH=amd64 go build -o ../client/resources/helper-darwin-amd64 ./cmd
 
       - name: Build Electron app
         run: |
@@ -72,30 +70,23 @@ jobs:
           npm install
           npm run build
           npx electron-builder --mac pkg --arm64 --publish never
-          npx electron-builder --mac pkg --x64 --publish never
           npx electron-builder --win nsis --x64 --publish never
 
       - name: Generate latest-mac.yml
         run: |
           cd client/release
           VERSION=$(node -p "require('../package.json').version")
-          ARM_PKG="SmurovProxy-${VERSION}-arm64.pkg"
-          INTEL_PKG="SmurovProxy-${VERSION}.pkg"
-          ARM_SHA=$(shasum -a 512 "$ARM_PKG" | awk '{print $1}' | xxd -r -p | base64)
-          ARM_SIZE=$(stat -f%z "$ARM_PKG")
-          INTEL_SHA=$(shasum -a 512 "$INTEL_PKG" | awk '{print $1}' | xxd -r -p | base64)
-          INTEL_SIZE=$(stat -f%z "$INTEL_PKG")
+          PKG="SmurovProxy-${VERSION}-arm64.pkg"
+          SHA=$(shasum -a 512 "$PKG" | awk '{print $1}' | xxd -r -p | base64)
+          SIZE=$(stat -f%z "$PKG")
           cat > latest-mac.yml <<YMEOF
           version: ${VERSION}
           files:
-            - url: ${ARM_PKG}
-              sha512: ${ARM_SHA}
-              size: ${ARM_SIZE}
-            - url: ${INTEL_PKG}
-              sha512: ${INTEL_SHA}
-              size: ${INTEL_SIZE}
-          path: ${ARM_PKG}
-          sha512: ${ARM_SHA}
+            - url: ${PKG}
+              sha512: ${SHA}
+              size: ${SIZE}
+          path: ${PKG}
+          sha512: ${SHA}
           releaseDate: '$(date -u +%Y-%m-%dT%H:%M:%S.000Z)'
           YMEOF
 
