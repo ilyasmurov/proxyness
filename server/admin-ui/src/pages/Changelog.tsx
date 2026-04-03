@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { api, ChangelogEntry } from "@/lib/api";
+import { api, type ChangelogEntry } from "@/lib/api";
 
 const typeConfig = {
   feature: { label: "Feature", color: "bg-green-500/20 text-green-400 border-green-500/30" },

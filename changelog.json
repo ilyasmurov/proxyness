@@ -1,5 +1,12 @@
 [
   {
+    "id": "bab43bd7-7118-4bd3-b041-888675cc3b8a",
+    "title": "Исправлен импорт типа ChangelogEntry для verbatimModuleSyntax",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-03T21:09:24.131224+00:00"
+  },
+  {
     "id": "6a814ac5-4178-48aa-8cb7-7a1a08457d37",
     "title": "Система ченджлога через файл с pre-commit хуком",
     "description": "CHANGELOG.new.md → changelog.json → SQLite DB при старте сервера",
