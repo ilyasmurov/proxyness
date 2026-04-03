@@ -57,6 +57,7 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 	if err != nil {
 		return fmt.Errorf("udp dial: %w", err)
 	}
+	conn.SetReadBuffer(4 * 1024 * 1024)
 	t.conn = conn
 
 	// Generate ephemeral X25519 keypair
@@ -172,11 +173,7 @@ func (t *UDPTransport) recvLoop() {
 		switch pkt.Type {
 		case pkgudp.MsgStreamData:
 			if ok {
-				// Non-blocking send to avoid deadlock if stream is being closed
-				select {
-				case s.recvCh <- append([]byte(nil), pkt.Data...):
-				default:
-				}
+				s.recvCh <- append([]byte(nil), pkt.Data...)
 			}
 		case pkgudp.MsgStreamClose:
 			if ok {
@@ -222,7 +219,7 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 	t.mu.Lock()
 	t.nextID++
 	id := t.nextID
-	recvCh := make(chan []byte, 64)
+	recvCh := make(chan []byte, 1024)
 	s := &udpStream{
 		t:      t,
 		id:     id,

@@ -1,5 +1,12 @@
 [
   {
+    "id": "584e7dcb-1e4b-445d-90af-ac647521ee69",
+    "title": "UDP transport throughput",
+    "description": "Buffered packet channel on server, 4MB UDP socket buffers on both sides, larger stream receive buffer on client",
+    "type": "improvement",
+    "createdAt": "2026-04-03T22:49:53.382053+00:00"
+  },
+  {
     "id": "7a386cb5-c32f-4fcd-b3b2-d8ae99114aec",
     "title": "UDP stream data ordering",
     "description": "Process UDP packets synchronously to preserve write ordering for stream data, fixing connection resets caused by concurrent goroutine writes",

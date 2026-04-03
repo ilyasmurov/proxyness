@@ -22,8 +22,17 @@ type Listener struct {
 	sessions *SessionManager
 }
 
+type inPacket struct {
+	data []byte
+	addr net.Addr
+}
+
 // NewListener creates a new UDP Listener.
 func NewListener(conn net.PacketConn, database *db.DB, tracker *stats.Tracker) *Listener {
+	// Increase UDP receive buffer to reduce packet loss under load.
+	if uc, ok := conn.(*net.UDPConn); ok {
+		uc.SetReadBuffer(4 * 1024 * 1024)
+	}
 	return &Listener{
 		conn:     conn,
 		db:       database,
@@ -32,8 +41,9 @@ func NewListener(conn net.PacketConn, database *db.DB, tracker *stats.Tracker) *
 	}
 }
 
-// Serve is the main read loop. Packets are processed synchronously to preserve
-// write ordering for stream data. Only MsgStreamOpen (which dials) runs in a goroutine.
+// Serve reads UDP packets as fast as possible and feeds them into a buffered
+// channel. A single processing goroutine drains the channel, preserving packet
+// order for stream data writes while keeping the socket read loop non-blocking.
 func (l *Listener) Serve() {
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
@@ -43,17 +53,28 @@ func (l *Listener) Serve() {
 		}
 	}()
 
+	pktCh := make(chan inPacket, 4096)
+	go l.processLoop(pktCh)
+
 	buf := make([]byte, 2048)
 	for {
 		n, addr, err := l.conn.ReadFrom(buf)
 		if err != nil {
 			log.Printf("udp listener: read error: %v", err)
+			close(pktCh)
 			return
 		}
 
 		data := make([]byte, n)
 		copy(data, buf[:n])
-		l.handlePacket(data, addr)
+		pktCh <- inPacket{data: data, addr: addr}
+	}
+}
+
+// processLoop handles packets sequentially, preserving write ordering.
+func (l *Listener) processLoop(ch chan inPacket) {
+	for pkt := range ch {
+		l.handlePacket(pkt.data, pkt.addr)
 	}
 }
 

@@ -1,3 +1,3 @@
-## fix
-UDP stream data ordering
-Process UDP packets synchronously to preserve write ordering for stream data, fixing connection resets caused by concurrent goroutine writes
+## improvement
+UDP transport throughput
+Buffered packet channel on server, 4MB UDP socket buffers on both sides, larger stream receive buffer on client
