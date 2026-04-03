@@ -1,2 +1,2 @@
 ## feature
-UDP ARQ reliability layer design spec
+UDP ARQ reliability layer implementation plan
