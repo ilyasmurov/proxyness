@@ -1,5 +1,12 @@
 [
   {
+    "id": "9c6bdfa9-0d2f-43a1-9538-e503d012551f",
+    "title": "Добавлен UDP listener в серверный бинарник (пропущен в прошлом коммите)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-03T21:41:06.740308+00:00"
+  },
+  {
     "id": "a2889dc5-872c-417f-b6fb-81bf66d7fb42",
     "title": "Проброс UDP порта 443 в Docker для работы UDP транспорта",
     "description": null,

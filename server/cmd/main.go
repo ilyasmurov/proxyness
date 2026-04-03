@@ -20,6 +20,7 @@ import (
 	"smurov-proxy/server/internal/mux"
 	"smurov-proxy/server/internal/proxy"
 	"smurov-proxy/server/internal/stats"
+	serverudp "smurov-proxy/server/internal/udp"
 )
 
 func main() {
@@ -68,6 +69,15 @@ func main() {
 	log.Printf("server listening on %s", *addr)
 
 	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, "/data/downloads")
+
+	// Start UDP listener on same port (different protocol, no conflict)
+	udpConn, err := net.ListenPacket("udp", *addr)
+	if err != nil {
+		log.Fatalf("udp listen: %v", err)
+	}
+	udpListener := serverudp.NewListener(udpConn, database, tracker)
+	go udpListener.Serve()
+	log.Printf("UDP listener started on %s", *addr)
 
 	proxyHandler := &proxy.Handler{DB: database, Tracker: tracker}
 	m := mux.NewPreTLSMux(ln, tlsCfg,
