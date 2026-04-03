@@ -1,5 +1,12 @@
 [
   {
+    "id": "0f02e8d4-0b81-400b-b8b9-6a40a90801f3",
+    "title": "Добавлен changelog.json в Docker-образ",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-03T21:12:48.986562+00:00"
+  },
+  {
     "id": "bab43bd7-7118-4bd3-b041-888675cc3b8a",
     "title": "Исправлен импорт типа ChangelogEntry для verbatimModuleSyntax",
     "description": null,
