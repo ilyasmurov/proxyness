@@ -1,5 +1,12 @@
 [
   {
+    "id": "37e8ab8f-8fcb-4e8b-a06c-3193c9a1b64a",
+    "title": "UDP ARQ reliability layer design spec",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-03T23:14:02.551638+00:00"
+  },
+  {
     "id": "caa87135-350b-4b73-bcc0-23e15542213d",
     "title": "UDP vs TLS benchmark results",
     "description": "Added Test 5 with UDP/TLS transport comparison and full comparison table across all VPN solutions",
