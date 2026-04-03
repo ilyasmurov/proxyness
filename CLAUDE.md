@@ -105,7 +105,7 @@ Separate Go module with end-to-end tests covering auth and connection flow.
 - **Server**: Docker multi-stage build (React UI → Go binary → Alpine). CI deploys to VPS via `.github/workflows/deploy.yml`. Container runs with `--ulimit nofile=32768:32768`.
 - **Client**: Tag-triggered release builds macOS PKGs + Windows NSIS exe via `.github/workflows/release.yml`.
 - **SSL**: `scripts/setup-ssl.sh` manages Let's Encrypt certs for `proxy.smurov.com`.
-- **VPS**: Timeweb Cloud NL-80 (4 CPU, 8 GB RAM, 1 Gbps, Netherlands).
+- **VPS**: Aeza NL (4 CPU, 8 GB RAM, 1 Gbps, Netherlands).
 
 ## Protocol Flow
 

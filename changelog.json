@@ -1,5 +1,12 @@
 [
   {
+    "id": "9421aabf-fc23-40ba-a83f-8b2c715b7820",
+    "title": "Исправлено название VPS провайдера: Timeweb → Aeza",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-03T21:17:13.654764+00:00"
+  },
+  {
     "id": "0f02e8d4-0b81-400b-b8b9-6a40a90801f3",
     "title": "Добавлен changelog.json в Docker-образ",
     "description": null,
@@ -106,7 +113,7 @@
   },
   {
     "id": "612a99fa-7182-4635-9845-50ea9180b32f",
-    "title": "Миграция на новый VPS — Timeweb NL",
+    "title": "Миграция на новый VPS — Aeza NL",
     "description": "4 CPU, 8 GB RAM, 1 Gbps, Нидерланды",
     "type": "feature",
     "createdAt": "2026-03-28T12:00:00Z"
