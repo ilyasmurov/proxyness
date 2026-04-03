@@ -108,7 +108,7 @@ export function Releases() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2">
-              {latest.assets.filter(isInstaller).map((a) => {
+              {latest.assets.filter((a) => isInstaller(a.name)).map((a) => {
                 const info = platformInfo(a.name);
                 if (!info) return null;
                 return (
@@ -138,7 +138,7 @@ export function Releases() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-muted-foreground">Previous releases</h2>
           {older.map((r) => {
-            const installers = r.assets.filter(isInstaller);
+            const installers = r.assets.filter((a) => isInstaller(a.name));
             return (
               <Card key={r.tag_name}>
                 <CardHeader className="pb-3">
