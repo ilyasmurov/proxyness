@@ -7,7 +7,7 @@ import { ModeSelector, ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
 import { SpeedGraph } from "./components/SpeedGraph";
 
-const SERVER = "82.97.246.65:443";
+const SERVER = "95.181.162.242:443";
 const STORAGE_KEY = "smurov-proxy-key";
 
 export function App() {
@@ -333,8 +333,9 @@ export function App() {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>SmurovProxy</h1>
+        <span style={{ fontSize: 11, color: "#444" }}>{SERVER.replace(":443", "")}</span>
       </div>
       <StatusBar status={isConnected ? "connected" : "disconnected"} uptime={uptime} error={currentError} />
       {isConnected && (

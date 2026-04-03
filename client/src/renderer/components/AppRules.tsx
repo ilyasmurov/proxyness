@@ -493,24 +493,15 @@ export function AppRules({ visible }: Props) {
                   const isOn = enabledSites.has(site.domain);
                   return (
                     <div key={site.domain} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", cursor: "pointer" }} onClick={() => toggleSite(site.domain)}>
-                      <div
-                        style={{
-                          width: 16, height: 16, borderRadius: 4,
-                          background: isOn ? "#3b82f6" : "transparent",
-                          border: `1.5px solid ${isOn ? "#3b82f6" : "#555"}`,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 10, color: "#fff", flexShrink: 0,
-                        }}
-                      >
-                        {isOn && "✓"}
+                      <div style={{ width: 14, height: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {SITE_ICON_MAP[site.domain] && (
+                          <BrandIcon
+                            iconKey={SITE_ICON_MAP[site.domain]}
+                            size={14}
+                            color={isOn ? (SITE_COLORS[site.domain] || "#ccc") : "#555"}
+                          />
+                        )}
                       </div>
-                      {SITE_ICON_MAP[site.domain] && (
-                        <BrandIcon
-                          iconKey={SITE_ICON_MAP[site.domain]}
-                          size={14}
-                          color={isOn ? (SITE_COLORS[site.domain] || "#ccc") : "#555"}
-                        />
-                      )}
                       <span style={{ flex: 1, fontSize: 12, color: isOn ? "#ccc" : "#666" }}>{site.label}</span>
                       {!site.builtin && (
                         <button
@@ -523,6 +514,17 @@ export function AppRules({ visible }: Props) {
                           ×
                         </button>
                       )}
+                      <div
+                        style={{
+                          width: 16, height: 16, borderRadius: 4,
+                          background: isOn ? "#3b82f6" : "transparent",
+                          border: `1.5px solid ${isOn ? "#3b82f6" : "#555"}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 10, color: "#fff", flexShrink: 0,
+                        }}
+                      >
+                        {isOn && "✓"}
+                      </div>
                     </div>
                   );
                 })}

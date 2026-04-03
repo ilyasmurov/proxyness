@@ -9,7 +9,7 @@ import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs } 
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
 
-const UPDATE_BASE = "https://82.97.246.65/download";
+const UPDATE_BASE = "https://95.181.162.242/download";
 
 let mainWindow: BrowserWindow | null = null;
 let logsWindow: BrowserWindow | null = null;
@@ -393,13 +393,23 @@ function setupIpc() {
   });
 }
 
-app.whenReady().then(() => {
-  startDaemon();
-  startHelper();
-  createWindow();
-  createTray();
-  setupIpc();
-});
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
+
+  app.whenReady().then(() => {
+    startDaemon();
+    startHelper();
+    createWindow();
+    createTray();
+    setupIpc();
+  });
+}
 
 app.on("before-quit", () => {
   disableSystemProxy();
