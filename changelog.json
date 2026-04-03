@@ -1,5 +1,12 @@
 [
   {
+    "id": "d1a8e7a1-28f6-425b-8165-585563b475a3",
+    "title": "UDP handshake: decrypt incoming packet and encrypt response",
+    "description": "Server was parsing encrypted handshake data as plaintext, causing auth failures",
+    "type": "fix",
+    "createdAt": "2026-04-03T22:10:22.372378+00:00"
+  },
+  {
     "id": "6dc36de2-91d2-4bab-8df7-ccda80dcff33",
     "title": "Добавлен файл бенчмарка и UDP интеграционные тесты",
     "description": null,

@@ -2,6 +2,7 @@ package udp
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net"
@@ -102,38 +103,58 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 	}
 }
 
-// handleHandshake processes a handshake packet: tries all active device keys,
-// validates auth, checks machine ID, derives session key, creates session, sends response.
+// handleHandshake processes a handshake packet: tries all active device keys
+// to decrypt, validates auth, checks machine ID, derives session key, creates session, sends response.
 func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 	if len(data) < 5 {
 		return
 	}
 
-	// The handshake payload starts at byte 5 (after flags+connID).
-	// For handshake packets, data[5:] is the raw HandshakeRequest bytes.
-	rawPayload := data[5:]
-
-	req, err := pkgudp.DecodeHandshakeRequest(rawPayload)
-	if err != nil {
-		log.Printf("udp: decode handshake from %s: %v", addr, err)
-		return
-	}
-
-	rawAuth := pkgudp.RawAuth(rawPayload)
-
+	// Get all active device keys to try decryption.
 	keys, err := l.db.GetActiveKeys()
 	if err != nil {
 		log.Printf("udp: get active keys: %v", err)
 		return
 	}
 
-	matchedKey, err := auth.ValidateAuthMessageMulti(keys, rawAuth)
+	// The handshake packet is encrypted with the device key.
+	// Try each key until decryption succeeds.
+	var pkt *pkgudp.Packet
+	var matchedKeyHex string
+	var matchedKeyBytes []byte
+	for _, keyHex := range keys {
+		kb, err := hex.DecodeString(keyHex)
+		if err != nil {
+			continue
+		}
+		p, err := pkgudp.DecodePacket(data, kb)
+		if err == nil && p.Type == pkgudp.MsgHandshake {
+			pkt = p
+			matchedKeyHex = keyHex
+			matchedKeyBytes = kb
+			break
+		}
+	}
+
+	if pkt == nil {
+		log.Printf("udp: handshake auth failed from %s: no matching key", addr)
+		return
+	}
+
+	req, err := pkgudp.DecodeHandshakeRequest(pkt.Data)
 	if err != nil {
+		log.Printf("udp: decode handshake from %s: %v", addr, err)
+		return
+	}
+
+	// Validate auth message timestamp to prevent replay attacks.
+	rawAuth := pkgudp.RawAuth(pkt.Data)
+	if err := auth.ValidateAuthMessage(matchedKeyHex, rawAuth); err != nil {
 		log.Printf("udp: handshake auth failed from %s: %v", addr, err)
 		return
 	}
 
-	device, err := l.db.GetDeviceByKey(matchedKey)
+	device, err := l.db.GetDeviceByKey(matchedKeyHex)
 	if err != nil {
 		log.Printf("udp: device lookup: %v", err)
 		return
@@ -167,20 +188,24 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 	sess.ClientAddr = addr
 	sess.mu.Unlock()
 
-	// Build and send HandshakeResponse (unencrypted — client doesn't have session key yet)
+	// Build and send HandshakeResponse encrypted with device key.
 	resp := &pkgudp.HandshakeResponse{
 		EphemeralPub: serverPubBytes,
 		SessionToken: token,
 	}
-	respBytes := resp.Encode()
+	respPkt := &pkgudp.Packet{
+		ConnID: 0,
+		Type:   pkgudp.MsgHandshake,
+		Data:   resp.Encode(),
+	}
+	encoded, err := pkgudp.EncodePacket(respPkt, matchedKeyBytes)
+	if err != nil {
+		log.Printf("udp: encode handshake response: %v", err)
+		l.sessions.Remove(token)
+		return
+	}
 
-	// The response is sent plaintext with connID=0 in the outer header
-	out := make([]byte, 1+4+len(respBytes))
-	out[0] = 0x40 // QUIC-like flags
-	binary.BigEndian.PutUint32(out[1:5], 0)
-	copy(out[5:], respBytes)
-
-	if _, err := l.conn.WriteTo(out, addr); err != nil {
+	if _, err := l.conn.WriteTo(encoded, addr); err != nil {
 		log.Printf("udp: send handshake response to %s: %v", addr, err)
 		l.sessions.Remove(token)
 		return
