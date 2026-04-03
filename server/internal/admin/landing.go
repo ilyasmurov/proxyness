@@ -81,6 +81,8 @@ func LandingHandler(downloadsDir string) http.Handler {
 	})
 }
 
+const githubRepo = "ilyasmurov/smurov-proxy"
+
 func scanDownloads(dir string) []downloadFile {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -109,25 +111,27 @@ func scanDownloads(dir string) []downloadFile {
 	sortDesc(macIntel)
 	sortDesc(winExe)
 
+	ghBase := "https://github.com/" + githubRepo + "/releases/latest/download/"
+
 	var result []downloadFile
 	if len(macArm) > 0 {
 		result = append(result, downloadFile{
-			Name: macArm[0], URL: "/download/" + macArm[0],
-			Label: "macOS Apple Silicon — " + macArm[0], Class: "mac",
+			Name: macArm[0], URL: ghBase + macArm[0],
+			Label: "macOS Apple Silicon", Class: "mac",
 			Icon: "&#63743;", Badge: filepath.Ext(macArm[0]),
 		})
 	}
 	if len(macIntel) > 0 {
 		result = append(result, downloadFile{
-			Name: macIntel[0], URL: "/download/" + macIntel[0],
-			Label: "macOS Intel — " + macIntel[0], Class: "mac",
+			Name: macIntel[0], URL: ghBase + macIntel[0],
+			Label: "macOS Intel", Class: "mac",
 			Icon: "&#63743;", Badge: filepath.Ext(macIntel[0]),
 		})
 	}
 	if len(winExe) > 0 {
 		result = append(result, downloadFile{
-			Name: winExe[0], URL: "/download/" + winExe[0],
-			Label: "Windows — " + winExe[0], Class: "win",
+			Name: winExe[0], URL: ghBase + winExe[0],
+			Label: "Windows", Class: "win",
 			Icon: "&#9114;", Badge: filepath.Ext(winExe[0]),
 		})
 	}

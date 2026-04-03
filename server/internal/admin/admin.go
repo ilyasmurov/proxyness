@@ -12,16 +12,17 @@ import (
 
 // Handler holds the admin HTTP mux and its dependencies.
 type Handler struct {
-	db       *db.DB
-	tracker  *stats.Tracker
-	user     string
-	password string
-	mux      *http.ServeMux
+	db           *db.DB
+	tracker      *stats.Tracker
+	user         string
+	password     string
+	downloadsDir string
+	mux          *http.ServeMux
 }
 
 // NewHandler creates and wires up the admin HTTP handler.
 func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string) *Handler {
-	h := &Handler{db: d, tracker: tr, user: user, password: password}
+	h := &Handler{db: d, tracker: tr, user: user, password: password, downloadsDir: downloadsDir}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /admin/api/users", h.auth(h.listUsers))
@@ -45,8 +46,8 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	// Download files
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
 
-	// SPA static files
-	mux.Handle("/admin/", SPAHandler())
+	// SPA static files (auth required)
+	mux.Handle("/admin/", h.authHandler(SPAHandler()))
 
 	// Landing page
 	mux.Handle("GET /{$}", LandingHandler(downloadsDir))
@@ -60,7 +61,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
-// auth wraps a handler with HTTP Basic Auth.
+// auth wraps a HandlerFunc with HTTP Basic Auth.
 func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
@@ -71,6 +72,19 @@ func (h *Handler) auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+// authHandler wraps a Handler with HTTP Basic Auth.
+func (h *Handler) authHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != h.user || pass != h.password {
+			w.Header().Set("WWW-Authenticate", `Basic realm="admin"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // writeJSON writes a JSON response with Content-Type application/json.
@@ -309,3 +323,4 @@ func (h *Handler) unlockDevice(w http.ResponseWriter, r *http.Request) {
 	// No-op: machine binding is permanent and managed by hardware fingerprint.
 	w.WriteHeader(http.StatusOK)
 }
+

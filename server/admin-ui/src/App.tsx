@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-do
 import { Dashboard } from "./pages/Dashboard";
 import { Users } from "./pages/Users";
 import { UserDetail } from "./pages/UserDetail";
+import { Releases } from "./pages/Releases";
 
 function Nav() {
   const loc = useLocation();
@@ -20,6 +21,7 @@ function Nav() {
       <span className="font-bold text-lg mr-4">SmurovProxy</span>
       {link("/admin", "Dashboard")}
       {link("/admin/users", "Users")}
+      {link("/admin/releases", "Releases")}
     </nav>
   );
 }
@@ -34,6 +36,7 @@ export default function App() {
             <Route path="/admin" element={<Dashboard />} />
             <Route path="/admin/users" element={<Users />} />
             <Route path="/admin/users/:id" element={<UserDetail />} />
+            <Route path="/admin/releases" element={<Releases />} />
           </Routes>
         </main>
       </div>
