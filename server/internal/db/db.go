@@ -107,7 +107,9 @@ func Open(path string) (*DB, error) {
 	sqlDB.Exec(`ALTER TABLE devices ADD COLUMN client_version TEXT DEFAULT ''`)
 	sqlDB.Exec(`ALTER TABLE devices ADD COLUMN machine_id TEXT DEFAULT ''`)
 
-	return &DB{sql: sqlDB}, nil
+	d := &DB{sql: sqlDB}
+	d.seedChangelog()
+	return d, nil
 }
 
 // Close closes the database connection.
@@ -468,4 +470,101 @@ func parseTime(s string) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// ---- Changelog ----
+
+type ChangelogEntry struct {
+	ID      int    `json:"id"`
+	Version string `json:"version"`
+	Date    string `json:"date"`
+	Changes string `json:"changes"`
+}
+
+func (d *DB) GetChangelog(page, perPage int) ([]ChangelogEntry, int, error) {
+	var total int
+	d.sql.QueryRow(`SELECT COUNT(*) FROM changelog`).Scan(&total)
+
+	offset := (page - 1) * perPage
+	rows, err := d.sql.Query(
+		`SELECT id, version, date, changes FROM changelog ORDER BY id DESC LIMIT ? OFFSET ?`,
+		perPage, offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var entries []ChangelogEntry
+	for rows.Next() {
+		var e ChangelogEntry
+		if err := rows.Scan(&e.ID, &e.Version, &e.Date, &e.Changes); err != nil {
+			return nil, 0, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, total, nil
+}
+
+func (d *DB) seedChangelog() {
+	var count int
+	d.sql.QueryRow(`SELECT COUNT(*) FROM changelog`).Scan(&count)
+	if count > 0 {
+		return
+	}
+
+	releases := []struct {
+		version, date, changes string
+	}{
+		{"v1.22.0", "2026-04-04", "UDP транспорт с шифрованием XChaCha20-Poly1305 и обменом ключами X25519\nМаскировка под QUIC трафик для обхода DPI\nМультиплексирование потоков через единый UDP канал\nАвтовыбор транспорта: UDP с фолбеком на TLS\nПереключение транспорта в настройках клиента (Auto / UDP / TLS)\nИндикатор активного транспорта в статусбаре"},
+		{"v1.21.0", "2026-04-03", "Переход на GitHub Releases для автообновления (вместо VPS)\nУлучшенная страница релизов в админке с иконками платформ и счётчиком скачиваний"},
+		{"v1.20.0", "2026-04-02", "Вкладка «Releases» в админ-панели с загрузкой данных с GitHub API\nАвторизация на SPA страницах админки"},
+		{"v1.19.1", "2026-03-30", "Убрана сборка для Intel macOS — только Apple Silicon (arm64)"},
+		{"v1.19.0", "2026-03-28", "Миграция на новый VPS — Timeweb NL (4 CPU, 8 GB RAM, 1 Gbps)\nЗащита от запуска нескольких экземпляров клиента\nУлучшения интерфейса"},
+		{"v1.18.5", "2026-03-25", "SVG иконки приложений и сайтов\nДобавлен Telegram Web в список сайтов для проксирования"},
+		{"v1.18.4", "2026-03-24", "Обновлён список сайтов: добавлены Claude и YouTrack"},
+		{"v1.18.3", "2026-03-22", "Автоскрытие ошибок в интерфейсе через 15 секунд\nФикс: lock-device больше не перезаписывает machine_id"},
+		{"v1.18.2", "2026-03-21", "Анимированная кнопка Connecting / Reconnecting\nУлучшенный стиль состояния переподключения"},
+		{"v1.18.1", "2026-03-20", "Отключение и сброс ключа при отказе по Machine ID"},
+		{"v1.18.0", "2026-03-19", "Привязка устройств к железу (hardware fingerprint)\nОдин ключ = одна машина, попытка использовать на другой — отказ"},
+		{"v1.17.1", "2026-03-17", "Ограничение heap Go до 512 МБ для стабильности на VPS\nУменьшение TCP буферов до 64 КБ"},
+		{"v1.17.0", "2026-03-16", "Raw UDP bypass — обход gVisor для UDP трафика приложений\nNAT таблица с автоочисткой для маршрутизации ответов"},
+		{"v1.16.5", "2026-03-14", "Ограничение TCP буферов gVisor до 128 КБ — предотвращает автотюнинг до 4 МБ на соединение"},
+		{"v1.16.4", "2026-03-13", "Уменьшен TCP idle timeout с 5 до 2 минут"},
+		{"v1.16.3", "2026-03-12", "TCP idle timeout предотвращает утечку горутин и памяти на Windows"},
+		{"v1.16.2", "2026-03-11", "Убран лишний WriteConnect из proxyUDP — сервер его не читал"},
+		{"v1.16.1", "2026-03-10", "Показ количества TLS/raw соединений по устройствам в админке"},
+		{"v1.16.0", "2026-03-09", "Обнаружение установленных приложений Windows через реестр\nУлучшенный поиск процессов Windows с кешированием"},
+		{"v1.15.9", "2026-03-07", "Фикс IP_UNICAST_IF на Windows — корректная передача raw 4-байт значения"},
+		{"v1.15.8", "2026-03-06", "Обход UDP для голосовых приложений: Discord, Telegram, Slack, Zoom, Teams"},
+		{"v1.15.7", "2026-03-05", "Обход маршрутов через физический интерфейс на Windows"},
+		{"v1.15.6", "2026-03-04", "Оптимизация TUN на Windows — кеш поиска процессов"},
+		{"v1.15.5", "2026-03-03", "Фикс установки обновлений на Windows (EBUSY при замене файлов)"},
+		{"v1.15.4", "2026-03-02", "DNS маршруты через шлюз на Windows для корректного TUN bypass"},
+		{"v1.15.3", "2026-03-01", "Клик по всей строке приложений и чекбоксам сайтов"},
+		{"v1.15.2", "2026-02-28", "Принудительное обновление PAC при изменении списка сайтов"},
+		{"v1.15.1", "2026-02-27", "Расширенные домены для проксирования сайтов\nДобавлены заблокированные сайты в список"},
+		{"v1.15.0", "2026-02-26", "Обход маршрутов через физический интерфейс на macOS (IP_BOUND_IF)"},
+		{"v1.14.7", "2026-02-24", "Фикс сборки: стабы CachePhysicalInterface для Linux и Windows"},
+		{"v1.14.6", "2026-02-23", "Весь трафик браузеров принудительно через SOCKS5 при активном TUN"},
+		{"v1.14.5", "2026-02-22", "DNS серверы через шлюз для обхода TUN"},
+		{"v1.14.4", "2026-02-21", "DNS (UDP 53) всегда обходит TUN для работы системного резолвера"},
+		{"v1.14.3", "2026-02-20", "Браузеры используют SOCKS5/PAC вместо TUN — избегаем проблем с QUIC"},
+		{"v1.14.2", "2026-02-19", "Фикс обнаружения Claude Code в списке приложений\nNo-cache заголовки для PAC файла"},
+		{"v1.14.1", "2026-02-18", "Перезапуск TUN при повторном запуске приложения\nАвто-переподключение при потере связи\nСчётчик аптайма"},
+		{"v1.14.0", "2026-02-17", "Сброс активных соединений при обновлении правил или PAC"},
+		{"v1.13.0", "2026-02-15", "Проксирование по сайтам через PAC файл\nЕдиный переключатель «Браузеры» для SOCKS5\nПереключение режимов в рантайме"},
+		{"v1.12.0", "2026-02-10", "TUN прозрачный прокси с gVisor netstack\nHelper для управления TUN устройством (macOS + Windows)\nPer-app правила маршрутизации\nБлокировка QUIC (UDP 443) для фолбека на TCP\nHybrid режим: TUN для приложений + SOCKS5 для браузеров"},
+		{"v1.5.0", "2026-01-20", "Группировка активных соединений по устройствам\nNSIS установщик для Windows\nКнопка проверки обновлений"},
+		{"v1.4.0", "2026-01-18", "PAC через HTTP API daemon вместо file:// URL"},
+		{"v1.3.0", "2026-01-16", "Обновление настроек прокси Windows через InternetSetOption"},
+		{"v1.2.0", "2026-01-14", "Динамическая лендинг страница с версионными ссылками"},
+		{"v1.1.0", "2026-01-12", "Автообновление с VPS вместо GitHub Releases\nPAC файл вместо реестра для Windows SOCKS5 прокси"},
+		{"v1.0.0", "2026-01-10", "Первый релиз SmurovProxy\nElectron клиент с управлением daemon и tray\nSOCKS5 прокси через TLS на порт 443\nАдмин-панель: пользователи, устройства, статистика трафика\nМультиплексирование прокси и HTTP на одном порту\nАвтообновление через GitHub Releases"},
+	}
+
+	for _, r := range releases {
+		d.sql.Exec(`INSERT OR IGNORE INTO changelog (version, date, changes) VALUES (?, ?, ?)`,
+			r.version, r.date, r.changes)
+	}
 }

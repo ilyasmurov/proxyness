@@ -37,6 +37,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("GET /admin/api/stats/traffic", h.auth(h.statsTraffic))
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
 	mux.HandleFunc("GET /admin/api/stats/rate", h.auth(h.statsRate))
+	mux.HandleFunc("GET /admin/api/changelog", h.auth(h.listChangelog))
 
 	// Public endpoints (no auth, device key for identification)
 	mux.HandleFunc("POST /api/report-version", h.reportVersion)
@@ -103,6 +104,32 @@ func pathID(w http.ResponseWriter, r *http.Request, name string) (int, bool) {
 		return 0, false
 	}
 	return id, true
+}
+
+// ---- Changelog ----
+
+func (h *Handler) listChangelog(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+	if perPage < 1 || perPage > 50 {
+		perPage = 10
+	}
+
+	entries, total, err := h.db.GetChangelog(page, perPage)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"entries": entries,
+		"total":   total,
+		"page":    page,
+		"pages":   (total + perPage - 1) / perPage,
+	})
 }
 
 // ---- Users ----

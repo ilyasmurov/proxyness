@@ -75,6 +75,20 @@ export interface DeviceRate {
   history: Array<{ t: number; down: number; up: number }>;
 }
 
+export interface ChangelogEntry {
+  id: number;
+  version: string;
+  date: string;
+  changes: string;
+}
+
+export interface ChangelogResponse {
+  entries: ChangelogEntry[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
 export const api = {
   listUsers: (): Promise<User[]> => request("/users"),
   createUser: (name: string): Promise<User> =>
@@ -96,4 +110,6 @@ export const api = {
   trafficDaily: (deviceId: number): Promise<DailyTraffic[]> =>
     request(`/stats/traffic/${deviceId}/daily`),
   rate: (): Promise<DeviceRate[]> => request("/stats/rate"),
+  changelog: (page = 1, perPage = 10): Promise<ChangelogResponse> =>
+    request(`/changelog?page=${page}&per_page=${perPage}`),
 };
