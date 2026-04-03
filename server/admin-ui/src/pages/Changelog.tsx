@@ -9,15 +9,30 @@ const typeConfig = {
   improvement: { label: "Improvement", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
 };
 
-function formatDateTime(iso: string): string {
+function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString("ru-RU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+function localDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function groupByDate(entries: ChangelogEntry[]): Map<string, ChangelogEntry[]> {
+  const groups = new Map<string, ChangelogEntry[]>();
+  for (const e of entries) {
+    const day = localDate(e.createdAt);
+    const list = groups.get(day) || [];
+    list.push(e);
+    groups.set(day, list);
+  }
+  return groups;
 }
 
 export function Changelog() {
@@ -40,6 +55,8 @@ export function Changelog() {
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
 
+  const groups = groupByDate(entries);
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Changelog</h1>
@@ -48,31 +65,36 @@ export function Changelog() {
         <p className="text-muted-foreground">No entries found.</p>
       )}
 
-      <div className="space-y-2">
-        {entries.map((e) => {
-          const cfg = typeConfig[e.type] || typeConfig.improvement;
-          return (
-            <Card key={e.id} className="py-0">
-              <CardContent className="flex items-start gap-3 px-4 py-3">
-                <Badge variant="outline" className={`${cfg.color} shrink-0 mt-0.5 text-xs`}>
-                  {cfg.label}
-                </Badge>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-sm font-medium">{e.title}</p>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      {formatDateTime(e.createdAt)}
-                    </span>
-                  </div>
-                  {e.description && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{e.description}</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {[...groups.entries()].map(([day, items]) => (
+        <div key={day} className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">{formatDate(items[0].createdAt)}</h2>
+          <div className="space-y-2">
+            {items.map((e) => {
+              const cfg = typeConfig[e.type] || typeConfig.improvement;
+              return (
+                <Card key={e.id} className="py-0">
+                  <CardContent className="flex items-start gap-3 px-4 py-3">
+                    <Badge variant="outline" className={`${cfg.color} shrink-0 mt-0.5 text-xs`}>
+                      {cfg.label}
+                    </Badge>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="text-sm font-medium">{e.title}</p>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {formatTime(e.createdAt)}
+                        </span>
+                      </div>
+                      {e.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{e.description}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ))}
 
       {pages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-4">
