@@ -1,3 +1,3 @@
 ## improvement
-UDP transport throughput
-Buffered packet channel on server, 4MB UDP socket buffers on both sides, larger stream receive buffer on client
+UDP vs TLS benchmark results
+Added Test 5 with UDP/TLS transport comparison and full comparison table across all VPN solutions

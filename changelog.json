@@ -1,5 +1,12 @@
 [
   {
+    "id": "caa87135-350b-4b73-bcc0-23e15542213d",
+    "title": "UDP vs TLS benchmark results",
+    "description": "Added Test 5 with UDP/TLS transport comparison and full comparison table across all VPN solutions",
+    "type": "improvement",
+    "createdAt": "2026-04-03T22:55:51.753422+00:00"
+  },
+  {
     "id": "584e7dcb-1e4b-445d-90af-ac647521ee69",
     "title": "UDP transport throughput",
     "description": "Buffered packet channel on server, 4MB UDP socket buffers on both sides, larger stream receive buffer on client",

@@ -191,3 +191,95 @@
 | TTFB telegram.org   | 2.08 s              | 0.87 s               | -58% faster      |
 | Download            | 4.9 MB/s (39 Mbps)  | 8.2 MB/s (66 Mbps)   | +67% faster      |
 | Upload              | 0.16 MB/s (1.3 Mbps)| 5.5 MB/s (44 Mbps)   | +34x faster      |
+
+---
+
+## Test 5: SmurovProxy UDP transport (server 95.181.162.242, Aeza NL)
+
+> 2026-04-04. UDP transport (XChaCha20-Poly1305, ECDH handshake, multiplexed streams).
+
+**External IP:** 95.181.162.242
+
+### Ping (10 packets)
+| Target     | Min     | Avg     | Max     | Stddev | Loss  |
+|------------|---------|---------|---------|--------|-------|
+| 8.8.8.8    | 59.8 ms | 62.6 ms | 69.0 ms | 3.3 ms | 0%    |
+| 1.1.1.1    | —       | —       | —       | —      | 100%  |
+| ya.ru      | —       | —       | —       | —      | 100%  |
+
+### DNS Resolution
+| Domain       | Time  |
+|--------------|-------|
+| google.com   | 64 ms |
+| youtube.com  | 62 ms |
+| github.com   | 72 ms |
+| ya.ru        | 66 ms |
+| telegram.org | 65 ms |
+
+### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.140 s  | 0.904 s  | 0.916 s  |
+| https://youtube.com  | 0.135 s  | 1.018 s  | 1.204 s  |
+| https://github.com   | 0.073 s  | 0.386 s  | 0.428 s  |
+| https://ya.ru        | 0.004 s  | 0.598 s  | 0.598 s  |
+| https://telegram.org | 0.069 s  | 0.435 s  | 0.435 s  |
+
+### Speed
+| Direction | Speed       | Notes                                    |
+|-----------|-------------|------------------------------------------|
+| Download  | N/A         | Drops at ~600 KB (no retransmission)     |
+| Upload    | N/A         | Drops at ~9 MB (no retransmission)       |
+
+> UDP не имеет reliability layer — любой потерянный пакет приводит к обрыву TCP-стрима.
+> Скачивание файлов до ~500 KB работает стабильно.
+
+### Small download reliability
+| Size     | Result   |
+|----------|----------|
+| 100 KB   | OK       |
+| 500 KB   | OK       |
+| 1 MB     | Drops    |
+| 5 MB     | Drops    |
+
+---
+
+## Test 5b: SmurovProxy TLS transport (same session)
+
+### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.112 s  | 1.580 s  | 1.770 s  |
+| https://youtube.com  | 0.006 s  | 1.484 s  | 1.964 s  |
+| https://github.com   | 0.120 s  | 0.823 s  | 1.297 s  |
+| https://ya.ru        | 0.004 s  | 0.985 s  | 0.985 s  |
+| https://telegram.org | 0.003 s  | 0.780 s  | 0.804 s  |
+
+### Speed
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Download  | 6.0 MB/s    | 25 MB via Cloudflare, 4.0 s    |
+| Upload    | 7.3 MB/s    | 25 MB via Cloudflare, 3.4 s    |
+
+---
+
+## Full Comparison
+
+| Metric              | WireGuard | Outline   | SmurovProxy TLS  | SmurovProxy UDP   |
+|---------------------|-----------|-----------|-------------------|-------------------|
+| Ping 8.8.8.8        | 102 ms    | N/A       | 63 ms             | 63 ms             |
+| DNS avg             | 189 ms    | 219 ms    | 66 ms             | 66 ms             |
+| TTFB google.com     | 0.47 s    | timeout   | 1.58 s            | **0.90 s**        |
+| TTFB github.com     | 0.85 s    | timeout   | 0.82 s            | **0.39 s**        |
+| TTFB ya.ru          | 0.45 s    | timeout   | 0.99 s            | **0.60 s**        |
+| TTFB telegram.org   | 1.13 s    | timeout   | 0.78 s            | **0.44 s**        |
+| Download            | 8.3 MB/s  | 0.01 MB/s | 6.0 MB/s          | ~500 KB max       |
+| Upload              | 0.26 MB/s | 0 MB/s    | 7.3 MB/s          | ~9 MB max         |
+
+### Выводы
+- **UDP TTFB на 40-50% быстрее TLS** — одна сессия, один round-trip на стрим vs новый TLS хендшейк на каждое соединение
+- **UDP быстрее WireGuard по TTFB** для github/telegram (0.39s vs 0.85s, 0.44s vs 1.13s)
+- **UDP ненадёжен для bulk transfer** — нет retransmission, потеря пакетов = обрыв
+- **TLS надёжен и быстр** для скачивания (6.0 MB/s download, 7.3 MB/s upload)
+- **AutoTransport** (по умолчанию) выбирает UDP — оптимально для browsing/messaging
+- Для тяжёлых загрузок будущая оптимизация: reliability layer или автопереключение на TLS
