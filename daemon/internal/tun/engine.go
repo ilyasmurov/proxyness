@@ -26,7 +26,7 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 
 	dstats "smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/pkg/machineid"
+	"smurov-proxy/daemon/internal/transport"
 	"smurov-proxy/pkg/proto"
 )
 
@@ -53,6 +53,7 @@ type Engine struct {
 	rawUDP        *RawUDPHandler
 	helperWriteMu sync.Mutex
 	meter         *dstats.RateMeter
+	transport     transport.Transport
 	startTime    time.Time
 	lastError    string
 	stopHealth   chan struct{}
@@ -71,6 +72,12 @@ func NewEngine(meter *dstats.RateMeter) *Engine {
 		meter:    meter,
 		conns:    make(map[uint64]net.Conn),
 	}
+}
+
+func (e *Engine) SetTransport(tr transport.Transport) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.transport = tr
 }
 
 func (e *Engine) GetStatus() Status {
@@ -257,6 +264,11 @@ func (e *Engine) stopLocked() error {
 	if e.helperConn != nil {
 		e.helperConn.Close()
 		e.helperConn = nil
+	}
+
+	if e.transport != nil {
+		e.transport.Close()
+		e.transport = nil
 	}
 
 	e.endpoint = nil
@@ -506,63 +518,72 @@ func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
 }
 
 func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPath string) {
+	e.mu.Lock()
+	tr := e.transport
+	e.mu.Unlock()
+
+	if tr != nil {
+		e.proxyTCPTransport(local, tr, dstAddr, dstPort)
+	} else {
+		e.proxyTCPLegacy(local, dstAddr, dstPort)
+	}
+}
+
+func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16) {
+	stream, err := tr.OpenStream(0x01, dstAddr, dstPort)
+	if err != nil {
+		log.Printf("[tun] open TCP stream failed for %s:%d: %v", dstAddr, dstPort, err)
+		if strings.Contains(err.Error(), "machine id rejected") {
+			e.mu.Lock()
+			e.lastError = "Device is bound to a different machine"
+			e.stopLocked()
+			e.mu.Unlock()
+		}
+		return
+	}
+
+	streamRelay(local, stream, func(in, out int64) {
+		e.meter.Add(in, out)
+	})
+}
+
+func (e *Engine) proxyTCPLegacy(local net.Conn, dstAddr string, dstPort uint16) {
 	rawConn, err := protectedDial("tcp", e.serverAddr)
 	if err != nil {
 		log.Printf("[tun] protected dial failed: %v", err)
 		return
 	}
 
-	var server net.Conn
-	if e.rules.ShouldUseTLS(appPath) {
-		tlsConn := tls.Client(rawConn, &tls.Config{
-			InsecureSkipVerify: true,
-		})
-		if err := tlsConn.Handshake(); err != nil {
-			log.Printf("[tun] tls handshake failed: %v", err)
-			rawConn.Close()
-			return
-		}
-		server = tlsConn
-	} else {
-		server = rawConn
-		log.Printf("[tun] TCP %s:%d — raw (no TLS)", dstAddr, dstPort)
-	}
-	defer server.Close()
-
-	if err := proto.WriteAuth(server, e.key); err != nil {
+	tlsConn := tls.Client(rawConn, &tls.Config{
+		InsecureSkipVerify: true,
+	})
+	if err := tlsConn.Handshake(); err != nil {
+		log.Printf("[tun] tls handshake failed: %v", err)
+		rawConn.Close()
 		return
 	}
-	ok, err := proto.ReadResult(server)
+	defer tlsConn.Close()
+
+	if err := proto.WriteAuth(tlsConn, e.key); err != nil {
+		return
+	}
+	ok, err := proto.ReadResult(tlsConn)
 	if err != nil || !ok {
 		return
 	}
 
-	fp := machineid.Fingerprint()
-	if err := proto.WriteMachineID(server, fp); err != nil {
+	if err := proto.WriteMsgType(tlsConn, proto.MsgTypeTCP); err != nil {
 		return
 	}
-	ok, err = proto.ReadResult(server)
-	if err != nil || !ok {
-		log.Printf("[tun] machine ID rejected — stopping engine")
-		e.mu.Lock()
-		e.lastError = "Device is bound to a different machine"
-		e.stopLocked()
-		e.mu.Unlock()
+	if err := proto.WriteConnect(tlsConn, dstAddr, dstPort); err != nil {
 		return
 	}
-
-	if err := proto.WriteMsgType(server, proto.MsgTypeTCP); err != nil {
-		return
-	}
-	if err := proto.WriteConnect(server, dstAddr, dstPort); err != nil {
-		return
-	}
-	ok, err = proto.ReadResult(server)
+	ok, err = proto.ReadResult(tlsConn)
 	if err != nil || !ok {
 		return
 	}
 
-	idleRelay(local, server, func(in, out int64) {
+	idleRelay(local, tlsConn, func(in, out int64) {
 		e.meter.Add(in, out)
 	})
 }
@@ -642,49 +663,91 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPath string) {
 	defer local.Close()
 
+	e.mu.Lock()
+	tr := e.transport
+	e.mu.Unlock()
+
+	if tr != nil {
+		e.proxyUDPTransport(local, tr, dstAddr, dstPort)
+	} else {
+		e.proxyUDPLegacy(local, dstAddr, dstPort)
+	}
+}
+
+func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16) {
+	stream, err := tr.OpenStream(0x02, dstAddr, dstPort)
+	if err != nil {
+		log.Printf("[tun] open UDP stream failed for %s:%d: %v", dstAddr, dstPort, err)
+		if strings.Contains(err.Error(), "machine id rejected") {
+			e.mu.Lock()
+			e.lastError = "Device is bound to a different machine"
+			e.stopLocked()
+			e.mu.Unlock()
+		}
+		return
+	}
+	defer stream.Close()
+
+	done := make(chan struct{}, 2)
+
+	go func() {
+		defer func() { done <- struct{}{} }()
+		buf := make([]byte, 65535)
+		for {
+			local.SetReadDeadline(time.Now().Add(60 * time.Second))
+			n, err := local.Read(buf)
+			if err != nil {
+				return
+			}
+			if _, err := stream.Write(buf[:n]); err != nil {
+				return
+			}
+			e.meter.Add(0, int64(n))
+		}
+	}()
+
+	go func() {
+		defer func() { done <- struct{}{} }()
+		buf := make([]byte, 65535)
+		for {
+			n, err := stream.Read(buf)
+			if err != nil {
+				return
+			}
+			e.meter.Add(int64(n), 0)
+			if _, err := local.Write(buf[:n]); err != nil {
+				return
+			}
+		}
+	}()
+
+	<-done
+}
+
+func (e *Engine) proxyUDPLegacy(local net.Conn, dstAddr string, dstPort uint16) {
 	rawConn, err := protectedDial("tcp", e.serverAddr)
 	if err != nil {
 		return
 	}
 
-	var server net.Conn
-	if e.rules.ShouldUseTLS(appPath) {
-		tlsConn := tls.Client(rawConn, &tls.Config{
-			InsecureSkipVerify: true,
-		})
-		if err := tlsConn.Handshake(); err != nil {
-			rawConn.Close()
-			return
-		}
-		server = tlsConn
-	} else {
-		server = rawConn
-	}
-	defer server.Close()
-
-	if err := proto.WriteAuth(server, e.key); err != nil {
+	tlsConn := tls.Client(rawConn, &tls.Config{
+		InsecureSkipVerify: true,
+	})
+	if err := tlsConn.Handshake(); err != nil {
+		rawConn.Close()
 		return
 	}
-	ok, err := proto.ReadResult(server)
+	defer tlsConn.Close()
+
+	if err := proto.WriteAuth(tlsConn, e.key); err != nil {
+		return
+	}
+	ok, err := proto.ReadResult(tlsConn)
 	if err != nil || !ok {
 		return
 	}
 
-	fp := machineid.Fingerprint()
-	if err := proto.WriteMachineID(server, fp); err != nil {
-		return
-	}
-	ok, err = proto.ReadResult(server)
-	if err != nil || !ok {
-		log.Printf("[tun] machine ID rejected (UDP) — stopping engine")
-		e.mu.Lock()
-		e.lastError = "Device is bound to a different machine"
-		e.stopLocked()
-		e.mu.Unlock()
-		return
-	}
-
-	if err := proto.WriteMsgType(server, proto.MsgTypeUDP); err != nil {
+	if err := proto.WriteMsgType(tlsConn, proto.MsgTypeUDP); err != nil {
 		return
 	}
 
@@ -699,7 +762,7 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 			if err != nil {
 				return
 			}
-			if err := proto.WriteUDPFrame(server, dstAddr, dstPort, buf[:n]); err != nil {
+			if err := proto.WriteUDPFrame(tlsConn, dstAddr, dstPort, buf[:n]); err != nil {
 				return
 			}
 			e.meter.Add(0, int64(n))
@@ -709,7 +772,7 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 	go func() {
 		defer func() { done <- struct{}{} }()
 		for {
-			_, _, payload, err := proto.ReadUDPFrame(server)
+			_, _, payload, err := proto.ReadUDPFrame(tlsConn)
 			if err != nil {
 				return
 			}
@@ -831,6 +894,66 @@ func idleRelay(c1, c2 net.Conn, onBytes func(in, out int64)) {
 	<-errc
 	c1.Close()
 	c2.Close()
+	<-errc
+}
+
+// streamRelay copies data bidirectionally between a net.Conn and a
+// transport.Stream with idle timeout and traffic counting.
+func streamRelay(local net.Conn, stream transport.Stream, onBytes func(in, out int64)) {
+	var active int64 = time.Now().UnixNano()
+
+	errc := make(chan error, 2)
+	// stream → local (download)
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := stream.Read(buf)
+			if n > 0 {
+				atomic.StoreInt64(&active, time.Now().UnixNano())
+				if _, werr := local.Write(buf[:n]); werr != nil {
+					errc <- werr
+					return
+				}
+				if onBytes != nil {
+					onBytes(int64(n), 0)
+				}
+			}
+			if err != nil {
+				errc <- err
+				return
+			}
+		}
+	}()
+	// local → stream (upload)
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			local.SetReadDeadline(time.Now().Add(tcpIdleTimeout))
+			n, err := local.Read(buf)
+			if n > 0 {
+				atomic.StoreInt64(&active, time.Now().UnixNano())
+				if _, werr := stream.Write(buf[:n]); werr != nil {
+					errc <- werr
+					return
+				}
+				if onBytes != nil {
+					onBytes(0, int64(n))
+				}
+			}
+			if err != nil {
+				if ne, ok := err.(net.Error); ok && ne.Timeout() {
+					if time.Duration(time.Now().UnixNano()-atomic.LoadInt64(&active)) < tcpIdleTimeout {
+						continue
+					}
+				}
+				errc <- err
+				return
+			}
+		}
+	}()
+	<-errc
+	local.Close()
+	stream.Close()
 	<-errc
 }
 

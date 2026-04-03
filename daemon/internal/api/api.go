@@ -6,24 +6,29 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	dstats "smurov-proxy/daemon/internal/stats"
+	"smurov-proxy/daemon/internal/transport"
 	"smurov-proxy/daemon/internal/tun"
 	"smurov-proxy/daemon/internal/tunnel"
+	"smurov-proxy/pkg/machineid"
 )
 
 type Server struct {
-	tunnel     *tunnel.Tunnel
-	tunEngine  *tun.Engine
-	listenAddr string
-	meter      *dstats.RateMeter
-	sessionID  string
-	serverAddr string // remembered for unlock on disconnect
-	key        string
-	pacSites   *PacSites
+	tunnel        *tunnel.Tunnel
+	tunEngine     *tun.Engine
+	listenAddr    string
+	meter         *dstats.RateMeter
+	sessionID     string
+	serverAddr    string // remembered for unlock on disconnect
+	key           string
+	pacSites      *PacSites
+	transportMode string              // "auto", "udp", or "tls"
+	activeTransport transport.Transport // current transport instance
 }
 
 type ConnectRequest struct {
@@ -41,7 +46,15 @@ type StatusResponse struct {
 func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string, meter *dstats.RateMeter) *Server {
 	b := make([]byte, 16)
 	rand.Read(b)
-	return &Server{tunnel: t, tunEngine: te, listenAddr: listenAddr, meter: meter, sessionID: hex.EncodeToString(b), pacSites: NewPacSites()}
+	return &Server{
+		tunnel:        t,
+		tunEngine:     te,
+		listenAddr:    listenAddr,
+		meter:         meter,
+		sessionID:     hex.EncodeToString(b),
+		pacSites:      NewPacSites(),
+		transportMode: transport.ModeAuto,
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -60,6 +73,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /tun/rules", s.handleTUNRulesUpdate)
 	mux.HandleFunc("GET /tun/rules", s.handleTUNRulesGet)
 	mux.HandleFunc("GET /stats", s.handleStats)
+	// Transport endpoints
+	mux.HandleFunc("GET /transport", s.handleTransportGet)
+	mux.HandleFunc("POST /transport", s.handleTransportSet)
 	return mux
 }
 
@@ -76,7 +92,22 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create and connect transport
+	tr := s.createTransport()
+	fp := machineid.Fingerprint()
+	if err := tr.Connect(req.ServerAddr, req.Key, fp); err != nil {
+		go unlockDevice(req.ServerAddr, req.Key, s.sessionID)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.activeTransport = tr
+	s.tunnel.SetTransport(tr)
+	log.Printf("[api] transport connected: mode=%s", tr.Mode())
+
 	if err := s.tunnel.Start(s.listenAddr, req.ServerAddr, req.Key); err != nil {
+		tr.Close()
+		s.activeTransport = nil
+		s.tunnel.SetTransport(nil)
 		go unlockDevice(req.ServerAddr, req.Key, s.sessionID)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -130,7 +161,8 @@ func reportVersion(serverAddr, key, version string) {
 }
 
 func (s *Server) handleDisconnect(w http.ResponseWriter, r *http.Request) {
-	s.tunnel.Stop()
+	s.tunnel.Stop() // also closes tunnel's transport ref
+	s.activeTransport = nil
 	if s.serverAddr != "" && s.key != "" {
 		go unlockDevice(s.serverAddr, s.key, s.sessionID)
 	}
@@ -188,7 +220,20 @@ func (s *Server) handleTUNStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Create transport for the TUN engine if not already active
+	tr := s.createTransport()
+	fp := machineid.Fingerprint()
+	if err := tr.Connect(req.ServerAddr, req.Key, fp); err != nil {
+		http.Error(w, fmt.Sprintf("transport connect: %v", err), http.StatusInternalServerError)
+		return
+	}
+	s.tunEngine.SetTransport(tr)
+	log.Printf("[api] TUN transport connected: mode=%s", tr.Mode())
+
 	if err := s.tunEngine.Start(req); err != nil {
+		tr.Close()
+		s.tunEngine.SetTransport(nil)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -236,4 +281,45 @@ func (s *Server) handleTUNRulesGet(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(s.meter.Snapshot())
+}
+
+func (s *Server) createTransport() transport.Transport {
+	switch s.transportMode {
+	case transport.ModeUDP:
+		return transport.NewUDPTransport()
+	case transport.ModeTLS:
+		return transport.NewTLSTransport()
+	default: // ModeAuto
+		return transport.NewAutoTransport()
+	}
+}
+
+func (s *Server) handleTransportGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	active := s.transportMode
+	if s.activeTransport != nil {
+		active = s.activeTransport.Mode()
+	}
+	json.NewEncoder(w).Encode(map[string]string{
+		"mode":   s.transportMode,
+		"active": active,
+	})
+}
+
+func (s *Server) handleTransportSet(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	switch req.Mode {
+	case transport.ModeAuto, transport.ModeUDP, transport.ModeTLS:
+		s.transportMode = req.Mode
+	default:
+		http.Error(w, fmt.Sprintf("invalid mode: %q (expected auto, udp, or tls)", req.Mode), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

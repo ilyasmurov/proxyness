@@ -11,7 +11,7 @@ import (
 
 	"smurov-proxy/daemon/internal/socks5"
 	dstats "smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/pkg/machineid"
+	"smurov-proxy/daemon/internal/transport"
 	"smurov-proxy/pkg/proto"
 )
 
@@ -39,6 +39,7 @@ type Tunnel struct {
 	stopHealth chan struct{}
 	lastError  string
 	meter      *dstats.RateMeter
+	transport  transport.Transport
 
 	connsMu sync.Mutex
 	conns   map[uint64]net.Conn
@@ -47,6 +48,12 @@ type Tunnel struct {
 
 func New(meter *dstats.RateMeter) *Tunnel {
 	return &Tunnel{status: Disconnected, meter: meter, conns: make(map[uint64]net.Conn)}
+}
+
+func (t *Tunnel) SetTransport(tr transport.Transport) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.transport = tr
 }
 
 func (t *Tunnel) trackConn(c net.Conn) uint64 {
@@ -89,36 +96,36 @@ func (t *Tunnel) Start(listenAddr, serverAddr, key string) error {
 		return fmt.Errorf("tunnel already %s", t.status)
 	}
 	t.lastError = ""
+	tr := t.transport
 	t.mu.Unlock()
 
-	// Verify with retries (no lock held so status polling still works)
-	var lastErr error
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		if attempt > 1 {
-			log.Printf("[tunnel] retry %d/%d in %s...", attempt, maxRetries, retryDelay)
-			time.Sleep(retryDelay)
+	// If no transport is set, fall back to verifyServer for backward compat
+	if tr == nil {
+		var lastErr error
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			if attempt > 1 {
+				log.Printf("[tunnel] retry %d/%d in %s...", attempt, maxRetries, retryDelay)
+				time.Sleep(retryDelay)
+			}
+			log.Printf("[tunnel] verifying connection to %s (attempt %d/%d)...", serverAddr, attempt, maxRetries)
+			lastErr = verifyServer(serverAddr, key)
+			if lastErr == nil {
+				break
+			}
+			if strings.Contains(lastErr.Error(), "invalid key") {
+				return lastErr
+			}
+			log.Printf("[tunnel] attempt %d failed: %v", attempt, lastErr)
 		}
-		log.Printf("[tunnel] verifying connection to %s (attempt %d/%d)...", serverAddr, attempt, maxRetries)
-		lastErr = verifyServer(serverAddr, key)
-		if lastErr == nil {
-			break
+		if lastErr != nil {
+			return fmt.Errorf("server temporarily unavailable, try again later")
 		}
-		// Don't retry auth errors — wrong key won't fix itself
-		if strings.Contains(lastErr.Error(), "invalid key") {
-			return lastErr
-		}
-		log.Printf("[tunnel] attempt %d failed: %v", attempt, lastErr)
+		log.Printf("[tunnel] key verified OK")
 	}
-	if lastErr != nil {
-		return fmt.Errorf("server temporarily unavailable, try again later")
-	}
-
-	log.Printf("[tunnel] key verified OK")
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// Re-check in case Stop() was called during retries
 	if t.status != Disconnected {
 		return fmt.Errorf("tunnel already %s", t.status)
 	}
@@ -155,6 +162,10 @@ func (t *Tunnel) stopLocked() {
 	if t.stopHealth != nil {
 		close(t.stopHealth)
 		t.stopHealth = nil
+	}
+	if t.transport != nil {
+		t.transport.Close()
+		t.transport = nil
 	}
 	t.status = Disconnected
 }
@@ -241,6 +252,40 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 	target := fmt.Sprintf("%s:%d", req.Addr, req.Port)
 	log.Printf("[tunnel] new request: %s", target)
 
+	t.mu.Lock()
+	tr := t.transport
+	t.mu.Unlock()
+
+	if tr != nil {
+		t.handleSOCKSTransport(conn, tr, req.Addr, req.Port, target)
+	} else {
+		t.handleSOCKSLegacy(conn, req.Addr, req.Port, target)
+	}
+}
+
+func (t *Tunnel) handleSOCKSTransport(conn net.Conn, tr transport.Transport, addr string, port uint16, target string) {
+	stream, err := tr.OpenStream(0x01, addr, port)
+	if err != nil {
+		socks5.SendFailure(conn)
+		log.Printf("[tunnel] open stream failed for %s: %v", target, err)
+		if strings.Contains(err.Error(), "machine id rejected") {
+			t.mu.Lock()
+			t.lastError = "Device is bound to a different machine"
+			t.stopLocked()
+			t.mu.Unlock()
+		}
+		return
+	}
+	defer stream.Close()
+
+	log.Printf("[tunnel] connected: %s", target)
+	socks5.SendSuccess(conn)
+	countingRelay(conn, stream, func(in, out int64) {
+		t.meter.Add(in, out)
+	})
+}
+
+func (t *Tunnel) handleSOCKSLegacy(conn net.Conn, addr string, port uint16, target string) {
 	tlsConn, err := tls.Dial("tcp", t.serverAddr, &tls.Config{
 		InsecureSkipVerify: true,
 	})
@@ -263,30 +308,13 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 		return
 	}
 
-	// Send machine fingerprint for device binding
-	fp := machineid.Fingerprint()
-	if err := proto.WriteMachineID(tlsConn, fp); err != nil {
-		socks5.SendFailure(conn)
-		return
-	}
-	ok, err = proto.ReadResult(tlsConn)
-	if err != nil || !ok {
-		socks5.SendFailure(conn)
-		log.Printf("[tunnel] machine ID rejected — disconnecting")
-		t.mu.Lock()
-		t.lastError = "Device is bound to a different machine"
-		t.stopLocked()
-		t.mu.Unlock()
-		return
-	}
-
 	if err := proto.WriteMsgType(tlsConn, proto.MsgTypeTCP); err != nil {
 		socks5.SendFailure(conn)
 		log.Printf("[tunnel] msg type write failed: %v", err)
 		return
 	}
 
-	if err := proto.WriteConnect(tlsConn, req.Addr, req.Port); err != nil {
+	if err := proto.WriteConnect(tlsConn, addr, port); err != nil {
 		socks5.SendFailure(conn)
 		log.Printf("[tunnel] connect write failed for %s: %v", target, err)
 		return
@@ -303,6 +331,54 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 	proto.CountingRelay(conn, tlsConn, func(in, out int64) {
 		t.meter.Add(in, out)
 	})
+}
+
+// countingRelay copies data bidirectionally between a net.Conn and a
+// transport.Stream, calling onBytes with (download, upload) byte counts.
+func countingRelay(conn net.Conn, stream transport.Stream, onBytes func(in, out int64)) {
+	errc := make(chan error, 2)
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := stream.Read(buf)
+			if n > 0 {
+				if _, werr := conn.Write(buf[:n]); werr != nil {
+					errc <- werr
+					return
+				}
+				if onBytes != nil {
+					onBytes(int64(n), 0)
+				}
+			}
+			if err != nil {
+				errc <- err
+				return
+			}
+		}
+	}()
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := conn.Read(buf)
+			if n > 0 {
+				if _, werr := stream.Write(buf[:n]); werr != nil {
+					errc <- werr
+					return
+				}
+				if onBytes != nil {
+					onBytes(0, int64(n))
+				}
+			}
+			if err != nil {
+				errc <- err
+				return
+			}
+		}
+	}()
+	<-errc
+	conn.Close()
+	stream.Close()
+	<-errc
 }
 
 func verifyServer(serverAddr, key string) error {
