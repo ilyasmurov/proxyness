@@ -544,27 +544,21 @@ func (d *DB) syncChangelog() {
 		return
 	}
 
-	var dbCount int
-	d.sql.QueryRow(`SELECT COUNT(*) FROM changelog`).Scan(&dbCount)
-
-	if dbCount >= len(entries) {
-		return
-	}
-
-	inserted := 0
+	updated := 0
 	for _, e := range entries {
 		res, err := d.sql.Exec(
-			`INSERT OR IGNORE INTO changelog (id, title, description, type, created_at) VALUES (?, ?, ?, ?, ?)`,
+			`INSERT INTO changelog (id, title, description, type, created_at) VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description, type=excluded.type, created_at=excluded.created_at`,
 			e.ID, e.Title, e.Description, e.Type, e.CreatedAt,
 		)
 		if err != nil {
 			continue
 		}
 		if n, _ := res.RowsAffected(); n > 0 {
-			inserted++
+			updated++
 		}
 	}
-	if inserted > 0 {
-		log.Printf("[db] changelog synced: %d new entries", inserted)
+	if updated > 0 {
+		log.Printf("[db] changelog synced: %d entries", updated)
 	}
 }
