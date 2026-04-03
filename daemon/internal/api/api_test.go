@@ -58,8 +58,15 @@ func startMockServer(t *testing.T) string {
 			}
 			go func(c net.Conn) {
 				defer c.Close()
+				// Read auth
 				msg := make([]byte, auth.AuthMsgLen)
 				if _, err := c.Read(msg); err != nil {
+					return
+				}
+				proto.WriteResult(c, true)
+				// Read machine ID (1 byte type + 16 bytes ID)
+				mid := make([]byte, 1+proto.MachineIDLen)
+				if _, err := c.Read(mid); err != nil {
 					return
 				}
 				proto.WriteResult(c, true)

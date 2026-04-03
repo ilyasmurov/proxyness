@@ -76,6 +76,12 @@ CREATE TABLE IF NOT EXISTS traffic_stats (
     connections INTEGER DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_traffic_device_hour ON traffic_stats(device_id, hour);
+CREATE TABLE IF NOT EXISTS changelog (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    version TEXT NOT NULL UNIQUE,
+    date    TEXT NOT NULL,
+    changes TEXT NOT NULL
+);
 `
 
 // Open opens (or creates) the SQLite database at path and runs migrations.
