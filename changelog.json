@@ -74,42 +74,42 @@
     "title": "UDP транспорт с шифрованием XChaCha20-Poly1305",
     "description": "Обмен ключами X25519, forward secrecy",
     "type": "feature",
-    "createdAt": "2026-04-04T12:00:00Z"
+    "createdAt": "2026-04-03T20:50:00Z"
   },
   {
     "id": "ef148946-764c-4fd6-899e-bde36e034068",
     "title": "Маскировка под QUIC трафик для обхода DPI",
     "description": null,
     "type": "feature",
-    "createdAt": "2026-04-04T11:50:00Z"
+    "createdAt": "2026-04-03T20:49:00Z"
   },
   {
     "id": "b796313e-9396-4a9f-9eaf-66c24f856844",
     "title": "Мультиплексирование потоков через единый UDP канал",
     "description": null,
     "type": "feature",
-    "createdAt": "2026-04-04T11:40:00Z"
+    "createdAt": "2026-04-03T20:48:00Z"
   },
   {
     "id": "6eb4e7e5-5126-4d79-a6fe-1569593215f2",
     "title": "Автовыбор транспорта: UDP с фолбеком на TLS",
     "description": null,
     "type": "feature",
-    "createdAt": "2026-04-04T11:30:00Z"
+    "createdAt": "2026-04-03T20:47:00Z"
   },
   {
     "id": "6d7f82ef-ea7f-4724-8095-ff51136d2c15",
     "title": "Переключение транспорта в настройках клиента",
     "description": "Auto / UDP / TLS",
     "type": "feature",
-    "createdAt": "2026-04-04T11:20:00Z"
+    "createdAt": "2026-04-03T20:46:00Z"
   },
   {
     "id": "0c52ebcf-e7b6-4a30-9b6f-a2f40613f300",
     "title": "Индикатор активного транспорта в статусбаре",
     "description": null,
     "type": "feature",
-    "createdAt": "2026-04-04T11:10:00Z"
+    "createdAt": "2026-04-03T20:45:00Z"
   },
   {
     "id": "3af5c4b6-d3f5-4c24-bd0e-53485b8cb7d0",
