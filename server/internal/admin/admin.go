@@ -38,6 +38,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
 	mux.HandleFunc("GET /admin/api/stats/rate", h.auth(h.statsRate))
 	mux.HandleFunc("GET /admin/api/changelog", h.auth(h.listChangelog))
+	mux.HandleFunc("GET /admin/api/changelog/unseen-count", h.auth(h.changelogUnseenCount))
 
 	// Public endpoints (no auth, device key for identification)
 	mux.HandleFunc("POST /api/report-version", h.reportVersion)
@@ -130,6 +131,16 @@ func (h *Handler) listChangelog(w http.ResponseWriter, r *http.Request) {
 		"page":    page,
 		"pages":   (total + perPage - 1) / perPage,
 	})
+}
+
+func (h *Handler) changelogUnseenCount(w http.ResponseWriter, r *http.Request) {
+	since := r.URL.Query().Get("since")
+	count, err := h.db.GetChangelogUnseenCount(since)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"count": count})
 }
 
 // ---- Users ----

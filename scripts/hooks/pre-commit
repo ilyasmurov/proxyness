@@ -1,0 +1,33 @@
+#!/bin/bash
+# Pre-commit hook: enforce changelog entry on every commit.
+# Create CHANGELOG.new.md with entries before committing.
+
+# Allow commits that only modify changelog infrastructure
+CHANGED=$(git diff --cached --name-only)
+if echo "$CHANGED" | grep -qvE '^(scripts/|changelog\.json|\.gitignore|CHANGELOG\.new\.md)'; then
+    # Non-infrastructure files changed — require changelog
+    if [ ! -f "CHANGELOG.new.md" ]; then
+        echo ""
+        echo "  \033[31mError: CHANGELOG.new.md not found\033[0m"
+        echo ""
+        echo "  Create it with your changes before committing:"
+        echo ""
+        echo "  ## feature"
+        echo "  Title of the change"
+        echo "  Optional description"
+        echo ""
+        echo "  ## fix"
+        echo "  Another change"
+        echo ""
+        echo "  Types: feature, fix, improvement"
+        echo ""
+        exit 1
+    fi
+
+    python3 scripts/changelog-commit.py
+    if [ $? -ne 0 ]; then
+        exit 1
+    fi
+
+    git add changelog.json
+fi

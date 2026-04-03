@@ -76,10 +76,11 @@ export interface DeviceRate {
 }
 
 export interface ChangelogEntry {
-  id: number;
-  version: string;
-  date: string;
-  changes: string;
+  id: string;
+  title: string;
+  description: string;
+  type: "feature" | "fix" | "improvement";
+  createdAt: string;
 }
 
 export interface ChangelogResponse {

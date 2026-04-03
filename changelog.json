@@ -1,0 +1,471 @@
+[
+  {
+    "id": "6a814ac5-4178-48aa-8cb7-7a1a08457d37",
+    "title": "Система ченджлога через файл с pre-commit хуком",
+    "description": "CHANGELOG.new.md → changelog.json → SQLite DB при старте сервера",
+    "type": "feature",
+    "createdAt": "2026-04-03T21:08:45.284598+00:00"
+  },
+  {
+    "id": "27f81a30-452e-4269-81d2-59548b871053",
+    "title": "Обновлённая страница Changelog в админке",
+    "description": "Группировка по датам, цветные бейджи типов, компактные карточки",
+    "type": "improvement",
+    "createdAt": "2026-04-03T21:08:45.284765+00:00"
+  },
+  {
+    "id": "6eff7430-8635-49ba-aa1e-5f70ca791d8a",
+    "title": "UDP транспорт с шифрованием XChaCha20-Poly1305",
+    "description": "Обмен ключами X25519, forward secrecy",
+    "type": "feature",
+    "createdAt": "2026-04-04T12:00:00Z"
+  },
+  {
+    "id": "ef148946-764c-4fd6-899e-bde36e034068",
+    "title": "Маскировка под QUIC трафик для обхода DPI",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-04T11:50:00Z"
+  },
+  {
+    "id": "b796313e-9396-4a9f-9eaf-66c24f856844",
+    "title": "Мультиплексирование потоков через единый UDP канал",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-04T11:40:00Z"
+  },
+  {
+    "id": "6eb4e7e5-5126-4d79-a6fe-1569593215f2",
+    "title": "Автовыбор транспорта: UDP с фолбеком на TLS",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-04T11:30:00Z"
+  },
+  {
+    "id": "6d7f82ef-ea7f-4724-8095-ff51136d2c15",
+    "title": "Переключение транспорта в настройках клиента",
+    "description": "Auto / UDP / TLS",
+    "type": "feature",
+    "createdAt": "2026-04-04T11:20:00Z"
+  },
+  {
+    "id": "0c52ebcf-e7b6-4a30-9b6f-a2f40613f300",
+    "title": "Индикатор активного транспорта в статусбаре",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-04T11:10:00Z"
+  },
+  {
+    "id": "3af5c4b6-d3f5-4c24-bd0e-53485b8cb7d0",
+    "title": "Переход на GitHub Releases для автообновления",
+    "description": "Вместо VPS",
+    "type": "improvement",
+    "createdAt": "2026-04-03T12:00:00Z"
+  },
+  {
+    "id": "2140cf61-2755-43bd-88fe-2200e151b7e7",
+    "title": "Улучшенная страница релизов в админке",
+    "description": "Иконки платформ и счётчик скачиваний",
+    "type": "improvement",
+    "createdAt": "2026-04-03T11:50:00Z"
+  },
+  {
+    "id": "cf3032b0-bebf-4f79-a456-f121f85f3787",
+    "title": "Вкладка Releases в админ-панели",
+    "description": "Загрузка данных с GitHub API",
+    "type": "feature",
+    "createdAt": "2026-04-02T12:00:00Z"
+  },
+  {
+    "id": "5e7975d8-7b3e-4672-a952-1cce5568affa",
+    "title": "Авторизация на SPA страницах админки",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-02T11:50:00Z"
+  },
+  {
+    "id": "a0632875-e269-4c45-a8d8-63fff39642cd",
+    "title": "Убрана сборка для Intel macOS",
+    "description": "Только Apple Silicon (arm64)",
+    "type": "improvement",
+    "createdAt": "2026-03-30T12:00:00Z"
+  },
+  {
+    "id": "612a99fa-7182-4635-9845-50ea9180b32f",
+    "title": "Миграция на новый VPS — Timeweb NL",
+    "description": "4 CPU, 8 GB RAM, 1 Gbps, Нидерланды",
+    "type": "feature",
+    "createdAt": "2026-03-28T12:00:00Z"
+  },
+  {
+    "id": "b2237534-abc4-4400-8be1-1f06e5a6bcb1",
+    "title": "Защита от запуска нескольких экземпляров клиента",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-03-28T11:50:00Z"
+  },
+  {
+    "id": "437255db-cac2-4e72-a3fd-2e8dcd70f817",
+    "title": "Улучшения интерфейса",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-03-28T11:40:00Z"
+  },
+  {
+    "id": "42b3a4c2-88b9-4b52-b94c-282e2e6626f8",
+    "title": "SVG иконки приложений и сайтов",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-03-25T12:00:00Z"
+  },
+  {
+    "id": "5f6fdd0d-68c3-4b71-97b8-4e2f4460fd23",
+    "title": "Добавлен Telegram Web в список сайтов",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-03-25T11:50:00Z"
+  },
+  {
+    "id": "d2de4f9d-f49f-407f-8392-101db458165c",
+    "title": "Обновлён список сайтов: Claude и YouTrack",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-03-24T12:00:00Z"
+  },
+  {
+    "id": "7cb37c3d-9071-4390-b81c-4137442fc415",
+    "title": "Автоскрытие ошибок в интерфейсе через 15 секунд",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-03-22T12:00:00Z"
+  },
+  {
+    "id": "74d923d2-5c1e-4da5-918d-2c3b4193f2c4",
+    "title": "lock-device больше не перезаписывает machine_id",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-22T11:50:00Z"
+  },
+  {
+    "id": "6dc5a7aa-ff2a-4933-9066-fad6615bcd82",
+    "title": "Анимированная кнопка Connecting / Reconnecting",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-03-21T12:00:00Z"
+  },
+  {
+    "id": "6e69a0c5-562d-40bd-b062-6b3b8e61b0bb",
+    "title": "Отключение и сброс ключа при отказе по Machine ID",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-20T12:00:00Z"
+  },
+  {
+    "id": "91d31218-73e5-4798-a19d-d281c3a595d1",
+    "title": "Привязка устройств к железу (hardware fingerprint)",
+    "description": "Один ключ = одна машина",
+    "type": "feature",
+    "createdAt": "2026-03-19T12:00:00Z"
+  },
+  {
+    "id": "e6efe7e1-38a8-4c5f-80d4-31c93c924948",
+    "title": "Ограничение heap Go до 512 МБ для стабильности на VPS",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-17T12:00:00Z"
+  },
+  {
+    "id": "85a970d0-f73e-4805-87e7-00cb3d27cfdc",
+    "title": "Уменьшение TCP буферов до 64 КБ",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-17T11:50:00Z"
+  },
+  {
+    "id": "eacd51f6-9d2d-4a0a-b494-243f4216a5c4",
+    "title": "Raw UDP bypass — обход gVisor для UDP трафика",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-03-16T12:00:00Z"
+  },
+  {
+    "id": "940108e9-61ed-471a-9241-2a0ebf1d8a09",
+    "title": "NAT таблица с автоочисткой для маршрутизации ответов",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-03-16T11:50:00Z"
+  },
+  {
+    "id": "e932017f-6964-45c3-b2a8-7083382d19f5",
+    "title": "Ограничение TCP буферов gVisor до 128 КБ",
+    "description": "Предотвращает автотюнинг до 4 МБ на соединение",
+    "type": "fix",
+    "createdAt": "2026-03-14T12:00:00Z"
+  },
+  {
+    "id": "b758ed21-55c5-4a1f-98e3-a9adebe46322",
+    "title": "Уменьшен TCP idle timeout с 5 до 2 минут",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-03-13T12:00:00Z"
+  },
+  {
+    "id": "6fc49574-ec58-44b8-ba4a-869a45898b68",
+    "title": "TCP idle timeout предотвращает утечку горутин на Windows",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-12T12:00:00Z"
+  },
+  {
+    "id": "8f647d1c-3f25-4fbb-a685-d152f7a92eb1",
+    "title": "Убран лишний WriteConnect из proxyUDP",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-11T12:00:00Z"
+  },
+  {
+    "id": "db27ab53-a2f7-42d3-b3be-dd34e533481e",
+    "title": "Показ TLS/raw соединений по устройствам в админке",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-03-10T12:00:00Z"
+  },
+  {
+    "id": "f33d9eeb-001a-4d9a-8248-f93e24c42fd8",
+    "title": "Обнаружение приложений Windows через реестр",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-03-09T12:00:00Z"
+  },
+  {
+    "id": "0c090171-0ee9-4142-bddc-08e32ec112c2",
+    "title": "Фикс IP_UNICAST_IF на Windows",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-07T12:00:00Z"
+  },
+  {
+    "id": "0d722004-5e7d-43b1-8a1a-a144d5e4a131",
+    "title": "Обход UDP для голосовых приложений",
+    "description": "Discord, Telegram, Slack, Zoom, Teams",
+    "type": "feature",
+    "createdAt": "2026-03-06T12:00:00Z"
+  },
+  {
+    "id": "a25d19e1-f3fe-40c8-abf1-27401b864752",
+    "title": "Обход маршрутов через физический интерфейс на Windows",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-03-05T12:00:00Z"
+  },
+  {
+    "id": "35d6ab57-be67-44d7-98d2-f1d7176fac31",
+    "title": "Оптимизация TUN на Windows — кеш поиска процессов",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-03-04T12:00:00Z"
+  },
+  {
+    "id": "783d86b4-48d3-4132-9858-c4cff5d2c969",
+    "title": "Фикс установки обновлений на Windows (EBUSY)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-03T12:00:00Z"
+  },
+  {
+    "id": "0fab6519-c48d-4b12-812b-7c61fd9547bc",
+    "title": "DNS маршруты через шлюз на Windows для TUN bypass",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-03-02T12:00:00Z"
+  },
+  {
+    "id": "04ef0b49-b997-4dbe-a26b-8ba725e65b1a",
+    "title": "Клик по всей строке приложений и чекбоксам",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-03-01T12:00:00Z"
+  },
+  {
+    "id": "7ee19d91-31d2-44de-8cdd-f514c0a32386",
+    "title": "Принудительное обновление PAC при изменении сайтов",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-02-28T12:00:00Z"
+  },
+  {
+    "id": "345db1b4-28c7-4f0c-869e-a6e86dc64a12",
+    "title": "Расширенные домены для проксирования сайтов",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-02-27T12:00:00Z"
+  },
+  {
+    "id": "e78c4af2-ae98-4614-90b4-09a04201e48a",
+    "title": "Обход маршрутов через физический интерфейс на macOS",
+    "description": "IP_BOUND_IF",
+    "type": "feature",
+    "createdAt": "2026-02-26T12:00:00Z"
+  },
+  {
+    "id": "761c697e-da28-4488-809a-783a7772af4f",
+    "title": "Весь трафик браузеров через SOCKS5 при активном TUN",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-02-23T12:00:00Z"
+  },
+  {
+    "id": "f1eecd42-919c-4392-8271-0e29608234a9",
+    "title": "DNS (UDP 53) всегда обходит TUN",
+    "description": "Для работы системного резолвера",
+    "type": "fix",
+    "createdAt": "2026-02-21T12:00:00Z"
+  },
+  {
+    "id": "61830ad9-57dd-4a60-98fe-dda1ae19a0fc",
+    "title": "Браузеры используют SOCKS5/PAC вместо TUN",
+    "description": "Избегаем проблем с QUIC",
+    "type": "fix",
+    "createdAt": "2026-02-20T12:00:00Z"
+  },
+  {
+    "id": "ca36b50a-3429-4c00-98d0-411007f4e766",
+    "title": "Перезапуск TUN при повторном запуске приложения",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-02-18T12:00:00Z"
+  },
+  {
+    "id": "720dad28-da31-4ae0-981c-5bedea493ef8",
+    "title": "Авто-переподключение при потере связи",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-02-18T11:50:00Z"
+  },
+  {
+    "id": "fac09a7a-dd84-4f22-8038-9872debafd3a",
+    "title": "Сброс соединений при обновлении правил или PAC",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-02-17T12:00:00Z"
+  },
+  {
+    "id": "1cec661d-746f-4009-9e76-62147cfed3ca",
+    "title": "Проксирование по сайтам через PAC файл",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-02-15T12:00:00Z"
+  },
+  {
+    "id": "0a6f5595-fbe4-473a-b31b-7da39bdafe62",
+    "title": "Единый переключатель «Браузеры» для SOCKS5",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-02-15T11:50:00Z"
+  },
+  {
+    "id": "30a6ce43-6c57-4bc7-bab4-015e2e412e8c",
+    "title": "TUN прозрачный прокси с gVisor netstack",
+    "description": "Полный перехват трафика приложений",
+    "type": "feature",
+    "createdAt": "2026-02-10T12:00:00Z"
+  },
+  {
+    "id": "5fb99898-f671-4fbf-8f32-a4bb7eecfc37",
+    "title": "Helper для управления TUN устройством",
+    "description": "macOS (utun) + Windows (wintun)",
+    "type": "feature",
+    "createdAt": "2026-02-10T11:50:00Z"
+  },
+  {
+    "id": "3e0464ed-e161-4385-9a29-9bd7a46f7eb3",
+    "title": "Per-app правила маршрутизации",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-02-10T11:40:00Z"
+  },
+  {
+    "id": "a8007592-358c-4812-ae13-1d0ef4c45a16",
+    "title": "Блокировка QUIC (UDP 443) для фолбека на TCP",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-02-10T11:30:00Z"
+  },
+  {
+    "id": "98038b89-54dc-465f-8153-00402e781d1c",
+    "title": "Группировка соединений по устройствам в админке",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-20T12:00:00Z"
+  },
+  {
+    "id": "fb48d6d4-98c3-46cb-b7af-567a6a18867f",
+    "title": "NSIS установщик для Windows",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-20T11:50:00Z"
+  },
+  {
+    "id": "1ad22333-fd15-47af-ba1f-b45c6f69d3f5",
+    "title": "Кнопка проверки обновлений",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-20T11:40:00Z"
+  },
+  {
+    "id": "32f5a4dc-28f8-4d33-b89e-3a50a7868ddf",
+    "title": "PAC через HTTP API daemon вместо file:// URL",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-01-18T12:00:00Z"
+  },
+  {
+    "id": "77d53194-9dde-4b6c-b758-67e7557baa44",
+    "title": "Обновление настроек прокси Windows",
+    "description": "InternetSetOption",
+    "type": "fix",
+    "createdAt": "2026-01-16T12:00:00Z"
+  },
+  {
+    "id": "372fd697-29c4-4309-a6dd-7f5fbc3453c9",
+    "title": "Динамическая лендинг страница",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-14T12:00:00Z"
+  },
+  {
+    "id": "0aa040d3-97c8-4fb9-a62d-cf22b0bda7b9",
+    "title": "Автообновление с VPS",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-12T12:00:00Z"
+  },
+  {
+    "id": "e3c8dd54-16d5-43e4-8b50-a07d5161196a",
+    "title": "Electron клиент с управлением daemon и tray",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-10T12:00:00Z"
+  },
+  {
+    "id": "e8f58c10-31bc-4bcb-a9cb-3c3eb18ea9bd",
+    "title": "SOCKS5 прокси через TLS на порт 443",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-10T11:50:00Z"
+  },
+  {
+    "id": "df1f5350-c5a4-4477-9be3-7fdf82e1065b",
+    "title": "Админ-панель: пользователи, устройства, статистика",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-10T11:40:00Z"
+  },
+  {
+    "id": "9f3a65e9-b372-429b-938b-afc1771e38a4",
+    "title": "Мультиплексирование прокси и HTTP на одном порту",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-01-10T11:30:00Z"
+  }
+]

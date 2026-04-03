@@ -22,6 +22,9 @@ key.pem
 # Superpowers
 .superpowers/
 
+# Changelog
+CHANGELOG.new.md
+
 # OS
 .DS_Store
 Thumbs.db
