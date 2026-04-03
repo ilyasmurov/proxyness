@@ -14,10 +14,15 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function localDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function groupByDate(entries: ChangelogEntry[]): Map<string, ChangelogEntry[]> {
   const groups = new Map<string, ChangelogEntry[]>();
   for (const e of entries) {
-    const day = e.createdAt.slice(0, 10);
+    const day = localDate(e.createdAt);
     const list = groups.get(day) || [];
     list.push(e);
     groups.set(day, list);

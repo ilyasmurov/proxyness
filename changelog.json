@@ -1,5 +1,12 @@
 [
   {
+    "id": "96aa7ece-39ec-4336-b2b5-98271fb09b86",
+    "title": "Группировка записей ченджлога по локальной дате вместо UTC",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-03T21:18:54.514305+00:00"
+  },
+  {
     "id": "9421aabf-fc23-40ba-a83f-8b2c715b7820",
     "title": "Исправлено название VPS провайдера: Timeweb → Aeza",
     "description": null,
