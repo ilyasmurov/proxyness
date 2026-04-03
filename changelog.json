@@ -1,5 +1,12 @@
 [
   {
+    "id": "7a386cb5-c32f-4fcd-b3b2-d8ae99114aec",
+    "title": "UDP stream data ordering",
+    "description": "Process UDP packets synchronously to preserve write ordering for stream data, fixing connection resets caused by concurrent goroutine writes",
+    "type": "fix",
+    "createdAt": "2026-04-03T22:39:28.193456+00:00"
+  },
+  {
     "id": "d1a8e7a1-28f6-425b-8165-585563b475a3",
     "title": "UDP handshake: decrypt incoming packet and encrypt response",
     "description": "Server was parsing encrypted handshake data as plaintext, causing auth failures",

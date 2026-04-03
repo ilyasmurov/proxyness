@@ -32,8 +32,8 @@ func NewListener(conn net.PacketConn, database *db.DB, tracker *stats.Tracker) *
 	}
 }
 
-// Serve is the main read loop. It reads UDP packets and dispatches them in goroutines.
-// It also runs session cleanup every 30 seconds.
+// Serve is the main read loop. Packets are processed synchronously to preserve
+// write ordering for stream data. Only MsgStreamOpen (which dials) runs in a goroutine.
 func (l *Listener) Serve() {
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
@@ -53,7 +53,7 @@ func (l *Listener) Serve() {
 
 		data := make([]byte, n)
 		copy(data, buf[:n])
-		go l.handlePacket(data, addr)
+		l.handlePacket(data, addr)
 	}
 }
 
@@ -91,7 +91,7 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 
 	switch pkt.Type {
 	case pkgudp.MsgStreamOpen:
-		l.handleStreamOpen(sess, pkt, addr)
+		go l.handleStreamOpen(sess, pkt, addr) // async: dial blocks
 	case pkgudp.MsgStreamData:
 		l.handleStreamData(sess, pkt)
 	case pkgudp.MsgStreamClose:
@@ -298,6 +298,7 @@ func (l *Listener) handleStreamData(sess *Session, pkt *pkgudp.Packet) {
 	if err != nil {
 		log.Printf("udp: write to dest stream=%d: %v", pkt.StreamID, err)
 		sess.RemoveStream(pkt.StreamID)
+		l.sendClose(sess, pkt.StreamID)
 		return
 	}
 	st.BytesIn += int64(n)
