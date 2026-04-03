@@ -1,5 +1,3 @@
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell } from "electron";
 import { spawn } from "child_process";
 import path from "path";
@@ -9,7 +7,7 @@ import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs } 
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
 
-const UPDATE_BASE = "https://95.181.162.242/download";
+const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/download";
 
 let mainWindow: BrowserWindow | null = null;
 let logsWindow: BrowserWindow | null = null;
@@ -168,11 +166,11 @@ function setupIpc() {
       const dest = path.join(app.getPath("temp"), info.filename);
       const file = fs.createWriteStream(dest);
 
-      const req = https.get(`${UPDATE_BASE}/${info.filename}`, { rejectUnauthorized: false }, (res) => {
-        // Follow redirects
+      const req = https.get(`${UPDATE_BASE}/${info.filename}`, (res) => {
+        // Follow redirects (GitHub releases redirect to CDN)
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           file.close();
-          https.get(res.headers.location, { rejectUnauthorized: false }, handleResponse).on("error", handleError);
+          https.get(res.headers.location, handleResponse).on("error", handleError);
           return;
         }
 

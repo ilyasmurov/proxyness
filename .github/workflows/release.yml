@@ -112,26 +112,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${{ github.ref_name }}" installers/* --repo "${{ github.repository }}" --title "${{ github.ref_name }}"
-
-  deploy-to-vps:
-    needs: create-release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download from GitHub Release to VPS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          script: |
-            which jq >/dev/null 2>&1 || apt-get install -yqq jq
-            docker exec smurov-proxy sh -c "rm -rf /data/downloads && mkdir -p /data/downloads"
-            mkdir -p /tmp/release-dl && cd /tmp/release-dl
-            API="https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}"
-            curl -s "$API" | jq -r '.assets[] | "\(.browser_download_url)\t\(.name)"' | while IFS=$(printf '\t') read -r url name; do
-              curl -sL -o "$name" "$url"
-            done
-            for f in /tmp/release-dl/*; do
-              docker cp "$f" smurov-proxy:/data/downloads/
-            done
-            rm -rf /tmp/release-dl
