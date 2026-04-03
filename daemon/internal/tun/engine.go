@@ -27,6 +27,7 @@ import (
 
 	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/daemon/internal/transport"
+	"smurov-proxy/pkg/machineid"
 	"smurov-proxy/pkg/proto"
 )
 
@@ -572,6 +573,19 @@ func (e *Engine) proxyTCPLegacy(local net.Conn, dstAddr string, dstPort uint16) 
 		return
 	}
 
+	fp := machineid.Fingerprint()
+	if err := proto.WriteMachineID(tlsConn, fp); err != nil {
+		return
+	}
+	ok, err = proto.ReadResult(tlsConn)
+	if err != nil || !ok {
+		e.mu.Lock()
+		e.lastError = "Device is bound to a different machine"
+		e.stopLocked()
+		e.mu.Unlock()
+		return
+	}
+
 	if err := proto.WriteMsgType(tlsConn, proto.MsgTypeTCP); err != nil {
 		return
 	}
@@ -721,6 +735,9 @@ func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAd
 		}
 	}()
 
+	<-done
+	local.Close()
+	stream.Close()
 	<-done
 }
 

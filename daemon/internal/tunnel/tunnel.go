@@ -12,6 +12,7 @@ import (
 	"smurov-proxy/daemon/internal/socks5"
 	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/daemon/internal/transport"
+	"smurov-proxy/pkg/machineid"
 	"smurov-proxy/pkg/proto"
 )
 
@@ -308,6 +309,23 @@ func (t *Tunnel) handleSOCKSLegacy(conn net.Conn, addr string, port uint16, targ
 		return
 	}
 
+	fp := machineid.Fingerprint()
+	if err := proto.WriteMachineID(tlsConn, fp); err != nil {
+		socks5.SendFailure(conn)
+		log.Printf("[tunnel] machine id write failed: %v", err)
+		return
+	}
+	ok, err = proto.ReadResult(tlsConn)
+	if err != nil || !ok {
+		socks5.SendFailure(conn)
+		log.Printf("[tunnel] machine id rejected")
+		t.mu.Lock()
+		t.lastError = "Device is bound to a different machine"
+		t.stopLocked()
+		t.mu.Unlock()
+		return
+	}
+
 	if err := proto.WriteMsgType(tlsConn, proto.MsgTypeTCP); err != nil {
 		socks5.SendFailure(conn)
 		log.Printf("[tunnel] msg type write failed: %v", err)
@@ -334,9 +352,37 @@ func (t *Tunnel) handleSOCKSLegacy(conn net.Conn, addr string, port uint16, targ
 }
 
 // countingRelay copies data bidirectionally between a net.Conn and a
-// transport.Stream, calling onBytes with (download, upload) byte counts.
+// transport.Stream with idle timeout, calling onBytes with (download, upload)
+// byte counts. When either side finishes, both conn and stream are closed
+// to unblock the other goroutine.
 func countingRelay(conn net.Conn, stream transport.Stream, onBytes func(in, out int64)) {
+	const idleTimeout = 2 * time.Minute
+
 	errc := make(chan error, 2)
+
+	// conn → stream (upload)
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			conn.SetReadDeadline(time.Now().Add(idleTimeout))
+			n, err := conn.Read(buf)
+			if n > 0 {
+				if _, werr := stream.Write(buf[:n]); werr != nil {
+					errc <- werr
+					return
+				}
+				if onBytes != nil {
+					onBytes(0, int64(n))
+				}
+			}
+			if err != nil {
+				errc <- err
+				return
+			}
+		}
+	}()
+
+	// stream → conn (download)
 	go func() {
 		buf := make([]byte, 32*1024)
 		for {
@@ -356,25 +402,7 @@ func countingRelay(conn net.Conn, stream transport.Stream, onBytes func(in, out 
 			}
 		}
 	}()
-	go func() {
-		buf := make([]byte, 32*1024)
-		for {
-			n, err := conn.Read(buf)
-			if n > 0 {
-				if _, werr := stream.Write(buf[:n]); werr != nil {
-					errc <- werr
-					return
-				}
-				if onBytes != nil {
-					onBytes(0, int64(n))
-				}
-			}
-			if err != nil {
-				errc <- err
-				return
-			}
-		}
-	}()
+
 	<-errc
 	conn.Close()
 	stream.Close()
