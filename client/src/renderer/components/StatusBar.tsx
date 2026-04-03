@@ -4,9 +4,10 @@ interface Props {
   status: string;
   uptime: number;
   error: string | null;
+  transport?: string;
 }
 
-export function StatusBar({ status, uptime, error }: Props) {
+export function StatusBar({ status, uptime, error, transport }: Props) {
   const color = status === "connected" ? "#4caf50" : "#f44336";
   const label = status.charAt(0).toUpperCase() + status.slice(1);
   const [dismissed, setDismissed] = useState(false);
@@ -41,6 +42,17 @@ export function StatusBar({ status, uptime, error }: Props) {
         {status === "connected" && (
           <span style={{ color: "#aaa", fontSize: 14 }}>
             {formatUptime(uptime)}
+          </span>
+        )}
+        {status === "connected" && transport && (
+          <span style={{
+            fontSize: 11,
+            padding: "2px 6px",
+            borderRadius: 4,
+            background: transport === "udp" ? "#1a3a5c" : "#2a1a3a",
+            color: "#ccc",
+          }}>
+            {transport.toUpperCase()}
           </span>
         )}
       </div>

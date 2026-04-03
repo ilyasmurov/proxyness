@@ -21,6 +21,10 @@ export function App() {
     () => (localStorage.getItem("smurov-proxy-mode") as ProxyMode) || "tun"
   );
 
+  // Transport state
+  const [transportMode, setTransportMode] = useState<string>("auto");
+  const [activeTransport, setActiveTransport] = useState<string>("");
+
   // TUN state
   const [tunStatus, setTunStatus] = useState<"inactive" | "active">("inactive");
   const [tunUptime, setTunUptime] = useState(0);
@@ -112,6 +116,11 @@ export function App() {
             }
           }
           wasConnected.current = active;
+        }
+        const tr = await (window as any).transport?.getMode();
+        if (tr) {
+          setTransportMode(tr.mode || "auto");
+          setActiveTransport(tr.active || "");
         }
       } catch {}
     };
@@ -298,6 +307,20 @@ export function App() {
                     (window as any).appInfo?.openUpdate();
                   }},
                   ...(!showSetup ? [{ label: "Change Key", onClick: () => { setShowSettings(false); handleReset(); } }] : []),
+                  ...(!showSetup ? [
+                    { label: `Transport: Auto${transportMode === "auto" ? " \u2713" : ""}`, onClick: () => {
+                      (window as any).transport?.setMode("auto");
+                      setTransportMode("auto");
+                    }},
+                    { label: `Transport: UDP${transportMode === "udp" ? " \u2713" : ""}`, onClick: () => {
+                      (window as any).transport?.setMode("udp");
+                      setTransportMode("udp");
+                    }},
+                    { label: `Transport: TLS${transportMode === "tls" ? " \u2713" : ""}`, onClick: () => {
+                      (window as any).transport?.setMode("tls");
+                      setTransportMode("tls");
+                    }},
+                  ] : []),
                   { label: "Logs", onClick: () => { setShowSettings(false); (window as any).appInfo?.openLogs(); } },
                 ].map((item) => (
                   <button
@@ -337,7 +360,7 @@ export function App() {
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>SmurovProxy</h1>
         <span style={{ fontSize: 11, color: "#444" }}>{SERVER.replace(":443", "")}</span>
       </div>
-      <StatusBar status={isConnected ? "connected" : "disconnected"} uptime={uptime} error={currentError} />
+      <StatusBar status={isConnected ? "connected" : "disconnected"} uptime={uptime} error={currentError} transport={activeTransport} />
       {isConnected && (
         <SpeedGraph
           download={stats.download}

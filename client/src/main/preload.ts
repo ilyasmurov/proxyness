@@ -38,3 +38,8 @@ contextBridge.exposeInMainWorld("tunProxy", {
   setRules: (rules: any) => ipcRenderer.send("tun-rules-set", rules),
   getInstalledApps: () => ipcRenderer.invoke("get-installed-apps"),
 });
+
+contextBridge.exposeInMainWorld("transport", {
+  getMode: () => ipcRenderer.invoke("transport-get"),
+  setMode: (mode: string) => ipcRenderer.invoke("transport-set", mode),
+});

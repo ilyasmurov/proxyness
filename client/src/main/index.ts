@@ -384,6 +384,28 @@ function setupIpc() {
     }).catch(() => {});
   });
 
+  ipcMain.handle("transport-get", async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:9090/transport");
+      return await res.json();
+    } catch {
+      return { mode: "auto", active: "tls" };
+    }
+  });
+
+  ipcMain.handle("transport-set", async (_e, mode: string) => {
+    try {
+      await fetch("http://127.0.0.1:9090/transport", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  });
+
   ipcMain.handle("get-installed-apps", () => getInstalledApps());
 
   ipcMain.on("tray-status", (_e, connected: boolean) => {
