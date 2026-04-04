@@ -1,5 +1,12 @@
 [
   {
+    "id": "35210c43-9378-4fdc-99da-28accc39a74f",
+    "title": "Исправлено скачивание обновлений (GitHub двойной редирект)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T07:07:00.490676+00:00"
+  },
+  {
     "id": "3ecd37f5-f450-4628-a31a-eff4ec07e507",
     "title": "ARQ review fixes: channel semaphore, max retransmit drop, stream limits",
     "description": null,

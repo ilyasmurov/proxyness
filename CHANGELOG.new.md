@@ -1,2 +1,2 @@
 ## fix
-ARQ review fixes: channel semaphore, max retransmit drop, stream limits
+Исправлено скачивание обновлений (GitHub двойной редирект)

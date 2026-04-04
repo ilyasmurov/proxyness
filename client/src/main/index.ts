@@ -166,28 +166,30 @@ function setupIpc() {
       const dest = path.join(app.getPath("temp"), info.filename);
       const file = fs.createWriteStream(dest);
 
-      const req = https.get(`${UPDATE_BASE}/${info.filename}`, (res) => {
-        // Follow redirects (GitHub releases redirect to CDN)
-        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          file.close();
-          https.get(res.headers.location, handleResponse).on("error", handleError);
-          return;
-        }
+      function followRedirects(url: string, maxRedirects = 5) {
+        https.get(url, (res) => {
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            res.resume(); // drain response
+            if (maxRedirects <= 0) {
+              file.close();
+              sendUpdate("update-error");
+              return;
+            }
+            followRedirects(res.headers.location, maxRedirects - 1);
+            return;
+          }
 
-        handleResponse(res);
-
-        function handleResponse(response: typeof res) {
-          if (response.statusCode !== 200) {
+          if (res.statusCode !== 200) {
             file.close();
             sendUpdate("update-error");
             return;
           }
 
-          const total = parseInt(response.headers["content-length"] || "0", 10);
+          const total = parseInt(res.headers["content-length"] || "0", 10);
           let downloaded = 0;
           let lastPercent = 0;
 
-          response.on("data", (chunk: Buffer) => {
+          res.on("data", (chunk: Buffer) => {
             downloaded += chunk.length;
             file.write(chunk);
             if (total > 0) {
@@ -197,28 +199,27 @@ function setupIpc() {
                 sendUpdate("update-progress", percent);
               }
             } else {
-              // No content-length: show MB downloaded
               sendUpdate("update-progress", -downloaded);
             }
           });
 
-          response.on("end", () => {
+          res.on("end", () => {
             file.end(() => {
               installerPath = dest;
               sendUpdate("update-downloaded");
             });
           });
 
-          response.on("error", handleError);
-        }
-      });
+          res.on("error", handleError);
+        }).on("error", handleError);
+      }
 
       function handleError() {
         file.close();
         sendUpdate("update-error");
       }
 
-      req.on("error", handleError);
+      followRedirects(`${UPDATE_BASE}/${info.filename}`);
     } catch {
       sendUpdate("update-error");
     }
