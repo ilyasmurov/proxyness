@@ -3,6 +3,7 @@ package udp
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -157,6 +158,7 @@ func (m *SessionManager) Cleanup(maxAge time.Duration) {
 	now := time.Now()
 	for token, s := range m.sessions {
 		if now.Sub(s.LastSeen) > maxAge {
+			log.Printf("udp: cleanup session token=%d lastSeen=%v ago streams=%d", token, now.Sub(s.LastSeen).Round(time.Second), len(s.streams))
 			s.CloseAllStreams()
 			delete(m.sessions, token)
 		}

@@ -112,18 +112,20 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 
 	pkt, err := pkgudp.DecodePacket(data, sess.SessionKey)
 	if err != nil {
-		log.Printf("udp: decode packet connID=%d: %v", connID, err)
+		log.Printf("udp: decode packet connID=%d from %s: %v", connID, addr, err)
 		return
 	}
 
 	switch pkt.Type {
 	case pkgudp.MsgStreamOpen:
+		log.Printf("udp: stream open connID=%d stream=%d from %s", connID, pkt.StreamID, addr)
 		go l.handleStreamOpen(sess, pkt, addr) // async: dial blocks
 	case pkgudp.MsgStreamData:
 		if sess.ARQ != nil {
 			sess.ARQ.HandleData(pkt)
 		}
 	case pkgudp.MsgStreamClose:
+		log.Printf("udp: stream close connID=%d stream=%d", connID, pkt.StreamID)
 		l.handleStreamClose(sess, pkt)
 	case pkgudp.MsgAck:
 		if sess.ARQ != nil {

@@ -1,5 +1,12 @@
 [
   {
+    "id": "654195c3-6795-41f4-b7d6-72386d4e2da3",
+    "title": "UDP debug логи для диагностики проблем с подключением",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-04T08:37:41.121087+00:00"
+  },
+  {
     "id": "35210c43-9378-4fdc-99da-28accc39a74f",
     "title": "Исправлено скачивание обновлений (GitHub двойной редирект)",
     "description": null,
