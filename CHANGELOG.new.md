@@ -1,2 +1,2 @@
 ## fix
-UDP: per-stream write channel — deliverFn больше не блокирует processLoop
+UDP: deduplicate retransmitted stream open — prevent double-dial race

@@ -337,8 +337,12 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 
 	streamID := pkt.StreamID
 
-	// Ensure stream slot exists
+	// Deduplicate: skip if stream already has a connection (retransmit)
 	sess.mu.Lock()
+	if st, exists := sess.streams[streamID]; exists && st.Conn != nil {
+		sess.mu.Unlock()
+		return
+	}
 	if _, exists := sess.streams[streamID]; !exists {
 		sess.streams[streamID] = &StreamState{Created: time.Now()}
 		seq := uint32(0)
@@ -353,8 +357,7 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 
 	if sess.ARQ != nil {
 		if err := sess.ARQ.CreateRecvBuffer(streamID); err != nil {
-			log.Printf("[udp] stream %d: %v", streamID, err)
-			return
+			// Already exists from previous attempt — not an error
 		}
 	}
 
