@@ -194,6 +194,10 @@ func (t *UDPTransport) recvLoop() {
 		case pkgudp.MsgAck:
 			t.arq.HandleAck(pkt.Data)
 		case pkgudp.MsgStreamClose:
+			// Record PktNum for ACK — stream close is sent through ARQ
+			if pkt.PktNum > 0 {
+				t.arq.RecordPktNum(pkt.PktNum)
+			}
 			t.mu.Lock()
 			s, ok := t.streams[pkt.StreamID]
 			t.mu.Unlock()

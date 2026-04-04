@@ -1,2 +1,2 @@
-## improvement
-UDP debug логи для диагностики проблем с подключением
+## fix
+ARQ: запись PktNum для stream open/close в ACK state — фикс блокировки UDP

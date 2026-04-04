@@ -302,6 +302,18 @@ func (c *Controller) RemoveRecvBuffer(streamID uint32) {
 	delete(c.recvBufs, streamID)
 }
 
+// RecordPktNum records a packet number for ACK generation without delivering
+// the payload. Use this for control messages (stream open/close) that are sent
+// through ARQ but handled outside the normal data delivery path.
+func (c *Controller) RecordPktNum(pktNum uint32) {
+	if pktNum > 0 {
+		c.ackState.RecordReceived(pktNum)
+		if c.ackState.NeedsImmediateAck() {
+			c.sendAck()
+		}
+	}
+}
+
 // Close shuts down the controller, unblocking any goroutines waiting in Send.
 func (c *Controller) Close() {
 	c.mu.Lock()

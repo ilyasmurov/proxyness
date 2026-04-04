@@ -118,13 +118,22 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 
 	switch pkt.Type {
 	case pkgudp.MsgStreamOpen:
+		// Record PktNum for ACK — stream open is sent through ARQ.
+		// Without this, daemon's cwnd fills and blocks all sends.
+		if sess.ARQ != nil && pkt.PktNum > 0 {
+			sess.ARQ.RecordPktNum(pkt.PktNum)
+		}
 		log.Printf("udp: stream open connID=%d stream=%d from %s", connID, pkt.StreamID, addr)
 		go l.handleStreamOpen(sess, pkt, addr) // async: dial blocks
 	case pkgudp.MsgStreamData:
 		if sess.ARQ != nil {
-			sess.ARQ.HandleData(pkt)
+			sess.ARQ.HandleData(pkt) // records PktNum + delivers to recvBuf
 		}
 	case pkgudp.MsgStreamClose:
+		// Record PktNum for ACK — stream close is sent through ARQ
+		if sess.ARQ != nil && pkt.PktNum > 0 {
+			sess.ARQ.RecordPktNum(pkt.PktNum)
+		}
 		log.Printf("udp: stream close connID=%d stream=%d", connID, pkt.StreamID)
 		l.handleStreamClose(sess, pkt)
 	case pkgudp.MsgAck:
