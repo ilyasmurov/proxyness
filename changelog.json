@@ -1,5 +1,12 @@
 [
   {
+    "id": "a48084e3-9d8c-4cb3-b296-86c5fb93c474",
+    "title": "Bump version to 1.23.3",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T09:04:08.408334+00:00"
+  },
+  {
     "id": "0e0bc9fc-2554-42e3-8dc0-521e7dfefe26",
     "title": "ARQ: запись PktNum для stream open/close в ACK state — фикс блокировки UDP",
     "description": null,
