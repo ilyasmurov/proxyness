@@ -1,5 +1,12 @@
 [
   {
+    "id": "2b888490-221e-40c5-83e2-1c9e3ddbaec8",
+    "title": "Align CUBIC congestion control with spec: pure wall-clock time measurement, ssthresh minimum clamp",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T05:52:48.546939+00:00"
+  },
+  {
     "id": "f35b8046-097a-459d-a233-799f121cd907",
     "title": "CUBIC congestion control for UDP ARQ transport",
     "description": null,

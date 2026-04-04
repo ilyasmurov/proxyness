@@ -20,7 +20,6 @@ type CongestionControl struct {
 	ssthresh  float64
 	wMax      float64
 	lastLoss  time.Time
-	acksSinceLoss int // used as proxy for elapsed RTTs
 	inFlight  int
 	sendReady *sync.Cond
 }
@@ -118,43 +117,27 @@ func (cc *CongestionControl) OnLoss() {
 
 	cc.wMax = cc.cwnd
 	cc.ssthresh = cc.cwnd * cubicBeta
+	if cc.ssthresh < initCwnd {
+		cc.ssthresh = initCwnd
+	}
 	cc.cwnd = cc.ssthresh
 	cc.lastLoss = time.Now()
-	cc.acksSinceLoss = 0
 }
 
 // cubicGrow applies the CUBIC window growth function.
 // Must be called with mu held.
 func (cc *CongestionControl) cubicGrow() {
-	cc.acksSinceLoss++
-
-	// Use wall-clock time if available (non-zero lastLoss), fall back to
-	// counting ACKs as a proxy for elapsed time (1 ACK ≈ 1 ms RTT unit).
-	var t float64
-	if !cc.lastLoss.IsZero() {
-		t = time.Since(cc.lastLoss).Seconds()
-		// Supplement with ack-count based time if wall clock hasn't advanced
-		// (common in unit tests running at nanosecond resolution).
-		ackTime := float64(cc.acksSinceLoss) * 0.001 // 1ms per ack
-		if ackTime > t {
-			t = ackTime
-		}
-	} else {
-		t = float64(cc.acksSinceLoss) * 0.001
+	if cc.lastLoss.IsZero() {
+		cc.cwnd += 1.0 / cc.cwnd
+		return
 	}
-
-	// K = cbrt(wMax * (1 - beta) / C)
+	t := time.Since(cc.lastLoss).Seconds()
 	k := math.Cbrt(cc.wMax * (1 - cubicBeta) / cubicC)
-
-	// W_cubic(t) = C * (t - K)^3 + wMax
-	wCubic := cubicC*math.Pow(t-k, 3) + cc.wMax
-
-	if wCubic > cc.cwnd {
-		// CUBIC growth: set window to cubic target directly.
-		cc.cwnd = wCubic
+	w := cubicC*math.Pow(t-k, 3) + cc.wMax
+	if w > cc.cwnd {
+		cc.cwnd = w
 	} else {
-		// TCP-friendly floor: 3*beta/(2-beta) per cwnd ACKs.
-		cc.cwnd += 3 * cubicBeta / (2 - cubicBeta) / cc.cwnd
+		cc.cwnd += 1.0 / cc.cwnd
 	}
 }
 
