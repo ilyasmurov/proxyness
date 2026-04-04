@@ -339,7 +339,10 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 	st.Port = msg.Port
 
 	if sess.ARQ != nil {
-		sess.ARQ.CreateRecvBuffer(streamID)
+		if err := sess.ARQ.CreateRecvBuffer(streamID); err != nil {
+			log.Printf("[udp] stream %d: %v", streamID, err)
+			return
+		}
 	}
 
 	target := net.JoinHostPort(msg.Addr, fmt.Sprintf("%d", msg.Port))

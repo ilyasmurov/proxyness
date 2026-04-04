@@ -43,7 +43,9 @@ func TestControllerSendAndReceiveAck(t *testing.T) {
 	})
 	defer ctrl.Close()
 
-	ctrl.CreateRecvBuffer(1)
+	if err := ctrl.CreateRecvBuffer(1); err != nil {
+		t.Fatalf("CreateRecvBuffer: %v", err)
+	}
 
 	// Send 3 packets
 	for i := 0; i < 3; i++ {
@@ -80,7 +82,9 @@ func TestControllerReceiveInOrder(t *testing.T) {
 	})
 	defer ctrl.Close()
 
-	ctrl.CreateRecvBuffer(1)
+	if err := ctrl.CreateRecvBuffer(1); err != nil {
+		t.Fatalf("CreateRecvBuffer: %v", err)
+	}
 
 	for i := 0; i < 3; i++ {
 		ctrl.HandleData(&pkgudp.Packet{
@@ -112,7 +116,9 @@ func TestControllerReceiveOutOfOrder(t *testing.T) {
 	})
 	defer ctrl.Close()
 
-	ctrl.CreateRecvBuffer(1)
+	if err := ctrl.CreateRecvBuffer(1); err != nil {
+		t.Fatalf("CreateRecvBuffer: %v", err)
+	}
 
 	ctrl.HandleData(&pkgudp.Packet{
 		Type: pkgudp.MsgStreamData, PktNum: 3, StreamID: 1, Seq: 2, Data: []byte{2},
@@ -191,5 +197,29 @@ func TestControllerRetransmit(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	if sender.count() <= initialCount {
 		t.Fatal("retransmit should have sent a new packet")
+	}
+}
+
+func TestControllerMaxStreams(t *testing.T) {
+	sender := &mockSender{}
+	cfg := DefaultConfig()
+	cfg.MaxStreams = 2
+
+	ctrl := NewWithConfig(0xABCD, make([]byte, 32), sender.send, func(uint32, []byte) {}, cfg)
+	defer ctrl.Close()
+
+	if err := ctrl.CreateRecvBuffer(1); err != nil {
+		t.Fatalf("stream 1: %v", err)
+	}
+	if err := ctrl.CreateRecvBuffer(2); err != nil {
+		t.Fatalf("stream 2: %v", err)
+	}
+	if err := ctrl.CreateRecvBuffer(3); err == nil {
+		t.Fatal("expected error for stream 3 exceeding max streams")
+	}
+
+	// Re-creating existing stream should succeed (idempotent)
+	if err := ctrl.CreateRecvBuffer(1); err != nil {
+		t.Fatalf("re-create stream 1: %v", err)
 	}
 }

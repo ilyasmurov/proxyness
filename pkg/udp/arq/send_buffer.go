@@ -145,6 +145,18 @@ func (sb *SendBuffer) IsMaxRetransmits(pktNum uint32) bool {
 	return pkt.Retransmits >= maxRetransmits
 }
 
+// Drop removes a packet from the buffer unconditionally, returning true
+// if the packet existed.
+func (sb *SendBuffer) Drop(pktNum uint32) bool {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	_, ok := sb.packets[pktNum]
+	if ok {
+		delete(sb.packets, pktNum)
+	}
+	return ok
+}
+
 // Len returns the number of packets currently in the buffer.
 func (sb *SendBuffer) Len() int {
 	sb.mu.Lock()

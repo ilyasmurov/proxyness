@@ -1,5 +1,19 @@
 [
   {
+    "id": "fcbb48cd-9db4-4d5f-8e97-53d13bc6ae66",
+    "title": "ARQ: channel semaphore вместо sync.Cond для cwnd",
+    "description": "ARQ: дроп пакетов при maxRetransmits с освобождением cwnd слота\nARQ: конфигурируемые размеры буферов (SendBufSize, RecvBufSize, MaxStreams)",
+    "type": "improvement",
+    "createdAt": "2026-04-04T06:58:37.034217+00:00"
+  },
+  {
+    "id": "51509504-3a2c-4017-8406-6503ab054043",
+    "title": "ARQ: лимит на количество стримов для защиты от memory exhaustion",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T06:58:37.034362+00:00"
+  },
+  {
     "id": "39d7a9cb-30f8-428e-af52-ed0112c18c96",
     "title": "UDP ARQ reliability layer с CUBIC congestion control",
     "description": "Reliable UDP transport интегрирован в daemon и server",

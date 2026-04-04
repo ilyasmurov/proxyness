@@ -276,7 +276,12 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 	t.streams[id] = s
 	t.mu.Unlock()
 
-	t.arq.CreateRecvBuffer(id)
+	if err := t.arq.CreateRecvBuffer(id); err != nil {
+		t.mu.Lock()
+		delete(t.streams, id)
+		t.mu.Unlock()
+		return nil, fmt.Errorf("create recv buffer: %w", err)
+	}
 
 	// Send MsgStreamOpen
 	payload := (&pkgudp.StreamOpenMsg{

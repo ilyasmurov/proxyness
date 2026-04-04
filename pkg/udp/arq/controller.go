@@ -10,15 +10,33 @@ import (
 )
 
 const (
-	sendBufSize = 1024
-	recvBufSize = 512
+	DefaultSendBufSize = 1024
+	DefaultRecvBufSize = 512
+	DefaultMaxStreams  = 256
 )
+
+// Config holds tunable parameters for the ARQ controller.
+type Config struct {
+	SendBufSize int // max packets in send buffer (default 1024)
+	RecvBufSize int // max out-of-order packets per stream (default 512)
+	MaxStreams  int // max concurrent receive streams per connection (default 256)
+}
+
+// DefaultConfig returns the default ARQ configuration.
+func DefaultConfig() Config {
+	return Config{
+		SendBufSize: DefaultSendBufSize,
+		RecvBufSize: DefaultRecvBufSize,
+		MaxStreams:  DefaultMaxStreams,
+	}
+}
 
 // Controller ties together SendBuffer, RecvBuffer, CongestionControl,
 // RTTEstimator and AckState into a single ARQ session manager.
 type Controller struct {
 	connID     uint32
 	sessionKey []byte
+	cfg        Config
 
 	sendBuf    *SendBuffer
 	nextPktNum atomic.Uint32
@@ -40,14 +58,20 @@ type Controller struct {
 	done   chan struct{}
 }
 
-// New creates a new Controller for the given connection.
+// New creates a new Controller for the given connection with default config.
 // sendFn is called whenever a datagram needs to be transmitted.
 // deliverFn is called in-order for each data payload delivered to a stream.
 func New(connID uint32, sessionKey []byte, sendFn func([]byte) error, deliverFn func(streamID uint32, data []byte)) *Controller {
+	return NewWithConfig(connID, sessionKey, sendFn, deliverFn, DefaultConfig())
+}
+
+// NewWithConfig creates a new Controller with the given configuration.
+func NewWithConfig(connID uint32, sessionKey []byte, sendFn func([]byte) error, deliverFn func(streamID uint32, data []byte), cfg Config) *Controller {
 	return &Controller{
 		connID:     connID,
 		sessionKey: sessionKey,
-		sendBuf:    NewSendBuffer(sendBufSize),
+		cfg:        cfg,
+		sendBuf:    NewSendBuffer(cfg.SendBufSize),
 		cwnd:       NewCongestionControl(),
 		rtt:        NewRTTEstimator(),
 		recvBufs:   make(map[uint32]*RecvBuffer),
@@ -169,6 +193,10 @@ func (c *Controller) RetransmitTick() {
 
 	for _, p := range expired {
 		if c.sendBuf.IsMaxRetransmits(p.PktNum) {
+			// Drop the packet and release the cwnd slot
+			if c.sendBuf.Drop(p.PktNum) {
+				c.cwnd.OnAck(1)
+			}
 			continue
 		}
 
@@ -253,13 +281,18 @@ func (c *Controller) fastRetransmit() {
 }
 
 // CreateRecvBuffer creates a receive buffer for the given stream ID.
+// Returns an error if the maximum number of concurrent streams is exceeded.
 // Delivered payloads are forwarded to the Controller's deliverFn in order.
-func (c *Controller) CreateRecvBuffer(streamID uint32) {
+func (c *Controller) CreateRecvBuffer(streamID uint32) error {
 	c.recvMu.Lock()
 	defer c.recvMu.Unlock()
-	c.recvBufs[streamID] = NewRecvBuffer(recvBufSize, func(seq uint32, data []byte) {
+	if _, exists := c.recvBufs[streamID]; !exists && len(c.recvBufs) >= c.cfg.MaxStreams {
+		return fmt.Errorf("max streams limit reached (%d)", c.cfg.MaxStreams)
+	}
+	c.recvBufs[streamID] = NewRecvBuffer(c.cfg.RecvBufSize, func(seq uint32, data []byte) {
 		c.deliverFn(streamID, data)
 	})
+	return nil
 }
 
 // RemoveRecvBuffer removes the receive buffer for the given stream ID.

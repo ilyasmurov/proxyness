@@ -14,14 +14,15 @@ const (
 )
 
 // CongestionControl implements CUBIC congestion control algorithm.
+// Send slots are managed via a channel semaphore for clean select/context integration.
 type CongestionControl struct {
-	mu        sync.Mutex
-	cwnd      float64
-	ssthresh  float64
-	wMax      float64
-	lastLoss  time.Time
-	inFlight  int
-	sendReady *sync.Cond
+	mu       sync.Mutex
+	cwnd     float64
+	ssthresh float64
+	wMax     float64
+	lastLoss time.Time
+	inFlight int
+	slots    chan struct{} // buffered semaphore, capacity = maxCwnd
 }
 
 // NewCongestionControl creates a new CongestionControl starting in slow start.
@@ -29,8 +30,12 @@ func NewCongestionControl() *CongestionControl {
 	cc := &CongestionControl{
 		cwnd:     initCwnd,
 		ssthresh: math.MaxFloat64,
+		slots:    make(chan struct{}, maxCwnd),
 	}
-	cc.sendReady = sync.NewCond(&cc.mu)
+	// Pre-fill slots for initial cwnd
+	for i := 0; i < initCwnd; i++ {
+		cc.slots <- struct{}{}
+	}
 	return cc
 }
 
@@ -55,25 +60,12 @@ func (cc *CongestionControl) CanSend() bool {
 // WaitForSlot blocks until a send slot is available or done is closed.
 // Returns false if done was closed, true if a slot became available.
 func (cc *CongestionControl) WaitForSlot(done <-chan struct{}) bool {
-	cc.mu.Lock()
-	defer cc.mu.Unlock()
-
-	for cc.inFlight >= int(cc.cwnd) {
-		// Check done channel without blocking while holding the mutex.
-		select {
-		case <-done:
-			return false
-		default:
-		}
-		cc.sendReady.Wait()
-		// After waking, re-check done.
-		select {
-		case <-done:
-			return false
-		default:
-		}
+	select {
+	case <-cc.slots:
+		return true
+	case <-done:
+		return false
 	}
-	return true
 }
 
 // OnSend records that a packet has been sent.
@@ -86,19 +78,18 @@ func (cc *CongestionControl) OnSend() {
 // OnAck records that n packets were acknowledged and updates the window.
 func (cc *CongestionControl) OnAck(n int) {
 	cc.mu.Lock()
-	defer cc.mu.Unlock()
 
 	cc.inFlight -= n
 	if cc.inFlight < 0 {
 		cc.inFlight = 0
 	}
 
+	oldCwnd := int(cc.cwnd)
+
 	for i := 0; i < n; i++ {
 		if cc.cwnd < cc.ssthresh {
-			// Slow start: increase by 1 per ack.
 			cc.cwnd++
 		} else {
-			// Congestion avoidance: CUBIC growth.
 			cc.cubicGrow()
 		}
 
@@ -107,14 +98,25 @@ func (cc *CongestionControl) OnAck(n int) {
 		}
 	}
 
-	cc.sendReady.Broadcast()
+	newCwnd := int(cc.cwnd)
+	cc.mu.Unlock()
+
+	// Return slots: one per ACKed packet + any new slots from window growth
+	slotsToReturn := n
+	if newCwnd > oldCwnd {
+		slotsToReturn += newCwnd - oldCwnd
+	}
+	for i := 0; i < slotsToReturn; i++ {
+		select {
+		case cc.slots <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // OnLoss handles a loss event: set ssthresh and cwnd via CUBIC beta.
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
-	defer cc.mu.Unlock()
-
 	cc.wMax = cc.cwnd
 	cc.ssthresh = cc.cwnd * cubicBeta
 	if cc.ssthresh < initCwnd {
@@ -122,6 +124,7 @@ func (cc *CongestionControl) OnLoss() {
 	}
 	cc.cwnd = cc.ssthresh
 	cc.lastLoss = time.Now()
+	cc.mu.Unlock()
 }
 
 // cubicGrow applies the CUBIC window growth function.
@@ -148,9 +151,6 @@ func (cc *CongestionControl) InFlight() int {
 	return cc.inFlight
 }
 
-// SignalAll broadcasts to all waiters (used on close).
-func (cc *CongestionControl) SignalAll() {
-	cc.mu.Lock()
-	defer cc.mu.Unlock()
-	cc.sendReady.Broadcast()
-}
+// SignalAll is a no-op kept for API compatibility.
+// Close is handled by closing the done channel passed to WaitForSlot.
+func (cc *CongestionControl) SignalAll() {}
