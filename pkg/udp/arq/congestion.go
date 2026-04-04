@@ -15,6 +15,8 @@ const (
 
 // CongestionControl implements CUBIC congestion control algorithm.
 // Send slots are managed via a channel semaphore for clean select/context integration.
+// After every cwnd or inFlight change, adjustSlots() syncs the channel to
+// exactly max(0, cwnd - inFlight) tokens, preventing slot leaks.
 type CongestionControl struct {
 	mu       sync.Mutex
 	cwnd     float64
@@ -37,6 +39,37 @@ func NewCongestionControl() *CongestionControl {
 		cc.slots <- struct{}{}
 	}
 	return cc
+}
+
+// adjustSlots sets the channel to exactly max(0, cwnd - inFlight) tokens.
+// Must be called with mu held for reading cwnd/inFlight, but releases mu
+// before touching the channel to avoid deadlock with WaitForSlot.
+func (cc *CongestionControl) adjustSlots() {
+	target := int(cc.cwnd) - cc.inFlight
+	if target < 0 {
+		target = 0
+	}
+	cc.mu.Unlock()
+
+	current := len(cc.slots)
+	if current < target {
+		// Add slots
+		for i := 0; i < target-current; i++ {
+			select {
+			case cc.slots <- struct{}{}:
+			default:
+			}
+		}
+	} else if current > target {
+		// Drain excess slots
+		for i := 0; i < current-target; i++ {
+			select {
+			case <-cc.slots:
+			default:
+				return
+			}
+		}
+	}
 }
 
 // Window returns the current congestion window size, capped at maxCwnd.
@@ -71,8 +104,8 @@ func (cc *CongestionControl) WaitForSlot(done <-chan struct{}) bool {
 // OnSend records that a packet has been sent.
 func (cc *CongestionControl) OnSend() {
 	cc.mu.Lock()
-	defer cc.mu.Unlock()
 	cc.inFlight++
+	cc.adjustSlots() // unlocks mu
 }
 
 // OnAck records that n packets were acknowledged and updates the window.
@@ -83,8 +116,6 @@ func (cc *CongestionControl) OnAck(n int) {
 	if cc.inFlight < 0 {
 		cc.inFlight = 0
 	}
-
-	oldCwnd := int(cc.cwnd)
 
 	for i := 0; i < n; i++ {
 		if cc.cwnd < cc.ssthresh {
@@ -98,34 +129,18 @@ func (cc *CongestionControl) OnAck(n int) {
 		}
 	}
 
-	newCwnd := int(cc.cwnd)
-	cc.mu.Unlock()
-
-	// Return slots: one per ACKed packet + any new slots from window growth
-	slotsToReturn := n
-	if newCwnd > oldCwnd {
-		slotsToReturn += newCwnd - oldCwnd
-	}
-	for i := 0; i < slotsToReturn; i++ {
-		select {
-		case cc.slots <- struct{}{}:
-		default:
-		}
-	}
+	cc.adjustSlots() // unlocks mu
 }
 
 // OnLoss handles a loss event: set ssthresh and cwnd via CUBIC beta.
 // When cwnd is at initCwnd (minimum), we keep ssthresh at MaxFloat64 so that
 // the next recovery uses slow start (exponential growth) instead of CUBIC
-// congestion avoidance (glacial growth). Without this, loss at minimum cwnd
-// creates a death spiral: ssthresh=initCwnd, cwnd=initCwnd, congestion
-// avoidance grows ~0.1/ACK, never recovers before next loss.
+// congestion avoidance (glacial growth).
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
 	if cc.cwnd <= float64(initCwnd) {
-		// Already at minimum — don't reduce further, keep slow start for recovery
 		cc.lastLoss = time.Now()
-		cc.mu.Unlock()
+		cc.adjustSlots() // unlocks mu
 		return
 	}
 	cc.wMax = cc.cwnd
@@ -135,7 +150,7 @@ func (cc *CongestionControl) OnLoss() {
 	}
 	cc.cwnd = cc.ssthresh
 	cc.lastLoss = time.Now()
-	cc.mu.Unlock()
+	cc.adjustSlots() // unlocks mu
 }
 
 // cubicGrow applies the CUBIC window growth function.

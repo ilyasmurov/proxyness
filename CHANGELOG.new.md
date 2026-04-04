@@ -1,2 +1,2 @@
 ## fix
-ARQ: fix cwnd death spiral — skip OnLoss at minimum cwnd to preserve slow start
+ARQ: fix slot leak in congestion control — adjustSlots syncs channel after every cwnd/inFlight change

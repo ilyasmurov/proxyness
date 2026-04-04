@@ -1,5 +1,12 @@
 [
   {
+    "id": "ca649a8e-b9aa-4d1a-8bbc-4fe0097d8fc7",
+    "title": "ARQ: fix slot leak in congestion control — adjustSlots syncs channel after every cwnd/inFlight change",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T12:56:49.572828+00:00"
+  },
+  {
     "id": "58568146-a3ef-47cc-84a3-b725a17fd127",
     "title": "ARQ: fix cwnd death spiral — skip OnLoss at minimum cwnd to preserve slow start",
     "description": null,
