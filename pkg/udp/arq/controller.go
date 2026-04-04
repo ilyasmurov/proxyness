@@ -317,6 +317,16 @@ func (c *Controller) RecordPktNum(pktNum uint32) {
 	}
 }
 
+// CwndStats returns congestion window diagnostics (cwnd, inFlight, slots).
+func (c *Controller) CwndStats() (cwnd int, inFlight int, slots int) {
+	return c.cwnd.Stats()
+}
+
+// SendBufLen returns the number of unacked packets in the send buffer.
+func (c *Controller) SendBufLen() int {
+	return c.sendBuf.Len()
+}
+
 // Close shuts down the controller, unblocking any goroutines waiting in Send.
 func (c *Controller) Close() {
 	c.mu.Lock()

@@ -304,11 +304,25 @@ func (l *Listener) checkMachineID(deviceID int, deviceName, machineID string) er
 func (l *Listener) sessionRetransmitLoop(sess *Session) {
 	ticker := time.NewTicker(arqRetransmitInterval)
 	defer ticker.Stop()
-	for range ticker.C {
-		if sess.ARQ == nil {
-			return
+	statsTicker := time.NewTicker(2 * time.Second)
+	defer statsTicker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if sess.ARQ == nil {
+				return
+			}
+			sess.ARQ.RetransmitTick()
+		case <-statsTicker.C:
+			if sess.ARQ == nil {
+				return
+			}
+			cwnd, inFlight, slots := sess.ARQ.CwndStats()
+			sendBuf := sess.ARQ.SendBufLen()
+			if inFlight > 0 || sendBuf > 0 {
+				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d", sess.Token, cwnd, inFlight, slots, sendBuf)
+			}
 		}
-		sess.ARQ.RetransmitTick()
 	}
 }
 

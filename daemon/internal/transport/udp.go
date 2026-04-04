@@ -3,6 +3,7 @@ package transport
 import (
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -239,12 +240,20 @@ func (t *UDPTransport) keepaliveLoop() {
 func (t *UDPTransport) retransmitLoop() {
 	ticker := time.NewTicker(arqRetransmitInterval)
 	defer ticker.Stop()
+	statsTicker := time.NewTicker(2 * time.Second)
+	defer statsTicker.Stop()
 	for {
 		select {
 		case <-t.done:
 			return
 		case <-ticker.C:
 			t.arq.RetransmitTick()
+		case <-statsTicker.C:
+			cwnd, inFlight, slots := t.arq.CwndStats()
+			sendBuf := t.arq.SendBufLen()
+			if inFlight > 0 || sendBuf > 0 {
+				log.Printf("udp: daemon cwnd=%d inFlight=%d slots=%d sendBuf=%d", cwnd, inFlight, slots, sendBuf)
+			}
 		}
 	}
 }

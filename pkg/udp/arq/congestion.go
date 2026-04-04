@@ -151,6 +151,15 @@ func (cc *CongestionControl) InFlight() int {
 	return cc.inFlight
 }
 
+// Stats returns cwnd, inFlight, and available slot count for diagnostics.
+func (cc *CongestionControl) Stats() (cwnd int, inFlight int, slots int) {
+	cc.mu.Lock()
+	w := int(cc.cwnd)
+	f := cc.inFlight
+	cc.mu.Unlock()
+	return w, f, len(cc.slots)
+}
+
 // SignalAll is a no-op kept for API compatibility.
 // Close is handled by closing the done channel passed to WaitForSlot.
 func (cc *CongestionControl) SignalAll() {}

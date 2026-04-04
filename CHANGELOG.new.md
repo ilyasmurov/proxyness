@@ -1,2 +1,2 @@
-## fix
-UDP: fix stream open race condition with Dialing flag, clean up debug logs
+## improvement
+ARQ: диагностические логи cwnd/inFlight/sendBuf каждые 2 секунды
