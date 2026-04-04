@@ -1,5 +1,12 @@
 [
   {
+    "id": "3ecd37f5-f450-4628-a31a-eff4ec07e507",
+    "title": "ARQ review fixes: channel semaphore, max retransmit drop, stream limits",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T06:59:27.009706+00:00"
+  },
+  {
     "id": "fcbb48cd-9db4-4d5f-8e97-53d13bc6ae66",
     "title": "ARQ: channel semaphore вместо sync.Cond для cwnd",
     "description": "ARQ: дроп пакетов при maxRetransmits с освобождением cwnd слота\nARQ: конфигурируемые размеры буферов (SendBufSize, RecvBufSize, MaxStreams)",
