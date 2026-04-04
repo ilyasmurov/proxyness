@@ -1,5 +1,12 @@
 [
   {
+    "id": "1c74d621-9e2e-4a25-86c5-cc912b17fc68",
+    "title": "ARQ send buffer with retransmit tracking",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-04T05:54:32.433423+00:00"
+  },
+  {
     "id": "2b888490-221e-40c5-83e2-1c9e3ddbaec8",
     "title": "Align CUBIC congestion control with spec: pure wall-clock time measurement, ssthresh minimum clamp",
     "description": null,
