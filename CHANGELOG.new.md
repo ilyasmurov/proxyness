@@ -1,2 +1,2 @@
 ## feature
-Add PktNum field to UDP packet wire format for ARQ reliability foundation
+ACK encode/decode with 256-bit SACK bitmap for UDP ARQ reliability layer

@@ -1,5 +1,12 @@
 [
   {
+    "id": "5cd284c6-72de-47ba-b293-807a739d2900",
+    "title": "ACK encode/decode with 256-bit SACK bitmap for UDP ARQ reliability layer",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-04T05:39:05.064305+00:00"
+  },
+  {
     "id": "b07d7555-c062-48a0-8b01-f3d0d6412045",
     "title": "Add PktNum field to UDP packet wire format for ARQ reliability foundation",
     "description": null,
