@@ -20,6 +20,7 @@ const (
 type Packet struct {
 	ConnID   uint32 // session token (0 for handshake)
 	Type     byte
+	PktNum   uint32 // connection-level sequence number for ARQ
 	StreamID uint32
 	Seq      uint32
 	Data     []byte
@@ -31,15 +32,16 @@ type Packet struct {
 //
 //	[1 byte:  QUIC flags (0x40 | random)]
 //	[4 bytes: Connection ID]
-//	[N bytes: Encrypted(Type + StreamID + Seq + DataLen + Data)]
+//	[N bytes: Encrypted(Type + PktNum + StreamID + Seq + DataLen + Data)]
 func EncodePacket(p *Packet, key []byte) ([]byte, error) {
-	// Inner payload: type(1) + streamID(4) + seq(4) + dataLen(2) + data(N)
-	inner := make([]byte, 1+4+4+2+len(p.Data))
+	// Inner payload: type(1) + pktNum(4) + streamID(4) + seq(4) + dataLen(2) + data(N)
+	inner := make([]byte, 1+4+4+4+2+len(p.Data))
 	inner[0] = p.Type
-	binary.BigEndian.PutUint32(inner[1:5], p.StreamID)
-	binary.BigEndian.PutUint32(inner[5:9], p.Seq)
-	binary.BigEndian.PutUint16(inner[9:11], uint16(len(p.Data)))
-	copy(inner[11:], p.Data)
+	binary.BigEndian.PutUint32(inner[1:5], p.PktNum)
+	binary.BigEndian.PutUint32(inner[5:9], p.StreamID)
+	binary.BigEndian.PutUint32(inner[9:13], p.Seq)
+	binary.BigEndian.PutUint16(inner[13:15], uint16(len(p.Data)))
+	copy(inner[15:], p.Data)
 
 	encrypted, err := Encrypt(key, inner)
 	if err != nil {
@@ -71,20 +73,21 @@ func DecodePacket(data []byte, key []byte) (*Packet, error) {
 		return nil, fmt.Errorf("decrypt: %w", err)
 	}
 
-	if len(inner) < 11 {
+	if len(inner) < 15 {
 		return nil, fmt.Errorf("inner payload too short: %d bytes", len(inner))
 	}
 
-	dataLen := binary.BigEndian.Uint16(inner[9:11])
-	if len(inner) < 11+int(dataLen) {
-		return nil, fmt.Errorf("data truncated: have %d, need %d", len(inner)-11, dataLen)
+	dataLen := binary.BigEndian.Uint16(inner[13:15])
+	if len(inner) < 15+int(dataLen) {
+		return nil, fmt.Errorf("data truncated: have %d, need %d", len(inner)-15, dataLen)
 	}
 
 	return &Packet{
 		ConnID:   connID,
 		Type:     inner[0],
-		StreamID: binary.BigEndian.Uint32(inner[1:5]),
-		Seq:      binary.BigEndian.Uint32(inner[5:9]),
-		Data:     inner[11 : 11+dataLen],
+		PktNum:   binary.BigEndian.Uint32(inner[1:5]),
+		StreamID: binary.BigEndian.Uint32(inner[5:9]),
+		Seq:      binary.BigEndian.Uint32(inner[9:13]),
+		Data:     inner[15 : 15+dataLen],
 	}, nil
 }

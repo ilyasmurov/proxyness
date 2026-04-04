@@ -1,2 +1,2 @@
 ## feature
-UDP ARQ reliability layer implementation plan
+Add PktNum field to UDP packet wire format for ARQ reliability foundation

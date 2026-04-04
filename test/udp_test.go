@@ -72,6 +72,7 @@ func TestUDPPacketRoundTrip(t *testing.T) {
 	pkt := &pkgudp.Packet{
 		ConnID:   0xABCD1234,
 		Type:     pkgudp.MsgStreamData,
+		PktNum:   1,
 		StreamID: 42,
 		Data:     []byte("hello from client"),
 	}
