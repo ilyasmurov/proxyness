@@ -1,2 +1,2 @@
 ## feature
-AckState: received packet tracking and ACK generation for ARQ layer
+ARQ Controller tying all components together
