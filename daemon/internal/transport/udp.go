@@ -9,28 +9,33 @@ import (
 	"time"
 
 	pkgudp "smurov-proxy/pkg/udp"
+	"smurov-proxy/pkg/udp/arq"
 )
 
 const (
-	udpMaxPayload  = 1344 // max data bytes per MsgStreamData packet
+	udpMaxPayload  = 1340 // max data bytes per MsgStreamData packet (4 bytes less for PktNum field)
 	udpKeepalive   = 15 * time.Second
 	udpHandshakeTO = 3 * time.Second
 	udpReadBuf     = 65535
+
+	arqRetransmitInterval = 10 * time.Millisecond
+	arqAckInterval        = 25 * time.Millisecond
 )
 
 // UDPTransport implements Transport over a single multiplexed UDP connection.
 type UDPTransport struct {
-	conn      *net.UDPConn
+	conn       *net.UDPConn
 	sessionKey []byte
-	connID    uint32
-	devKey    []byte // 32-byte device key derived from hex string
+	connID     uint32
+	devKey     []byte // 32-byte device key derived from hex string
+	arq        *arq.Controller
 
-	mu       sync.Mutex
-	streams  map[uint32]*udpStream
-	nextID   uint32
+	mu      sync.Mutex
+	streams map[uint32]*udpStream
+	nextID  uint32
 
-	closed   atomic.Bool
-	done     chan struct{}
+	closed atomic.Bool
+	done   chan struct{}
 }
 
 func NewUDPTransport() *UDPTransport {
@@ -135,20 +140,37 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 	t.sessionKey = sessionKey
 	t.connID = resp.SessionToken
 
+	// Create ARQ Controller
+	t.arq = arq.New(t.connID, t.sessionKey, func(data []byte) error {
+		_, err := t.conn.Write(data)
+		return err
+	}, func(streamID uint32, data []byte) {
+		t.mu.Lock()
+		s, ok := t.streams[streamID]
+		t.mu.Unlock()
+		if ok {
+			select {
+			case s.recvCh <- append([]byte(nil), data...):
+			default:
+			}
+		}
+	})
+
 	go t.recvLoop()
 	go t.keepaliveLoop()
+	go t.retransmitLoop()
+	go t.ackLoop()
 
 	return nil
 }
 
-// recvLoop reads incoming UDP packets and dispatches them to streams.
+// recvLoop reads incoming UDP packets and dispatches them through the ARQ controller.
 func (t *UDPTransport) recvLoop() {
 	buf := make([]byte, udpReadBuf)
 	for {
 		n, err := t.conn.Read(buf)
 		if err != nil {
 			if !t.closed.Load() {
-				// Close all streams on read error
 				t.mu.Lock()
 				for _, s := range t.streams {
 					s.mu.Lock()
@@ -166,20 +188,20 @@ func (t *UDPTransport) recvLoop() {
 			continue
 		}
 
-		t.mu.Lock()
-		s, ok := t.streams[pkt.StreamID]
-		t.mu.Unlock()
-
 		switch pkt.Type {
 		case pkgudp.MsgStreamData:
-			if ok {
-				s.recvCh <- append([]byte(nil), pkt.Data...)
-			}
+			t.arq.HandleData(pkt)
+		case pkgudp.MsgAck:
+			t.arq.HandleAck(pkt.Data)
 		case pkgudp.MsgStreamClose:
+			t.mu.Lock()
+			s, ok := t.streams[pkt.StreamID]
+			t.mu.Unlock()
 			if ok {
 				t.mu.Lock()
 				delete(t.streams, pkt.StreamID)
 				t.mu.Unlock()
+				t.arq.RemoveRecvBuffer(pkt.StreamID)
 				s.mu.Lock()
 				s.closeRecvChLocked()
 				s.mu.Unlock()
@@ -210,6 +232,32 @@ func (t *UDPTransport) keepaliveLoop() {
 	}
 }
 
+func (t *UDPTransport) retransmitLoop() {
+	ticker := time.NewTicker(arqRetransmitInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-t.done:
+			return
+		case <-ticker.C:
+			t.arq.RetransmitTick()
+		}
+	}
+}
+
+func (t *UDPTransport) ackLoop() {
+	ticker := time.NewTicker(arqAckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-t.done:
+			return
+		case <-ticker.C:
+			t.arq.AckTick()
+		}
+	}
+}
+
 // OpenStream allocates a stream ID, sends MsgStreamOpen, and returns a udpStream.
 func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (Stream, error) {
 	if t.closed.Load() {
@@ -228,6 +276,8 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 	t.streams[id] = s
 	t.mu.Unlock()
 
+	t.arq.CreateRecvBuffer(id)
+
 	// Send MsgStreamOpen
 	payload := (&pkgudp.StreamOpenMsg{
 		StreamType: streamType,
@@ -235,24 +285,11 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 		Port:       port,
 	}).Encode()
 
-	pkt := &pkgudp.Packet{
-		ConnID:   t.connID,
-		Type:     pkgudp.MsgStreamOpen,
-		StreamID: id,
-		Seq:      0,
-		Data:     payload,
-	}
-	encoded, err := pkgudp.EncodePacket(pkt, t.sessionKey)
-	if err != nil {
+	if err := t.arq.Send(pkgudp.MsgStreamOpen, id, 0, payload); err != nil {
 		t.mu.Lock()
 		delete(t.streams, id)
 		t.mu.Unlock()
-		return nil, fmt.Errorf("encode stream open: %w", err)
-	}
-	if _, err := t.conn.Write(encoded); err != nil {
-		t.mu.Lock()
-		delete(t.streams, id)
-		t.mu.Unlock()
+		t.arq.RemoveRecvBuffer(id)
 		return nil, fmt.Errorf("send stream open: %w", err)
 	}
 
@@ -264,18 +301,21 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 				t.mu.Lock()
 				delete(t.streams, id)
 				t.mu.Unlock()
+				t.arq.RemoveRecvBuffer(id)
 				return nil, fmt.Errorf("stream closed before connect result")
 			}
 			if len(data) == 0 || data[0] != 0x01 {
 				t.mu.Lock()
 				delete(t.streams, id)
 				t.mu.Unlock()
+				t.arq.RemoveRecvBuffer(id)
 				return nil, fmt.Errorf("connect rejected: %s:%d", addr, port)
 			}
 		case <-time.After(10 * time.Second):
 			t.mu.Lock()
 			delete(t.streams, id)
 			t.mu.Unlock()
+			t.arq.RemoveRecvBuffer(id)
 			return nil, fmt.Errorf("connect timeout: %s:%d", addr, port)
 		}
 	}
@@ -289,6 +329,10 @@ func (t *UDPTransport) Close() error {
 		return nil
 	}
 	close(t.done)
+
+	if t.arq != nil {
+		t.arq.Close()
+	}
 
 	t.mu.Lock()
 	for _, s := range t.streams {
@@ -363,7 +407,7 @@ func (s *udpStream) Read(p []byte) (int, error) {
 	}
 }
 
-// Write implements io.Writer. Chunks data into 1344-byte segments.
+// Write implements io.Writer. Chunks data into 1340-byte segments.
 func (s *udpStream) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	if s.closed {
@@ -384,14 +428,7 @@ func (s *udpStream) Write(p []byte) (int, error) {
 		s.seq++
 		s.mu.Unlock()
 
-		pkt := &pkgudp.Packet{
-			ConnID:   s.t.connID,
-			Type:     pkgudp.MsgStreamData,
-			StreamID: s.id,
-			Seq:      seq,
-			Data:     chunk,
-		}
-		if err := s.t.sendPacket(pkt); err != nil {
+		if err := s.t.arq.Send(pkgudp.MsgStreamData, s.id, seq, chunk); err != nil {
 			return total, err
 		}
 		total += len(chunk)
@@ -415,10 +452,6 @@ func (s *udpStream) Close() error {
 	delete(s.t.streams, s.id)
 	s.t.mu.Unlock()
 
-	pkt := &pkgudp.Packet{
-		ConnID:   s.t.connID,
-		Type:     pkgudp.MsgStreamClose,
-		StreamID: s.id,
-	}
-	return s.t.sendPacket(pkt)
+	s.t.arq.RemoveRecvBuffer(s.id)
+	return s.t.arq.Send(pkgudp.MsgStreamClose, s.id, 0, nil)
 }
