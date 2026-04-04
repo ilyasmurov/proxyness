@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	minRTO = 100 * time.Millisecond
+	minRTO = 200 * time.Millisecond
 	maxRTO = 2000 * time.Millisecond
 )
 
@@ -22,7 +22,7 @@ type RTTEstimator struct {
 // NewRTTEstimator creates a new RTTEstimator with initial RTO of 1000ms.
 func NewRTTEstimator() *RTTEstimator {
 	return &RTTEstimator{
-		rto: 1000 * time.Millisecond,
+		rto: 200 * time.Millisecond,
 	}
 }
 

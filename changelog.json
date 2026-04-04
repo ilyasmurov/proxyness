@@ -1,5 +1,12 @@
 [
   {
+    "id": "352f5111-3d10-4b9b-a2be-8ae5ae8d1d8a",
+    "title": "ARQ: увеличен minRTO до 200ms, немедленный ACK каждые 2 пакета, initial RTO 200ms",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T10:14:32.138391+00:00"
+  },
+  {
     "id": "94faa814-8152-4646-81d0-74cf4f8efa95",
     "title": "UDP: deduplicate retransmitted stream open — prevent double-dial race",
     "description": null,

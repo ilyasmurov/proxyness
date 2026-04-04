@@ -132,7 +132,10 @@ func (c *Controller) HandleData(pkt *pkgudp.Packet) {
 		rb.Insert(pkt.Seq, pkt.Data)
 	}
 
-	if c.ackState.NeedsImmediateAck() {
+	// Send ACK immediately on gap or every 2nd packet to minimize delay.
+	// Waiting for the ackLoop tick (25ms) inflates effective RTT and causes
+	// false retransmits when minRTO is tight.
+	if c.ackState.NeedsImmediateAck() || c.ackState.NeedsDelayedAck() {
 		c.sendAck()
 	}
 }
@@ -308,7 +311,7 @@ func (c *Controller) RemoveRecvBuffer(streamID uint32) {
 func (c *Controller) RecordPktNum(pktNum uint32) {
 	if pktNum > 0 {
 		c.ackState.RecordReceived(pktNum)
-		if c.ackState.NeedsImmediateAck() {
+		if c.ackState.NeedsImmediateAck() || c.ackState.NeedsDelayedAck() {
 			c.sendAck()
 		}
 	}
