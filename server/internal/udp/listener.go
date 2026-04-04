@@ -239,26 +239,21 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 		sess.mu.Lock()
 		clientAddr := sess.ClientAddr
 		sess.mu.Unlock()
-		n, err := l.conn.WriteTo(data, clientAddr)
-		if err != nil {
-			log.Printf("udp: WriteTo %s failed: %v", clientAddr, err)
-		} else {
-			log.Printf("udp: WriteTo %s %d bytes", clientAddr, n)
-		}
+		_, err := l.conn.WriteTo(data, clientAddr)
 		return err
 	}, func(streamID uint32, data []byte) {
 		st, ok := sess.GetStream(streamID)
-		if !ok || st.Conn == nil {
+		if !ok || st.WriteCh == nil {
 			return
 		}
-		n, err := st.Conn.Write(data)
-		if err != nil {
-			log.Printf("udp: arq deliver to dest stream=%d: %v", streamID, err)
-			sess.RemoveStream(streamID)
-			l.sendClose(sess, streamID)
-			return
+		cp := make([]byte, len(data))
+		copy(cp, data)
+		select {
+		case st.WriteCh <- cp:
+		default:
+			// write channel full — drop data to avoid blocking processLoop
+			log.Printf("udp: stream %d write channel full, dropping %d bytes", streamID, len(data))
 		}
-		st.BytesIn += int64(n)
 	})
 
 	// Start ARQ background goroutines
@@ -375,6 +370,8 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 			return
 		}
 		st.Conn = conn
+		st.WriteCh = make(chan []byte, 256)
+		go l.streamWriter(sess, streamID, st)
 		l.sendResult(sess, streamID, true)
 		go l.relayFromDest(sess, streamID, conn)
 
@@ -387,6 +384,8 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 			return
 		}
 		st.Conn = conn
+		st.WriteCh = make(chan []byte, 256)
+		go l.streamWriter(sess, streamID, st)
 		l.sendResult(sess, streamID, true)
 		go l.relayFromDest(sess, streamID, conn)
 
@@ -394,6 +393,21 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 		log.Printf("udp: unknown stream type 0x%02x", msg.StreamType)
 		l.sendResult(sess, streamID, false)
 		sess.RemoveStream(streamID)
+	}
+}
+
+// streamWriter drains the per-stream write channel and writes to the destination.
+// This runs in its own goroutine so that slow destinations don't block processLoop.
+func (l *Listener) streamWriter(sess *Session, streamID uint32, st *StreamState) {
+	for data := range st.WriteCh {
+		n, err := st.Conn.Write(data)
+		if err != nil {
+			log.Printf("udp: stream %d write to dest: %v", streamID, err)
+			sess.RemoveStream(streamID)
+			l.sendClose(sess, streamID)
+			return
+		}
+		st.BytesIn += int64(n)
 	}
 }
 

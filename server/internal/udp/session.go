@@ -33,6 +33,7 @@ type StreamState struct {
 	Addr     string
 	Port     uint16
 	Conn     net.Conn // outbound connection to destination
+	WriteCh  chan []byte
 	BytesIn  int64
 	BytesOut int64
 	Created  time.Time
@@ -72,6 +73,10 @@ func (s *Session) RemoveStream(id uint32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if st, ok := s.streams[id]; ok {
+		if st.WriteCh != nil {
+			close(st.WriteCh)
+			st.WriteCh = nil
+		}
 		if st.Conn != nil {
 			st.Conn.Close()
 		}
@@ -87,6 +92,10 @@ func (s *Session) CloseAllStreams() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id, st := range s.streams {
+		if st.WriteCh != nil {
+			close(st.WriteCh)
+			st.WriteCh = nil
+		}
 		if st.Conn != nil {
 			st.Conn.Close()
 		}

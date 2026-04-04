@@ -1,2 +1,2 @@
-## improvement
-UDP: detailed diagnostic logging for ACK flow debugging
+## fix
+UDP: per-stream write channel — deliverFn больше не блокирует processLoop
