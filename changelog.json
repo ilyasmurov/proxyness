@@ -1,5 +1,19 @@
 [
   {
+    "id": "39d7a9cb-30f8-428e-af52-ed0112c18c96",
+    "title": "UDP ARQ reliability layer с CUBIC congestion control",
+    "description": "Reliable UDP transport интегрирован в daemon и server",
+    "type": "feature",
+    "createdAt": "2026-04-04T06:51:07.016264+00:00"
+  },
+  {
+    "id": "3571af9d-8704-496b-b565-c893b92bf3c9",
+    "title": "Changelog система в admin панели",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-04T06:51:07.016434+00:00"
+  },
+  {
     "id": "9f1fea19-851e-44f6-b311-1d4439c6eea8",
     "title": "RTT sampling, sender-side dup ACK, single OnLoss per tick in ARQ",
     "description": "Sample RTT using Karn's algorithm, track sender-side duplicate ACKs for fast retransmit, call OnLoss/Backoff once per retransmit tick, fix goroutine leak on session cleanup, remove dead fields.",
