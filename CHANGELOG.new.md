@@ -1,2 +1,2 @@
 ## fix
-ARQ: rewrite congestion control — replace channel semaphore with mutex+notify
+UDP: non-blocking WriteTo with deadline, proper session loop cleanup via done channel

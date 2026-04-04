@@ -327,6 +327,11 @@ func (c *Controller) SendBufLen() int {
 	return c.sendBuf.Len()
 }
 
+// Done returns a channel that is closed when the controller is shut down.
+func (c *Controller) Done() <-chan struct{} {
+	return c.done
+}
+
 // Close shuts down the controller, unblocking any goroutines waiting in Send.
 func (c *Controller) Close() {
 	c.mu.Lock()

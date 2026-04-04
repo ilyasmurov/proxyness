@@ -35,9 +35,9 @@ type inPacket struct {
 
 // NewListener creates a new UDP Listener.
 func NewListener(conn net.PacketConn, database *db.DB, tracker *stats.Tracker) *Listener {
-	// Increase UDP receive buffer to reduce packet loss under load.
 	if uc, ok := conn.(*net.UDPConn); ok {
 		uc.SetReadBuffer(4 * 1024 * 1024)
+		uc.SetWriteBuffer(4 * 1024 * 1024)
 	}
 	return &Listener{
 		conn:     conn,
@@ -232,11 +232,19 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 	sess.ClientAddr = addr
 	sess.mu.Unlock()
 
-	// Initialize ARQ Controller for this session
+	// Initialize ARQ Controller for this session.
+	// sendFn uses a short write deadline so retransmit storms from dead sessions
+	// can't block the shared socket and starve processLoop.
 	sess.ARQ = arq.New(token, sessionKey, func(data []byte) error {
 		sess.mu.Lock()
 		clientAddr := sess.ClientAddr
 		sess.mu.Unlock()
+		if uc, ok := l.conn.(*net.UDPConn); ok {
+			uc.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
+			_, err := uc.WriteTo(data, clientAddr)
+			uc.SetWriteDeadline(time.Time{})
+			return err
+		}
 		_, err := l.conn.WriteTo(data, clientAddr)
 		return err
 	}, func(streamID uint32, data []byte) {
@@ -306,17 +314,14 @@ func (l *Listener) sessionRetransmitLoop(sess *Session) {
 	defer ticker.Stop()
 	statsTicker := time.NewTicker(2 * time.Second)
 	defer statsTicker.Stop()
+	done := sess.ARQ.Done()
 	for {
 		select {
+		case <-done:
+			return
 		case <-ticker.C:
-			if sess.ARQ == nil {
-				return
-			}
 			sess.ARQ.RetransmitTick()
 		case <-statsTicker.C:
-			if sess.ARQ == nil {
-				return
-			}
 			cwnd, inFlight, slots := sess.ARQ.CwndStats()
 			sendBuf := sess.ARQ.SendBufLen()
 			if inFlight > 0 || sendBuf > 0 {
@@ -330,11 +335,14 @@ func (l *Listener) sessionRetransmitLoop(sess *Session) {
 func (l *Listener) sessionAckLoop(sess *Session) {
 	ticker := time.NewTicker(arqAckInterval)
 	defer ticker.Stop()
-	for range ticker.C {
-		if sess.ARQ == nil {
+	done := sess.ARQ.Done()
+	for {
+		select {
+		case <-done:
 			return
+		case <-ticker.C:
+			sess.ARQ.AckTick()
 		}
-		sess.ARQ.AckTick()
 	}
 }
 
