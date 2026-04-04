@@ -1,5 +1,12 @@
 [
   {
+    "id": "58568146-a3ef-47cc-84a3-b725a17fd127",
+    "title": "ARQ: fix cwnd death spiral — skip OnLoss at minimum cwnd to preserve slow start",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T12:47:34.060986+00:00"
+  },
+  {
     "id": "da7a25d2-0264-46aa-b172-bba5f5ecdb9e",
     "title": "ARQ: диагностические логи cwnd/inFlight/sendBuf каждые 2 секунды",
     "description": null,

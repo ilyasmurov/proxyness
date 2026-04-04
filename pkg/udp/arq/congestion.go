@@ -115,12 +115,23 @@ func (cc *CongestionControl) OnAck(n int) {
 }
 
 // OnLoss handles a loss event: set ssthresh and cwnd via CUBIC beta.
+// When cwnd is at initCwnd (minimum), we keep ssthresh at MaxFloat64 so that
+// the next recovery uses slow start (exponential growth) instead of CUBIC
+// congestion avoidance (glacial growth). Without this, loss at minimum cwnd
+// creates a death spiral: ssthresh=initCwnd, cwnd=initCwnd, congestion
+// avoidance grows ~0.1/ACK, never recovers before next loss.
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
+	if cc.cwnd <= float64(initCwnd) {
+		// Already at minimum — don't reduce further, keep slow start for recovery
+		cc.lastLoss = time.Now()
+		cc.mu.Unlock()
+		return
+	}
 	cc.wMax = cc.cwnd
 	cc.ssthresh = cc.cwnd * cubicBeta
-	if cc.ssthresh < initCwnd {
-		cc.ssthresh = initCwnd
+	if cc.ssthresh < float64(initCwnd) {
+		cc.ssthresh = float64(initCwnd)
 	}
 	cc.cwnd = cc.ssthresh
 	cc.lastLoss = time.Now()

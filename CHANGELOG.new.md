@@ -1,2 +1,2 @@
-## improvement
-ARQ: диагностические логи cwnd/inFlight/sendBuf каждые 2 секунды
+## fix
+ARQ: fix cwnd death spiral — skip OnLoss at minimum cwnd to preserve slow start
