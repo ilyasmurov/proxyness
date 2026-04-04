@@ -1,2 +1,2 @@
 ## fix
-ARQ: remove sendAck from recvLoop path — fix deadlock when UDP send buffer full
+ARQ: revert to v1.23.3 congestion control + RTO, keep only safe fixes (OnDrop, no sendAck in HandleData)

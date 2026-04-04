@@ -14,8 +14,7 @@ const (
 )
 
 // CongestionControl implements CUBIC congestion control algorithm.
-// The invariant inFlight < cwnd is checked under mutex. A notification channel
-// is used solely to wake blocked senders — no counting or slot accounting.
+// Send slots are managed via a channel semaphore for clean select/context integration.
 type CongestionControl struct {
 	mu       sync.Mutex
 	cwnd     float64
@@ -23,24 +22,21 @@ type CongestionControl struct {
 	wMax     float64
 	lastLoss time.Time
 	inFlight int
-	notify   chan struct{} // buffered 1, used to signal state changes
+	slots    chan struct{} // buffered semaphore, capacity = maxCwnd
 }
 
 // NewCongestionControl creates a new CongestionControl starting in slow start.
 func NewCongestionControl() *CongestionControl {
-	return &CongestionControl{
+	cc := &CongestionControl{
 		cwnd:     initCwnd,
 		ssthresh: math.MaxFloat64,
-		notify:   make(chan struct{}, 1),
+		slots:    make(chan struct{}, maxCwnd),
 	}
-}
-
-// signal wakes one goroutine blocked in WaitForSlot.
-func (cc *CongestionControl) signal() {
-	select {
-	case cc.notify <- struct{}{}:
-	default:
+	// Pre-fill slots for initial cwnd
+	for i := 0; i < initCwnd; i++ {
+		cc.slots <- struct{}{}
 	}
+	return cc
 }
 
 // Window returns the current congestion window size, capped at maxCwnd.
@@ -61,31 +57,22 @@ func (cc *CongestionControl) CanSend() bool {
 	return cc.inFlight < int(cc.cwnd)
 }
 
-// WaitForSlot blocks until inFlight < cwnd or done is closed.
+// WaitForSlot blocks until a send slot is available or done is closed.
 // Returns false if done was closed, true if a slot became available.
 func (cc *CongestionControl) WaitForSlot(done <-chan struct{}) bool {
-	for {
-		cc.mu.Lock()
-		if cc.inFlight < int(cc.cwnd) {
-			cc.mu.Unlock()
-			return true
-		}
-		cc.mu.Unlock()
-
-		select {
-		case <-cc.notify:
-			// State changed, re-check
-		case <-done:
-			return false
-		}
+	select {
+	case <-cc.slots:
+		return true
+	case <-done:
+		return false
 	}
 }
 
 // OnSend records that a packet has been sent.
 func (cc *CongestionControl) OnSend() {
 	cc.mu.Lock()
+	defer cc.mu.Unlock()
 	cc.inFlight++
-	cc.mu.Unlock()
 }
 
 // OnAck records that n packets were acknowledged and updates the window.
@@ -96,6 +83,8 @@ func (cc *CongestionControl) OnAck(n int) {
 	if cc.inFlight < 0 {
 		cc.inFlight = 0
 	}
+
+	oldCwnd := int(cc.cwnd)
 
 	for i := 0; i < n; i++ {
 		if cc.cwnd < cc.ssthresh {
@@ -109,8 +98,20 @@ func (cc *CongestionControl) OnAck(n int) {
 		}
 	}
 
+	newCwnd := int(cc.cwnd)
 	cc.mu.Unlock()
-	cc.signal()
+
+	// Return slots: one per ACKed packet + any new slots from window growth
+	slotsToReturn := n
+	if newCwnd > oldCwnd {
+		slotsToReturn += newCwnd - oldCwnd
+	}
+	for i := 0; i < slotsToReturn; i++ {
+		select {
+		case cc.slots <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // OnDrop releases n cwnd slots without growing the window (used when packets
@@ -122,24 +123,23 @@ func (cc *CongestionControl) OnDrop(n int) {
 		cc.inFlight = 0
 	}
 	cc.mu.Unlock()
-	cc.signal()
+
+	// Return slots without growth
+	for i := 0; i < n; i++ {
+		select {
+		case cc.slots <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // OnLoss handles a loss event: set ssthresh and cwnd via CUBIC beta.
-// When cwnd is at initCwnd (minimum), we keep ssthresh at MaxFloat64 so that
-// the next recovery uses slow start (exponential growth) instead of CUBIC
-// congestion avoidance (glacial growth).
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
-	if cc.cwnd <= float64(initCwnd) {
-		cc.lastLoss = time.Now()
-		cc.mu.Unlock()
-		return
-	}
 	cc.wMax = cc.cwnd
 	cc.ssthresh = cc.cwnd * cubicBeta
-	if cc.ssthresh < float64(initCwnd) {
-		cc.ssthresh = float64(initCwnd)
+	if cc.ssthresh < initCwnd {
+		cc.ssthresh = initCwnd
 	}
 	cc.cwnd = cc.ssthresh
 	cc.lastLoss = time.Now()
@@ -170,17 +170,13 @@ func (cc *CongestionControl) InFlight() int {
 	return cc.inFlight
 }
 
-// Stats returns cwnd, inFlight for diagnostics. Slots is always cwnd - inFlight.
+// Stats returns cwnd, inFlight, and available slot count for diagnostics.
 func (cc *CongestionControl) Stats() (cwnd int, inFlight int, slots int) {
 	cc.mu.Lock()
 	w := int(cc.cwnd)
 	f := cc.inFlight
 	cc.mu.Unlock()
-	s := w - f
-	if s < 0 {
-		s = 0
-	}
-	return w, f, s
+	return w, f, len(cc.slots)
 }
 
 // SignalAll is a no-op kept for API compatibility.

@@ -146,9 +146,7 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 	// sendFn uses a short write deadline so retransmit storms or concurrent
 	// data sends can't block the UDP socket and starve the receive path.
 	t.arq = arq.New(t.connID, t.sessionKey, func(data []byte) error {
-		t.conn.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
 		_, err := t.conn.Write(data)
-		t.conn.SetWriteDeadline(time.Time{})
 		return err
 	}, func(streamID uint32, data []byte) {
 		t.mu.Lock()
