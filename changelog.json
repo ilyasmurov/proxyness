@@ -1,5 +1,12 @@
 [
   {
+    "id": "4e607546-3900-4e01-98a3-5c6db3535b1d",
+    "title": "Add per-stream receive reorder buffer for UDP ARQ",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-04T05:55:55.682203+00:00"
+  },
+  {
     "id": "1c74d621-9e2e-4a25-86c5-cc912b17fc68",
     "title": "ARQ send buffer with retransmit tracking",
     "description": null,

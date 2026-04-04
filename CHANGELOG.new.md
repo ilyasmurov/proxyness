@@ -1,2 +1,2 @@
 ## feature
-ARQ send buffer with retransmit tracking
+Add per-stream receive reorder buffer for UDP ARQ
