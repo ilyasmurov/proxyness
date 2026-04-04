@@ -113,6 +113,18 @@ func (cc *CongestionControl) OnAck(n int) {
 	cc.signal()
 }
 
+// OnDrop releases n cwnd slots without growing the window (used when packets
+// are dropped after max retransmits — these are NOT successful deliveries).
+func (cc *CongestionControl) OnDrop(n int) {
+	cc.mu.Lock()
+	cc.inFlight -= n
+	if cc.inFlight < 0 {
+		cc.inFlight = 0
+	}
+	cc.mu.Unlock()
+	cc.signal()
+}
+
 // OnLoss handles a loss event: set ssthresh and cwnd via CUBIC beta.
 // When cwnd is at initCwnd (minimum), we keep ssthresh at MaxFloat64 so that
 // the next recovery uses slow start (exponential growth) instead of CUBIC

@@ -1,2 +1,2 @@
 ## fix
-UDP: non-blocking WriteTo with deadline, proper session loop cleanup via done channel
+ARQ: remove sendAck from recvLoop path — fix deadlock when UDP send buffer full

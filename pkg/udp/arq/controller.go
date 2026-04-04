@@ -132,12 +132,10 @@ func (c *Controller) HandleData(pkt *pkgudp.Packet) {
 		rb.Insert(pkt.Seq, pkt.Data)
 	}
 
-	// Send ACK immediately on gap or every 2nd packet to minimize delay.
-	// Waiting for the ackLoop tick (25ms) inflates effective RTT and causes
-	// false retransmits when minRTO is tight.
-	if c.ackState.NeedsImmediateAck() || c.ackState.NeedsDelayedAck() {
-		c.sendAck()
-	}
+	// NOTE: ACKs are sent by the ackLoop goroutine, NOT here.
+	// Calling sendAck() here would block recvLoop/processLoop on conn.Write()
+	// when the UDP send buffer is full (other goroutines sending data),
+	// deadlocking all packet processing.
 }
 
 // HandleAck processes an incoming ACK datagram, removing acknowledged packets
@@ -196,9 +194,9 @@ func (c *Controller) RetransmitTick() {
 
 	for _, p := range expired {
 		if c.sendBuf.IsMaxRetransmits(p.PktNum) {
-			// Drop the packet and release the cwnd slot
+			// Drop the packet and release the cwnd slot (without growing cwnd)
 			if c.sendBuf.Drop(p.PktNum) {
-				c.cwnd.OnAck(1)
+				c.cwnd.OnDrop(1)
 			}
 			continue
 		}
@@ -311,9 +309,7 @@ func (c *Controller) RemoveRecvBuffer(streamID uint32) {
 func (c *Controller) RecordPktNum(pktNum uint32) {
 	if pktNum > 0 {
 		c.ackState.RecordReceived(pktNum)
-		if c.ackState.NeedsImmediateAck() || c.ackState.NeedsDelayedAck() {
-			c.sendAck()
-		}
+		// ACKs sent by ackLoop — never call sendAck here (blocks receive path)
 	}
 }
 
