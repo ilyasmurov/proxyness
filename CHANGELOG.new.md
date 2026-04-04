@@ -1,2 +1,2 @@
 ## feature
-Add Jacobson/Karels RTT estimator for UDP ARQ
+CUBIC congestion control for UDP ARQ transport
