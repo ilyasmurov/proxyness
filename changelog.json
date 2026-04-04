@@ -1,5 +1,12 @@
 [
   {
+    "id": "b88b69a5-118b-4f8b-8186-6c5c453a643f",
+    "title": "AckState: received packet tracking and ACK generation for ARQ layer",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-04T05:57:29.012677+00:00"
+  },
+  {
     "id": "4e607546-3900-4e01-98a3-5c6db3535b1d",
     "title": "Add per-stream receive reorder buffer for UDP ARQ",
     "description": null,

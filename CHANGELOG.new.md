@@ -1,2 +1,2 @@
 ## feature
-Add per-stream receive reorder buffer for UDP ARQ
+AckState: received packet tracking and ACK generation for ARQ layer
