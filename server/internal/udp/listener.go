@@ -121,7 +121,6 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 		// Record PktNum for ACK — stream open is sent through ARQ.
 		// Without this, daemon's cwnd fills and blocks all sends.
 		if sess.ARQ != nil && pkt.PktNum > 0 {
-			log.Printf("udp: RecordPktNum(%d) for stream open stream=%d", pkt.PktNum, pkt.StreamID)
 			sess.ARQ.RecordPktNum(pkt.PktNum)
 		}
 		log.Printf("udp: stream open connID=%d stream=%d from %s", connID, pkt.StreamID, addr)
@@ -138,7 +137,6 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 		log.Printf("udp: stream close connID=%d stream=%d", connID, pkt.StreamID)
 		l.handleStreamClose(sess, pkt)
 	case pkgudp.MsgAck:
-		log.Printf("udp: received ACK from daemon connID=%d", connID)
 		if sess.ARQ != nil {
 			sess.ARQ.HandleAck(pkt.Data)
 		}
@@ -337,9 +335,9 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 
 	streamID := pkt.StreamID
 
-	// Deduplicate: skip if stream already has a connection (retransmit)
+	// Deduplicate: skip if stream already being processed or connected (retransmit)
 	sess.mu.Lock()
-	if st, exists := sess.streams[streamID]; exists && st.Conn != nil {
+	if st, exists := sess.streams[streamID]; exists && (st.Conn != nil || st.Dialing) {
 		sess.mu.Unlock()
 		return
 	}
@@ -349,6 +347,7 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 		sess.nextSeq[streamID] = &seq
 	}
 	st := sess.streams[streamID]
+	st.Dialing = true
 	sess.mu.Unlock()
 
 	st.Type = msg.StreamType

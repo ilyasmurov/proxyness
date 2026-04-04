@@ -1,5 +1,12 @@
 [
   {
+    "id": "0b1e7c5e-4b08-44ba-9529-11b85f0f1aa6",
+    "title": "UDP: fix stream open race condition with Dialing flag, clean up debug logs",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-04T10:24:25.927268+00:00"
+  },
+  {
     "id": "352f5111-3d10-4b9b-a2be-8ae5ae8d1d8a",
     "title": "ARQ: увеличен minRTO до 200ms, немедленный ACK каждые 2 пакета, initial RTO 200ms",
     "description": null,

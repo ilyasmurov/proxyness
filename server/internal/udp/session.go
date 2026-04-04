@@ -34,6 +34,7 @@ type StreamState struct {
 	Port     uint16
 	Conn     net.Conn // outbound connection to destination
 	WriteCh  chan []byte
+	Dialing  bool // true while handleStreamOpen is dialing
 	BytesIn  int64
 	BytesOut int64
 	Created  time.Time
