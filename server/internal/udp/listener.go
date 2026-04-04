@@ -121,6 +121,7 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 		// Record PktNum for ACK — stream open is sent through ARQ.
 		// Without this, daemon's cwnd fills and blocks all sends.
 		if sess.ARQ != nil && pkt.PktNum > 0 {
+			log.Printf("udp: RecordPktNum(%d) for stream open stream=%d", pkt.PktNum, pkt.StreamID)
 			sess.ARQ.RecordPktNum(pkt.PktNum)
 		}
 		log.Printf("udp: stream open connID=%d stream=%d from %s", connID, pkt.StreamID, addr)
@@ -137,6 +138,7 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 		log.Printf("udp: stream close connID=%d stream=%d", connID, pkt.StreamID)
 		l.handleStreamClose(sess, pkt)
 	case pkgudp.MsgAck:
+		log.Printf("udp: received ACK from daemon connID=%d", connID)
 		if sess.ARQ != nil {
 			sess.ARQ.HandleAck(pkt.Data)
 		}
@@ -237,7 +239,12 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 		sess.mu.Lock()
 		clientAddr := sess.ClientAddr
 		sess.mu.Unlock()
-		_, err := l.conn.WriteTo(data, clientAddr)
+		n, err := l.conn.WriteTo(data, clientAddr)
+		if err != nil {
+			log.Printf("udp: WriteTo %s failed: %v", clientAddr, err)
+		} else {
+			log.Printf("udp: WriteTo %s %d bytes", clientAddr, n)
+		}
 		return err
 	}, func(streamID uint32, data []byte) {
 		st, ok := sess.GetStream(streamID)
