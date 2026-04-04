@@ -1,2 +1,2 @@
 ## improvement
-Integrate ARQ Controller into UDP transport for reliable delivery with congestion control
+Integrate ARQ Controller into server UDP listener for reliable delivery with retransmits and congestion control

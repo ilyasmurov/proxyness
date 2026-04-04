@@ -10,8 +10,14 @@ import (
 
 	"smurov-proxy/pkg/auth"
 	pkgudp "smurov-proxy/pkg/udp"
+	"smurov-proxy/pkg/udp/arq"
 	"smurov-proxy/server/internal/db"
 	"smurov-proxy/server/internal/stats"
+)
+
+const (
+	arqRetransmitInterval = 10 * time.Millisecond
+	arqAckInterval        = 25 * time.Millisecond
 )
 
 // Listener handles incoming QUIC-disguised UDP packets on a PacketConn.
@@ -114,9 +120,15 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 	case pkgudp.MsgStreamOpen:
 		go l.handleStreamOpen(sess, pkt, addr) // async: dial blocks
 	case pkgudp.MsgStreamData:
-		l.handleStreamData(sess, pkt)
+		if sess.ARQ != nil {
+			sess.ARQ.HandleData(pkt)
+		}
 	case pkgudp.MsgStreamClose:
 		l.handleStreamClose(sess, pkt)
+	case pkgudp.MsgAck:
+		if sess.ARQ != nil {
+			sess.ARQ.HandleAck(pkt.Data)
+		}
 	case pkgudp.MsgKeepalive:
 		// no-op
 	default:
@@ -209,6 +221,32 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 	sess.ClientAddr = addr
 	sess.mu.Unlock()
 
+	// Initialize ARQ Controller for this session
+	sess.ARQ = arq.New(token, sessionKey, func(data []byte) error {
+		sess.mu.Lock()
+		clientAddr := sess.ClientAddr
+		sess.mu.Unlock()
+		_, err := l.conn.WriteTo(data, clientAddr)
+		return err
+	}, func(streamID uint32, data []byte) {
+		st, ok := sess.GetStream(streamID)
+		if !ok || st.Conn == nil {
+			return
+		}
+		n, err := st.Conn.Write(data)
+		if err != nil {
+			log.Printf("udp: arq deliver to dest stream=%d: %v", streamID, err)
+			sess.RemoveStream(streamID)
+			l.sendClose(sess, streamID)
+			return
+		}
+		st.BytesIn += int64(n)
+	})
+
+	// Start ARQ background goroutines
+	go l.sessionRetransmitLoop(sess)
+	go l.sessionAckLoop(sess)
+
 	// Build and send HandshakeResponse encrypted with device key.
 	resp := &pkgudp.HandshakeResponse{
 		EphemeralPub: serverPubBytes,
@@ -251,6 +289,30 @@ func (l *Listener) checkMachineID(deviceID int, deviceName, machineID string) er
 	return nil
 }
 
+// sessionRetransmitLoop periodically triggers ARQ retransmissions for a session.
+func (l *Listener) sessionRetransmitLoop(sess *Session) {
+	ticker := time.NewTicker(arqRetransmitInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		if sess.ARQ == nil {
+			return
+		}
+		sess.ARQ.RetransmitTick()
+	}
+}
+
+// sessionAckLoop periodically sends delayed ACKs for a session.
+func (l *Listener) sessionAckLoop(sess *Session) {
+	ticker := time.NewTicker(arqAckInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		if sess.ARQ == nil {
+			return
+		}
+		sess.ARQ.AckTick()
+	}
+}
+
 // handleStreamOpen decodes a StreamOpenMsg, creates a stream in the session,
 // dials the destination, and starts a relay goroutine from destination back to client.
 func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.Addr) {
@@ -266,6 +328,8 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 	sess.mu.Lock()
 	if _, exists := sess.streams[streamID]; !exists {
 		sess.streams[streamID] = &StreamState{Created: time.Now()}
+		seq := uint32(0)
+		sess.nextSeq[streamID] = &seq
 	}
 	st := sess.streams[streamID]
 	sess.mu.Unlock()
@@ -274,6 +338,10 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 	st.Addr = msg.Addr
 	st.Port = msg.Port
 
+	if sess.ARQ != nil {
+		sess.ARQ.CreateRecvBuffer(streamID)
+	}
+
 	target := net.JoinHostPort(msg.Addr, fmt.Sprintf("%d", msg.Port))
 
 	switch msg.StreamType {
@@ -281,48 +349,31 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 		conn, err := net.DialTimeout("tcp", target, 10*time.Second)
 		if err != nil {
 			log.Printf("udp: dial TCP %s: %v", target, err)
-			l.sendResult(sess, streamID, false, addr)
+			l.sendResult(sess, streamID, false)
 			sess.RemoveStream(streamID)
 			return
 		}
 		st.Conn = conn
-		l.sendResult(sess, streamID, true, addr)
-		go l.relayFromDest(sess, streamID, conn, addr)
+		l.sendResult(sess, streamID, true)
+		go l.relayFromDest(sess, streamID, conn)
 
 	case pkgudp.StreamTypeUDP:
 		conn, err := net.DialTimeout("udp", target, 10*time.Second)
 		if err != nil {
 			log.Printf("udp: dial UDP %s: %v", target, err)
-			l.sendResult(sess, streamID, false, addr)
+			l.sendResult(sess, streamID, false)
 			sess.RemoveStream(streamID)
 			return
 		}
 		st.Conn = conn
-		l.sendResult(sess, streamID, true, addr)
-		go l.relayFromDest(sess, streamID, conn, addr)
+		l.sendResult(sess, streamID, true)
+		go l.relayFromDest(sess, streamID, conn)
 
 	default:
 		log.Printf("udp: unknown stream type 0x%02x", msg.StreamType)
-		l.sendResult(sess, streamID, false, addr)
+		l.sendResult(sess, streamID, false)
 		sess.RemoveStream(streamID)
 	}
-}
-
-// handleStreamData writes incoming data to the stream's outbound connection.
-func (l *Listener) handleStreamData(sess *Session, pkt *pkgudp.Packet) {
-	st, ok := sess.GetStream(pkt.StreamID)
-	if !ok || st.Conn == nil {
-		return
-	}
-
-	n, err := st.Conn.Write(pkt.Data)
-	if err != nil {
-		log.Printf("udp: write to dest stream=%d: %v", pkt.StreamID, err)
-		sess.RemoveStream(pkt.StreamID)
-		l.sendClose(sess, pkt.StreamID)
-		return
-	}
-	st.BytesIn += int64(n)
 }
 
 // handleStreamClose closes the outbound connection for a stream.
@@ -330,14 +381,14 @@ func (l *Listener) handleStreamClose(sess *Session, pkt *pkgudp.Packet) {
 	sess.RemoveStream(pkt.StreamID)
 }
 
-// relayFromDest reads from the destination connection and sends StreamData packets to the client.
-func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn, clientAddr net.Addr) {
+// relayFromDest reads from the destination connection and sends StreamData packets to the client via ARQ.
+func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) {
 	defer func() {
 		sess.RemoveStream(streamID)
 		l.sendClose(sess, streamID)
 	}()
 
-	buf := make([]byte, 1344)
+	buf := make([]byte, 1340)
 	for {
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		n, err := conn.Read(buf)
@@ -348,25 +399,13 @@ func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn, 
 			}
 			st.BytesOut += int64(n)
 
-			// Get latest client address (roaming)
-			sess.mu.Lock()
-			addr := sess.ClientAddr
-			sess.mu.Unlock()
+			seq := sess.NextSeq(streamID)
 
-			pkt := &pkgudp.Packet{
-				ConnID:   sess.Token,
-				Type:     pkgudp.MsgStreamData,
-				StreamID: streamID,
-				Data:     buf[:n],
-			}
-			encoded, encErr := pkgudp.EncodePacket(pkt, sess.SessionKey)
-			if encErr != nil {
-				log.Printf("udp: encode relay pkt stream=%d: %v", streamID, encErr)
-				return
-			}
-			if _, writeErr := l.conn.WriteTo(encoded, addr); writeErr != nil {
-				log.Printf("udp: write relay to client stream=%d: %v", streamID, writeErr)
-				return
+			if sess.ARQ != nil {
+				if sendErr := sess.ARQ.Send(pkgudp.MsgStreamData, streamID, seq, buf[:n]); sendErr != nil {
+					log.Printf("udp: arq send stream=%d: %v", streamID, sendErr)
+					return
+				}
 			}
 		}
 		if err != nil {
@@ -375,50 +414,20 @@ func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn, 
 	}
 }
 
-// sendResult sends a single-byte result (0x01=ok, 0x00=fail) as StreamData to the client.
-func (l *Listener) sendResult(sess *Session, streamID uint32, ok bool, addr net.Addr) {
+// sendResult sends a single-byte result (0x01=ok, 0x00=fail) as StreamData to the client via ARQ.
+func (l *Listener) sendResult(sess *Session, streamID uint32, ok bool) {
 	b := byte(0x00)
 	if ok {
 		b = 0x01
 	}
-	pkt := &pkgudp.Packet{
-		ConnID:   sess.Token,
-		Type:     pkgudp.MsgStreamData,
-		StreamID: streamID,
-		Data:     []byte{b},
-	}
-	encoded, err := pkgudp.EncodePacket(pkt, sess.SessionKey)
-	if err != nil {
-		log.Printf("udp: encode result stream=%d: %v", streamID, err)
-		return
-	}
-	if _, err := l.conn.WriteTo(encoded, addr); err != nil {
-		log.Printf("udp: send result stream=%d: %v", streamID, err)
+	if sess.ARQ != nil {
+		sess.ARQ.Send(pkgudp.MsgStreamData, streamID, 0, []byte{b}) //nolint:errcheck
 	}
 }
 
-// sendClose sends a StreamClose packet to the client.
+// sendClose sends a StreamClose packet to the client via ARQ.
 func (l *Listener) sendClose(sess *Session, streamID uint32) {
-	sess.mu.Lock()
-	addr := sess.ClientAddr
-	sess.mu.Unlock()
-
-	if addr == nil {
-		return
-	}
-
-	pkt := &pkgudp.Packet{
-		ConnID:   sess.Token,
-		Type:     pkgudp.MsgStreamClose,
-		StreamID: streamID,
-	}
-	encoded, err := pkgudp.EncodePacket(pkt, sess.SessionKey)
-	if err != nil {
-		log.Printf("udp: encode close stream=%d: %v", streamID, err)
-		return
-	}
-	if _, err := l.conn.WriteTo(encoded, addr); err != nil {
-		log.Printf("udp: send close stream=%d: %v", streamID, err)
+	if sess.ARQ != nil {
+		sess.ARQ.Send(pkgudp.MsgStreamClose, streamID, 0, nil) //nolint:errcheck
 	}
 }
-
