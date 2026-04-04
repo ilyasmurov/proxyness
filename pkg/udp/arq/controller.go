@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	pkgudp "smurov-proxy/pkg/udp"
 )
@@ -27,6 +28,9 @@ type Controller struct {
 	recvMu   sync.Mutex
 	recvBufs map[uint32]*RecvBuffer
 	ackState *AckState
+
+	lastAckCumAck uint32
+	dupAckCount   int
 
 	sendFn    func([]byte) error
 	deliverFn func(streamID uint32, data []byte)
@@ -117,6 +121,12 @@ func (c *Controller) HandleAck(data []byte) {
 		return
 	}
 
+	// Sample RTT from the cumAck packet (Karn's algorithm: skip retransmits)
+	if p := c.sendBuf.Get(ack.CumAck); p != nil && !p.IsRetransmit() {
+		c.rtt.Update(time.Since(p.SentAt))
+	}
+
+	// Process cumulative ACK
 	acked := c.sendBuf.AckCumulative(ack.CumAck)
 
 	for i := uint32(0); i < 256; i++ {
@@ -134,8 +144,16 @@ func (c *Controller) HandleAck(data []byte) {
 		c.cwnd.OnAck(acked)
 	}
 
-	if c.ackState.DupCount() >= 3 {
-		c.fastRetransmit()
+	// Sender-side duplicate ACK detection for fast retransmit
+	if ack.CumAck == c.lastAckCumAck && ack.CumAck > 0 {
+		c.dupAckCount++
+		if c.dupAckCount >= 3 {
+			c.fastRetransmit()
+			c.dupAckCount = 0
+		}
+	} else {
+		c.lastAckCumAck = ack.CumAck
+		c.dupAckCount = 0
 	}
 }
 
@@ -144,6 +162,10 @@ func (c *Controller) HandleAck(data []byte) {
 func (c *Controller) RetransmitTick() {
 	rto := c.rtt.RTO()
 	expired := c.sendBuf.Expired(rto)
+
+	if len(expired) == 0 {
+		return
+	}
 
 	for _, p := range expired {
 		if c.sendBuf.IsMaxRetransmits(p.PktNum) {
@@ -167,9 +189,11 @@ func (c *Controller) RetransmitTick() {
 
 		c.sendBuf.MarkRetransmitted(p.PktNum, newPktNum, encoded)
 		c.sendFn(encoded) //nolint:errcheck
-		c.rtt.Backoff()
-		c.cwnd.OnLoss()
 	}
+
+	// Signal loss once per tick (not per packet)
+	c.rtt.Backoff()
+	c.cwnd.OnLoss()
 }
 
 // AckTick sends a delayed ACK if enough packets have accumulated since the last

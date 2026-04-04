@@ -13,7 +13,6 @@ type AckState struct {
 	pktsSinceAck int
 	immediateAck bool
 	dupCount     int
-	lastCumAck   uint32
 }
 
 // NewAckState returns a fresh AckState with cumAck=0 (nothing received yet).
@@ -52,8 +51,6 @@ func (as *AckState) RecordReceived(pktNum uint32) {
 		// cumAck advanced — gap was filled; reset dup count.
 		as.dupCount = 0
 	}
-
-	as.lastCumAck = as.cumAck
 }
 
 // BuildAck constructs an AckData snapshot from the current state.

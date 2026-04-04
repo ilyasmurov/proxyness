@@ -1,2 +1,4 @@
-## improvement
-Add UDP ACK round-trip integration test to verify ACK packet encoding and decoding over a real UDP socket
+## fix
+RTT sampling, sender-side dup ACK, single OnLoss per tick in ARQ
+
+Sample RTT using Karn's algorithm, track sender-side duplicate ACKs for fast retransmit, call OnLoss/Backoff once per retransmit tick, fix goroutine leak on session cleanup, remove dead fields.

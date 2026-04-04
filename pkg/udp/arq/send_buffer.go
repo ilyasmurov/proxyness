@@ -30,7 +30,6 @@ func (p *SentPacket) IsRetransmit() bool {
 type SendBuffer struct {
 	mu      sync.Mutex
 	packets map[uint32]*SentPacket
-	minPkt  uint32
 	maxSize int
 }
 

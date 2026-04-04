@@ -94,6 +94,7 @@ func (s *Session) CloseAllStreams() {
 	s.nextSeq = make(map[uint32]*uint32)
 	if s.ARQ != nil {
 		s.ARQ.Close()
+		s.ARQ = nil
 	}
 }
 

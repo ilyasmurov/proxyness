@@ -1,5 +1,12 @@
 [
   {
+    "id": "9f1fea19-851e-44f6-b311-1d4439c6eea8",
+    "title": "RTT sampling, sender-side dup ACK, single OnLoss per tick in ARQ",
+    "description": "Sample RTT using Karn's algorithm, track sender-side duplicate ACKs for fast retransmit, call OnLoss/Backoff once per retransmit tick, fix goroutine leak on session cleanup, remove dead fields.",
+    "type": "fix",
+    "createdAt": "2026-04-04T06:15:17.594970+00:00"
+  },
+  {
     "id": "07ebfad8-f883-4fac-a870-1b11a5668cd5",
     "title": "Add UDP ACK round-trip integration test to verify ACK packet encoding and decoding over a real UDP socket",
     "description": null,
