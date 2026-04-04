@@ -1,5 +1,12 @@
 [
   {
+    "id": "07ebfad8-f883-4fac-a870-1b11a5668cd5",
+    "title": "Add UDP ACK round-trip integration test to verify ACK packet encoding and decoding over a real UDP socket",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-04T06:07:23.794728+00:00"
+  },
+  {
     "id": "df29d1ca-2fb0-463c-9663-0d344540ca4b",
     "title": "Integrate ARQ Controller into server UDP listener for reliable delivery with retransmits and congestion control",
     "description": null,
