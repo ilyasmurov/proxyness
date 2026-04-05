@@ -1,5 +1,12 @@
 [
   {
+    "id": "7326b6d8-7ede-4c6a-923a-086808ed55af",
+    "title": "Fix server crash by upgrading Docker builder to Go 1.26 (Go 1.25 spinbit mutex bug)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T12:29:58.646242+00:00"
+  },
+  {
     "id": "7cf7edc7-e885-492d-8394-8f4f1797709b",
     "title": "Fix server crash by downgrading to Go 1.24 (Go 1.25 spinbit mutex crash on Alpine)",
     "description": null,

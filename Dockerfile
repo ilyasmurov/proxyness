@@ -7,7 +7,7 @@ COPY server/admin-ui/ ./
 RUN npm run build
 
 # Stage 2: Build Go server
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 WORKDIR /build
 COPY pkg/ pkg/
 COPY server/ server/
