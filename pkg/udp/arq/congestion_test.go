@@ -65,27 +65,35 @@ func TestCongestionAvoidanceCubic(t *testing.T) {
 	}
 }
 
-func TestCongestionCanSend(t *testing.T) {
+func TestCongestionAcquireSlot(t *testing.T) {
 	cc := NewCongestionControl()
+	done := make(chan struct{})
 
-	// Initially inFlight=0, cwnd=10 → CanSend=true
-	if !cc.CanSend() {
-		t.Fatal("expected CanSend=true initially")
+	// Initially inFlight=0, cwnd=10 → AcquireSlot should succeed
+	if !cc.AcquireSlot(done) {
+		t.Fatal("expected AcquireSlot=true initially")
 	}
 
-	// Fill window
-	for i := 0; i < cc.Window(); i++ {
-		cc.OnSend()
+	// Fill window (already acquired 1 above)
+	for i := 1; i < cc.Window(); i++ {
+		if !cc.AcquireSlot(done) {
+			t.Fatalf("expected AcquireSlot=true at i=%d", i)
+		}
 	}
 
-	if cc.CanSend() {
-		t.Fatal("expected CanSend=false when window full")
+	// Window full → AcquireSlot should block; verify via InFlight
+	_, inFlight, avail := cc.Stats()
+	if avail != 0 {
+		t.Fatalf("expected 0 available slots when window full, got %d", avail)
+	}
+	if inFlight != initCwnd {
+		t.Fatalf("expected inFlight=%d, got %d", initCwnd, inFlight)
 	}
 
-	// Ack one → CanSend=true
+	// Ack one → slot available
 	cc.OnAck(1)
-	if !cc.CanSend() {
-		t.Fatal("expected CanSend=true after ack")
+	if !cc.AcquireSlot(done) {
+		t.Fatal("expected AcquireSlot=true after ack")
 	}
 }
 

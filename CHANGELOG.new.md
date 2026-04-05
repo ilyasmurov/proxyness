@@ -1,3 +1,3 @@
 ## fix
-Drain excess cwnd slots on loss to prevent unthrottled send bursts
-OnLoss now drains the slot channel to match cwnd - inFlight, preventing sender from bypassing congestion window
+Replace slot channel semaphore with AcquireSlot (inFlight < cwnd check under mutex)
+Eliminates slot inflation/starvation race between OnAck and OnLoss

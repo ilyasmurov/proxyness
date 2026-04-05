@@ -85,7 +85,7 @@ func NewWithConfig(connID uint32, sessionKey []byte, sendFn func([]byte) error, 
 // Send encodes and transmits a data packet, blocking when the congestion window
 // is full. Returns an error if the controller is closed or encoding fails.
 func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error {
-	if !c.cwnd.WaitForSlot(c.done) {
+	if !c.cwnd.AcquireSlot(c.done) {
 		return fmt.Errorf("controller closed")
 	}
 
@@ -108,7 +108,6 @@ func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error
 	payload := make([]byte, len(data))
 	copy(payload, data)
 	c.sendBuf.Add(pktNum, encoded, msgType, streamID, seq, payload)
-	c.cwnd.OnSend()
 
 	if err := c.sendFn(encoded); err != nil {
 		return fmt.Errorf("send: %w", err)

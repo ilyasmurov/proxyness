@@ -14,7 +14,8 @@ const (
 )
 
 // CongestionControl implements CUBIC congestion control algorithm.
-// Send slots are managed via a channel semaphore for clean select/context integration.
+// The notify channel is a wake-up signal only; the authoritative send gate
+// is inFlight < cwnd checked under the mutex inside AcquireSlot.
 type CongestionControl struct {
 	mu       sync.Mutex
 	cwnd     float64
@@ -22,7 +23,7 @@ type CongestionControl struct {
 	wMax     float64
 	lastLoss time.Time
 	inFlight int
-	slots    chan struct{} // buffered semaphore, capacity = maxCwnd
+	notify   chan struct{} // wake-up signal for blocked senders, capacity = maxCwnd
 }
 
 // NewCongestionControl creates a new CongestionControl starting in slow start.
@@ -30,11 +31,11 @@ func NewCongestionControl() *CongestionControl {
 	cc := &CongestionControl{
 		cwnd:     initCwnd,
 		ssthresh: math.MaxFloat64,
-		slots:    make(chan struct{}, maxCwnd),
+		notify:   make(chan struct{}, maxCwnd),
 	}
-	// Pre-fill slots for initial cwnd
+	// Pre-fill signals for initial cwnd
 	for i := 0; i < initCwnd; i++ {
-		cc.slots <- struct{}{}
+		cc.notify <- struct{}{}
 	}
 	return cc
 }
@@ -50,29 +51,24 @@ func (cc *CongestionControl) Window() int {
 	return w
 }
 
-// CanSend reports whether a new packet can be sent (inFlight < cwnd).
-func (cc *CongestionControl) CanSend() bool {
-	cc.mu.Lock()
-	defer cc.mu.Unlock()
-	return cc.inFlight < int(cc.cwnd)
-}
-
-// WaitForSlot blocks until a send slot is available or done is closed.
-// Returns false if done was closed, true if a slot became available.
-func (cc *CongestionControl) WaitForSlot(done <-chan struct{}) bool {
-	select {
-	case <-cc.slots:
-		return true
-	case <-done:
-		return false
+// AcquireSlot blocks until inFlight < cwnd, atomically increments inFlight,
+// and returns true. Returns false if done is closed.
+func (cc *CongestionControl) AcquireSlot(done <-chan struct{}) bool {
+	for {
+		select {
+		case <-cc.notify:
+			cc.mu.Lock()
+			if cc.inFlight < int(cc.cwnd) {
+				cc.inFlight++
+				cc.mu.Unlock()
+				return true
+			}
+			cc.mu.Unlock()
+			// spurious wake (stale signal after OnLoss), retry
+		case <-done:
+			return false
+		}
 	}
-}
-
-// OnSend records that a packet has been sent.
-func (cc *CongestionControl) OnSend() {
-	cc.mu.Lock()
-	defer cc.mu.Unlock()
-	cc.inFlight++
 }
 
 // OnAck records that n packets were acknowledged and updates the window.
@@ -83,8 +79,6 @@ func (cc *CongestionControl) OnAck(n int) {
 	if cc.inFlight < 0 {
 		cc.inFlight = 0
 	}
-
-	oldCwnd := int(cc.cwnd)
 
 	for i := 0; i < n; i++ {
 		if cc.cwnd < cc.ssthresh {
@@ -98,17 +92,16 @@ func (cc *CongestionControl) OnAck(n int) {
 		}
 	}
 
-	newCwnd := int(cc.cwnd)
+	available := int(cc.cwnd) - cc.inFlight
+	if available < 0 {
+		available = 0
+	}
 	cc.mu.Unlock()
 
-	// Return slots: one per ACKed packet + any new slots from window growth
-	slotsToReturn := n
-	if newCwnd > oldCwnd {
-		slotsToReturn += newCwnd - oldCwnd
-	}
-	for i := 0; i < slotsToReturn; i++ {
+	// Wake up to 'available' blocked senders
+	for i := 0; i < available; i++ {
 		select {
-		case cc.slots <- struct{}{}:
+		case cc.notify <- struct{}{}:
 		default:
 		}
 	}
@@ -122,12 +115,15 @@ func (cc *CongestionControl) OnDrop(n int) {
 	if cc.inFlight < 0 {
 		cc.inFlight = 0
 	}
+	available := int(cc.cwnd) - cc.inFlight
+	if available < 0 {
+		available = 0
+	}
 	cc.mu.Unlock()
 
-	// Return slots without growth
-	for i := 0; i < n; i++ {
+	for i := 0; i < available; i++ {
 		select {
-		case cc.slots <- struct{}{}:
+		case cc.notify <- struct{}{}:
 		default:
 		}
 	}
@@ -153,25 +149,10 @@ func (cc *CongestionControl) OnLoss() {
 		cc.cwnd = cc.ssthresh
 		cc.lastLoss = time.Now()
 	}
-	cc.drainExcessSlots()
 	cc.mu.Unlock()
-}
-
-// drainExcessSlots removes slots from the channel that exceed cwnd - inFlight.
-// Without this, OnLoss reduces cwnd but the slot channel keeps stale capacity,
-// letting the sender burst far beyond the new window. Must be called with mu held.
-func (cc *CongestionControl) drainExcessSlots() {
-	target := int(cc.cwnd) - cc.inFlight
-	if target < 0 {
-		target = 0
-	}
-	for len(cc.slots) > target {
-		select {
-		case <-cc.slots:
-		default:
-			return
-		}
-	}
+	// No signal needed — reduced cwnd means fewer slots, not more.
+	// AcquireSlot re-checks inFlight < cwnd under the mutex;
+	// stale signals in the channel cause harmless spurious wakeups.
 }
 
 // cubicGrow applies the CUBIC window growth function.
@@ -203,10 +184,14 @@ func (cc *CongestionControl) Stats() (cwnd int, inFlight int, slots int) {
 	cc.mu.Lock()
 	w := int(cc.cwnd)
 	f := cc.inFlight
+	avail := w - f
+	if avail < 0 {
+		avail = 0
+	}
 	cc.mu.Unlock()
-	return w, f, len(cc.slots)
+	return w, f, avail
 }
 
 // SignalAll is a no-op kept for API compatibility.
-// Close is handled by closing the done channel passed to WaitForSlot.
+// Close is handled by closing the done channel passed to AcquireSlot.
 func (cc *CongestionControl) SignalAll() {}
