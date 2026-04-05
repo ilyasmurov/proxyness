@@ -1,5 +1,12 @@
 [
   {
+    "id": "85ad3244-fd82-4c8b-af3b-3d6d64fba6d8",
+    "title": "Auto-restart daemon process if it crashes, preventing \"Daemon not running\" errors.",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T16:48:12.526576+00:00"
+  },
+  {
     "id": "f960ab62-4b6d-4774-97f0-f2345a919d00",
     "title": "Raise UDP cwnd ceiling from 128 to 1024",
     "description": "Theoretical throughput cap goes from ~1 MB/s to ~9 MB/s on ISP paths with ~150ms RTT.",

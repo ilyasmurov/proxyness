@@ -3,6 +3,8 @@ import path from "path";
 import { app } from "electron";
 
 let daemonProcess: ChildProcess | null = null;
+let daemonShouldRun = false;
+let daemonRestartTimer: ReturnType<typeof setTimeout> | null = null;
 
 const MAX_LOG_LINES = 500;
 const logLines: string[] = [];
@@ -41,6 +43,7 @@ function getDaemonPath(): string {
 
 export function startDaemon(): void {
   if (daemonProcess) return;
+  daemonShouldRun = true;
 
   const daemonPath = getDaemonPath();
   daemonProcess = spawn(daemonPath, ["-api", "127.0.0.1:9090", "-listen", "127.0.0.1:1080"], {
@@ -50,6 +53,7 @@ export function startDaemon(): void {
   daemonProcess.on("error", (err) => {
     addLog("daemon", `failed to start: ${err.message}`);
     daemonProcess = null;
+    scheduleRestart();
   });
 
   daemonProcess.stdout?.on("data", (data: Buffer) => {
@@ -63,10 +67,25 @@ export function startDaemon(): void {
   daemonProcess.on("exit", (code) => {
     addLog("daemon", `exited with code ${code}`);
     daemonProcess = null;
+    scheduleRestart();
   });
 }
 
+function scheduleRestart(): void {
+  if (!daemonShouldRun || daemonRestartTimer) return;
+  addLog("daemon", "restarting in 2s...");
+  daemonRestartTimer = setTimeout(() => {
+    daemonRestartTimer = null;
+    if (daemonShouldRun) startDaemon();
+  }, 2000);
+}
+
 export function stopDaemon(): void {
+  daemonShouldRun = false;
+  if (daemonRestartTimer) {
+    clearTimeout(daemonRestartTimer);
+    daemonRestartTimer = null;
+  }
   if (daemonProcess) {
     daemonProcess.kill("SIGKILL");
     daemonProcess = null;
