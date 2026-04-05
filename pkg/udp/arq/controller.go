@@ -42,6 +42,7 @@ type Controller struct {
 	nextPktNum atomic.Uint32
 	cwnd       *CongestionControl
 	rtt        *RTTEstimator
+	pacer      *Pacer
 
 	recvMu   sync.Mutex
 	recvBufs map[uint32]*RecvBuffer
@@ -74,6 +75,7 @@ func NewWithConfig(connID uint32, sessionKey []byte, sendFn func([]byte) error, 
 		sendBuf:    NewSendBuffer(cfg.SendBufSize),
 		cwnd:       NewCongestionControl(),
 		rtt:        NewRTTEstimator(),
+		pacer:      NewPacer(),
 		recvBufs:   make(map[uint32]*RecvBuffer),
 		ackState:   NewAckState(),
 		sendFn:     sendFn,
@@ -87,6 +89,14 @@ func NewWithConfig(connID uint32, sessionKey []byte, sendFn func([]byte) error, 
 func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error {
 	if !c.cwnd.AcquireSlot(c.done) {
 		return fmt.Errorf("controller closed")
+	}
+
+	// Pacing: spread sends over SRTT to avoid burst losses at intermediate buffers.
+	// Interval = SRTT / cwnd so throughput ≈ cwnd × MSS / RTT, just without the burst.
+	if srtt := c.rtt.SRTT(); srtt > 0 {
+		if w := c.cwnd.Window(); w > 1 {
+			c.pacer.Pace(srtt / time.Duration(w))
+		}
 	}
 
 	pktNum := c.nextPktNum.Add(1)
@@ -170,6 +180,11 @@ func (c *Controller) HandleAck(data []byte) {
 	if acked > 0 {
 		c.cwnd.OnAck(acked)
 	}
+
+	// SACK-based loss detection: retransmit gap packets immediately.
+	// Unlike RTO retransmit, this does NOT reduce cwnd — random drops on
+	// lossy ISP paths are not congestion signals. Recovery in ~1 RTT.
+	c.sackDetect(ack)
 
 	// Sender-side duplicate ACK detection for fast retransmit
 	if ack.CumAck == c.lastAckCumAck && ack.CumAck > 0 {
@@ -303,6 +318,81 @@ func (c *Controller) fastRetransmit() {
 	c.sendBuf.MarkResent(p.PktNum, encoded)
 	c.sendFn(encoded) //nolint:errcheck
 	c.cwnd.OnLoss()
+}
+
+// maxSackRetransmit limits SACK-triggered retransmits per ACK to prevent storms.
+const maxSackRetransmit = 4
+
+// sackDetect uses SACK bitmap gaps to detect lost packets and retransmit
+// immediately without cwnd reduction. If 3+ packets after a gap are SACKed,
+// the gap packet is considered lost.
+func (c *Controller) sackDetect(ack *AckData) {
+	// Find highest SACKed packet.
+	var highestSacked uint32
+	for i := uint32(255); ; i-- {
+		if ack.IsReceived(ack.CumAck + 1 + i) {
+			highestSacked = ack.CumAck + 1 + i
+			break
+		}
+		if i == 0 {
+			break
+		}
+	}
+	if highestSacked == 0 {
+		return
+	}
+
+	minInterval := c.rtt.RTO() / 2
+	if minInterval < 20*time.Millisecond {
+		minInterval = 20 * time.Millisecond
+	}
+
+	retxCount := 0
+	for pktNum := ack.CumAck + 1; pktNum < highestSacked && retxCount < maxSackRetransmit; pktNum++ {
+		if ack.IsReceived(pktNum) {
+			continue
+		}
+
+		// Count SACKed packets after this gap.
+		laterAcked := 0
+		for j := pktNum + 1; j <= highestSacked && j <= ack.CumAck+256; j++ {
+			if ack.IsReceived(j) {
+				laterAcked++
+				if laterAcked >= 3 {
+					break
+				}
+			}
+		}
+		if laterAcked < 3 {
+			continue
+		}
+
+		p := c.sendBuf.Get(pktNum)
+		if p == nil || p.Acked {
+			continue
+		}
+
+		// Skip if recently sent to avoid retransmit storm.
+		if time.Since(p.LastSentAt) < minInterval {
+			continue
+		}
+
+		retxPkt := &pkgudp.Packet{
+			ConnID:   c.connID,
+			Type:     p.MsgType,
+			PktNum:   p.PktNum,
+			StreamID: p.StreamID,
+			Seq:      p.Seq,
+			Data:     p.Payload,
+		}
+		encoded, err := pkgudp.EncodePacket(retxPkt, c.sessionKey)
+		if err != nil {
+			continue
+		}
+		c.sendBuf.MarkResent(p.PktNum, encoded)
+		c.sendFn(encoded) //nolint:errcheck
+		retxCount++
+	}
 }
 
 // CreateRecvBuffer creates a receive buffer for the given stream ID.

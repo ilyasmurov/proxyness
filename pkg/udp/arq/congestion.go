@@ -8,7 +8,7 @@ import (
 
 const (
 	initCwnd  = 32
-	minCwnd   = 16
+	minCwnd   = 32
 	maxCwnd   = 128
 	cubicBeta = 0.8
 	cubicC    = 0.4

@@ -200,6 +200,46 @@ func TestControllerRetransmit(t *testing.T) {
 	}
 }
 
+func TestControllerSackRetransmit(t *testing.T) {
+	sender := &mockSender{}
+	ctrl := New(0xABCD, make([]byte, 32), sender.send, func(uint32, []byte) {})
+	defer ctrl.Close()
+
+	// Send 5 packets (pktNums 1-5)
+	for i := 0; i < 5; i++ {
+		if err := ctrl.Send(pkgudp.MsgStreamData, 1, uint32(i), []byte("data")); err != nil {
+			t.Fatalf("send %d: %v", i, err)
+		}
+	}
+	initialCount := sender.count()
+
+	// Simulate ACK: cumAck=0 (packet 1 missing), SACK for 2,3,4,5
+	ack := &AckData{CumAck: 0}
+	ack.SetReceived(2)
+	ack.SetReceived(3)
+	ack.SetReceived(4)
+	ack.SetReceived(5)
+
+	// Backdate packet 1 so it passes the minInterval check
+	if p := ctrl.sendBuf.Get(1); p != nil {
+		p.LastSentAt = time.Now().Add(-1 * time.Second)
+	}
+
+	ctrl.HandleAck(ack.Encode())
+	time.Sleep(10 * time.Millisecond)
+
+	// Should have retransmitted packet 1
+	if sender.count() <= initialCount {
+		t.Fatal("SACK detection should have retransmitted the lost packet")
+	}
+
+	// cwnd should NOT have been reduced — SACK retransmits are not loss events
+	_, _, _, losses := ctrl.cwnd.Stats()
+	if losses > 0 {
+		t.Fatalf("SACK retransmit should not trigger loss events, got %d", losses)
+	}
+}
+
 func TestControllerMaxStreams(t *testing.T) {
 	sender := &mockSender{}
 	cfg := DefaultConfig()
