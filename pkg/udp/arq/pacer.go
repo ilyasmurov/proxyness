@@ -22,7 +22,7 @@ func NewPacer() *Pacer {
 
 const (
 	minSleep = time.Millisecond
-	maxBurst = 16 // cap burst to avoid overwhelming shallow ISP UDP buffers
+	maxBurst = 8 // cap burst to avoid overwhelming shallow ISP UDP buffers
 )
 
 // Pace rate-limits sends. For sub-millisecond intervals, sends a burst of

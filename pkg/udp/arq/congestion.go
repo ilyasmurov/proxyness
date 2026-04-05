@@ -9,8 +9,8 @@ import (
 const (
 	initCwnd  = 128
 	minCwnd   = 64
-	maxCwnd   = 1024
-	cubicBeta = 0.8
+	maxCwnd   = 256
+	cubicBeta = 0.9
 	cubicC    = 0.4
 )
 
