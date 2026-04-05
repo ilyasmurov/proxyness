@@ -91,11 +91,12 @@ func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error
 		return fmt.Errorf("controller closed")
 	}
 
-	// Pacing: use phase-appropriate gain. During STARTUP, high gain (2.885x)
-	// doubles the rate each RTT. During steady-state, moderate gain (1.25x)
-	// probes for bandwidth without excessive buffer bloat.
+	// Pacing: don't pace until BWE has enough samples — early samples are too
+	// noisy and would throttle the initial burst needed for accurate estimation.
+	// During STARTUP, use high gain (2.885x) to double rate each RTT.
+	// During steady-state, moderate gain (1.25x) to probe without bloat.
 	bwe := c.cwnd.BWE()
-	if bwe.HasEstimate() {
+	if bwe.IsStable() {
 		gain := c.cwnd.PacingGain()
 		if pacingRate := bwe.PacingRate(gain); pacingRate > 0 {
 			interval := time.Duration(float64(time.Second) * float64(packetMSS) / pacingRate)

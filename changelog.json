@@ -1,5 +1,12 @@
 [
   {
+    "id": "206057cd-0e20-4ca0-96c1-e707bef94e2c",
+    "title": "Defer pacing until BWE has enough samples to prevent early throttling",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T20:53:38.947845+00:00"
+  },
+  {
     "id": "df71d8c5-e9f9-49d3-9d0a-d5b5a319a6ed",
     "title": "Add BBR-like STARTUP phase to congestion control",
     "description": "High pacing gain (2.885x) doubles sending rate each RTT until pipe is full, then transitions to steady-state 1.25x probing",
