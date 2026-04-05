@@ -53,7 +53,7 @@ export function UserDetail() {
               <DialogHeader><DialogTitle>{createdKey ? "Device Created" : "New Device"}</DialogTitle></DialogHeader>
               {createdKey ? (
                 <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">Copy this key — it won't be shown again:</p>
+                  <p className="text-sm text-muted-foreground">Device key:</p>
                   <code className="block p-3 bg-muted rounded text-xs break-all select-all">{createdKey}</code>
                   <Button onClick={() => navigator.clipboard.writeText(createdKey)} className="w-full">Copy Key</Button>
                 </div>
@@ -72,12 +72,18 @@ export function UserDetail() {
         <CardContent className="p-0">
           <Table>
             <TableHeader><TableRow>
-              <TableHead>Device</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead><TableHead>Active</TableHead><TableHead></TableHead>
+              <TableHead>Device</TableHead><TableHead>Key</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead><TableHead>Active</TableHead><TableHead></TableHead>
             </TableRow></TableHeader>
             <TableBody>
               {devices.map((d) => (
                 <TableRow key={d.id}>
                   <TableCell className="font-medium">{d.name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <code className="text-xs text-muted-foreground">{d.key.slice(0, 8)}…</code>
+                      <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => navigator.clipboard.writeText(d.key)}>Copy</Button>
+                    </div>
+                  </TableCell>
                   <TableCell><Badge variant={d.active ? "default" : "secondary"}>{d.active ? "Active" : "Inactive"}</Badge></TableCell>
                   <TableCell>{new Date(d.created_at).toLocaleDateString()}</TableCell>
                   <TableCell><Switch checked={d.active} onCheckedChange={(v) => handleToggle(d.id, v)} /></TableCell>

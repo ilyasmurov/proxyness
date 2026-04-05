@@ -1,2 +1,5 @@
+## fix
+Prevent cwnd death spiral on download (OnLoss at minimum cwnd preserves slow start)
+
 ## improvement
-Benchmark: добавлен тест UDP+ARQ v1.23.11
+Show device key prefix with copy button in admin panel

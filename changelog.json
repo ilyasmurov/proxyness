@@ -1,5 +1,19 @@
 [
   {
+    "id": "bfc4fcb8-8e98-4f23-b384-a2f6c5390760",
+    "title": "Prevent cwnd death spiral on download (OnLoss at minimum cwnd preserves slow start)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T06:00:50.388702+00:00"
+  },
+  {
+    "id": "12dcaf94-7e32-4e47-b414-162a8f1cd03b",
+    "title": "Show device key prefix with copy button in admin panel",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T06:00:50.388875+00:00"
+  },
+  {
     "id": "31bdd9bd-9815-481d-93d0-b8befc55e847",
     "title": "Benchmark: добавлен тест UDP+ARQ v1.23.11",
     "description": null,
