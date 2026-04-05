@@ -27,8 +27,11 @@ func (as *AckState) RecordReceived(pktNum uint32) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
-	// Already covered by the cumulative ACK — duplicate, ignore.
+	// Already covered by the cumulative ACK — duplicate.
+	// The sender retransmitted it, meaning our ACK was lost.
+	// Increment pktsSinceAck so the next AckTick re-sends the current cumAck.
 	if pktNum <= as.cumAck {
+		as.pktsSinceAck++
 		return
 	}
 

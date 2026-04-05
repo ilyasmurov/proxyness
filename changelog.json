@@ -1,5 +1,12 @@
 [
   {
+    "id": "115b9914-29da-4078-bfdb-c6aed865ddbe",
+    "title": "Re-ACK on duplicate packets to prevent deadlock when ACK is lost in transit",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T11:18:04.330926+00:00"
+  },
+  {
     "id": "406c7441-c192-4f32-8acc-940b6d4b4318",
     "title": "Only signal cwnd loss on fresh packet loss, not re-retransmissions",
     "description": "Prevents cwnd from repeatedly crashing on same lost packet; maxRetransmits raised to 50 to prevent cumAck stall from dropped packets",
