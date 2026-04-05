@@ -194,7 +194,6 @@ func (c *Controller) RetransmitTick() {
 		return
 	}
 
-	retransmitted := false
 	newLoss := false
 	for _, p := range expired {
 		if c.sendBuf.IsMaxRetransmits(p.PktNum) {
@@ -230,17 +229,14 @@ func (c *Controller) RetransmitTick() {
 
 		c.sendBuf.MarkResent(p.PktNum, encoded)
 		c.sendFn(encoded) //nolint:errcheck
-		retransmitted = true
 	}
 
-	if retransmitted {
+	// Only signal congestion on fresh losses (first retransmit).
+	// Re-retransmits of already-known lost packets don't indicate
+	// new congestion — they just haven't been ACKed yet.
+	if newLoss {
 		c.rtt.Backoff()
-		// Only signal congestion on fresh losses (first retransmit).
-		// Re-retransmits of already-known lost packets don't indicate
-		// new congestion — they just haven't been ACKed yet.
-		if newLoss {
-			c.cwnd.OnLoss()
-		}
+		c.cwnd.OnLoss()
 	}
 }
 

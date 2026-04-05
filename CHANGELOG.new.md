@@ -1,2 +1,2 @@
 ## fix
-Add recovery epoch to prevent cascading cwnd collapse from burst packet loss
+Only backoff RTO on fresh packet losses to prevent RTO spiral to 2000ms

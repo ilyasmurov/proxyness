@@ -1,5 +1,12 @@
 [
   {
+    "id": "aea2c57d-128a-4555-8e81-c7707816bd11",
+    "title": "Only backoff RTO on fresh packet losses to prevent RTO spiral to 2000ms",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T11:46:12.423534+00:00"
+  },
+  {
     "id": "bd6b1573-7d80-4c2a-a395-1bc6926dc843",
     "title": "Add recovery epoch to prevent cascading cwnd collapse from burst packet loss",
     "description": null,
