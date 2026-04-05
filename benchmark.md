@@ -413,3 +413,99 @@
 > **Stable**: two consecutive runs both 5.0/5.0. No more download instability.
 > **vs TLS**: TLS download was 6.0 MB/s (Test 5). UDP now at 83% of TLS — close to parity.
 > **vs WireGuard**: WG was 0.26 MB/s upload (Test 5). UDP is 19x faster.
+
+---
+
+## Test 9: SmurovProxy v1.24.0 UDP vs WireGuard (2026-04-06)
+
+> Side-by-side comparison on same machine, same time. SmurovProxy: Aeza NL (95.181.162.242). WireGuard/Amnezia: Timeweb (82.97.246.65).
+
+### SmurovProxy UDP v1.24.0
+
+**External IP:** 95.181.162.242
+
+#### Ping (10 packets)
+| Target     | Min     | Avg     | Max     | Stddev | Loss  |
+|------------|---------|---------|---------|--------|-------|
+| 8.8.8.8    | 59.8 ms | 61.2 ms | 64.6 ms | 1.4 ms | 0%    |
+| 1.1.1.1    | —       | —       | —       | —      | 100%  |
+| ya.ru      | —       | —       | —       | —      | 100%  |
+
+#### DNS Resolution
+| Domain       | Time  |
+|--------------|-------|
+| google.com   | 64 ms |
+| youtube.com  | 62 ms |
+| github.com   | 66 ms |
+| ya.ru        | 61 ms |
+| telegram.org | 62 ms |
+
+#### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.142 s  | 0.943 s  | 1.172 s  |
+| https://youtube.com  | 0.135 s  | 1.013 s  | 1.505 s  |
+| https://github.com   | 0.074 s  | 0.381 s  | 0.533 s  |
+| https://ya.ru        | 0.004 s  | 0.600 s  | 0.600 s  |
+| https://telegram.org | 0.070 s  | 0.428 s  | 0.431 s  |
+
+#### Speed
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Download  | 5.0 MB/s    | 25 MB via Cloudflare, 4.8 s    |
+| Upload    | 4.6 MB/s    | 25 MB via Cloudflare, 5.4 s    |
+
+### WireGuard/Amnezia (same session)
+
+**External IP:** 82.97.246.65
+
+#### Ping (10 packets)
+| Target     | Min     | Avg     | Max     | Stddev | Loss  |
+|------------|---------|---------|---------|--------|-------|
+| 8.8.8.8    | 98.0 ms | 99.7 ms | 105.5 ms| 2.1 ms | 0%    |
+| 1.1.1.1    | 139.3 ms| 142.9 ms| 148.3 ms| 3.2 ms | 0%    |
+| ya.ru      | 141.3 ms| 145.0 ms| 160.7 ms| 5.8 ms | 10%   |
+
+#### DNS Resolution
+| Domain       | Time   |
+|--------------|--------|
+| google.com   | 110 ms |
+| youtube.com  | 103 ms |
+| github.com   | 109 ms |
+| ya.ru        | 98 ms  |
+| telegram.org | 98 ms  |
+
+#### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.205 s  | 0.659 s  | 0.946 s  |
+| https://youtube.com  | 0.493 s  | 1.455 s  | 2.319 s  |
+| https://github.com   | 0.262 s  | 0.490 s  | 12.836 s |
+| https://ya.ru        | 0.145 s  | 0.747 s  | 0.749 s  |
+| https://telegram.org | 0.280 s  | 0.696 s  | 0.709 s  |
+
+#### Speed
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Download  | 2.6 MB/s    | 25 MB via Cloudflare, 9.3 s    |
+| Upload    | 6.3 MB/s    | 25 MB via Cloudflare, 4.0 s    |
+
+### Head-to-head
+
+| Metric              | SmurovProxy UDP | WireGuard | Winner        |
+|---------------------|-----------------|-----------|---------------|
+| Ping 8.8.8.8        | **61 ms**       | 100 ms    | SmurovProxy   |
+| DNS avg             | **63 ms**       | 104 ms    | SmurovProxy   |
+| TTFB google.com     | 0.94 s          | **0.66 s**| WireGuard     |
+| TTFB github.com     | **0.38 s**      | 0.49 s    | SmurovProxy   |
+| TTFB telegram.org   | **0.43 s**      | 0.70 s    | SmurovProxy   |
+| Download            | **5.0 MB/s**    | 2.6 MB/s  | SmurovProxy   |
+| Upload              | 4.6 MB/s        | **6.3 MB/s**| WireGuard   |
+
+### Выводы
+- **Download**: SmurovProxy **1.9x быстрее** (5.0 vs 2.6 MB/s)
+- **Upload**: WireGuard **1.4x быстрее** (6.3 vs 4.6 MB/s)
+- **Ping**: SmurovProxy **39% быстрее** (61 vs 100 ms) — разные VPS, но Aeza route лучше
+- **DNS**: SmurovProxy **1.7x быстрее** — резолвинг локальный
+- **TTFB**: SmurovProxy быстрее на github/telegram, WireGuard быстрее на google — примерный паритет
+- **Важно**: серверы разные (Aeza NL vs Timeweb), не полностью чистое сравнение

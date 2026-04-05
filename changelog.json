@@ -1,5 +1,12 @@
 [
   {
+    "id": "a5e3d8cd-7670-49b0-97ec-131426cf0194",
+    "title": "Benchmark Test 9: SmurovProxy UDP v1.24.0 vs WireGuard head-to-head comparison",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T22:51:56.132342+00:00"
+  },
+  {
     "id": "e50dbeec-023f-451b-b2dc-f5463664776f",
     "title": "Auto-reconnect on transport loss",
     "description": "Daemon automatically retries connection up to 5 times when server restarts, no manual reconnect needed.",
