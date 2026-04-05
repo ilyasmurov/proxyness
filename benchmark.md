@@ -327,3 +327,45 @@
 - **Download 0.7 MB/s** — узкое место: cwnd death spiral (ssthresh зажат к initCwnd, CUBIC congestion avoidance вместо slow start). Следующая оптимизация.
 - **TLS остаётся лучше для download** (6.0 MB/s) — TCP congestion control зрелее
 - **AutoTransport** выбирает UDP — оптимально для browsing/messaging, TLS fallback для тяжёлых загрузок
+
+---
+
+## Test 7: SmurovProxy UDP+ARQ after BBR/pacing fixes (server 95.181.162.242, Aeza NL)
+
+> 2026-04-06. After 5 congestion control fixes: BWE byte counting, BBR STARTUP phase, pacing defer until BWE stable.
+
+**External IP:** 95.181.162.242
+
+### Ping (10 packets)
+| Target     | Min     | Avg     | Max     | Stddev | Loss  |
+|------------|---------|---------|---------|--------|-------|
+| 8.8.8.8    | 59.7 ms | 60.2 ms | 61.4 ms | 0.5 ms | 0%    |
+| 1.1.1.1    | —       | —       | —       | —      | 100%  |
+| ya.ru      | —       | —       | —       | —      | 100%  |
+
+### DNS Resolution
+| Domain       | Time  |
+|--------------|-------|
+| google.com   | 64 ms |
+| youtube.com  | 66 ms |
+| github.com   | 67 ms |
+| ya.ru        | 60 ms |
+| telegram.org | 61 ms |
+
+### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.143 s  | 1.140 s  | 1.466 s  |
+| https://youtube.com  | 0.142 s  | 1.193 s  | 1.886 s  |
+| https://github.com   | 0.106 s  | 0.503 s  | 0.701 s  |
+| https://ya.ru        | 0.003 s  | 1.221 s  | 1.221 s  |
+| https://telegram.org | 0.071 s  | 0.541 s  | 0.545 s  |
+
+### Speed
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Download  | 3.9 MB/s    | 25 MB via Cloudflare, 6.1 s    |
+| Upload    | 1.0 MB/s    | 25 MB via Cloudflare, 24.2 s   |
+
+> Download +5.6x vs Test 6 (0.7→3.9 MB/s) — BBR STARTUP + deferred pacing fixed cwnd death spiral.
+> Upload -3.2x vs Test 6 (3.2→1.0 MB/s) — regression, likely deferred pacing causes initial burst to flood buffers.

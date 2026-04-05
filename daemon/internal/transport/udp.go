@@ -271,10 +271,12 @@ func (t *UDPTransport) retransmitLoop() {
 			sendBuf := t.arq.SendBufLen()
 			rto := t.arq.RTOMillis()
 			maxBW, minRTT, bdp := t.arq.BWEStats()
+			startup := t.arq.InStartup()
+			bweStable := t.arq.BWEStable()
 			if inFlight > 0 || sendBuf > 0 {
-				log.Printf("udp: daemon cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB",
+				log.Printf("udp: daemon cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB startup=%v stable=%v",
 					cwnd, inFlight, slots, sendBuf, rto,
-					maxBW/1024/1024, minRTT.Milliseconds(), bdp/1024)
+					maxBW/1024/1024, minRTT.Milliseconds(), bdp/1024, startup, bweStable)
 			}
 		}
 	}

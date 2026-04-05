@@ -48,7 +48,9 @@ func (p *Pacer) Pace(interval time.Duration) {
 		return
 	}
 
-	p.burstSize = int(minSleep / interval)
+	// Round UP to avoid systematic underdelivery from truncation.
+	// E.g. interval=335µs: int(1ms/335µs)=2 but we need 3 to hit target rate.
+	p.burstSize = int((minSleep + interval - 1) / interval)
 	if p.burstSize > maxBurst {
 		p.burstSize = maxBurst
 	}

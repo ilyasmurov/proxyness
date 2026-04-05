@@ -1,4 +1,4 @@
-.PHONY: build-server build-daemon build-helper build-client test clean
+.PHONY: build-server build-daemon build-helper build-client install-daemon test clean
 
 # Server (Linux for VPS)
 build-server:
@@ -17,6 +17,11 @@ build-helper:
 	cd helper && GOOS=darwin GOARCH=arm64 go build -o ../client/resources/helper-darwin-arm64 ./cmd
 	cd helper && GOOS=darwin GOARCH=amd64 go build -o ../client/resources/helper-darwin-amd64 ./cmd
 	cd helper && GOOS=windows GOARCH=amd64 go build -o ../client/resources/helper-windows.exe ./cmd
+
+# Build daemon for current platform and copy into installed app
+install-daemon:
+	cd daemon && go build -o ../client/resources/daemon-darwin-arm64 ./cmd
+	sudo cp client/resources/daemon-darwin-arm64 /Applications/SmurovProxy.app/Contents/Resources/resources/daemon-darwin-arm64
 
 # Electron GUI
 build-client: build-daemon build-helper

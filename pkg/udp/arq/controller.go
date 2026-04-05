@@ -450,6 +450,16 @@ func (c *Controller) RecordPktNum(pktNum uint32) {
 	}
 }
 
+// InStartup reports whether the connection is in STARTUP phase.
+func (c *Controller) InStartup() bool {
+	return c.cwnd.InStartup()
+}
+
+// BWEStable reports whether the BWE has enough samples.
+func (c *Controller) BWEStable() bool {
+	return c.cwnd.BWE().IsStable()
+}
+
 // CwndStats returns congestion window diagnostics (cwnd, inFlight, slots, losses).
 func (c *Controller) CwndStats() (cwnd int, inFlight int, slots int, losses int) {
 	return c.cwnd.Stats()

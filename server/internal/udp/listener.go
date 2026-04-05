@@ -324,10 +324,12 @@ func (l *Listener) sessionRetransmitLoop(sess *Session) {
 			sendBuf := sess.ARQ.SendBufLen()
 			rto := sess.ARQ.RTOMillis()
 			maxBW, minRTT, bdp := sess.ARQ.BWEStats()
+			startup := sess.ARQ.InStartup()
+			bweStable := sess.ARQ.BWEStable()
 			if inFlight > 0 || sendBuf > 0 {
-				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB",
+				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB startup=%v stable=%v",
 					sess.Token, cwnd, inFlight, slots, sendBuf, rto,
-					maxBW/1024/1024, minRTT.Milliseconds(), bdp/1024)
+					maxBW/1024/1024, minRTT.Milliseconds(), bdp/1024, startup, bweStable)
 			}
 		}
 	}

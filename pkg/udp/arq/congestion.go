@@ -153,6 +153,12 @@ func (cc *CongestionControl) OnAck(n int) {
 // Checks once per "round" (after acking cwnd packets), not per ACK.
 // Must be called with mu held.
 func (cc *CongestionControl) checkStartupExit(acked int) {
+	// Don't check exit until BWE has stable estimates. Before stability,
+	// the unpaced initial burst rate doesn't reflect pipe capacity — it's
+	// limited to cwnd/RTT which looks like a plateau and triggers false exit.
+	if !cc.bwe.IsStable() {
+		return
+	}
 	cc.roundAcked += acked
 	if cc.roundAcked < cc.roundThreshold {
 		return // not enough data for a round yet
