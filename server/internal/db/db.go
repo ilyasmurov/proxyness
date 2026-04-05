@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"smurov-proxy/pkg/auth"
@@ -86,6 +87,13 @@ CREATE TABLE IF NOT EXISTS changelog (
     type        TEXT NOT NULL DEFAULT 'feature',
     created_at  TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS logs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    level      TEXT NOT NULL DEFAULT 'info',
+    message    TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
 `
 
 // Open opens (or creates) the SQLite database at path and runs migrations.
@@ -121,6 +129,7 @@ func Open(path string) (*DB, error) {
 
 	d := &DB{sql: sqlDB}
 	d.syncChangelog()
+	d.cleanOldLogs()
 	return d, nil
 }
 
@@ -531,6 +540,99 @@ func (d *DB) GetChangelogUnseenCount(since string) (int, error) {
 }
 
 // syncChangelog reads changelog.json and inserts missing entries into the DB.
+// ---- Logs ----
+
+// LogEntry represents a server log line.
+type LogEntry struct {
+	ID        int    `json:"id"`
+	Level     string `json:"level"`
+	Message   string `json:"message"`
+	CreatedAt string `json:"created_at"`
+}
+
+// WriteLog inserts a log entry.
+func (d *DB) WriteLog(level, message string) {
+	d.sql.Exec(`INSERT INTO logs (level, message) VALUES (?, ?)`, level, message)
+}
+
+// GetLogs returns recent log entries. limit=0 defaults to 200.
+func (d *DB) GetLogs(limit, offset int, level string) ([]LogEntry, int, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+
+	where := ""
+	var args []interface{}
+	if level != "" {
+		where = " WHERE level = ?"
+		args = append(args, level)
+	}
+
+	var total int
+	row := d.sql.QueryRow(`SELECT COUNT(*) FROM logs`+where, args...)
+	row.Scan(&total)
+
+	query := `SELECT id, level, message, created_at FROM logs` + where + ` ORDER BY id DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+	rows, err := d.sql.Query(query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var entries []LogEntry
+	for rows.Next() {
+		var e LogEntry
+		if err := rows.Scan(&e.ID, &e.Level, &e.Message, &e.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, total, rows.Err()
+}
+
+// cleanOldLogs deletes logs older than 7 days.
+func (d *DB) cleanOldLogs() {
+	cutoff := time.Now().UTC().AddDate(0, 0, -7).Format("2006-01-02 15:04:05")
+	res, _ := d.sql.Exec(`DELETE FROM logs WHERE created_at < ?`, cutoff)
+	if n, _ := res.RowsAffected(); n > 0 {
+		log.Printf("[db] cleaned %d old log entries", n)
+	}
+}
+
+// DBWriter implements io.Writer for use with log.SetOutput.
+// It writes to both the database and stdout.
+type DBWriter struct {
+	DB *DB
+}
+
+func (w *DBWriter) Write(p []byte) (n int, err error) {
+	msg := strings.TrimSpace(string(p))
+	if msg == "" {
+		return len(p), nil
+	}
+	// Strip standard log prefix (date/time) if present
+	// Format: "2006/01/02 15:04:05 message"
+	clean := msg
+	if len(msg) > 20 && msg[4] == '/' && msg[7] == '/' && msg[10] == ' ' {
+		clean = msg[20:]
+	}
+
+	level := "info"
+	lower := strings.ToLower(clean)
+	switch {
+	case strings.Contains(lower, "error") || strings.Contains(lower, "fatal"):
+		level = "error"
+	case strings.Contains(lower, "warn"):
+		level = "warn"
+	}
+
+	w.DB.WriteLog(level, clean)
+	// Also write to stdout
+	os.Stdout.Write(p)
+	return len(p), nil
+}
+
 func (d *DB) syncChangelog() {
 	data, err := os.ReadFile("changelog.json")
 	if err != nil {

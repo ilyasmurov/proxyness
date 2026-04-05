@@ -48,6 +48,10 @@ func main() {
 	}
 	defer database.Close()
 
+	// Redirect log output to DB + stdout
+	log.SetOutput(&db.DBWriter{DB: database})
+	log.SetFlags(log.Ldate | log.Ltime)
+
 	tracker := stats.New()
 
 	if err := ensureCert(*certFile, *keyFile); err != nil {

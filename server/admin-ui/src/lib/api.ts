@@ -90,6 +90,18 @@ export interface ChangelogResponse {
   pages: number;
 }
 
+export interface LogEntry {
+  id: number;
+  level: string;
+  message: string;
+  created_at: string;
+}
+
+export interface LogsResponse {
+  entries: LogEntry[];
+  total: number;
+}
+
 export const api = {
   listUsers: (): Promise<User[]> => request("/users"),
   createUser: (name: string): Promise<User> =>
@@ -113,4 +125,6 @@ export const api = {
   rate: (): Promise<DeviceRate[]> => request("/stats/rate"),
   changelog: (page = 1, perPage = 10): Promise<ChangelogResponse> =>
     request(`/changelog?page=${page}&per_page=${perPage}`),
+  logs: (limit = 200, offset = 0, level = ""): Promise<LogsResponse> =>
+    request(`/logs?limit=${limit}&offset=${offset}${level ? `&level=${level}` : ""}`),
 };

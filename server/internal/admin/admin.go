@@ -39,6 +39,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("GET /admin/api/stats/rate", h.auth(h.statsRate))
 	mux.HandleFunc("GET /admin/api/changelog", h.auth(h.listChangelog))
 	mux.HandleFunc("GET /admin/api/changelog/unseen-count", h.auth(h.changelogUnseenCount))
+	mux.HandleFunc("GET /admin/api/logs", h.auth(h.listLogs))
 
 	// Public endpoints (no auth, device key for identification)
 	mux.HandleFunc("POST /api/report-version", h.reportVersion)
@@ -315,6 +316,27 @@ func (h *Handler) statsTrafficDaily(w http.ResponseWriter, r *http.Request) {
 		data = []map[string]interface{}{}
 	}
 	writeJSON(w, http.StatusOK, data)
+}
+
+// ---- Logs ----
+
+func (h *Handler) listLogs(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	level := r.URL.Query().Get("level")
+
+	entries, total, err := h.db.GetLogs(limit, offset, level)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if entries == nil {
+		entries = []db.LogEntry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"entries": entries,
+		"total":   total,
+	})
 }
 
 func (h *Handler) reportVersion(w http.ResponseWriter, r *http.Request) {

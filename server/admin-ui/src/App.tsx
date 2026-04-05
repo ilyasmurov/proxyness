@@ -4,6 +4,7 @@ import { Users } from "./pages/Users";
 import { UserDetail } from "./pages/UserDetail";
 import { Releases } from "./pages/Releases";
 import { Changelog } from "./pages/Changelog";
+import { Logs } from "./pages/Logs";
 
 function Nav() {
   const loc = useLocation();
@@ -24,6 +25,7 @@ function Nav() {
       {link("/admin/users", "Users")}
       {link("/admin/releases", "Releases")}
       {link("/admin/changelog", "Changelog")}
+      {link("/admin/logs", "Logs")}
     </nav>
   );
 }
@@ -40,6 +42,7 @@ export default function App() {
             <Route path="/admin/users/:id" element={<UserDetail />} />
             <Route path="/admin/releases" element={<Releases />} />
             <Route path="/admin/changelog" element={<Changelog />} />
+            <Route path="/admin/logs" element={<Logs />} />
           </Routes>
         </main>
       </div>
