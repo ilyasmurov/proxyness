@@ -195,6 +195,7 @@ func (c *Controller) RetransmitTick() {
 		return
 	}
 
+	retransmitted := false
 	for _, p := range expired {
 		if c.sendBuf.IsMaxRetransmits(p.PktNum) {
 			// Drop the packet and release the cwnd slot (without growing cwnd)
@@ -222,11 +223,14 @@ func (c *Controller) RetransmitTick() {
 
 		c.sendBuf.MarkResent(p.PktNum, encoded)
 		c.sendFn(encoded) //nolint:errcheck
+		retransmitted = true
 	}
 
-	// Signal loss once per tick (not per packet)
-	c.rtt.Backoff()
-	c.cwnd.OnLoss()
+	// Signal loss only if packets were actually retransmitted (not just dropped)
+	if retransmitted {
+		c.rtt.Backoff()
+		c.cwnd.OnLoss()
+	}
 }
 
 // AckTick sends a delayed ACK if enough packets have accumulated since the last

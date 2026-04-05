@@ -66,15 +66,17 @@ func (sb *SendBuffer) Get(pktNum uint32) *SentPacket {
 }
 
 // AckCumulative removes all packets with PktNum <= cumAck and returns the
-// number of packets removed.
+// number of newly acknowledged packets (excludes those already selectively ACKed).
 func (sb *SendBuffer) AckCumulative(cumAck uint32) int {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 	count := 0
-	for pktNum := range sb.packets {
+	for pktNum, pkt := range sb.packets {
 		if pktNum <= cumAck {
+			if !pkt.Acked {
+				count++
+			}
 			delete(sb.packets, pktNum)
-			count++
 		}
 	}
 	return count

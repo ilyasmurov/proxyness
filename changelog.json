@@ -1,5 +1,12 @@
 [
   {
+    "id": "cd78e187-a12f-44ae-adbb-69a388e66b40",
+    "title": "Fix SACK double-counting in ARQ causing upload collapse",
+    "description": "AckCumulative now skips already-SACKed packets; RetransmitTick skips OnLoss on drop-only ticks",
+    "type": "fix",
+    "createdAt": "2026-04-05T09:29:25.447061+00:00"
+  },
+  {
     "id": "20466a48-70a9-466a-9401-df9d1d185830",
     "title": "Retransmit with original PktNum to prevent cumAck stall and connection freeze",
     "description": null,
