@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	initCwnd  = 64
-	minCwnd   = 32
+	initCwnd  = 128
+	minCwnd   = 64
 	maxCwnd   = 1024
 	cubicBeta = 0.8
 	cubicC    = 0.4
@@ -32,7 +32,7 @@ type CongestionControl struct {
 func NewCongestionControl() *CongestionControl {
 	cc := &CongestionControl{
 		cwnd:     initCwnd,
-		ssthresh: 128, // exit slow start early to prevent burst that ISPs drop
+		ssthresh: 192, // exit slow start early to prevent burst that ISPs drop
 		notify:   make(chan struct{}, maxCwnd),
 	}
 	// Pre-fill signals for initial cwnd

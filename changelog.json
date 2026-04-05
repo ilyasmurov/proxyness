@@ -1,5 +1,12 @@
 [
   {
+    "id": "853a0ccf-f1f2-416a-b8cf-64bf35c785c2",
+    "title": "Raise UDP congestion control floor for higher throughput",
+    "description": "minCwnd 32→64, initCwnd 64→128, maxBurst 8→16. Doubles minimum throughput from ~700 KB/s to ~1.4 MB/s at 60ms RTT.",
+    "type": "improvement",
+    "createdAt": "2026-04-05T18:00:34.757840+00:00"
+  },
+  {
     "id": "b510994e-fd57-443b-9f2e-4f28b6752142",
     "title": "Version bump to 1.23.23",
     "description": null,
