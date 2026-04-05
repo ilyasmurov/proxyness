@@ -1,5 +1,12 @@
 [
   {
+    "id": "2d61de8e-8cbc-4d5f-94da-82e5673a6255",
+    "title": "Tune UDP congestion control for higher throughput (initCwnd 32, minCwnd 16, maxCwnd 2048, beta 0.8, recovery epoch 500ms)",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T12:52:47.719591+00:00"
+  },
+  {
     "id": "7326b6d8-7ede-4c6a-923a-086808ed55af",
     "title": "Fix server crash by upgrading Docker builder to Go 1.26 (Go 1.25 spinbit mutex bug)",
     "description": null,

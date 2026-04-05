@@ -100,8 +100,8 @@ func TestCongestionAcquireSlot(t *testing.T) {
 func TestCongestionMaxWindow(t *testing.T) {
 	cc := NewCongestionControl()
 
-	// Send 2000 acks
-	for i := 0; i < 2000; i++ {
+	// Send enough acks to reach maxCwnd (initCwnd + N >= maxCwnd)
+	for i := 0; i < 3000; i++ {
 		cc.OnAck(1)
 	}
 
@@ -110,7 +110,7 @@ func TestCongestionMaxWindow(t *testing.T) {
 	}
 
 	if cc.Window() != maxCwnd {
-		t.Fatalf("expected cwnd=%d after 2000 acks, got %d", maxCwnd, cc.Window())
+		t.Fatalf("expected cwnd=%d after 3000 acks, got %d", maxCwnd, cc.Window())
 	}
 }
 

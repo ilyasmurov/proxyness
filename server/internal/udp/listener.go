@@ -360,7 +360,7 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 	if _, exists := sess.streams[streamID]; !exists {
 		sess.streams[streamID] = &StreamState{
 			Created: time.Now(),
-			WriteCh: make(chan []byte, 256), // create early so deliverFn can buffer data during dial
+			WriteCh: make(chan []byte, 1024), // create early so deliverFn can buffer data during dial
 		}
 		seq := uint32(0)
 		sess.nextSeq[streamID] = &seq

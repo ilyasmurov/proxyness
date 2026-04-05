@@ -19,10 +19,11 @@ type RTTEstimator struct {
 	init   bool
 }
 
-// NewRTTEstimator creates a new RTTEstimator with initial RTO of 1000ms.
+// NewRTTEstimator creates a new RTTEstimator with initial RTO of 300ms.
+// Lower initial RTO allows faster loss recovery before the first RTT sample.
 func NewRTTEstimator() *RTTEstimator {
 	return &RTTEstimator{
-		rto: 1000 * time.Millisecond,
+		rto: 300 * time.Millisecond,
 	}
 }
 

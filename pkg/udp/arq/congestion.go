@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	initCwnd  = 10
-	maxCwnd   = 1024
-	cubicBeta = 0.7
+	initCwnd  = 32
+	minCwnd   = 16
+	maxCwnd   = 2048
+	cubicBeta = 0.8
 	cubicC    = 0.4
 )
 
@@ -129,49 +130,43 @@ func (cc *CongestionControl) OnDrop(n int) {
 	}
 }
 
+// recoveryEpoch is the minimum time between congestion window reductions.
+// All losses within one epoch are treated as a single congestion event.
+// Set to 500ms (covers ~8 RTTs at 60ms) to prevent cascading cwnd collapse
+// on paths with moderate persistent loss (typical for UDP through ISPs).
+const recoveryEpoch = 500 * time.Millisecond
+
 // OnLoss handles a loss event: set ssthresh and cwnd via CUBIC beta.
-// Implements a recovery epoch: all losses within one minRTO are treated as
+// Implements a recovery epoch: all losses within one epoch are treated as
 // a single congestion event (like TCP Fast Recovery). Without this, a burst
 // of lost packets triggers cascading OnLoss calls that crash cwnd to minimum.
-//
-// At minimum cwnd, full reset to slow start — clears wMax and lastLoss so
-// CUBIC doesn't jump cwnd using a stale peak (e.g. wMax=50 → cwnd 10→35
-// in one ACK → burst → collapse → 0.0 MB/s). Clean slow start discovers
-// real capacity gradually (doubles each RTT).
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
 
 	// Suppress duplicate loss signals within the same recovery epoch.
-	// A burst of packets lost together should reduce cwnd only once.
-	if !cc.lastLoss.IsZero() && time.Since(cc.lastLoss) < minRTO {
+	if !cc.lastLoss.IsZero() && time.Since(cc.lastLoss) < recoveryEpoch {
 		cc.mu.Unlock()
 		return
 	}
 
-	if cc.cwnd <= float64(initCwnd) {
-		cc.ssthresh = math.MaxFloat64
-		cc.wMax = 0
-		cc.lastLoss = time.Time{}
-	} else {
-		cc.wMax = cc.cwnd
-		cc.ssthresh = cc.cwnd * cubicBeta
-		if cc.ssthresh < float64(initCwnd) {
-			cc.ssthresh = float64(initCwnd)
-		}
-		cc.cwnd = cc.ssthresh
-		cc.lastLoss = time.Now()
+	cc.wMax = cc.cwnd
+	cc.ssthresh = cc.cwnd * cubicBeta
+	if cc.ssthresh < float64(minCwnd) {
+		cc.ssthresh = float64(minCwnd)
 	}
+	cc.cwnd = cc.ssthresh
+	cc.lastLoss = time.Now()
+
 	cc.mu.Unlock()
-	// No signal needed — reduced cwnd means fewer slots, not more.
-	// AcquireSlot re-checks inFlight < cwnd under the mutex;
-	// stale signals in the channel cause harmless spurious wakeups.
 }
 
 // cubicGrow applies the CUBIC window growth function.
 // Must be called with mu held.
 func (cc *CongestionControl) cubicGrow() {
 	if cc.lastLoss.IsZero() {
-		cc.cwnd += 1.0 / cc.cwnd
+		// No loss yet — grow faster than Reno (additive increase of 0.5 per ACK
+		// instead of 1/cwnd) to ramp up quickly on fresh connections.
+		cc.cwnd += 0.5
 		return
 	}
 	t := time.Since(cc.lastLoss).Seconds()
