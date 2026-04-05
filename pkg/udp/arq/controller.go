@@ -255,12 +255,13 @@ func (c *Controller) RetransmitTick() {
 		c.sendFn(encoded) //nolint:errcheck
 	}
 
-	// Only signal congestion on fresh losses (first retransmit).
-	// Re-retransmits of already-known lost packets don't indicate
-	// new congestion — they just haven't been ACKed yet.
+	// RTO backoff only — no cwnd reduction.
+	// On ISP paths with persistent random UDP loss, RTO retransmits are
+	// not congestion signals. Cutting cwnd here caps throughput at
+	// minCwnd × MSS / RTT ≈ 280 KB/s. Pacing prevents the bursts that
+	// would cause real congestion.
 	if newLoss {
 		c.rtt.Backoff()
-		c.cwnd.OnLoss()
 	}
 }
 
@@ -317,7 +318,8 @@ func (c *Controller) fastRetransmit() {
 
 	c.sendBuf.MarkResent(p.PktNum, encoded)
 	c.sendFn(encoded) //nolint:errcheck
-	c.cwnd.OnLoss()
+	// No cwnd reduction — on lossy ISP paths, dup ACKs indicate random
+	// packet drops, not congestion. Pacing prevents burst-induced drops.
 }
 
 // maxSackRetransmit limits SACK-triggered retransmits per ACK to prevent storms.
