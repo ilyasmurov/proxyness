@@ -141,7 +141,11 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 			sess.ARQ.HandleAck(pkt.Data)
 		}
 	case pkgudp.MsgKeepalive:
-		// no-op
+		// Echo keepalive back so client can detect dead sessions
+		resp := &pkgudp.Packet{ConnID: connID, Type: pkgudp.MsgKeepalive}
+		if encoded, err := pkgudp.EncodePacket(resp, sess.SessionKey); err == nil {
+			l.conn.WriteTo(encoded, addr)
+		}
 	default:
 		log.Printf("udp: unknown msg type 0x%02x from connID=%d", pkt.Type, connID)
 	}

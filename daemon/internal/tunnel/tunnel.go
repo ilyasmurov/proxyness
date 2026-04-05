@@ -192,14 +192,37 @@ func (t *Tunnel) Uptime() int64 {
 	return int64(time.Since(t.startTime).Seconds())
 }
 
+// transportDone returns a channel that closes when the transport dies, or nil.
+func (t *Tunnel) transportDone() <-chan struct{} {
+	t.mu.Lock()
+	tr := t.transport
+	t.mu.Unlock()
+	type doner interface {
+		DoneChan() <-chan struct{}
+	}
+	if d, ok := tr.(doner); ok {
+		return d.DoneChan()
+	}
+	return nil
+}
+
 func (t *Tunnel) healthLoop() {
 	ticker := time.NewTicker(healthInterval)
 	defer ticker.Stop()
+
+	doneCh := t.transportDone()
 
 	failures := 0
 	for {
 		select {
 		case <-t.stopHealth:
+			return
+		case <-doneCh:
+			log.Printf("[tunnel] transport closed, disconnecting")
+			t.mu.Lock()
+			t.lastError = "Connection lost, please reconnect"
+			t.stopLocked()
+			t.mu.Unlock()
 			return
 		case <-ticker.C:
 			t.mu.Lock()

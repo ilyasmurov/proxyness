@@ -15,7 +15,7 @@ import (
 
 const (
 	udpMaxPayload  = 1340 // max data bytes per MsgStreamData packet (4 bytes less for PktNum field)
-	udpKeepalive   = 15 * time.Second
+	udpKeepalive   = 3 * time.Second
 	udpHandshakeTO = 3 * time.Second
 	udpReadBuf     = 65535
 
@@ -35,8 +35,9 @@ type UDPTransport struct {
 	streams map[uint32]*udpStream
 	nextID  uint32
 
-	closed atomic.Bool
-	done   chan struct{}
+	closed   atomic.Bool
+	done     chan struct{}
+	lastRecv atomic.Int64 // unix nano of last received packet
 }
 
 func NewUDPTransport() *UDPTransport {
@@ -160,6 +161,7 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 		}
 	})
 
+	t.lastRecv.Store(time.Now().UnixNano())
 	go t.recvLoop()
 	go t.keepaliveLoop()
 	go t.retransmitLoop()
@@ -191,6 +193,7 @@ func (t *UDPTransport) recvLoop() {
 		if err != nil {
 			continue
 		}
+		t.lastRecv.Store(time.Now().UnixNano())
 
 		switch pkt.Type {
 		case pkgudp.MsgStreamData:
@@ -218,15 +221,27 @@ func (t *UDPTransport) recvLoop() {
 	}
 }
 
+const udpDeadTimeout = 5 * time.Second
+
 // keepaliveLoop sends MsgKeepalive packets every 15s to prevent NAT timeout.
+// Also detects dead sessions: if no packet received for 5s, closes the transport.
 func (t *UDPTransport) keepaliveLoop() {
-	ticker := time.NewTicker(udpKeepalive)
-	defer ticker.Stop()
+	keepaliveTicker := time.NewTicker(udpKeepalive)
+	defer keepaliveTicker.Stop()
+	deadTicker := time.NewTicker(1 * time.Second)
+	defer deadTicker.Stop()
 	for {
 		select {
 		case <-t.done:
 			return
-		case <-ticker.C:
+		case <-deadTicker.C:
+			last := time.Unix(0, t.lastRecv.Load())
+			if time.Since(last) > udpDeadTimeout {
+				log.Printf("udp: no packets received for %s, closing dead session", udpDeadTimeout)
+				t.Close()
+				return
+			}
+		case <-keepaliveTicker.C:
 			pkt := &pkgudp.Packet{
 				ConnID: t.connID,
 				Type:   pkgudp.MsgKeepalive,
@@ -368,7 +383,9 @@ func (t *UDPTransport) Close() error {
 	return t.conn.Close()
 }
 
-func (t *UDPTransport) Mode() string { return ModeUDP }
+func (t *UDPTransport) Mode() string  { return ModeUDP }
+func (t *UDPTransport) Alive() bool       { return !t.closed.Load() }
+func (t *UDPTransport) DoneChan() <-chan struct{} { return t.done }
 
 // sendPacket is a helper to encode and send a packet on the shared connection.
 func (t *UDPTransport) sendPacket(pkt *pkgudp.Packet) error {
