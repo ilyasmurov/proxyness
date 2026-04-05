@@ -1,5 +1,12 @@
 [
   {
+    "id": "b9f6109e-ab05-41c9-acbc-9a2c093f5446",
+    "title": "Reduce maxRetransmits 50→15 to cut head-of-line blocking on lossy paths",
+    "description": "Rate-limit immediate ACKs (5ms min interval) to prevent ACK spam on out-of-order packets\nAdd 200ms time threshold for idle detection to prevent false STARTUP re-entry on brief pauses\nGuard HandleData/HandleAck after Close() to prevent crash on freed structures",
+    "type": "fix",
+    "createdAt": "2026-04-05T22:10:01.860253+00:00"
+  },
+  {
     "id": "99151af3-becf-4555-9d6e-a4337bd299c4",
     "title": "UDP throughput: download 0.7→5.0 MB/s, upload 1.0→5.0 MB/s — benchmark Test 8",
     "description": null,

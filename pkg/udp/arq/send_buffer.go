@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const maxRetransmits = 50
+const maxRetransmits = 15
 
 // SentPacket holds a packet that has been sent but not yet acknowledged.
 type SentPacket struct {

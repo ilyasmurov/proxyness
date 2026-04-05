@@ -2,6 +2,7 @@ package arq
 
 import (
 	"sync"
+	"time"
 )
 
 const (
@@ -67,8 +68,9 @@ type CongestionControl struct {
 	roundThreshold int     // ack threshold before checking round end
 
 	// App-limited / idle detection for STARTUP re-entry
-	idleSeen         bool // true after inFlight < cwnd/4 (connection was idle)
-	roundMaxInFlight int  // max inFlight during current STARTUP round
+	idleSeen         bool      // true after 200ms+ of low utilization
+	idleStart        time.Time // when low utilization was first detected
+	roundMaxInFlight int       // max inFlight during current STARTUP round
 }
 
 // NewCongestionControl creates a new rate-based CongestionControl.
@@ -148,9 +150,17 @@ func (cc *CongestionControl) OnAck(n int) {
 		cc.enterStartup()
 	}
 
-	// Track idle state: connection is idle when barely using the window.
+	// Track idle state: connection is idle when barely using the window
+	// for at least 200ms. Brief pauses (e.g., between HTTP responses)
+	// shouldn't trigger STARTUP re-entry.
 	if cc.inFlight < cc.cwnd/4 {
-		cc.idleSeen = true
+		if cc.idleStart.IsZero() {
+			cc.idleStart = time.Now()
+		} else if time.Since(cc.idleStart) >= 200*time.Millisecond {
+			cc.idleSeen = true
+		}
+	} else {
+		cc.idleStart = time.Time{}
 	}
 
 	// Recalculate cwnd from BDP estimate
@@ -246,6 +256,7 @@ func (cc *CongestionControl) enterStartup() {
 	cc.roundAcked = 0
 	cc.roundThreshold = cc.cwnd
 	cc.idleSeen = false
+	cc.idleStart = time.Time{}
 	cc.roundMaxInFlight = 0
 }
 

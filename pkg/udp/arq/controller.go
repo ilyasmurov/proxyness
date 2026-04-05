@@ -48,8 +48,9 @@ type Controller struct {
 	recvBufs map[uint32]*RecvBuffer
 	ackState *AckState
 
-	lastAckCumAck uint32
-	dupAckCount   int
+	lastAckCumAck    uint32
+	dupAckCount      int
+	lastImmediateAck time.Time // rate-limit immediate ACKs from recvLoop
 
 	sendFn    func([]byte) error
 	deliverFn func(streamID uint32, data []byte)
@@ -136,6 +137,12 @@ func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error
 // HandleData processes an incoming data packet: updates ACK state and delivers
 // the payload to the appropriate receive buffer (if one exists for the stream).
 func (c *Controller) HandleData(pkt *pkgudp.Packet) {
+	select {
+	case <-c.done:
+		return
+	default:
+	}
+
 	if pkt.PktNum > 0 {
 		c.ackState.RecordReceived(pkt.PktNum)
 	}
@@ -148,11 +155,12 @@ func (c *Controller) HandleData(pkt *pkgudp.Packet) {
 		rb.Insert(pkt.Seq, pkt.Data)
 	}
 
-	// Send immediate ACK only on gap detection (out-of-order arrival).
-	// This is rare and critical for fast loss recovery.
-	// Delayed ACKs (every 2nd packet) are handled by ackLoop only —
-	// sending them here would block recvLoop on conn.Write().
-	if c.ackState.NeedsImmediateAck() {
+	// Send immediate ACK on gap detection (out-of-order arrival) for fast
+	// loss recovery. Rate-limited to avoid ACK spam on lossy paths — every
+	// OOO packet would otherwise trigger an ACK, consuming uplink bandwidth
+	// and blocking the recvLoop on conn.Write().
+	if c.ackState.NeedsImmediateAck() && time.Since(c.lastImmediateAck) >= 5*time.Millisecond {
+		c.lastImmediateAck = time.Now()
 		c.sendAck()
 	}
 }
@@ -161,6 +169,12 @@ func (c *Controller) HandleData(pkt *pkgudp.Packet) {
 // from the send buffer, feeding the bandwidth estimator, and signalling the
 // congestion window.
 func (c *Controller) HandleAck(data []byte) {
+	select {
+	case <-c.done:
+		return
+	default:
+	}
+
 	ack, err := DecodeAckData(data)
 	if err != nil {
 		return
