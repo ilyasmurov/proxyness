@@ -1,5 +1,12 @@
 [
   {
+    "id": "428ad0c0-1ded-4788-8fd7-d9ee0d6e41ac",
+    "title": "Reduce fixed UDP window to 256 to match bandwidth-delay product and prevent burst flooding",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T14:40:01.740464+00:00"
+  },
+  {
     "id": "c05697af-fa27-4036-88ec-089267435199",
     "title": "Replace CUBIC congestion control with fixed window for UDP transport",
     "description": "Inner TCP handles CC; outer fixed window (1024) just provides ARQ reliability",

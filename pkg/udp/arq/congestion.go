@@ -9,11 +9,11 @@ const (
 	//
 	// This is a TCP-over-UDP proxy: inner TCP already handles congestion control.
 	// The outer UDP transport provides reliability (ARQ retransmission) and must
-	// not be the throughput bottleneck. A fixed window avoids the double-punishment
-	// problem (outer CC + inner CC both reducing on loss).
+	// not be the throughput bottleneck.
 	//
-	// 1024 * 1340 bytes / 60ms RTT = 22 MB/s theoretical max — enough headroom.
-	fixedCwnd = 1024
+	// Sized to match BDP: ~5 MB/s link × 60ms RTT ≈ 224 packets.
+	// 256 gives ~5.7 MB/s theoretical max with 343 KB max burst.
+	fixedCwnd = 256
 )
 
 // CongestionControl provides flow control via a fixed send window.

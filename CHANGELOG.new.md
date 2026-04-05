@@ -1,3 +1,2 @@
-## improvement
-Replace CUBIC congestion control with fixed window for UDP transport
-Inner TCP handles CC; outer fixed window (1024) just provides ARQ reliability
+## fix
+Reduce fixed UDP window to 256 to match bandwidth-delay product and prevent burst flooding
