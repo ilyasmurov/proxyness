@@ -1,5 +1,12 @@
 [
   {
+    "id": "249bb6f6-5df8-444d-8877-14306cdcf8f5",
+    "title": "Fix download stall: reset CUBIC state at minimum cwnd to prevent burst-collapse cycle",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T06:13:30.832789+00:00"
+  },
+  {
     "id": "bfc4fcb8-8e98-4f23-b384-a2f6c5390760",
     "title": "Prevent cwnd death spiral on download (OnLoss at minimum cwnd preserves slow start)",
     "description": null,

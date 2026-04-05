@@ -1,5 +1,2 @@
 ## fix
-Prevent cwnd death spiral on download (OnLoss at minimum cwnd preserves slow start)
-
-## improvement
-Show device key prefix with copy button in admin panel
+Fix download stall: reset CUBIC state at minimum cwnd to prevent burst-collapse cycle

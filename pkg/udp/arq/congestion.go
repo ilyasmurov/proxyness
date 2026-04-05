@@ -134,14 +134,16 @@ func (cc *CongestionControl) OnDrop(n int) {
 }
 
 // OnLoss handles a loss event: set ssthresh and cwnd via CUBIC beta.
-// At minimum cwnd, skip reduction to preserve slow start for recovery.
-// Without this: ssthresh=initCwnd, cwnd=initCwnd → permanent congestion
-// avoidance → cwnd grows 0.1/ACK → never recovers → 0.7 MB/s download.
+// At minimum cwnd, full reset to slow start — clears wMax and lastLoss so
+// CUBIC doesn't jump cwnd using a stale peak (e.g. wMax=50 → cwnd 10→35
+// in one ACK → burst → collapse → 0.0 MB/s). Clean slow start discovers
+// real capacity gradually (doubles each RTT).
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
 	if cc.cwnd <= float64(initCwnd) {
-		// Already at minimum — keep ssthresh high for slow start recovery
-		cc.lastLoss = time.Now()
+		cc.ssthresh = math.MaxFloat64
+		cc.wMax = 0
+		cc.lastLoss = time.Time{}
 		cc.mu.Unlock()
 		return
 	}
