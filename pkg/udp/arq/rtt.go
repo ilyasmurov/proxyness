@@ -7,7 +7,7 @@ import (
 
 const (
 	minRTO = 100 * time.Millisecond
-	maxRTO = 2000 * time.Millisecond
+	maxRTO = 500 * time.Millisecond
 )
 
 // RTTEstimator implements Jacobson/Karels RTT estimation algorithm.

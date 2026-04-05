@@ -54,13 +54,13 @@ func TestCongestionOnLoss(t *testing.T) {
 func TestCongestionAvoidanceCubic(t *testing.T) {
 	cc := NewCongestionControl()
 
-	// Grow to cwnd ~150
-	for cc.Window() < 150 {
+	// Grow to cwnd ~100
+	for cc.Window() < 100 {
 		cc.OnAck(1)
 	}
 
 	cc.OnLoss()
-	cwndAfterLoss := cc.Window() // ~120 (150*0.8)
+	cwndAfterLoss := cc.Window() // ~80 (100*0.8)
 
 	// Wait for real wall-clock time so CUBIC has a non-zero t value.
 	time.Sleep(50 * time.Millisecond)

@@ -47,8 +47,8 @@ func TestRTOMaxClamp(t *testing.T) {
 	r := NewRTTEstimator()
 	r.Update(800 * time.Millisecond)
 
-	if r.RTO() > 2000*time.Millisecond {
-		t.Errorf("RTO = %v, want <= 2000ms", r.RTO())
+	if r.RTO() > 500*time.Millisecond {
+		t.Errorf("RTO = %v, want <= 500ms", r.RTO())
 	}
 }
 
@@ -73,7 +73,7 @@ func TestRTOBackoffClamp(t *testing.T) {
 		r.Backoff()
 	}
 
-	if r.RTO() > 2000*time.Millisecond {
-		t.Errorf("RTO = %v, want <= 2000ms", r.RTO())
+	if r.RTO() > 500*time.Millisecond {
+		t.Errorf("RTO = %v, want <= 500ms", r.RTO())
 	}
 }

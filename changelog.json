@@ -1,5 +1,12 @@
 [
   {
+    "id": "90004b52-4492-4052-b53d-70ff4fda7fc0",
+    "title": "Lower maxCwnd 512→128, maxRTO 2000→500ms, ssthresh=64 to prevent slow-start burst flooding ISP",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T15:58:52.152586+00:00"
+  },
+  {
     "id": "a5d4b34d-33be-48ee-8241-ca46fe898c70",
     "title": "Sort retransmit queue by PktNum (oldest first), add RTO to diagnostics",
     "description": null,
