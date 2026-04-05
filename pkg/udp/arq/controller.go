@@ -184,6 +184,10 @@ func (c *Controller) HandleAck(data []byte) {
 	}
 }
 
+// maxRetransmitBatch limits how many packets can be retransmitted per tick
+// to prevent retransmit bursts that ISPs drop, causing cascading loss.
+const maxRetransmitBatch = 8
+
 // RetransmitTick checks for timed-out packets and retransmits them.
 // It should be called periodically (e.g. from a ticker goroutine).
 func (c *Controller) RetransmitTick() {
@@ -192,6 +196,11 @@ func (c *Controller) RetransmitTick() {
 
 	if len(expired) == 0 {
 		return
+	}
+
+	// Limit retransmit batch to prevent burst that ISPs drop.
+	if len(expired) > maxRetransmitBatch {
+		expired = expired[:maxRetransmitBatch]
 	}
 
 	newLoss := false
@@ -328,8 +337,8 @@ func (c *Controller) RecordPktNum(pktNum uint32) {
 	}
 }
 
-// CwndStats returns congestion window diagnostics (cwnd, inFlight, slots).
-func (c *Controller) CwndStats() (cwnd int, inFlight int, slots int) {
+// CwndStats returns congestion window diagnostics (cwnd, inFlight, slots, losses).
+func (c *Controller) CwndStats() (cwnd int, inFlight int, slots int, losses int) {
 	return c.cwnd.Stats()
 }
 

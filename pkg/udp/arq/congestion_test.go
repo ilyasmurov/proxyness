@@ -41,9 +41,13 @@ func TestCongestionOnLoss(t *testing.T) {
 	// Verify ssthresh was set (no longer slow start)
 	cc.mu.Lock()
 	ss := cc.ssthresh
+	lc := cc.lossCount
 	cc.mu.Unlock()
 	if ss > float64(maxCwnd) {
 		t.Fatalf("expected ssthresh <= maxCwnd after loss, got %f", ss)
+	}
+	if lc != 1 {
+		t.Fatalf("expected lossCount=1 after loss, got %d", lc)
 	}
 }
 
@@ -56,7 +60,7 @@ func TestCongestionAvoidanceCubic(t *testing.T) {
 	}
 
 	cc.OnLoss()
-	cwndAfterLoss := cc.Window() // ~105 (150*0.7)
+	cwndAfterLoss := cc.Window() // ~120 (150*0.8)
 
 	// Wait for real wall-clock time so CUBIC has a non-zero t value.
 	time.Sleep(50 * time.Millisecond)
@@ -94,7 +98,7 @@ func TestCongestionAcquireSlot(t *testing.T) {
 	}
 
 	// Window full → AcquireSlot should block; verify via InFlight
-	_, inFlight, avail := cc.Stats()
+	_, inFlight, avail, _ := cc.Stats()
 	if avail != 0 {
 		t.Fatalf("expected 0 available slots when window full, got %d", avail)
 	}

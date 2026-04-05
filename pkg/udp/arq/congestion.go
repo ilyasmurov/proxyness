@@ -8,9 +8,9 @@ import (
 
 const (
 	initCwnd  = 64
-	minCwnd   = 32
-	maxCwnd   = 256
-	cubicBeta = 0.7
+	minCwnd   = 64
+	maxCwnd   = 512
+	cubicBeta = 0.8
 	cubicC    = 0.4
 )
 
@@ -18,13 +18,14 @@ const (
 // The notify channel is a wake-up signal only; the authoritative send gate
 // is inFlight < cwnd checked under the mutex inside AcquireSlot.
 type CongestionControl struct {
-	mu       sync.Mutex
-	cwnd     float64
-	ssthresh float64
-	wMax     float64
-	lastLoss time.Time
-	inFlight int
-	notify   chan struct{} // wake-up signal for blocked senders, capacity = maxCwnd
+	mu        sync.Mutex
+	cwnd      float64
+	ssthresh  float64
+	wMax      float64
+	lastLoss  time.Time
+	inFlight  int
+	lossCount int          // total loss events (for diagnostics)
+	notify    chan struct{} // wake-up signal for blocked senders, capacity = maxCwnd
 }
 
 // NewCongestionControl creates a new CongestionControl starting in slow start.
@@ -134,7 +135,7 @@ func (cc *CongestionControl) OnDrop(n int) {
 // All losses within one epoch are treated as a single congestion event.
 // Set to 500ms (covers ~8 RTTs at 60ms) to prevent cascading cwnd collapse
 // on paths with moderate persistent loss (typical for UDP through ISPs).
-const recoveryEpoch = 500 * time.Millisecond
+const recoveryEpoch = 1 * time.Second
 
 // OnLoss handles a loss event: reduce cwnd and enter congestion avoidance.
 //
@@ -157,6 +158,7 @@ func (cc *CongestionControl) OnLoss() {
 	}
 	cc.ssthresh = newCwnd
 	cc.cwnd = newCwnd
+	cc.lossCount++
 	cc.lastLoss = time.Now()
 
 	cc.mu.Unlock()
@@ -188,8 +190,8 @@ func (cc *CongestionControl) InFlight() int {
 	return cc.inFlight
 }
 
-// Stats returns cwnd, inFlight, and available slot count for diagnostics.
-func (cc *CongestionControl) Stats() (cwnd int, inFlight int, slots int) {
+// Stats returns cwnd, inFlight, available slot count, and total loss events.
+func (cc *CongestionControl) Stats() (cwnd int, inFlight int, slots int, losses int) {
 	cc.mu.Lock()
 	w := int(cc.cwnd)
 	f := cc.inFlight
@@ -197,8 +199,9 @@ func (cc *CongestionControl) Stats() (cwnd int, inFlight int, slots int) {
 	if avail < 0 {
 		avail = 0
 	}
+	l := cc.lossCount
 	cc.mu.Unlock()
-	return w, f, avail
+	return w, f, avail, l
 }
 
 // SignalAll is a no-op kept for API compatibility.
