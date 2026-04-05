@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	DefaultSendBufSize = 512
-	DefaultRecvBufSize = 512
+	DefaultSendBufSize = 2048
+	DefaultRecvBufSize = 1024
 	DefaultMaxStreams  = 256
 )
 
