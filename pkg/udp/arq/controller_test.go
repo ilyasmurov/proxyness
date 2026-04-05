@@ -147,7 +147,7 @@ func TestControllerCwndBackpressure(t *testing.T) {
 	ctrl := New(0xABCD, make([]byte, 32), sender.send, func(uint32, []byte) {})
 	defer ctrl.Close()
 
-	for i := 0; i < fixedCwnd; i++ {
+	for i := 0; i < initCwnd; i++ {
 		err := ctrl.Send(pkgudp.MsgStreamData, 1, uint32(i), []byte("x"))
 		if err != nil {
 			t.Fatalf("send %d: %v", i, err)
@@ -156,7 +156,7 @@ func TestControllerCwndBackpressure(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- ctrl.Send(pkgudp.MsgStreamData, 1, uint32(fixedCwnd), []byte("x"))
+		done <- ctrl.Send(pkgudp.MsgStreamData, 1, uint32(initCwnd), []byte("x"))
 	}()
 
 	select {

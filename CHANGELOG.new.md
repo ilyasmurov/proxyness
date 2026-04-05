@@ -1,2 +1,2 @@
-## fix
-Reduce fixed UDP window to 256 to match bandwidth-delay product and prevent burst flooding
+## improvement
+Replace fixed window with simple AIMD congestion control (always slow-start recovery)
