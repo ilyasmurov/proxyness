@@ -104,34 +104,19 @@ func (sb *SendBuffer) Expired(rto time.Duration) []*SentPacket {
 	return result
 }
 
-// MarkRetransmitted removes the entry for oldPktNum and creates a new entry
-// for newPktNum with an incremented Retransmits counter. SentAt is preserved
-// from the original packet; LastSentAt is set to now.
-func (sb *SendBuffer) MarkRetransmitted(oldPktNum, newPktNum uint32, newRaw []byte) {
+// MarkResent updates the packet entry in-place after retransmission.
+// The PktNum stays the same so the receiver can fill the original gap
+// in its cumulative ACK sequence.
+func (sb *SendBuffer) MarkResent(pktNum uint32, newRaw []byte) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
-	old, ok := sb.packets[oldPktNum]
+	pkt, ok := sb.packets[pktNum]
 	if !ok {
 		return
 	}
-	retransmits := old.Retransmits + 1
-	sentAt := old.SentAt
-	streamID := old.StreamID
-	seq := old.Seq
-	payload := old.Payload
-	msgType := old.MsgType
-	delete(sb.packets, oldPktNum)
-	sb.packets[newPktNum] = &SentPacket{
-		PktNum:      newPktNum,
-		RawData:     newRaw,
-		MsgType:     msgType,
-		StreamID:    streamID,
-		Seq:         seq,
-		Payload:     payload,
-		SentAt:      sentAt,
-		LastSentAt:  time.Now(),
-		Retransmits: retransmits,
-	}
+	pkt.RawData = newRaw
+	pkt.LastSentAt = time.Now()
+	pkt.Retransmits++
 }
 
 // IsMaxRetransmits reports whether the packet has reached the retransmit limit.

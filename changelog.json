@@ -1,5 +1,12 @@
 [
   {
+    "id": "20466a48-70a9-466a-9401-df9d1d185830",
+    "title": "Retransmit with original PktNum to prevent cumAck stall and connection freeze",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T07:52:18.053734+00:00"
+  },
+  {
     "id": "249bb6f6-5df8-444d-8877-14306cdcf8f5",
     "title": "Fix download stall: reset CUBIC state at minimum cwnd to prevent burst-collapse cycle",
     "description": null,

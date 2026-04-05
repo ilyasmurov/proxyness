@@ -204,22 +204,23 @@ func (c *Controller) RetransmitTick() {
 			continue
 		}
 
-		newPktNum := c.nextPktNum.Add(1)
-		newPkt := &pkgudp.Packet{
+		// Retransmit with the SAME PktNum so the receiver fills the original
+		// gap in its cumulative ACK sequence. Re-encode to get a fresh nonce.
+		retxPkt := &pkgudp.Packet{
 			ConnID:   c.connID,
 			Type:     p.MsgType,
-			PktNum:   newPktNum,
+			PktNum:   p.PktNum,
 			StreamID: p.StreamID,
 			Seq:      p.Seq,
 			Data:     p.Payload,
 		}
 
-		encoded, err := pkgudp.EncodePacket(newPkt, c.sessionKey)
+		encoded, err := pkgudp.EncodePacket(retxPkt, c.sessionKey)
 		if err != nil {
 			continue
 		}
 
-		c.sendBuf.MarkRetransmitted(p.PktNum, newPktNum, encoded)
+		c.sendBuf.MarkResent(p.PktNum, encoded)
 		c.sendFn(encoded) //nolint:errcheck
 	}
 
@@ -264,22 +265,22 @@ func (c *Controller) fastRetransmit() {
 		return
 	}
 
-	newPktNum := c.nextPktNum.Add(1)
-	newPkt := &pkgudp.Packet{
+	// Retransmit with the SAME PktNum so the receiver fills the original gap.
+	retxPkt := &pkgudp.Packet{
 		ConnID:   c.connID,
 		Type:     p.MsgType,
-		PktNum:   newPktNum,
+		PktNum:   p.PktNum,
 		StreamID: p.StreamID,
 		Seq:      p.Seq,
 		Data:     p.Payload,
 	}
 
-	encoded, err := pkgudp.EncodePacket(newPkt, c.sessionKey)
+	encoded, err := pkgudp.EncodePacket(retxPkt, c.sessionKey)
 	if err != nil {
 		return
 	}
 
-	c.sendBuf.MarkRetransmitted(p.PktNum, newPktNum, encoded)
+	c.sendBuf.MarkResent(p.PktNum, encoded)
 	c.sendFn(encoded) //nolint:errcheck
 	c.cwnd.OnLoss()
 }

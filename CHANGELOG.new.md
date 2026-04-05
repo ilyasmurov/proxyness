@@ -1,2 +1,2 @@
 ## fix
-Fix download stall: reset CUBIC state at minimum cwnd to prevent burst-collapse cycle
+Retransmit with original PktNum to prevent cumAck stall and connection freeze
