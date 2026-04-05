@@ -5,79 +5,11 @@ import (
 	"time"
 )
 
-func TestCongestionSlowStart(t *testing.T) {
+func TestCongestionStartupCwnd(t *testing.T) {
 	cc := NewCongestionControl()
 
-	if cc.Window() != initCwnd {
-		t.Fatalf("expected initial cwnd=%d, got %d", initCwnd, cc.Window())
-	}
-
-	// Each OnAck(1) during slow start increases cwnd by 1
-	for i := 0; i < 11; i++ {
-		cc.OnAck(1)
-	}
-
-	if cc.Window() != initCwnd+11 {
-		t.Fatalf("expected cwnd=%d after 11 acks, got %d", initCwnd+11, cc.Window())
-	}
-}
-
-func TestCongestionOnLoss(t *testing.T) {
-	cc := NewCongestionControl()
-
-	// Grow to cwnd=100 via slow start
-	for cc.Window() < 100 {
-		cc.OnAck(1)
-	}
-
-	cwnd := cc.Window()
-	cc.OnLoss()
-
-	expected := int(float64(cwnd) * cubicBeta)
-	if cc.Window() != expected {
-		t.Fatalf("expected cwnd=%d after loss, got %d", expected, cc.Window())
-	}
-
-	// Verify ssthresh was set (no longer slow start)
-	cc.mu.Lock()
-	ss := cc.ssthresh
-	lc := cc.lossCount
-	cc.mu.Unlock()
-	if ss > float64(maxCwnd) {
-		t.Fatalf("expected ssthresh <= maxCwnd after loss, got %f", ss)
-	}
-	if lc != 1 {
-		t.Fatalf("expected lossCount=1 after loss, got %d", lc)
-	}
-}
-
-func TestCongestionAvoidanceCubic(t *testing.T) {
-	cc := NewCongestionControl()
-
-	// Grow to cwnd ~100
-	for cc.Window() < 100 {
-		cc.OnAck(1)
-	}
-
-	cc.OnLoss()
-	cwndAfterLoss := cc.Window() // ~80 (100*0.8)
-
-	// Wait for real wall-clock time so CUBIC has a non-zero t value.
-	time.Sleep(50 * time.Millisecond)
-
-	// Send ACKs in congestion avoidance; window should grow linearly (not exponentially).
-	prev := cwndAfterLoss
-	for i := 0; i < 50; i++ {
-		cc.OnAck(1)
-	}
-
-	after := cc.Window()
-	if after < prev {
-		t.Fatalf("expected cwnd not to decrease in congestion avoidance, prev=%d after=%d", prev, after)
-	}
-	// With proper ssthresh, growth should be linear — not double like slow start
-	if after > prev+50 {
-		t.Fatalf("expected linear growth in congestion avoidance, prev=%d after=%d (grew by %d)", prev, after, after-prev)
+	if cc.Window() != startupCwnd {
+		t.Fatalf("expected initial cwnd=%d, got %d", startupCwnd, cc.Window())
 	}
 }
 
@@ -85,7 +17,7 @@ func TestCongestionAcquireSlot(t *testing.T) {
 	cc := NewCongestionControl()
 	done := make(chan struct{})
 
-	// Initially inFlight=0, cwnd=10 → AcquireSlot should succeed
+	// Initially inFlight=0, cwnd=startupCwnd → AcquireSlot should succeed
 	if !cc.AcquireSlot(done) {
 		t.Fatal("expected AcquireSlot=true initially")
 	}
@@ -102,8 +34,8 @@ func TestCongestionAcquireSlot(t *testing.T) {
 	if avail != 0 {
 		t.Fatalf("expected 0 available slots when window full, got %d", avail)
 	}
-	if inFlight != initCwnd {
-		t.Fatalf("expected inFlight=%d, got %d", initCwnd, inFlight)
+	if inFlight != startupCwnd {
+		t.Fatalf("expected inFlight=%d, got %d", startupCwnd, inFlight)
 	}
 
 	// Ack one → slot available
@@ -113,16 +45,111 @@ func TestCongestionAcquireSlot(t *testing.T) {
 	}
 }
 
+func TestCongestionDoneClosesSlot(t *testing.T) {
+	cc := NewCongestionControl()
+	done := make(chan struct{})
+
+	// Fill window
+	for i := 0; i < cc.Window(); i++ {
+		cc.AcquireSlot(done)
+	}
+
+	// Close done → AcquireSlot should return false
+	close(done)
+	if cc.AcquireSlot(done) {
+		t.Fatal("expected AcquireSlot=false after done closed")
+	}
+}
+
 func TestCongestionMaxWindow(t *testing.T) {
 	cc := NewCongestionControl()
 
-	// Send enough acks to reach maxCwnd
-	for i := 0; i < maxCwnd*2; i++ {
-		cc.OnAck(1)
-	}
+	// Simulate high bandwidth estimate so cwnd would exceed maxCwnd
+	bwe := cc.BWE()
+	snap := bwe.TakeSnapshot()
+	time.Sleep(5 * time.Millisecond)
+	// Deliver a lot of bytes in short time to get high BW estimate
+	bwe.OnDelivery(snap, 10*1024*1024, 50*time.Millisecond)
 
-	if cc.Window() != maxCwnd {
+	// Trigger cwnd recalc
+	cc.OnAck(0)
+
+	if cc.Window() > maxCwnd {
 		t.Fatalf("expected cwnd capped at %d, got %d", maxCwnd, cc.Window())
 	}
 }
 
+func TestCongestionMinWindow(t *testing.T) {
+	cc := NewCongestionControl()
+
+	// Simulate very low bandwidth
+	bwe := cc.BWE()
+	snap := bwe.TakeSnapshot()
+	time.Sleep(5 * time.Millisecond)
+	bwe.OnDelivery(snap, 1, 50*time.Millisecond)
+
+	cc.OnAck(0)
+
+	if cc.Window() < minCwnd {
+		t.Fatalf("expected cwnd >= %d, got %d", minCwnd, cc.Window())
+	}
+}
+
+func TestCongestionBWDrivesCwnd(t *testing.T) {
+	cc := NewCongestionControl()
+	bwe := cc.BWE()
+
+	// Simulate steady bandwidth: 5 MB/s, 60ms RTT
+	// BDP = 5MB/s * 0.06s = 300KB = ~224 packets at 1340 bytes
+	// cwnd = 224 * cwndGain(2.0) = ~448
+	snap := bwe.TakeSnapshot()
+	time.Sleep(10 * time.Millisecond)
+	bwe.OnDelivery(snap, 5*1024*1024/100*6, 60*time.Millisecond)
+
+	cc.OnAck(1)
+
+	w := cc.Window()
+	if w <= startupCwnd {
+		t.Fatalf("expected cwnd to grow from BW estimate, got %d", w)
+	}
+}
+
+func TestCongestionOnLossIsNoop(t *testing.T) {
+	cc := NewCongestionControl()
+	bwe := cc.BWE()
+
+	// Build up some bandwidth estimate
+	snap := bwe.TakeSnapshot()
+	time.Sleep(5 * time.Millisecond)
+	bwe.OnDelivery(snap, 500000, 60*time.Millisecond)
+	cc.OnAck(1)
+
+	cwndBefore := cc.Window()
+	cc.OnLoss()
+	cwndAfter := cc.Window()
+
+	if cwndAfter != cwndBefore {
+		t.Fatalf("OnLoss should not change cwnd, before=%d after=%d", cwndBefore, cwndAfter)
+	}
+}
+
+func TestCongestionOnDrop(t *testing.T) {
+	cc := NewCongestionControl()
+	done := make(chan struct{})
+
+	// Acquire some slots
+	for i := 0; i < 5; i++ {
+		cc.AcquireSlot(done)
+	}
+
+	_, inFlight, _, _ := cc.Stats()
+	if inFlight != 5 {
+		t.Fatalf("expected inFlight=5, got %d", inFlight)
+	}
+
+	cc.OnDrop(3)
+	_, inFlight, _, _ = cc.Stats()
+	if inFlight != 2 {
+		t.Fatalf("expected inFlight=2 after drop, got %d", inFlight)
+	}
+}

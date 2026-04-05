@@ -20,6 +20,7 @@ type SentPacket struct {
 	LastSentAt  time.Time
 	Retransmits int
 	Acked       bool
+	Delivery    DeliverySnapshot // bandwidth estimation state at send time
 }
 
 // IsRetransmit reports whether this packet has been retransmitted at least once.
@@ -43,7 +44,7 @@ func NewSendBuffer(maxSize int) *SendBuffer {
 }
 
 // Add stores a new sent packet. SentAt and LastSentAt are set to now.
-func (sb *SendBuffer) Add(pktNum uint32, raw []byte, msgType byte, streamID, seq uint32, payload []byte) {
+func (sb *SendBuffer) Add(pktNum uint32, raw []byte, msgType byte, streamID, seq uint32, payload []byte, snap DeliverySnapshot) {
 	now := time.Now()
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
@@ -56,6 +57,7 @@ func (sb *SendBuffer) Add(pktNum uint32, raw []byte, msgType byte, streamID, seq
 		Payload:    payload,
 		SentAt:     now,
 		LastSentAt: now,
+		Delivery:   snap,
 	}
 }
 

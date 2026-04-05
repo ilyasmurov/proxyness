@@ -320,11 +320,14 @@ func (l *Listener) sessionRetransmitLoop(sess *Session) {
 		case <-ticker.C:
 			sess.ARQ.RetransmitTick()
 		case <-statsTicker.C:
-			cwnd, inFlight, slots, losses := sess.ARQ.CwndStats()
+			cwnd, inFlight, slots, _ := sess.ARQ.CwndStats()
 			sendBuf := sess.ARQ.SendBufLen()
 			rto := sess.ARQ.RTOMillis()
+			maxBW, minRTT, bdp := sess.ARQ.BWEStats()
 			if inFlight > 0 || sendBuf > 0 {
-				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d losses=%d rto=%dms", sess.Token, cwnd, inFlight, slots, sendBuf, losses, rto)
+				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB",
+					sess.Token, cwnd, inFlight, slots, sendBuf, rto,
+					maxBW/1024/1024, minRTT.Milliseconds(), bdp/1024)
 			}
 		}
 	}

@@ -8,9 +8,10 @@ import (
 func TestSendBufferAddAndAck(t *testing.T) {
 	sb := NewSendBuffer(16)
 
-	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"))
-	sb.Add(2, []byte{2}, 0x01, 0, 2, []byte("b"))
-	sb.Add(3, []byte{3}, 0x01, 0, 3, []byte("c"))
+	snap := DeliverySnapshot{}
+	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"), snap)
+	sb.Add(2, []byte{2}, 0x01, 0, 2, []byte("b"), snap)
+	sb.Add(3, []byte{3}, 0x01, 0, 3, []byte("c"), snap)
 
 	if sb.Len() != 3 {
 		t.Fatalf("expected Len=3, got %d", sb.Len())
@@ -33,9 +34,10 @@ func TestSendBufferAddAndAck(t *testing.T) {
 func TestSendBufferAckSelective(t *testing.T) {
 	sb := NewSendBuffer(16)
 
-	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"))
-	sb.Add(2, []byte{2}, 0x01, 0, 2, []byte("b"))
-	sb.Add(3, []byte{3}, 0x01, 0, 3, []byte("c"))
+	snap := DeliverySnapshot{}
+	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"), snap)
+	sb.Add(2, []byte{2}, 0x01, 0, 2, []byte("b"), snap)
+	sb.Add(3, []byte{3}, 0x01, 0, 3, []byte("c"), snap)
 
 	sb.AckSelective(3)
 
@@ -59,8 +61,9 @@ func TestSendBufferAckSelective(t *testing.T) {
 func TestSendBufferExpired(t *testing.T) {
 	sb := NewSendBuffer(16)
 
-	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"))
-	sb.Add(2, []byte{2}, 0x01, 0, 2, []byte("b"))
+	snap := DeliverySnapshot{}
+	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"), snap)
+	sb.Add(2, []byte{2}, 0x01, 0, 2, []byte("b"), snap)
 
 	// Age packet 1 artificially.
 	sb.mu.Lock()
@@ -79,7 +82,7 @@ func TestSendBufferExpired(t *testing.T) {
 func TestSendBufferMaxRetransmit(t *testing.T) {
 	sb := NewSendBuffer(16)
 
-	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"))
+	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"), DeliverySnapshot{})
 
 	sb.mu.Lock()
 	sb.packets[1].Retransmits = maxRetransmits
@@ -94,7 +97,7 @@ func TestSendBufferRTTSample(t *testing.T) {
 	sb := NewSendBuffer(16)
 
 	before := time.Now()
-	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"))
+	sb.Add(1, []byte{1}, 0x01, 0, 1, []byte("a"), DeliverySnapshot{})
 	time.Sleep(10 * time.Millisecond)
 
 	pkt := sb.Get(1)

@@ -1,56 +1,72 @@
 package arq
 
 import (
-	"math"
 	"sync"
-	"time"
 )
 
 const (
-	initCwnd  = 128
-	minCwnd   = 64
-	maxCwnd   = 256
-	cubicBeta = 0.9
-	cubicC    = 0.4
+	// packetMSS is the assumed maximum segment size for cwnd calculations.
+	packetMSS = 1340
+
+	// startupCwnd is the initial cwnd before any bandwidth estimate is available.
+	// Conservative to avoid the burst-loss that plagued all previous CUBIC iterations.
+	startupCwnd = 32
+
+	// minCwnd prevents the window from collapsing to zero during startup.
+	minCwnd = 4
+
+	// maxCwnd is a safety cap to prevent buffer bloat even with high BW estimates.
+	maxCwnd = 512
+
+	// cwndGain is the multiplier over BDP for the congestion window.
+	// 2.0 allows enough headroom for retransmits and bursty ACKs.
+	cwndGain = 2.0
+
+	// pacingGain is the multiplier for pacing rate over estimated maxBW.
+	// 1.25 probes for more bandwidth (BBR-style).
+	pacingGain = 1.25
 )
 
-// CongestionControl implements CUBIC congestion control algorithm.
+// CongestionControl implements a BBR-like rate-based congestion control.
+//
+// Instead of reacting to packet loss (CUBIC), it estimates the actual delivery
+// rate and sets cwnd = BDP * gain. Random packet drops on ISP paths don't
+// reduce cwnd — only a decrease in measured delivery rate does.
+//
 // The notify channel is a wake-up signal only; the authoritative send gate
 // is inFlight < cwnd checked under the mutex inside AcquireSlot.
 type CongestionControl struct {
-	mu        sync.Mutex
-	cwnd      float64
-	ssthresh  float64
-	wMax      float64
-	lastLoss  time.Time
-	inFlight  int
-	lossCount int          // total loss events (for diagnostics)
-	notify    chan struct{} // wake-up signal for blocked senders, capacity = maxCwnd
+	mu       sync.Mutex
+	cwnd     int
+	inFlight int
+	bwe      *BandwidthEstimator
+	notify   chan struct{} // wake-up signal for blocked senders
 }
 
-// NewCongestionControl creates a new CongestionControl starting in slow start.
+// NewCongestionControl creates a new rate-based CongestionControl.
 func NewCongestionControl() *CongestionControl {
 	cc := &CongestionControl{
-		cwnd:     initCwnd,
-		ssthresh: 192, // exit slow start early to prevent burst that ISPs drop
-		notify:   make(chan struct{}, maxCwnd),
+		cwnd:   startupCwnd,
+		bwe:    NewBandwidthEstimator(),
+		notify: make(chan struct{}, maxCwnd),
 	}
 	// Pre-fill signals for initial cwnd
-	for i := 0; i < initCwnd; i++ {
+	for i := 0; i < startupCwnd; i++ {
 		cc.notify <- struct{}{}
 	}
 	return cc
 }
 
-// Window returns the current congestion window size, capped at maxCwnd.
+// BWE returns the bandwidth estimator for use by the Controller.
+func (cc *CongestionControl) BWE() *BandwidthEstimator {
+	return cc.bwe
+}
+
+// Window returns the current congestion window size.
 func (cc *CongestionControl) Window() int {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
-	w := int(cc.cwnd)
-	if w > maxCwnd {
-		return maxCwnd
-	}
-	return w
+	return cc.cwnd
 }
 
 // AcquireSlot blocks until inFlight < cwnd, atomically increments inFlight,
@@ -60,20 +76,21 @@ func (cc *CongestionControl) AcquireSlot(done <-chan struct{}) bool {
 		select {
 		case <-cc.notify:
 			cc.mu.Lock()
-			if cc.inFlight < int(cc.cwnd) {
+			if cc.inFlight < cc.cwnd {
 				cc.inFlight++
 				cc.mu.Unlock()
 				return true
 			}
 			cc.mu.Unlock()
-			// spurious wake (stale signal after OnLoss), retry
+			// spurious wake, retry
 		case <-done:
 			return false
 		}
 	}
 }
 
-// OnAck records that n packets were acknowledged and updates the window.
+// OnAck records that n packets were acknowledged and recalculates cwnd
+// from the bandwidth estimate.
 func (cc *CongestionControl) OnAck(n int) {
 	cc.mu.Lock()
 
@@ -82,25 +99,16 @@ func (cc *CongestionControl) OnAck(n int) {
 		cc.inFlight = 0
 	}
 
-	for i := 0; i < n; i++ {
-		if cc.cwnd < cc.ssthresh {
-			cc.cwnd++
-		} else {
-			cc.cubicGrow()
-		}
+	// Recalculate cwnd from BDP estimate
+	cc.recalcCwnd()
 
-		if cc.cwnd > maxCwnd {
-			cc.cwnd = maxCwnd
-		}
-	}
-
-	available := int(cc.cwnd) - cc.inFlight
+	available := cc.cwnd - cc.inFlight
 	if available < 0 {
 		available = 0
 	}
 	cc.mu.Unlock()
 
-	// Wake up to 'available' blocked senders
+	// Wake up blocked senders
 	for i := 0; i < available; i++ {
 		select {
 		case cc.notify <- struct{}{}:
@@ -110,14 +118,14 @@ func (cc *CongestionControl) OnAck(n int) {
 }
 
 // OnDrop releases n cwnd slots without growing the window (used when packets
-// are dropped after max retransmits — these are NOT successful deliveries).
+// are dropped after max retransmits).
 func (cc *CongestionControl) OnDrop(n int) {
 	cc.mu.Lock()
 	cc.inFlight -= n
 	if cc.inFlight < 0 {
 		cc.inFlight = 0
 	}
-	available := int(cc.cwnd) - cc.inFlight
+	available := cc.cwnd - cc.inFlight
 	if available < 0 {
 		available = 0
 	}
@@ -131,54 +139,35 @@ func (cc *CongestionControl) OnDrop(n int) {
 	}
 }
 
-// recoveryEpoch is the minimum time between congestion window reductions.
-// All losses within one epoch are treated as a single congestion event.
-// 500ms (~8 RTTs at 60ms) balances fast convergence with stability.
-const recoveryEpoch = 500 * time.Millisecond
-
-// OnLoss handles a loss event: reduce cwnd and enter congestion avoidance.
+// OnLoss is a no-op in rate-based CC. Random packet loss on ISP paths is not
+// a congestion signal. cwnd is driven by measured delivery rate, not loss events.
 //
-// Standard CUBIC behavior: set ssthresh = cwnd * beta, then grow linearly.
-// Always-slow-start was causing burst-loss oscillation because exponential
-// growth after each loss flooded the UDP path faster than ISPs could absorb.
+// This is the fundamental difference from CUBIC: we don't punish cwnd for every
+// lost packet. Only a sustained decrease in delivery rate will lower cwnd.
 func (cc *CongestionControl) OnLoss() {
-	cc.mu.Lock()
-
-	// Suppress duplicate loss signals within the same recovery epoch.
-	if !cc.lastLoss.IsZero() && time.Since(cc.lastLoss) < recoveryEpoch {
-		cc.mu.Unlock()
-		return
-	}
-
-	cc.wMax = cc.cwnd
-	newCwnd := cc.cwnd * cubicBeta
-	if newCwnd < float64(minCwnd) {
-		newCwnd = float64(minCwnd)
-	}
-	cc.ssthresh = newCwnd
-	cc.cwnd = newCwnd
-	cc.lossCount++
-	cc.lastLoss = time.Now()
-
-	cc.mu.Unlock()
+	// intentionally empty
 }
 
-// cubicGrow applies the CUBIC window growth function.
-// Must be called with mu held.
-func (cc *CongestionControl) cubicGrow() {
-	if cc.lastLoss.IsZero() {
-		// No loss yet — grow faster than Reno (additive increase of 0.5 per ACK
-		// instead of 1/cwnd) to ramp up quickly on fresh connections.
-		cc.cwnd += 0.5
-		return
+// recalcCwnd sets cwnd from the bandwidth estimate. Must be called with mu held.
+func (cc *CongestionControl) recalcCwnd() {
+	target := cc.bwe.CwndFromBDP(packetMSS, cwndGain)
+	if target > 0 {
+		if cc.bwe.IsStable() {
+			// Steady state: track BDP directly
+			cc.cwnd = target
+		} else if target > cc.cwnd {
+			// Startup: only grow, don't shrink — early samples are noisy
+			cc.cwnd = target
+		}
 	}
-	t := time.Since(cc.lastLoss).Seconds()
-	k := math.Cbrt(cc.wMax * (1 - cubicBeta) / cubicC)
-	w := cubicC*math.Pow(t-k, 3) + cc.wMax
-	if w > cc.cwnd {
-		cc.cwnd = w
-	} else {
-		cc.cwnd += 1.0 / cc.cwnd
+	// else: keep current cwnd (no estimate yet)
+
+	// Enforce bounds
+	if cc.cwnd < minCwnd {
+		cc.cwnd = minCwnd
+	}
+	if cc.cwnd > maxCwnd {
+		cc.cwnd = maxCwnd
 	}
 }
 
@@ -190,19 +179,18 @@ func (cc *CongestionControl) InFlight() int {
 }
 
 // Stats returns cwnd, inFlight, available slot count, and total loss events.
+// Loss events is always 0 in rate-based CC (kept for API compatibility).
 func (cc *CongestionControl) Stats() (cwnd int, inFlight int, slots int, losses int) {
 	cc.mu.Lock()
-	w := int(cc.cwnd)
+	w := cc.cwnd
 	f := cc.inFlight
 	avail := w - f
 	if avail < 0 {
 		avail = 0
 	}
-	l := cc.lossCount
 	cc.mu.Unlock()
-	return w, f, avail, l
+	return w, f, avail, 0
 }
 
 // SignalAll is a no-op kept for API compatibility.
-// Close is handled by closing the done channel passed to AcquireSlot.
 func (cc *CongestionControl) SignalAll() {}

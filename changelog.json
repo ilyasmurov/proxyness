@@ -1,5 +1,12 @@
 [
   {
+    "id": "4147f50a-5e7c-4669-af2b-50f51315fd6d",
+    "title": "Replace CUBIC with BBR-like rate-based congestion control for UDP transport",
+    "description": "cwnd now tracks actual delivery rate instead of reacting to packet loss — eliminates death spiral on lossy ISP paths",
+    "type": "improvement",
+    "createdAt": "2026-04-05T19:39:06.226645+00:00"
+  },
+  {
     "id": "22331e20-f4b5-4128-b7fc-b99dd554a8ab",
     "title": "Server logs stored in SQLite (7-day retention) with admin panel Logs tab",
     "description": "All log.Printf output is captured to DB with auto-detected level (info/warn/error). Admin UI shows filterable, auto-refreshing log viewer.",

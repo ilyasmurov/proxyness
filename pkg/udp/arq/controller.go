@@ -91,14 +91,20 @@ func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error
 		return fmt.Errorf("controller closed")
 	}
 
-	// Pacing: spread sends over SRTT to avoid burst losses at intermediate buffers.
-	// Interval = SRTT / cwnd so throughput ≈ cwnd × MSS / RTT, just without the burst.
-	if srtt := c.rtt.SRTT(); srtt > 0 {
+	// Pacing: use delivery-rate-based pacing if available, else fall back to cwnd/RTT.
+	bwe := c.cwnd.BWE()
+	if pacingRate := bwe.PacingRate(pacingGain); pacingRate > 0 {
+		// interval = packetSize / pacingRate
+		interval := time.Duration(float64(time.Second) * float64(packetMSS) / pacingRate)
+		c.pacer.Pace(interval)
+	} else if srtt := c.rtt.SRTT(); srtt > 0 {
 		if w := c.cwnd.Window(); w > 1 {
 			c.pacer.Pace(srtt / time.Duration(w))
 		}
 	}
 
+	// Take delivery snapshot before sending
+	snap := bwe.TakeSnapshot()
 	pktNum := c.nextPktNum.Add(1)
 
 	pkt := &pkgudp.Packet{
@@ -117,7 +123,7 @@ func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error
 
 	payload := make([]byte, len(data))
 	copy(payload, data)
-	c.sendBuf.Add(pktNum, encoded, msgType, streamID, seq, payload)
+	c.sendBuf.Add(pktNum, encoded, msgType, streamID, seq, payload, snap)
 
 	if err := c.sendFn(encoded); err != nil {
 		return fmt.Errorf("send: %w", err)
@@ -151,16 +157,21 @@ func (c *Controller) HandleData(pkt *pkgudp.Packet) {
 }
 
 // HandleAck processes an incoming ACK datagram, removing acknowledged packets
-// from the send buffer and signalling the congestion window.
+// from the send buffer, feeding the bandwidth estimator, and signalling the
+// congestion window.
 func (c *Controller) HandleAck(data []byte) {
 	ack, err := DecodeAckData(data)
 	if err != nil {
 		return
 	}
 
-	// Sample RTT from the cumAck packet (Karn's algorithm: skip retransmits)
+	bwe := c.cwnd.BWE()
+
+	// Sample RTT and delivery rate from the cumAck packet (Karn's algorithm: skip retransmits).
 	if p := c.sendBuf.Get(ack.CumAck); p != nil && !p.IsRetransmit() {
-		c.rtt.Update(time.Since(p.SentAt))
+		rtt := time.Since(p.SentAt)
+		c.rtt.Update(rtt)
+		bwe.OnDelivery(p.Delivery, packetMSS, rtt)
 	}
 
 	// Process cumulative ACK
@@ -171,6 +182,11 @@ func (c *Controller) HandleAck(data []byte) {
 		if ack.IsReceived(pktNum) {
 			p := c.sendBuf.Get(pktNum)
 			if p != nil && !p.Acked {
+				// Feed delivery rate from selectively ACKed packets too
+				if !p.IsRetransmit() {
+					rtt := time.Since(p.SentAt)
+					bwe.OnDelivery(p.Delivery, packetMSS, rtt)
+				}
 				c.sendBuf.AckSelective(pktNum)
 				acked++
 			}
@@ -257,6 +273,8 @@ func (c *Controller) RetransmitTick() {
 
 	if newLoss {
 		c.rtt.Backoff()
+		// OnLoss is a no-op in rate-based CC — cwnd is driven by delivery rate,
+		// not loss events. We still backoff RTO to avoid retransmit storms.
 		c.cwnd.OnLoss()
 	}
 }
@@ -428,6 +446,11 @@ func (c *Controller) RecordPktNum(pktNum uint32) {
 // CwndStats returns congestion window diagnostics (cwnd, inFlight, slots, losses).
 func (c *Controller) CwndStats() (cwnd int, inFlight int, slots int, losses int) {
 	return c.cwnd.Stats()
+}
+
+// BWEStats returns bandwidth estimator diagnostics (maxBW bytes/s, minRTT, BDP bytes).
+func (c *Controller) BWEStats() (maxBW float64, minRTT time.Duration, bdp float64) {
+	return c.cwnd.BWE().Stats()
 }
 
 // RTOMillis returns the current retransmission timeout in milliseconds.
