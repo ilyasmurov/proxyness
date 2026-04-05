@@ -91,12 +91,14 @@ func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error
 		return fmt.Errorf("controller closed")
 	}
 
-	// Pacing: use delivery-rate-based pacing if available, else fall back to cwnd/RTT.
+	// Pacing: during startup use cwnd/RTT (lets cwnd ramp up freely so BWE
+	// sees real capacity). After BWE stabilizes, switch to rate-based pacing.
 	bwe := c.cwnd.BWE()
-	if pacingRate := bwe.PacingRate(pacingGain); pacingRate > 0 {
-		// interval = packetSize / pacingRate
-		interval := time.Duration(float64(time.Second) * float64(packetMSS) / pacingRate)
-		c.pacer.Pace(interval)
+	if bwe.IsStable() {
+		if pacingRate := bwe.PacingRate(pacingGain); pacingRate > 0 {
+			interval := time.Duration(float64(time.Second) * float64(packetMSS) / pacingRate)
+			c.pacer.Pace(interval)
+		}
 	} else if srtt := c.rtt.SRTT(); srtt > 0 {
 		if w := c.cwnd.Window(); w > 1 {
 			c.pacer.Pace(srtt / time.Duration(w))

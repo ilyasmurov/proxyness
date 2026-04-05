@@ -1,5 +1,12 @@
 [
   {
+    "id": "9a3ac2ed-3364-4afd-855a-e209884378f6",
+    "title": "Use cwnd/RTT pacing during startup instead of BWE-based pacing",
+    "description": "Prevents BWE-pacing feedback loop that throttled upload to 0.1 MB/s",
+    "type": "fix",
+    "createdAt": "2026-04-05T19:59:09.516341+00:00"
+  },
+  {
     "id": "8a01aa32-6579-44ef-8b33-d5243344600c",
     "title": "Fix BWE undercounting acked bytes — count all packets from cumulative ACK, not just one",
     "description": null,
