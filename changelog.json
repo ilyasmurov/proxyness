@@ -1,5 +1,12 @@
 [
   {
+    "id": "406c7441-c192-4f32-8acc-940b6d4b4318",
+    "title": "Only signal cwnd loss on fresh packet loss, not re-retransmissions",
+    "description": "Prevents cwnd from repeatedly crashing on same lost packet; maxRetransmits raised to 50 to prevent cumAck stall from dropped packets",
+    "type": "fix",
+    "createdAt": "2026-04-05T10:46:21.794930+00:00"
+  },
+  {
     "id": "680b4733-bb22-489d-bcea-eb69fd88d564",
     "title": "Replace slot channel semaphore with AcquireSlot (inFlight < cwnd check under mutex)",
     "description": "Eliminates slot inflation/starvation race between OnAck and OnLoss",

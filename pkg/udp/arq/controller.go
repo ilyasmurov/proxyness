@@ -195,6 +195,7 @@ func (c *Controller) RetransmitTick() {
 	}
 
 	retransmitted := false
+	newLoss := false
 	for _, p := range expired {
 		if c.sendBuf.IsMaxRetransmits(p.PktNum) {
 			// Drop the packet and release the cwnd slot (without growing cwnd)
@@ -202,6 +203,13 @@ func (c *Controller) RetransmitTick() {
 				c.cwnd.OnDrop(1)
 			}
 			continue
+		}
+
+		// Track whether this is a fresh loss (first retransmit) vs re-retransmit.
+		// Only fresh losses warrant cwnd reduction — re-retransmits of the same
+		// packet are just recovery attempts, not new congestion signals.
+		if p.Retransmits == 0 {
+			newLoss = true
 		}
 
 		// Retransmit with the SAME PktNum so the receiver fills the original
@@ -225,10 +233,14 @@ func (c *Controller) RetransmitTick() {
 		retransmitted = true
 	}
 
-	// Signal loss only if packets were actually retransmitted (not just dropped)
 	if retransmitted {
 		c.rtt.Backoff()
-		c.cwnd.OnLoss()
+		// Only signal congestion on fresh losses (first retransmit).
+		// Re-retransmits of already-known lost packets don't indicate
+		// new congestion — they just haven't been ACKed yet.
+		if newLoss {
+			c.cwnd.OnLoss()
+		}
 	}
 }
 
