@@ -1,5 +1,12 @@
 [
   {
+    "id": "c2fcc68d-5b98-44ca-89d5-f55721423624",
+    "title": "Version bump to 1.23.25",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T18:19:03.822796+00:00"
+  },
+  {
     "id": "cf333e44-8272-48e8-a10f-8fe5f6593568",
     "title": "Detect dead UDP sessions and disconnect within 5 seconds",
     "description": "Server now echoes keepalive packets. Client detects missing responses and auto-disconnects, fixing internet loss during server updates.",
