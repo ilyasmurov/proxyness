@@ -140,6 +140,10 @@ const recoveryEpoch = 500 * time.Millisecond
 // Implements a recovery epoch: all losses within one epoch are treated as
 // a single congestion event (like TCP Fast Recovery). Without this, a burst
 // of lost packets triggers cascading OnLoss calls that crash cwnd to minimum.
+//
+// At minimum cwnd, resets to slow start — clears wMax and lastLoss so CUBIC
+// doesn't trap cwnd at the floor in congestion avoidance mode (where growth
+// is near-zero). Clean slow start grows cwnd exponentially (doubles per RTT).
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
 
@@ -149,13 +153,20 @@ func (cc *CongestionControl) OnLoss() {
 		return
 	}
 
-	cc.wMax = cc.cwnd
-	cc.ssthresh = cc.cwnd * cubicBeta
-	if cc.ssthresh < float64(minCwnd) {
-		cc.ssthresh = float64(minCwnd)
+	newCwnd := cc.cwnd * cubicBeta
+	if newCwnd <= float64(minCwnd) {
+		// At the floor: reset CUBIC state so next ACKs enter slow start
+		// (cwnd++ per ACK) instead of congestion avoidance (~0 growth).
+		cc.cwnd = float64(minCwnd)
+		cc.ssthresh = math.MaxFloat64
+		cc.wMax = 0
+		cc.lastLoss = time.Time{}
+	} else {
+		cc.wMax = cc.cwnd
+		cc.ssthresh = newCwnd
+		cc.cwnd = newCwnd
+		cc.lastLoss = time.Now()
 	}
-	cc.cwnd = cc.ssthresh
-	cc.lastLoss = time.Now()
 
 	cc.mu.Unlock()
 }
