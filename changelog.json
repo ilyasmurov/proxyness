@@ -1,5 +1,12 @@
 [
   {
+    "id": "54056297-c85d-486b-87e5-f0b468bba072",
+    "title": "Version bump to 1.23.26",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T18:40:31.893006+00:00"
+  },
+  {
     "id": "caa5ef90-a6d9-4348-aff7-a91db3709dd6",
     "title": "Stabilize UDP throughput by capping cwnd and reducing loss aggressiveness",
     "description": "maxCwnd 1024→256 prevents overshooting channel capacity. cubicBeta 0.8→0.9 reduces cwnd cut per loss from 20% to 10%. Eliminates boom-bust oscillation (842→64).",
