@@ -201,7 +201,7 @@ func (c *Controller) HandleAck(data []byte) {
 
 // maxRetransmitBatch limits how many packets can be retransmitted per tick
 // to prevent retransmit bursts that ISPs drop, causing cascading loss.
-const maxRetransmitBatch = 8
+const maxRetransmitBatch = 32
 
 // RetransmitTick checks for timed-out packets and retransmits them.
 // It should be called periodically (e.g. from a ticker goroutine).
@@ -323,7 +323,7 @@ func (c *Controller) fastRetransmit() {
 }
 
 // maxSackRetransmit limits SACK-triggered retransmits per ACK to prevent storms.
-const maxSackRetransmit = 4
+const maxSackRetransmit = 16
 
 // sackDetect uses SACK bitmap gaps to detect lost packets and retransmit
 // immediately without cwnd reduction. If 3+ packets after a gap are SACKed,

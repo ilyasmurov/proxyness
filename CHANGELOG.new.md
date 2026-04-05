@@ -1,3 +1,3 @@
 ## improvement
-Remove cwnd reduction on packet loss for lossy ISP paths
-Pacing prevents bursts; random UDP drops are not congestion signals. cwnd can now grow to maxCwnd=128 instead of collapsing to 32.
+Raise UDP cwnd ceiling from 128 to 1024
+Theoretical throughput cap goes from ~1 MB/s to ~9 MB/s on ISP paths with ~150ms RTT.
