@@ -472,13 +472,15 @@ func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) 
 }
 
 // sendResult sends a single-byte result (0x01=ok, 0x00=fail) as StreamData to the client via ARQ.
+// Uses NextSeq to avoid seq collision with relayFromDest which also uses NextSeq.
 func (l *Listener) sendResult(sess *Session, streamID uint32, ok bool) {
 	b := byte(0x00)
 	if ok {
 		b = 0x01
 	}
 	if sess.ARQ != nil {
-		sess.ARQ.Send(pkgudp.MsgStreamData, streamID, 0, []byte{b}) //nolint:errcheck
+		seq := sess.NextSeq(streamID)
+		sess.ARQ.Send(pkgudp.MsgStreamData, streamID, seq, []byte{b}) //nolint:errcheck
 	}
 }
 

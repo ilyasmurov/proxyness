@@ -1,2 +1,2 @@
 ## fix
-UDP: create WriteCh before dial — prevent data loss during stream open
+UDP: fix seq collision in sendResult — use NextSeq to prevent data loss
