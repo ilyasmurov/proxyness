@@ -1,5 +1,12 @@
 [
   {
+    "id": "2f1a487b-2d59-4014-9dd1-5a87a248ce1c",
+    "title": "Cap maxCwnd at 256 to prevent burst flooding, restore CUBIC with slow-start recovery at floor",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T14:14:57.702094+00:00"
+  },
+  {
     "id": "d7636821-d016-42d5-b29d-ed8a1f0e39cb",
     "title": "Aggressive UDP congestion control: initCwnd 128, minCwnd 64, beta 0.9, always slow-start after loss",
     "description": null,
