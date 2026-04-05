@@ -144,17 +144,34 @@ func (cc *CongestionControl) OnLoss() {
 		cc.ssthresh = math.MaxFloat64
 		cc.wMax = 0
 		cc.lastLoss = time.Time{}
-		cc.mu.Unlock()
-		return
+	} else {
+		cc.wMax = cc.cwnd
+		cc.ssthresh = cc.cwnd * cubicBeta
+		if cc.ssthresh < float64(initCwnd) {
+			cc.ssthresh = float64(initCwnd)
+		}
+		cc.cwnd = cc.ssthresh
+		cc.lastLoss = time.Now()
 	}
-	cc.wMax = cc.cwnd
-	cc.ssthresh = cc.cwnd * cubicBeta
-	if cc.ssthresh < float64(initCwnd) {
-		cc.ssthresh = float64(initCwnd)
-	}
-	cc.cwnd = cc.ssthresh
-	cc.lastLoss = time.Now()
+	cc.drainExcessSlots()
 	cc.mu.Unlock()
+}
+
+// drainExcessSlots removes slots from the channel that exceed cwnd - inFlight.
+// Without this, OnLoss reduces cwnd but the slot channel keeps stale capacity,
+// letting the sender burst far beyond the new window. Must be called with mu held.
+func (cc *CongestionControl) drainExcessSlots() {
+	target := int(cc.cwnd) - cc.inFlight
+	if target < 0 {
+		target = 0
+	}
+	for len(cc.slots) > target {
+		select {
+		case <-cc.slots:
+		default:
+			return
+		}
+	}
 }
 
 // cubicGrow applies the CUBIC window growth function.

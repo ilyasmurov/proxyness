@@ -1,5 +1,12 @@
 [
   {
+    "id": "e8930de9-597f-4062-9dbf-a049f6f05ee0",
+    "title": "Drain excess cwnd slots on loss to prevent unthrottled send bursts",
+    "description": "OnLoss now drains the slot channel to match cwnd - inFlight, preventing sender from bypassing congestion window",
+    "type": "fix",
+    "createdAt": "2026-04-05T09:44:48.452982+00:00"
+  },
+  {
     "id": "cd78e187-a12f-44ae-adbb-69a388e66b40",
     "title": "Fix SACK double-counting in ARQ causing upload collapse",
     "description": "AckCumulative now skips already-SACKed packets; RetransmitTick skips OnLoss on drop-only ticks",

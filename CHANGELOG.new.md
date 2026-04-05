@@ -1,3 +1,3 @@
 ## fix
-Fix SACK double-counting in ARQ causing upload collapse
-AckCumulative now skips already-SACKed packets; RetransmitTick skips OnLoss on drop-only ticks
+Drain excess cwnd slots on loss to prevent unthrottled send bursts
+OnLoss now drains the slot channel to match cwnd - inFlight, preventing sender from bypassing congestion window
