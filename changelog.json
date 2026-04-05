@@ -1,5 +1,12 @@
 [
   {
+    "id": "7cf7edc7-e885-492d-8394-8f4f1797709b",
+    "title": "Fix server crash by downgrading to Go 1.24 (Go 1.25 spinbit mutex crash on Alpine)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T12:26:13.164480+00:00"
+  },
+  {
     "id": "74ed5de9-ed12-453f-a053-59ec16657df0",
     "title": "Fix server crash on Alpine (Go 1.25 spinbit mutex incompatibility)",
     "description": null,
