@@ -167,33 +167,39 @@ func (c *Controller) HandleAck(data []byte) {
 
 	bwe := c.cwnd.BWE()
 
-	// Sample RTT and delivery rate from the cumAck packet (Karn's algorithm: skip retransmits).
+	// Save the delivery snapshot and RTT from the cumAck packet BEFORE
+	// AckCumulative removes it. Karn's algorithm: skip retransmits for RTT.
+	var rttSample time.Duration
+	var rateSnap DeliverySnapshot
+	var hasSnap bool
 	if p := c.sendBuf.Get(ack.CumAck); p != nil && !p.IsRetransmit() {
-		rtt := time.Since(p.SentAt)
-		c.rtt.Update(rtt)
-		bwe.OnDelivery(p.Delivery, packetMSS, rtt)
+		rttSample = time.Since(p.SentAt)
+		rateSnap = p.Delivery
+		hasSnap = true
+		c.rtt.Update(rttSample)
 	}
 
-	// Process cumulative ACK
+	// Process cumulative ACK — removes packets from buffer, returns newly-acked count
 	acked := c.sendBuf.AckCumulative(ack.CumAck)
 
+	// Process selective ACKs
 	for i := uint32(0); i < 256; i++ {
 		pktNum := ack.CumAck + 1 + i
 		if ack.IsReceived(pktNum) {
 			p := c.sendBuf.Get(pktNum)
 			if p != nil && !p.Acked {
-				// Feed delivery rate from selectively ACKed packets too
-				if !p.IsRetransmit() {
-					rtt := time.Since(p.SentAt)
-					bwe.OnDelivery(p.Delivery, packetMSS, rtt)
-				}
 				c.sendBuf.AckSelective(pktNum)
 				acked++
 			}
 		}
 	}
 
+	// Feed bandwidth estimator with ALL acked bytes, then take one rate sample
 	if acked > 0 {
+		bwe.RecordDelivered(acked * packetMSS)
+		if hasSnap {
+			bwe.SampleRate(rateSnap, rttSample)
+		}
 		c.cwnd.OnAck(acked)
 	}
 

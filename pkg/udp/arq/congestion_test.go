@@ -69,7 +69,8 @@ func TestCongestionMaxWindow(t *testing.T) {
 	snap := bwe.TakeSnapshot()
 	time.Sleep(5 * time.Millisecond)
 	// Deliver a lot of bytes in short time to get high BW estimate
-	bwe.OnDelivery(snap, 10*1024*1024, 50*time.Millisecond)
+	bwe.RecordDelivered(10 * 1024 * 1024)
+	bwe.SampleRate(snap, 50*time.Millisecond)
 
 	// Trigger cwnd recalc
 	cc.OnAck(0)
@@ -86,7 +87,8 @@ func TestCongestionMinWindow(t *testing.T) {
 	bwe := cc.BWE()
 	snap := bwe.TakeSnapshot()
 	time.Sleep(5 * time.Millisecond)
-	bwe.OnDelivery(snap, 1, 50*time.Millisecond)
+	bwe.RecordDelivered(1)
+	bwe.SampleRate(snap, 50*time.Millisecond)
 
 	cc.OnAck(0)
 
@@ -104,7 +106,8 @@ func TestCongestionBWDrivesCwnd(t *testing.T) {
 	// cwnd = 224 * cwndGain(2.0) = ~448
 	snap := bwe.TakeSnapshot()
 	time.Sleep(10 * time.Millisecond)
-	bwe.OnDelivery(snap, 5*1024*1024/100*6, 60*time.Millisecond)
+	bwe.RecordDelivered(5 * 1024 * 1024 / 100 * 6)
+	bwe.SampleRate(snap, 60*time.Millisecond)
 
 	cc.OnAck(1)
 
@@ -121,7 +124,8 @@ func TestCongestionOnLossIsNoop(t *testing.T) {
 	// Build up some bandwidth estimate
 	snap := bwe.TakeSnapshot()
 	time.Sleep(5 * time.Millisecond)
-	bwe.OnDelivery(snap, 500000, 60*time.Millisecond)
+	bwe.RecordDelivered(500000)
+	bwe.SampleRate(snap, 60*time.Millisecond)
 	cc.OnAck(1)
 
 	cwndBefore := cc.Window()

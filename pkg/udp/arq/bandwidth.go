@@ -14,6 +14,10 @@ const (
 	// minRTTWindow is how long a minRTT sample stays valid before being
 	// refreshed. Keeps minRTT from getting stale if path changes.
 	minRTTWindow = 10 * time.Second
+
+	// minStableSamples is the number of delivery rate samples needed before the
+	// estimate is considered stable enough to drive cwnd down.
+	minStableSamples = 8
 )
 
 // DeliverySnapshot captures the sender's delivery state at the moment a packet
@@ -33,10 +37,14 @@ type bwSample struct {
 
 // BandwidthEstimator tracks delivery rate and RTT to estimate available
 // bandwidth. Inspired by BBR's bandwidth and RTT probing.
+//
+// Usage pattern in HandleAck:
+//  1. RecordDelivered(totalAckedBytes) — count ALL bytes from this ACK
+//  2. SampleRate(snap, rtt) — take one rate sample from best snapshot
 type BandwidthEstimator struct {
 	mu sync.Mutex
 
-	// Delivery tracking
+	// Delivery tracking — monotonically increasing counter of ALL acked bytes
 	delivered   int64     // cumulative bytes acknowledged
 	deliveredAt time.Time // wall-clock time of the most recent delivery
 
@@ -68,17 +76,27 @@ func (bwe *BandwidthEstimator) TakeSnapshot() DeliverySnapshot {
 	return snap
 }
 
-// OnDelivery is called when an ACK arrives for a packet that was sent with
-// the given snapshot. acked is the number of bytes acknowledged in this event.
+// RecordDelivered adds bytes to the cumulative delivered counter.
+// Call this with ALL bytes acknowledged by an ACK (cumulative + selective),
+// before calling SampleRate.
+func (bwe *BandwidthEstimator) RecordDelivered(bytes int) {
+	if bytes <= 0 {
+		return
+	}
+	bwe.mu.Lock()
+	bwe.delivered += int64(bytes)
+	bwe.deliveredAt = time.Now()
+	bwe.mu.Unlock()
+}
+
+// SampleRate takes a delivery rate sample using the snapshot from a sent packet
+// and the current delivered state. Call after RecordDelivered.
 // rtt is the RTT measured for this packet (0 if unavailable, e.g. retransmit).
-func (bwe *BandwidthEstimator) OnDelivery(snap DeliverySnapshot, acked int, rtt time.Duration) {
+func (bwe *BandwidthEstimator) SampleRate(snap DeliverySnapshot, rtt time.Duration) {
 	now := time.Now()
 
 	bwe.mu.Lock()
 	defer bwe.mu.Unlock()
-
-	bwe.delivered += int64(acked)
-	bwe.deliveredAt = now
 
 	// Calculate delivery rate:
 	// Rate = (bytes delivered since snapshot) / max(send_elapsed, ack_elapsed)
@@ -155,10 +173,6 @@ func (bwe *BandwidthEstimator) PacingRate(gain float64) float64 {
 	defer bwe.mu.Unlock()
 	return bwe.maxBW * gain
 }
-
-// minStableSamples is the number of delivery rate samples needed before the
-// estimate is considered stable enough to drive cwnd down.
-const minStableSamples = 8
 
 // HasEstimate reports whether at least one delivery rate sample has been collected.
 func (bwe *BandwidthEstimator) HasEstimate() bool {
