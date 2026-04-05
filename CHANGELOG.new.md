@@ -1,2 +1,2 @@
-## fix
-UDP: fix seq collision in sendResult — use NextSeq to prevent data loss
+## improvement
+Benchmark: добавлен тест UDP+ARQ v1.23.11

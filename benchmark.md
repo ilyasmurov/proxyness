@@ -263,23 +263,67 @@
 
 ---
 
+## Test 6: SmurovProxy UDP+ARQ transport v1.23.11 (server 95.181.162.242, Aeza NL)
+
+> 2026-04-05. UDP transport with ARQ reliability layer (CUBIC congestion control, retransmission, reordering).
+
+**External IP:** 95.181.162.242
+
+### Ping (10 packets)
+| Target     | Min     | Avg     | Max     | Stddev | Loss  |
+|------------|---------|---------|---------|--------|-------|
+| 8.8.8.8    | 59.7 ms | 61.3 ms | 65.7 ms | 1.8 ms | 0%    |
+| 1.1.1.1    | —       | —       | —       | —      | 100%  |
+| ya.ru      | —       | —       | —       | —      | 100%  |
+
+### DNS Resolution
+| Domain       | Time  |
+|--------------|-------|
+| google.com   | 64 ms |
+| youtube.com  | 63 ms |
+| github.com   | 66 ms |
+| ya.ru        | 61 ms |
+| telegram.org | 64 ms |
+
+### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.160 s  | 0.914 s  | 0.924 s  |
+| https://youtube.com  | 0.150 s  | 1.008 s  | 1.265 s  |
+| https://github.com   | 0.082 s  | 0.393 s  | 0.550 s  |
+| https://ya.ru        | 0.004 s  | 0.580 s  | 0.580 s  |
+| https://telegram.org | 0.080 s  | 0.465 s  | 0.467 s  |
+
+### Speed
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Download  | 0.7 MB/s    | 25 MB via Cloudflare, 30 s (cwnd limited) |
+| Upload    | 3.2 MB/s    | 25 MB via Cloudflare, 7.8 s    |
+
+> ARQ добавил reliability — bulk transfer работает стабильно (не дропается).
+> Download ограничен cwnd death spiral (ssthresh=initCwnd после loss → congestion avoidance).
+> Upload значительно лучше (3.2 MB/s) — 12x быстрее WireGuard.
+
+---
+
 ## Full Comparison
 
-| Metric              | WireGuard | Outline   | SmurovProxy TLS  | SmurovProxy UDP   |
-|---------------------|-----------|-----------|-------------------|-------------------|
-| Ping 8.8.8.8        | 102 ms    | N/A       | 63 ms             | 63 ms             |
-| DNS avg             | 189 ms    | 219 ms    | 66 ms             | 66 ms             |
-| TTFB google.com     | 0.47 s    | timeout   | 1.58 s            | **0.90 s**        |
-| TTFB github.com     | 0.85 s    | timeout   | 0.82 s            | **0.39 s**        |
-| TTFB ya.ru          | 0.45 s    | timeout   | 0.99 s            | **0.60 s**        |
-| TTFB telegram.org   | 1.13 s    | timeout   | 0.78 s            | **0.44 s**        |
-| Download            | 8.3 MB/s  | 0.01 MB/s | 6.0 MB/s          | ~500 KB max       |
-| Upload              | 0.26 MB/s | 0 MB/s    | 7.3 MB/s          | ~9 MB max         |
+| Metric              | WireGuard | Outline   | SmurovProxy TLS  | SmurovProxy UDP (no ARQ) | SmurovProxy UDP+ARQ |
+|---------------------|-----------|-----------|-------------------|--------------------------|---------------------|
+| Ping 8.8.8.8        | 102 ms    | N/A       | 63 ms             | 63 ms                    | 61 ms               |
+| DNS avg             | 189 ms    | 219 ms    | 66 ms             | 66 ms                    | 64 ms               |
+| TTFB google.com     | 0.47 s    | timeout   | 1.58 s            | 0.90 s                   | **0.91 s**          |
+| TTFB github.com     | 0.85 s    | timeout   | 0.82 s            | 0.39 s                   | **0.39 s**          |
+| TTFB ya.ru          | 0.45 s    | timeout   | 0.99 s            | 0.60 s                   | **0.58 s**          |
+| TTFB telegram.org   | 1.13 s    | timeout   | 0.78 s            | 0.44 s                   | **0.47 s**          |
+| Download            | 8.3 MB/s  | 0.01 MB/s | 6.0 MB/s          | ~500 KB max (drops)      | **0.7 MB/s**        |
+| Upload              | 0.26 MB/s | 0 MB/s    | 7.3 MB/s          | ~9 MB max (drops)        | **3.2 MB/s**        |
 
 ### Выводы
-- **UDP TTFB на 40-50% быстрее TLS** — одна сессия, один round-trip на стрим vs новый TLS хендшейк на каждое соединение
-- **UDP быстрее WireGuard по TTFB** для github/telegram (0.39s vs 0.85s, 0.44s vs 1.13s)
-- **UDP ненадёжен для bulk transfer** — нет retransmission, потеря пакетов = обрыв
-- **TLS надёжен и быстр** для скачивания (6.0 MB/s download, 7.3 MB/s upload)
-- **AutoTransport** (по умолчанию) выбирает UDP — оптимально для browsing/messaging
-- Для тяжёлых загрузок будущая оптимизация: reliability layer или автопереключение на TLS
+- **UDP+ARQ TTFB = UDP без ARQ** — ARQ не добавил latency, TTFB на 40-50% быстрее TLS
+- **UDP+ARQ быстрее WireGuard по TTFB** для github/telegram (0.39s vs 0.85s, 0.47s vs 1.13s)
+- **ARQ обеспечил надёжность** — bulk transfer больше не дропается
+- **Upload 3.2 MB/s** — в 12x быстрее WireGuard (0.26 MB/s)
+- **Download 0.7 MB/s** — узкое место: cwnd death spiral (ssthresh зажат к initCwnd, CUBIC congestion avoidance вместо slow start). Следующая оптимизация.
+- **TLS остаётся лучше для download** (6.0 MB/s) — TCP congestion control зрелее
+- **AutoTransport** выбирает UDP — оптимально для browsing/messaging, TLS fallback для тяжёлых загрузок
