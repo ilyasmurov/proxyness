@@ -1,5 +1,12 @@
 [
   {
+    "id": "d7636821-d016-42d5-b29d-ed8a1f0e39cb",
+    "title": "Aggressive UDP congestion control: initCwnd 128, minCwnd 64, beta 0.9, always slow-start after loss",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T14:06:18.099506+00:00"
+  },
+  {
     "id": "f3e651f1-9290-4077-bae8-8c079db7f721",
     "title": "Fix cwnd stuck at minCwnd — reset to slow start when hitting the floor so cwnd can recover",
     "description": null,
