@@ -133,9 +133,8 @@ func (cc *CongestionControl) OnDrop(n int) {
 
 // recoveryEpoch is the minimum time between congestion window reductions.
 // All losses within one epoch are treated as a single congestion event.
-// Set to 500ms (covers ~8 RTTs at 60ms) to prevent cascading cwnd collapse
-// on paths with moderate persistent loss (typical for UDP through ISPs).
-const recoveryEpoch = 1 * time.Second
+// 500ms (~8 RTTs at 60ms) balances fast convergence with stability.
+const recoveryEpoch = 500 * time.Millisecond
 
 // OnLoss handles a loss event: reduce cwnd and enter congestion avoidance.
 //

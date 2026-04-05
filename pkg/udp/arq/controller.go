@@ -255,13 +255,9 @@ func (c *Controller) RetransmitTick() {
 		c.sendFn(encoded) //nolint:errcheck
 	}
 
-	// RTO backoff only — no cwnd reduction.
-	// On ISP paths with persistent random UDP loss, RTO retransmits are
-	// not congestion signals. Cutting cwnd here caps throughput at
-	// minCwnd × MSS / RTT ≈ 280 KB/s. Pacing prevents the bursts that
-	// would cause real congestion.
 	if newLoss {
 		c.rtt.Backoff()
+		c.cwnd.OnLoss()
 	}
 }
 
