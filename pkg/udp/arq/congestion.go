@@ -65,6 +65,10 @@ type CongestionControl struct {
 	lastMaxBW      float64 // maxBW at end of previous round
 	roundAcked     int     // packets acked in current round
 	roundThreshold int     // ack threshold before checking round end
+
+	// App-limited / idle detection for STARTUP re-entry
+	idleSeen         bool // true after inFlight < cwnd/4 (connection was idle)
+	roundMaxInFlight int  // max inFlight during current STARTUP round
 }
 
 // NewCongestionControl creates a new rate-based CongestionControl.
@@ -104,6 +108,9 @@ func (cc *CongestionControl) AcquireSlot(done <-chan struct{}) bool {
 			cc.mu.Lock()
 			if cc.inFlight < cc.cwnd {
 				cc.inFlight++
+				if cc.inFlight > cc.roundMaxInFlight {
+					cc.roundMaxInFlight = cc.inFlight
+				}
 				cc.mu.Unlock()
 				return true
 			}
@@ -120,6 +127,10 @@ func (cc *CongestionControl) AcquireSlot(done <-chan struct{}) bool {
 func (cc *CongestionControl) OnAck(n int) {
 	cc.mu.Lock()
 
+	// Detect idle→busy transition BEFORE decrementing inFlight.
+	// wasFullyUtilized means the sender was cwnd-bound (bulk transfer).
+	wasFullyUtilized := cc.inFlight >= cc.cwnd*3/4
+
 	cc.inFlight -= n
 	if cc.inFlight < 0 {
 		cc.inFlight = 0
@@ -128,6 +139,18 @@ func (cc *CongestionControl) OnAck(n int) {
 	// Check STARTUP exit: has delivery rate plateaued?
 	if cc.inStartup {
 		cc.checkStartupExit(n)
+	}
+
+	// Re-enter STARTUP on idle → busy transition.
+	// If we were recently idle (browsing) and now the sender is fully
+	// utilizing the window (bulk download), re-probe to discover real capacity.
+	if !cc.inStartup && cc.idleSeen && wasFullyUtilized {
+		cc.enterStartup()
+	}
+
+	// Track idle state: connection is idle when barely using the window.
+	if cc.inFlight < cc.cwnd/4 {
+		cc.idleSeen = true
 	}
 
 	// Recalculate cwnd from BDP estimate
@@ -164,8 +187,20 @@ func (cc *CongestionControl) checkStartupExit(acked int) {
 		return // not enough data for a round yet
 	}
 
-	// Round complete — check growth
+	// Round complete — check if it was app-limited.
+	// If the sender never filled even half the window during this round,
+	// bandwidth was limited by the app (e.g. browsing), not the network.
+	// Don't count such rounds toward STARTUP exit.
+	if cc.roundMaxInFlight < cc.cwnd/2 {
+		cc.roundAcked = 0
+		cc.roundMaxInFlight = 0
+		cc.roundThreshold = cc.cwnd
+		return
+	}
+
+	// Network-limited round — check growth
 	cc.roundAcked = 0
+	cc.roundMaxInFlight = 0
 	maxBW := cc.bwe.MaxBW()
 	if maxBW == 0 {
 		return
@@ -199,6 +234,19 @@ func (cc *CongestionControl) InStartup() bool {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
 	return cc.inStartup
+}
+
+// enterStartup re-enters the STARTUP phase to re-probe pipe capacity.
+// Called when transitioning from idle to busy on an existing connection.
+// Must be called with mu held.
+func (cc *CongestionControl) enterStartup() {
+	cc.inStartup = true
+	cc.fullBWCount = 0
+	cc.lastMaxBW = 0
+	cc.roundAcked = 0
+	cc.roundThreshold = cc.cwnd
+	cc.idleSeen = false
+	cc.roundMaxInFlight = 0
 }
 
 // OnDrop releases n cwnd slots without growing the window (used when packets

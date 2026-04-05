@@ -1,5 +1,12 @@
 [
   {
+    "id": "bca45937-5df4-4cbf-ad46-70bee61c467e",
+    "title": "Re-enter STARTUP on idle-to-bulk transition — fixes download regression on shared connections",
+    "description": "Skip app-limited rounds in STARTUP exit check — prevents false exit during browsing",
+    "type": "fix",
+    "createdAt": "2026-04-05T21:53:14.085480+00:00"
+  },
+  {
     "id": "914afe8b-c664-4c21-b241-a6467a52e3b8",
     "title": "Prevent premature STARTUP exit — wait for BWE stability before checking bandwidth plateau",
     "description": "Fix pacer burstSize truncation causing ~33% underdelivery at sub-ms intervals",
