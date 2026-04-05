@@ -1,5 +1,12 @@
 [
   {
+    "id": "8263185a-1eae-4c25-af2a-e353776c657d",
+    "title": "Proper CUBIC ssthresh + lower maxCwnd to prevent UDP burst flooding",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T15:19:23.227181+00:00"
+  },
+  {
     "id": "7de0e13c-fc2f-4131-8e6d-b0b67e18a0a5",
     "title": "Revert CC to known-good version (initCwnd=128, beta=0.9, always-slow-start)",
     "description": null,

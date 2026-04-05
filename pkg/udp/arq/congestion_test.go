@@ -37,23 +37,31 @@ func TestCongestionOnLoss(t *testing.T) {
 	if cc.Window() != expected {
 		t.Fatalf("expected cwnd=%d after loss, got %d", expected, cc.Window())
 	}
+
+	// Verify ssthresh was set (no longer slow start)
+	cc.mu.Lock()
+	ss := cc.ssthresh
+	cc.mu.Unlock()
+	if ss > float64(maxCwnd) {
+		t.Fatalf("expected ssthresh <= maxCwnd after loss, got %f", ss)
+	}
 }
 
 func TestCongestionAvoidanceCubic(t *testing.T) {
 	cc := NewCongestionControl()
 
-	// Grow to cwnd ~100
-	for cc.Window() < 100 {
+	// Grow to cwnd ~150
+	for cc.Window() < 150 {
 		cc.OnAck(1)
 	}
 
 	cc.OnLoss()
-	cwndAfterLoss := cc.Window() // ~70
+	cwndAfterLoss := cc.Window() // ~105 (150*0.7)
 
 	// Wait for real wall-clock time so CUBIC has a non-zero t value.
 	time.Sleep(50 * time.Millisecond)
 
-	// Send ACKs in congestion avoidance; window should not decrease.
+	// Send ACKs in congestion avoidance; window should grow linearly (not exponentially).
 	prev := cwndAfterLoss
 	for i := 0; i < 50; i++ {
 		cc.OnAck(1)
@@ -62,6 +70,10 @@ func TestCongestionAvoidanceCubic(t *testing.T) {
 	after := cc.Window()
 	if after < prev {
 		t.Fatalf("expected cwnd not to decrease in congestion avoidance, prev=%d after=%d", prev, after)
+	}
+	// With proper ssthresh, growth should be linear — not double like slow start
+	if after > prev+50 {
+		t.Fatalf("expected linear growth in congestion avoidance, prev=%d after=%d (grew by %d)", prev, after, after-prev)
 	}
 }
 
@@ -100,17 +112,13 @@ func TestCongestionAcquireSlot(t *testing.T) {
 func TestCongestionMaxWindow(t *testing.T) {
 	cc := NewCongestionControl()
 
-	// Send enough acks to reach maxCwnd (initCwnd + N >= maxCwnd)
-	for i := 0; i < 3000; i++ {
+	// Send enough acks to reach maxCwnd
+	for i := 0; i < maxCwnd*2; i++ {
 		cc.OnAck(1)
 	}
 
-	if cc.Window() > maxCwnd {
-		t.Fatalf("expected cwnd capped at %d, got %d", maxCwnd, cc.Window())
-	}
-
 	if cc.Window() != maxCwnd {
-		t.Fatalf("expected cwnd=%d after 3000 acks, got %d", maxCwnd, cc.Window())
+		t.Fatalf("expected cwnd capped at %d, got %d", maxCwnd, cc.Window())
 	}
 }
 

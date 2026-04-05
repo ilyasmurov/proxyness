@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	initCwnd  = 128
-	minCwnd   = 64
-	maxCwnd   = 2048
-	cubicBeta = 0.9
+	initCwnd  = 64
+	minCwnd   = 32
+	maxCwnd   = 256
+	cubicBeta = 0.7
 	cubicC    = 0.4
 )
 
@@ -136,12 +136,11 @@ func (cc *CongestionControl) OnDrop(n int) {
 // on paths with moderate persistent loss (typical for UDP through ISPs).
 const recoveryEpoch = 500 * time.Millisecond
 
-// OnLoss handles a loss event: reduce cwnd and immediately reset to slow start.
+// OnLoss handles a loss event: reduce cwnd and enter congestion avoidance.
 //
-// This proxy runs TCP-over-UDP: inner TCP handles end-to-end congestion control.
-// The outer UDP transport should recover aggressively from loss rather than
-// slowly grinding up in CUBIC congestion avoidance. After reducing cwnd,
-// we reset CUBIC state so subsequent ACKs trigger slow start (doubles per RTT).
+// Standard CUBIC behavior: set ssthresh = cwnd * beta, then grow linearly.
+// Always-slow-start was causing burst-loss oscillation because exponential
+// growth after each loss flooded the UDP path faster than ISPs could absorb.
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
 
@@ -151,14 +150,13 @@ func (cc *CongestionControl) OnLoss() {
 		return
 	}
 
+	cc.wMax = cc.cwnd
 	newCwnd := cc.cwnd * cubicBeta
 	if newCwnd < float64(minCwnd) {
 		newCwnd = float64(minCwnd)
 	}
+	cc.ssthresh = newCwnd
 	cc.cwnd = newCwnd
-	// Always reset to slow start for aggressive recovery.
-	cc.ssthresh = math.MaxFloat64
-	cc.wMax = 0
 	cc.lastLoss = time.Now()
 
 	cc.mu.Unlock()
