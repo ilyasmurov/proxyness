@@ -130,12 +130,24 @@ func (cc *CongestionControl) OnDrop(n int) {
 }
 
 // OnLoss handles a loss event: set ssthresh and cwnd via CUBIC beta.
+// Implements a recovery epoch: all losses within one minRTO are treated as
+// a single congestion event (like TCP Fast Recovery). Without this, a burst
+// of lost packets triggers cascading OnLoss calls that crash cwnd to minimum.
+//
 // At minimum cwnd, full reset to slow start — clears wMax and lastLoss so
 // CUBIC doesn't jump cwnd using a stale peak (e.g. wMax=50 → cwnd 10→35
 // in one ACK → burst → collapse → 0.0 MB/s). Clean slow start discovers
 // real capacity gradually (doubles each RTT).
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
+
+	// Suppress duplicate loss signals within the same recovery epoch.
+	// A burst of packets lost together should reduce cwnd only once.
+	if !cc.lastLoss.IsZero() && time.Since(cc.lastLoss) < minRTO {
+		cc.mu.Unlock()
+		return
+	}
+
 	if cc.cwnd <= float64(initCwnd) {
 		cc.ssthresh = math.MaxFloat64
 		cc.wMax = 0

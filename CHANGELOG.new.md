@@ -1,2 +1,2 @@
 ## fix
-Re-ACK on duplicate packets to prevent deadlock when ACK is lost in transit
+Add recovery epoch to prevent cascading cwnd collapse from burst packet loss

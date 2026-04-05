@@ -1,5 +1,12 @@
 [
   {
+    "id": "bd6b1573-7d80-4c2a-a395-1bc6926dc843",
+    "title": "Add recovery epoch to prevent cascading cwnd collapse from burst packet loss",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T11:34:12.403133+00:00"
+  },
+  {
     "id": "115b9914-29da-4078-bfdb-c6aed865ddbe",
     "title": "Re-ACK on duplicate packets to prevent deadlock when ACK is lost in transit",
     "description": null,
