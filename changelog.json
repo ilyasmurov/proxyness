@@ -1,5 +1,12 @@
 [
   {
+    "id": "d5f59cdb-d4a7-4013-b0c0-ca5f7348e7eb",
+    "title": "UDP: create WriteCh before dial — prevent data loss during stream open",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T05:16:32.283199+00:00"
+  },
+  {
     "id": "03bb0199-b092-4b47-9b1e-b98e1a90f9cb",
     "title": "ARQ: restore NeedsImmediateAck in HandleData — was accidentally removed, critical for gap recovery",
     "description": null,

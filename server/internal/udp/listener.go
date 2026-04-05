@@ -239,12 +239,6 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 		sess.mu.Lock()
 		clientAddr := sess.ClientAddr
 		sess.mu.Unlock()
-		if uc, ok := l.conn.(*net.UDPConn); ok {
-			uc.SetWriteDeadline(time.Now().Add(10 * time.Millisecond))
-			_, err := uc.WriteTo(data, clientAddr)
-			uc.SetWriteDeadline(time.Time{})
-			return err
-		}
 		_, err := l.conn.WriteTo(data, clientAddr)
 		return err
 	}, func(streamID uint32, data []byte) {
@@ -364,11 +358,17 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 		return
 	}
 	if _, exists := sess.streams[streamID]; !exists {
-		sess.streams[streamID] = &StreamState{Created: time.Now()}
+		sess.streams[streamID] = &StreamState{
+			Created: time.Now(),
+			WriteCh: make(chan []byte, 256), // create early so deliverFn can buffer data during dial
+		}
 		seq := uint32(0)
 		sess.nextSeq[streamID] = &seq
 	}
 	st := sess.streams[streamID]
+	if st.WriteCh == nil {
+		st.WriteCh = make(chan []byte, 256)
+	}
 	st.Dialing = true
 	sess.mu.Unlock()
 
@@ -394,8 +394,7 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 			return
 		}
 		st.Conn = conn
-		st.WriteCh = make(chan []byte, 256)
-		go l.streamWriter(sess, streamID, st)
+		go l.streamWriter(sess, streamID, st) // WriteCh already created
 		l.sendResult(sess, streamID, true)
 		go l.relayFromDest(sess, streamID, conn)
 
@@ -408,8 +407,7 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 			return
 		}
 		st.Conn = conn
-		st.WriteCh = make(chan []byte, 256)
-		go l.streamWriter(sess, streamID, st)
+		go l.streamWriter(sess, streamID, st) // WriteCh already created
 		l.sendResult(sess, streamID, true)
 		go l.relayFromDest(sess, streamID, conn)
 
