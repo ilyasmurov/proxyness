@@ -1,5 +1,12 @@
 [
   {
+    "id": "74ed5de9-ed12-453f-a053-59ec16657df0",
+    "title": "Fix server crash on Alpine (Go 1.25 spinbit mutex incompatibility)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T12:08:18.469406+00:00"
+  },
+  {
     "id": "aea2c57d-128a-4555-8e81-c7707816bd11",
     "title": "Only backoff RTO on fresh packet losses to prevent RTO spiral to 2000ms",
     "description": null,

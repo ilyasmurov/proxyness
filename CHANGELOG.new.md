@@ -1,2 +1,2 @@
 ## fix
-Only backoff RTO on fresh packet losses to prevent RTO spiral to 2000ms
+Fix server crash on Alpine (Go 1.25 spinbit mutex incompatibility)
