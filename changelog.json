@@ -1,5 +1,12 @@
 [
   {
+    "id": "b510994e-fd57-443b-9f2e-4f28b6752142",
+    "title": "Version bump to 1.23.23",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T17:34:48.850486+00:00"
+  },
+  {
     "id": "d08489c5-958f-4908-abc2-05925d28c95d",
     "title": "Re-enable CUBIC cwnd reduction on loss to prevent congestion collapse",
     "description": "cwnd grew to 1024 and never decreased, overwhelming ISP buffers. Now reduces 20% per loss event (max once per 500ms) so CUBIC finds equilibrium.",
