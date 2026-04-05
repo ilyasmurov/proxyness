@@ -1,3 +1,3 @@
-## improvement
-Burst-based pacing to bypass macOS 1ms sleep granularity
-Sub-ms pacing intervals now batch into bursts instead of sleeping per-packet, fixing throughput cap at ~1.3 MB/s.
+## fix
+Cap UDP burst size to prevent ISP buffer overflow
+Uncapped burst of 17 packets at high cwnd overwhelmed ISP buffers causing congestion collapse (40 KB/s). Capped at 8 packets per burst.

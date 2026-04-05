@@ -20,7 +20,10 @@ func NewPacer() *Pacer {
 	return &Pacer{}
 }
 
-const minSleep = time.Millisecond
+const (
+	minSleep = time.Millisecond
+	maxBurst = 8 // cap burst to avoid overwhelming shallow ISP UDP buffers
+)
 
 // Pace rate-limits sends. For sub-millisecond intervals, sends a burst of
 // packets (burstSize = minSleep / interval) then sleeps once for ~1ms.
@@ -46,6 +49,9 @@ func (p *Pacer) Pace(interval time.Duration) {
 	}
 
 	p.burstSize = int(minSleep / interval)
+	if p.burstSize > maxBurst {
+		p.burstSize = maxBurst
+	}
 	p.count++
 	if p.count < p.burstSize {
 		p.mu.Unlock()

@@ -1,5 +1,12 @@
 [
   {
+    "id": "edf4959b-ab56-44e3-9403-eccff2f5351e",
+    "title": "Cap UDP burst size to prevent ISP buffer overflow",
+    "description": "Uncapped burst of 17 packets at high cwnd overwhelmed ISP buffers causing congestion collapse (40 KB/s). Capped at 8 packets per burst.",
+    "type": "fix",
+    "createdAt": "2026-04-05T17:11:09.177359+00:00"
+  },
+  {
     "id": "13fdf148-e22d-4635-ac6a-234c55d3bae0",
     "title": "Burst-based pacing to bypass macOS 1ms sleep granularity",
     "description": "Sub-ms pacing intervals now batch into bursts instead of sleeping per-packet, fixing throughput cap at ~1.3 MB/s.",
