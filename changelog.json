@@ -1,5 +1,12 @@
 [
   {
+    "id": "cb6e6df2-4dca-48ff-9ac1-d77397681f16",
+    "title": "Version bump to 1.23.22",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T17:16:25.600332+00:00"
+  },
+  {
     "id": "edf4959b-ab56-44e3-9403-eccff2f5351e",
     "title": "Cap UDP burst size to prevent ISP buffer overflow",
     "description": "Uncapped burst of 17 packets at high cwnd overwhelmed ISP buffers causing congestion collapse (40 KB/s). Capped at 8 packets per burst.",
