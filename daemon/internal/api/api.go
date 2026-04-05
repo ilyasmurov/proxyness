@@ -111,6 +111,11 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	s.tunnel.SetTransport(tr)
+	s.tunnel.SetTransportFactory(func() transport.Transport {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.createTransport()
+	}, fp)
 	log.Printf("[api] transport connected: mode=%s", tr.Mode())
 
 	if err := s.tunnel.Start(s.listenAddr, req.ServerAddr, req.Key); err != nil {
@@ -249,6 +254,11 @@ func (s *Server) handleTUNStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.tunEngine.SetTransport(tr)
+	s.tunEngine.SetTransportFactory(func() transport.Transport {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.createTransport()
+	}, fp)
 	log.Printf("[api] TUN transport connected: mode=%s", tr.Mode())
 
 	if err := s.tunEngine.Start(req); err != nil {

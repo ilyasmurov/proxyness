@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"smurov-proxy/pkg/udp/arq"
+	"smurov-proxy/server/internal/stats"
 )
 
 // Session represents an authenticated UDP client.
@@ -16,6 +17,7 @@ type Session struct {
 	Token      uint32
 	SessionKey []byte
 	DeviceID   int
+	TrackerID  int64 // stats.Tracker connection ID
 	ClientAddr net.Addr
 	LastSeen   time.Time
 
@@ -113,11 +115,13 @@ func (s *Session) CloseAllStreams() {
 type SessionManager struct {
 	mu       sync.RWMutex
 	sessions map[uint32]*Session
+	tracker  *stats.Tracker
 }
 
-func NewSessionManager() *SessionManager {
+func NewSessionManager(tracker *stats.Tracker) *SessionManager {
 	return &SessionManager{
 		sessions: make(map[uint32]*Session),
+		tracker:  tracker,
 	}
 }
 
@@ -155,6 +159,9 @@ func (m *SessionManager) Remove(token uint32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if s, ok := m.sessions[token]; ok {
+		if s.TrackerID != 0 && m.tracker != nil {
+			m.tracker.Remove(s.TrackerID)
+		}
 		s.CloseAllStreams()
 		delete(m.sessions, token)
 	}
@@ -169,6 +176,9 @@ func (m *SessionManager) Cleanup(maxAge time.Duration) {
 	for token, s := range m.sessions {
 		if now.Sub(s.LastSeen) > maxAge {
 			log.Printf("udp: cleanup session token=%d lastSeen=%v ago streams=%d", token, now.Sub(s.LastSeen).Round(time.Second), len(s.streams))
+			if s.TrackerID != 0 && m.tracker != nil {
+				m.tracker.Remove(s.TrackerID)
+			}
 			s.CloseAllStreams()
 			delete(m.sessions, token)
 		}

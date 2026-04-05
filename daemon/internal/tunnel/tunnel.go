@@ -30,17 +30,22 @@ const (
 	Connected    Status = "connected"
 )
 
+// TransportFactory creates a new transport instance for (re)connection.
+type TransportFactory func() transport.Transport
+
 type Tunnel struct {
-	mu         sync.Mutex
-	status     Status
-	serverAddr string
-	key        string
-	listener   net.Listener
-	startTime  time.Time
-	stopHealth chan struct{}
-	lastError  string
-	meter      *dstats.RateMeter
-	transport  transport.Transport
+	mu               sync.Mutex
+	status           Status
+	serverAddr       string
+	key              string
+	listener         net.Listener
+	startTime        time.Time
+	stopHealth       chan struct{}
+	lastError        string
+	meter            *dstats.RateMeter
+	transport        transport.Transport
+	transportFactory TransportFactory
+	machineID        [16]byte
 
 	connsMu sync.Mutex
 	conns   map[uint64]net.Conn
@@ -55,6 +60,13 @@ func (t *Tunnel) SetTransport(tr transport.Transport) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.transport = tr
+}
+
+func (t *Tunnel) SetTransportFactory(factory TransportFactory, machineID [16]byte) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.transportFactory = factory
+	t.machineID = machineID
 }
 
 func (t *Tunnel) trackConn(c net.Conn) uint64 {
@@ -206,6 +218,11 @@ func (t *Tunnel) transportDone() <-chan struct{} {
 	return nil
 }
 
+const (
+	reconnectDelay    = 3 * time.Second
+	maxReconnects     = 5
+)
+
 func (t *Tunnel) healthLoop() {
 	ticker := time.NewTicker(healthInterval)
 	defer ticker.Stop()
@@ -218,7 +235,13 @@ func (t *Tunnel) healthLoop() {
 		case <-t.stopHealth:
 			return
 		case <-doneCh:
-			log.Printf("[tunnel] transport closed, disconnecting")
+			log.Printf("[tunnel] transport closed, attempting reconnect...")
+			if t.reconnectTransport() {
+				doneCh = t.transportDone()
+				failures = 0
+				continue
+			}
+			log.Printf("[tunnel] reconnect failed, disconnecting")
 			t.mu.Lock()
 			t.lastError = "Connection lost, please reconnect"
 			t.stopLocked()
@@ -249,6 +272,53 @@ func (t *Tunnel) healthLoop() {
 			}
 		}
 	}
+}
+
+func (t *Tunnel) reconnectTransport() bool {
+	t.mu.Lock()
+	factory := t.transportFactory
+	serverAddr := t.serverAddr
+	key := t.key
+	mid := t.machineID
+	if t.transport != nil {
+		t.transport.Close()
+		t.transport = nil
+	}
+	t.mu.Unlock()
+
+	if factory == nil {
+		return false
+	}
+
+	for attempt := 1; attempt <= maxReconnects; attempt++ {
+		select {
+		case <-t.stopHealth:
+			return false
+		default:
+		}
+
+		if attempt > 1 {
+			time.Sleep(reconnectDelay)
+		}
+
+		log.Printf("[tunnel] reconnect attempt %d/%d", attempt, maxReconnects)
+		tr := factory()
+		if err := tr.Connect(serverAddr, key, mid); err != nil {
+			log.Printf("[tunnel] reconnect attempt %d failed: %v", attempt, err)
+			tr.Close()
+			if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
+				return false
+			}
+			continue
+		}
+
+		t.mu.Lock()
+		t.transport = tr
+		t.mu.Unlock()
+		log.Printf("[tunnel] reconnected via %s", tr.Mode())
+		return true
+	}
+	return false
 }
 
 func (t *Tunnel) acceptLoop(ln net.Listener) {

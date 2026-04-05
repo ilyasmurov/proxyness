@@ -1,5 +1,19 @@
 [
   {
+    "id": "e50dbeec-023f-451b-b2dc-f5463664776f",
+    "title": "Auto-reconnect on transport loss",
+    "description": "Daemon automatically retries connection up to 5 times when server restarts, no manual reconnect needed.",
+    "type": "feature",
+    "createdAt": "2026-04-05T22:36:31.575141+00:00"
+  },
+  {
+    "id": "92021653-8d7b-4ea2-b74c-fe6ea094eabc",
+    "title": "UDP device tracking in admin dashboard",
+    "description": "UDP sessions now show as online connections with live speed in the admin panel.",
+    "type": "feature",
+    "createdAt": "2026-04-05T22:36:31.575347+00:00"
+  },
+  {
     "id": "b9f6109e-ab05-41c9-acbc-9a2c093f5446",
     "title": "Reduce maxRetransmits 50→15 to cut head-of-line blocking on lossy paths",
     "description": "Rate-limit immediate ACKs (5ms min interval) to prevent ACK spam on out-of-order packets\nAdd 200ms time threshold for idle detection to prevent false STARTUP re-entry on brief pauses\nGuard HandleData/HandleAck after Close() to prevent crash on freed structures",

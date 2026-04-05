@@ -81,8 +81,8 @@ export function Dashboard() {
                       </span>
                     </div>
                     <div style={{ display: "flex", gap: 16, marginBottom: 8, fontSize: 14 }}>
-                      <span style={{ color: "#16a34a" }}>↓ {formatSpeed(device.download)}</span>
-                      <span style={{ color: "#2563eb" }}>↑ {formatSpeed(device.upload)}</span>
+                      <span style={{ color: device.download > 0 && device.download < 500_000 ? "#ef4444" : "#16a34a" }}>↓ {formatSpeed(device.download)}</span>
+                      <span style={{ color: device.upload > 0 && device.upload < 500_000 ? "#ef4444" : "#2563eb" }}>↑ {formatSpeed(device.upload)}</span>
                     </div>
                     <ResponsiveContainer width="100%" height={80}>
                       <LineChart data={device.history}>

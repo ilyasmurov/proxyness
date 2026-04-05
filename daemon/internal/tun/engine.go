@@ -54,10 +54,12 @@ type Engine struct {
 	rawUDP        *RawUDPHandler
 	helperWriteMu sync.Mutex
 	meter         *dstats.RateMeter
-	transport     transport.Transport
-	startTime    time.Time
-	lastError    string
-	stopHealth   chan struct{}
+	transport        transport.Transport
+	transportFactory func() transport.Transport
+	machineID        [16]byte
+	startTime        time.Time
+	lastError        string
+	stopHealth       chan struct{}
 
 	connsMu sync.Mutex
 	conns   map[uint64]net.Conn
@@ -79,6 +81,13 @@ func (e *Engine) SetTransport(tr transport.Transport) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.transport = tr
+}
+
+func (e *Engine) SetTransportFactory(factory func() transport.Transport, machineID [16]byte) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.transportFactory = factory
+	e.machineID = machineID
 }
 
 func (e *Engine) GetStatus() Status {
@@ -418,15 +427,92 @@ func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.
 	}
 }
 
+func (e *Engine) transportDone() <-chan struct{} {
+	e.mu.Lock()
+	tr := e.transport
+	e.mu.Unlock()
+	type doner interface {
+		DoneChan() <-chan struct{}
+	}
+	if d, ok := tr.(doner); ok {
+		return d.DoneChan()
+	}
+	return nil
+}
+
+func (e *Engine) reconnectTransport() bool {
+	e.mu.Lock()
+	factory := e.transportFactory
+	serverAddr := e.serverAddr
+	key := e.key
+	mid := e.machineID
+	if e.transport != nil {
+		e.transport.Close()
+		e.transport = nil
+	}
+	e.mu.Unlock()
+
+	if factory == nil {
+		return false
+	}
+
+	const maxReconnects = 5
+	const reconnectDelay = 3 * time.Second
+
+	for attempt := 1; attempt <= maxReconnects; attempt++ {
+		select {
+		case <-e.stopHealth:
+			return false
+		default:
+		}
+
+		if attempt > 1 {
+			time.Sleep(reconnectDelay)
+		}
+
+		log.Printf("[tun] reconnect attempt %d/%d", attempt, maxReconnects)
+		tr := factory()
+		if err := tr.Connect(serverAddr, key, mid); err != nil {
+			log.Printf("[tun] reconnect attempt %d failed: %v", attempt, err)
+			tr.Close()
+			if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
+				return false
+			}
+			continue
+		}
+
+		e.mu.Lock()
+		e.transport = tr
+		e.mu.Unlock()
+		log.Printf("[tun] reconnected via %s", tr.Mode())
+		return true
+	}
+	return false
+}
+
 func (e *Engine) healthLoop() {
 	const maxFailures = 3
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
+	doneCh := e.transportDone()
 	failures := 0
 	for {
 		select {
 		case <-e.stopHealth:
+			return
+		case <-doneCh:
+			log.Printf("[tun] transport closed, attempting reconnect...")
+			if e.reconnectTransport() {
+				doneCh = e.transportDone()
+				failures = 0
+				continue
+			}
+			log.Printf("[tun] reconnect failed, stopping engine")
+			e.mu.Lock()
+			e.lastError = "Connection lost, please reconnect"
+			e.stopLocked()
+			e.mu.Unlock()
 			return
 		case <-ticker.C:
 			e.mu.Lock()

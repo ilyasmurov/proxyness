@@ -43,7 +43,7 @@ func NewListener(conn net.PacketConn, database *db.DB, tracker *stats.Tracker) *
 		conn:     conn,
 		db:       database,
 		tracker:  tracker,
-		sessions: NewSessionManager(),
+		sessions: NewSessionManager(tracker),
 	}
 }
 
@@ -235,6 +235,9 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 	sess.mu.Lock()
 	sess.ClientAddr = addr
 	sess.mu.Unlock()
+
+	// Register in stats tracker so device appears online in admin panel
+	sess.TrackerID = l.tracker.Add(device.ID, device.Name, device.UserName, device.Version, false)
 
 	// Initialize ARQ Controller for this session.
 	// sendFn uses a short write deadline so retransmit storms from dead sessions
@@ -440,6 +443,9 @@ func (l *Listener) streamWriter(sess *Session, streamID uint32, st *StreamState)
 			return
 		}
 		st.BytesIn += int64(n)
+		if sess.TrackerID != 0 {
+			l.tracker.AddBytes(sess.TrackerID, int64(n), 0)
+		}
 	}
 }
 
@@ -465,6 +471,9 @@ func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) 
 				return
 			}
 			st.BytesOut += int64(n)
+			if sess.TrackerID != 0 {
+				l.tracker.AddBytes(sess.TrackerID, 0, int64(n))
+			}
 
 			seq := sess.NextSeq(streamID)
 
