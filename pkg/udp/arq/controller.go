@@ -132,10 +132,13 @@ func (c *Controller) HandleData(pkt *pkgudp.Packet) {
 		rb.Insert(pkt.Seq, pkt.Data)
 	}
 
-	// NOTE: ACKs are sent by the ackLoop goroutine, NOT here.
-	// Calling sendAck() here would block recvLoop/processLoop on conn.Write()
-	// when the UDP send buffer is full (other goroutines sending data),
-	// deadlocking all packet processing.
+	// Send immediate ACK only on gap detection (out-of-order arrival).
+	// This is rare and critical for fast loss recovery.
+	// Delayed ACKs (every 2nd packet) are handled by ackLoop only —
+	// sending them here would block recvLoop on conn.Write().
+	if c.ackState.NeedsImmediateAck() {
+		c.sendAck()
+	}
 }
 
 // HandleAck processes an incoming ACK datagram, removing acknowledged packets

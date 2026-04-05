@@ -1,5 +1,12 @@
 [
   {
+    "id": "03bb0199-b092-4b47-9b1e-b98e1a90f9cb",
+    "title": "ARQ: restore NeedsImmediateAck in HandleData — was accidentally removed, critical for gap recovery",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T05:04:17.410265+00:00"
+  },
+  {
     "id": "9eeec87e-eeee-41aa-aa45-db64042311d1",
     "title": "ARQ: revert to v1.23.3 congestion control + RTO, keep only safe fixes (OnDrop, no sendAck in HandleData)",
     "description": null,
