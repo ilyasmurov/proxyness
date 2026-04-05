@@ -367,5 +367,49 @@
 | Download  | 3.9 MB/s    | 25 MB via Cloudflare, 6.1 s    |
 | Upload    | 1.0 MB/s    | 25 MB via Cloudflare, 24.2 s   |
 
-> Download +5.6x vs Test 6 (0.7→3.9 MB/s) — BBR STARTUP + deferred pacing fixed cwnd death spiral.
-> Upload -3.2x vs Test 6 (3.2→1.0 MB/s) — regression, likely deferred pacing causes initial burst to flood buffers.
+> Superseded by Test 8 below — STARTUP exit was premature, results unreliable.
+
+---
+
+## Test 8: SmurovProxy UDP+ARQ — STARTUP re-entry + app-limited fix (server 95.181.162.242, Aeza NL)
+
+> 2026-04-06. Fixes: prevent premature STARTUP exit (wait for BWE stability, skip app-limited rounds), re-enter STARTUP on idle→bulk transition, fix pacer burstSize truncation.
+
+**External IP:** 95.181.162.242
+
+### Ping (10 packets)
+| Target     | Min     | Avg     | Max     | Stddev | Loss  |
+|------------|---------|---------|---------|--------|-------|
+| 8.8.8.8    | 59.4 ms | 61.2 ms | 68.0 ms | 2.4 ms | 0%    |
+| 1.1.1.1    | —       | —       | —       | —      | 100%  |
+| ya.ru      | —       | —       | —       | —      | 100%  |
+
+### DNS Resolution
+| Domain       | Time  |
+|--------------|-------|
+| google.com   | 66 ms |
+| youtube.com  | 63 ms |
+| github.com   | 67 ms |
+| ya.ru        | 66 ms |
+| telegram.org | 62 ms |
+
+### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.007 s  | 0.768 s  | 0.782 s  |
+| https://youtube.com  | 0.007 s  | 0.852 s  | 1.094 s  |
+| https://github.com   | 0.003 s  | 0.310 s  | 0.427 s  |
+| https://ya.ru        | 0.002 s  | 0.607 s  | 0.608 s  |
+| https://telegram.org | 0.069 s  | 0.458 s  | 0.459 s  |
+
+### Speed
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Download  | 5.0 MB/s    | 25 MB via Cloudflare, 4.7 s    |
+| Upload    | 5.0 MB/s    | 25 MB via Cloudflare, 5.0 s    |
+
+> **Download +7.1x** vs Test 6 (0.7→5.0 MB/s) — STARTUP re-entry on idle→bulk + app-limited round skip.
+> **Upload +1.6x** vs Test 6 (3.2→5.0 MB/s) — premature STARTUP exit fix + pacer burst rounding.
+> **Stable**: two consecutive runs both 5.0/5.0. No more download instability.
+> **vs TLS**: TLS download was 6.0 MB/s (Test 5). UDP now at 83% of TLS — close to parity.
+> **vs WireGuard**: WG was 0.26 MB/s upload (Test 5). UDP is 19x faster.

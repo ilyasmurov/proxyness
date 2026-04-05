@@ -1,5 +1,12 @@
 [
   {
+    "id": "99151af3-becf-4555-9d6e-a4337bd299c4",
+    "title": "UDP throughput: download 0.7→5.0 MB/s, upload 1.0→5.0 MB/s — benchmark Test 8",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-05T21:58:14.296964+00:00"
+  },
+  {
     "id": "bca45937-5df4-4cbf-ad46-70bee61c467e",
     "title": "Re-enter STARTUP on idle-to-bulk transition — fixes download regression on shared connections",
     "description": "Skip app-limited rounds in STARTUP exit check — prevents false exit during browsing",

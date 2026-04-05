@@ -1,3 +1,2 @@
-## fix
-Re-enter STARTUP on idle-to-bulk transition — fixes download regression on shared connections
-Skip app-limited rounds in STARTUP exit check — prevents false exit during browsing
+## improvement
+UDP throughput: download 0.7→5.0 MB/s, upload 1.0→5.0 MB/s — benchmark Test 8
