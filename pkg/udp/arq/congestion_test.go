@@ -2,123 +2,115 @@ package arq
 
 import (
 	"testing"
+	"time"
 )
 
-func TestSlowStartGrowth(t *testing.T) {
+func TestCongestionSlowStart(t *testing.T) {
 	cc := NewCongestionControl()
 
 	if cc.Window() != initCwnd {
 		t.Fatalf("expected initial cwnd=%d, got %d", initCwnd, cc.Window())
 	}
 
-	// Slow start: cwnd++ per ACK
-	cc.OnAck(10)
-	if cc.Window() != initCwnd+10 {
-		t.Fatalf("expected cwnd=%d, got %d", initCwnd+10, cc.Window())
+	// Each OnAck(1) during slow start increases cwnd by 1
+	for i := 0; i < 11; i++ {
+		cc.OnAck(1)
+	}
+
+	if cc.Window() != initCwnd+11 {
+		t.Fatalf("expected cwnd=%d after 11 acks, got %d", initCwnd+11, cc.Window())
 	}
 }
 
-func TestMaxWindow(t *testing.T) {
+func TestCongestionOnLoss(t *testing.T) {
 	cc := NewCongestionControl()
 
-	cc.OnAck(maxCwnd * 2)
-	if cc.Window() > maxCwnd {
-		t.Fatalf("expected cwnd capped at %d, got %d", maxCwnd, cc.Window())
+	// Grow to cwnd=100 via slow start
+	for cc.Window() < 100 {
+		cc.OnAck(1)
 	}
-}
 
-func TestOnLossReduces(t *testing.T) {
-	cc := NewCongestionControl()
-
-	// Grow to 200
-	cc.OnAck(200 - initCwnd)
-	before := cc.Window()
-
+	cwnd := cc.Window()
 	cc.OnLoss()
-	expected := int(float64(before) * lossBeta)
+
+	expected := int(float64(cwnd) * cubicBeta)
 	if cc.Window() != expected {
 		t.Fatalf("expected cwnd=%d after loss, got %d", expected, cc.Window())
 	}
 }
 
-func TestOnLossMinCwnd(t *testing.T) {
+func TestCongestionAvoidanceCubic(t *testing.T) {
 	cc := NewCongestionControl()
 
-	// Repeated loss should floor at minCwnd
-	for i := 0; i < 20; i++ {
-		cc.OnLoss()
-		cc.mu.Lock()
-		cc.lastLoss = cc.lastLoss.Add(-recoveryEpoch) // bypass epoch
-		cc.mu.Unlock()
+	// Grow to cwnd ~100
+	for cc.Window() < 100 {
+		cc.OnAck(1)
 	}
 
-	if cc.Window() < minCwnd {
-		t.Fatalf("expected cwnd >= %d, got %d", minCwnd, cc.Window())
+	cc.OnLoss()
+	cwndAfterLoss := cc.Window() // ~70
+
+	// Wait for real wall-clock time so CUBIC has a non-zero t value.
+	time.Sleep(50 * time.Millisecond)
+
+	// Send ACKs in congestion avoidance; window should not decrease.
+	prev := cwndAfterLoss
+	for i := 0; i < 50; i++ {
+		cc.OnAck(1)
+	}
+
+	after := cc.Window()
+	if after < prev {
+		t.Fatalf("expected cwnd not to decrease in congestion avoidance, prev=%d after=%d", prev, after)
 	}
 }
 
-func TestRecoveryEpoch(t *testing.T) {
-	cc := NewCongestionControl()
-	cc.OnAck(200 - initCwnd) // grow to 200
-
-	cc.OnLoss()
-	after1 := cc.Window()
-
-	// Second loss within epoch should be suppressed
-	cc.OnLoss()
-	after2 := cc.Window()
-
-	if after1 != after2 {
-		t.Fatalf("expected recovery epoch to suppress second loss, cwnd %d → %d", after1, after2)
-	}
-}
-
-func TestAcquireSlot(t *testing.T) {
+func TestCongestionAcquireSlot(t *testing.T) {
 	cc := NewCongestionControl()
 	done := make(chan struct{})
 
+	// Initially inFlight=0, cwnd=10 → AcquireSlot should succeed
 	if !cc.AcquireSlot(done) {
 		t.Fatal("expected AcquireSlot=true initially")
 	}
 
-	// Fill window
+	// Fill window (already acquired 1 above)
 	for i := 1; i < cc.Window(); i++ {
 		if !cc.AcquireSlot(done) {
 			t.Fatalf("expected AcquireSlot=true at i=%d", i)
 		}
 	}
 
-	// Window full
+	// Window full → AcquireSlot should block; verify via InFlight
 	_, inFlight, avail := cc.Stats()
 	if avail != 0 {
-		t.Fatalf("expected 0 available slots, got %d", avail)
+		t.Fatalf("expected 0 available slots when window full, got %d", avail)
 	}
 	if inFlight != initCwnd {
 		t.Fatalf("expected inFlight=%d, got %d", initCwnd, inFlight)
 	}
 
-	// Ack → slot available
+	// Ack one → slot available
 	cc.OnAck(1)
 	if !cc.AcquireSlot(done) {
 		t.Fatal("expected AcquireSlot=true after ack")
 	}
 }
 
-func TestDoneClosesAcquire(t *testing.T) {
+func TestCongestionMaxWindow(t *testing.T) {
 	cc := NewCongestionControl()
-	done := make(chan struct{})
 
-	for i := 0; i < cc.Window(); i++ {
-		cc.AcquireSlot(done)
+	// Send enough acks to reach maxCwnd (initCwnd + N >= maxCwnd)
+	for i := 0; i < 3000; i++ {
+		cc.OnAck(1)
 	}
 
-	result := make(chan bool, 1)
-	go func() {
-		result <- cc.AcquireSlot(done)
-	}()
+	if cc.Window() > maxCwnd {
+		t.Fatalf("expected cwnd capped at %d, got %d", maxCwnd, cc.Window())
+	}
 
-	close(done)
-	if got := <-result; got {
-		t.Fatal("expected AcquireSlot=false after done closed")
+	if cc.Window() != maxCwnd {
+		t.Fatalf("expected cwnd=%d after 3000 acks, got %d", maxCwnd, cc.Window())
 	}
 }
+

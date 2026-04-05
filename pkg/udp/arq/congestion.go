@@ -1,48 +1,47 @@
 package arq
 
 import (
+	"math"
 	"sync"
 	"time"
 )
 
 const (
-	initCwnd = 128
-	minCwnd  = 32
-	maxCwnd  = 512
-	lossBeta = 0.7
+	initCwnd  = 128
+	minCwnd   = 64
+	maxCwnd   = 2048
+	cubicBeta = 0.9
+	cubicC    = 0.4
 )
 
-// recoveryEpoch is the minimum time between congestion window reductions.
-// All losses within one epoch are treated as a single congestion event.
-const recoveryEpoch = 500 * time.Millisecond
-
-// CongestionControl implements simple AIMD with always-slow-start recovery.
-//
-// This is a TCP-over-UDP proxy: inner TCP handles end-to-end congestion.
-// The outer CC only prevents burst-induced congestion collapse on the UDP path.
-// Always-slow-start means fast recovery (cwnd doubles each RTT) after any loss,
-// avoiding the slow CUBIC congestion avoidance phase.
+// CongestionControl implements CUBIC congestion control algorithm.
+// The notify channel is a wake-up signal only; the authoritative send gate
+// is inFlight < cwnd checked under the mutex inside AcquireSlot.
 type CongestionControl struct {
 	mu       sync.Mutex
 	cwnd     float64
-	inFlight int
+	ssthresh float64
+	wMax     float64
 	lastLoss time.Time
-	notify   chan struct{}
+	inFlight int
+	notify   chan struct{} // wake-up signal for blocked senders, capacity = maxCwnd
 }
 
 // NewCongestionControl creates a new CongestionControl starting in slow start.
 func NewCongestionControl() *CongestionControl {
 	cc := &CongestionControl{
-		cwnd:   initCwnd,
-		notify: make(chan struct{}, maxCwnd),
+		cwnd:     initCwnd,
+		ssthresh: math.MaxFloat64,
+		notify:   make(chan struct{}, maxCwnd),
 	}
+	// Pre-fill signals for initial cwnd
 	for i := 0; i < initCwnd; i++ {
 		cc.notify <- struct{}{}
 	}
 	return cc
 }
 
-// Window returns the current congestion window size.
+// Window returns the current congestion window size, capped at maxCwnd.
 func (cc *CongestionControl) Window() int {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
@@ -66,13 +65,14 @@ func (cc *CongestionControl) AcquireSlot(done <-chan struct{}) bool {
 				return true
 			}
 			cc.mu.Unlock()
+			// spurious wake (stale signal after OnLoss), retry
 		case <-done:
 			return false
 		}
 	}
 }
 
-// OnAck releases n in-flight slots and grows the window (slow start: +1 per ACK).
+// OnAck records that n packets were acknowledged and updates the window.
 func (cc *CongestionControl) OnAck(n int) {
 	cc.mu.Lock()
 
@@ -81,10 +81,16 @@ func (cc *CongestionControl) OnAck(n int) {
 		cc.inFlight = 0
 	}
 
-	// Always slow start: cwnd++ per ACK → doubles each RTT.
-	cc.cwnd += float64(n)
-	if cc.cwnd > maxCwnd {
-		cc.cwnd = maxCwnd
+	for i := 0; i < n; i++ {
+		if cc.cwnd < cc.ssthresh {
+			cc.cwnd++
+		} else {
+			cc.cubicGrow()
+		}
+
+		if cc.cwnd > maxCwnd {
+			cc.cwnd = maxCwnd
+		}
 	}
 
 	available := int(cc.cwnd) - cc.inFlight
@@ -93,6 +99,7 @@ func (cc *CongestionControl) OnAck(n int) {
 	}
 	cc.mu.Unlock()
 
+	// Wake up to 'available' blocked senders
 	for i := 0; i < available; i++ {
 		select {
 		case cc.notify <- struct{}{}:
@@ -101,7 +108,8 @@ func (cc *CongestionControl) OnAck(n int) {
 	}
 }
 
-// OnDrop releases n in-flight slots without growing the window.
+// OnDrop releases n cwnd slots without growing the window (used when packets
+// are dropped after max retransmits — these are NOT successful deliveries).
 func (cc *CongestionControl) OnDrop(n int) {
 	cc.mu.Lock()
 	cc.inFlight -= n
@@ -122,23 +130,57 @@ func (cc *CongestionControl) OnDrop(n int) {
 	}
 }
 
-// OnLoss handles a loss event: reduce cwnd by lossBeta.
-// Recovery epoch prevents cascading reductions from a single loss event.
+// recoveryEpoch is the minimum time between congestion window reductions.
+// All losses within one epoch are treated as a single congestion event.
+// Set to 500ms (covers ~8 RTTs at 60ms) to prevent cascading cwnd collapse
+// on paths with moderate persistent loss (typical for UDP through ISPs).
+const recoveryEpoch = 500 * time.Millisecond
+
+// OnLoss handles a loss event: reduce cwnd and immediately reset to slow start.
+//
+// This proxy runs TCP-over-UDP: inner TCP handles end-to-end congestion control.
+// The outer UDP transport should recover aggressively from loss rather than
+// slowly grinding up in CUBIC congestion avoidance. After reducing cwnd,
+// we reset CUBIC state so subsequent ACKs trigger slow start (doubles per RTT).
 func (cc *CongestionControl) OnLoss() {
 	cc.mu.Lock()
 
+	// Suppress duplicate loss signals within the same recovery epoch.
 	if !cc.lastLoss.IsZero() && time.Since(cc.lastLoss) < recoveryEpoch {
 		cc.mu.Unlock()
 		return
 	}
 
-	cc.cwnd *= lossBeta
-	if cc.cwnd < minCwnd {
-		cc.cwnd = minCwnd
+	newCwnd := cc.cwnd * cubicBeta
+	if newCwnd < float64(minCwnd) {
+		newCwnd = float64(minCwnd)
 	}
+	cc.cwnd = newCwnd
+	// Always reset to slow start for aggressive recovery.
+	cc.ssthresh = math.MaxFloat64
+	cc.wMax = 0
 	cc.lastLoss = time.Now()
 
 	cc.mu.Unlock()
+}
+
+// cubicGrow applies the CUBIC window growth function.
+// Must be called with mu held.
+func (cc *CongestionControl) cubicGrow() {
+	if cc.lastLoss.IsZero() {
+		// No loss yet — grow faster than Reno (additive increase of 0.5 per ACK
+		// instead of 1/cwnd) to ramp up quickly on fresh connections.
+		cc.cwnd += 0.5
+		return
+	}
+	t := time.Since(cc.lastLoss).Seconds()
+	k := math.Cbrt(cc.wMax * (1 - cubicBeta) / cubicC)
+	w := cubicC*math.Pow(t-k, 3) + cc.wMax
+	if w > cc.cwnd {
+		cc.cwnd = w
+	} else {
+		cc.cwnd += 1.0 / cc.cwnd
+	}
 }
 
 // InFlight returns the number of unacknowledged in-flight packets.
@@ -162,4 +204,5 @@ func (cc *CongestionControl) Stats() (cwnd int, inFlight int, slots int) {
 }
 
 // SignalAll is a no-op kept for API compatibility.
+// Close is handled by closing the done channel passed to AcquireSlot.
 func (cc *CongestionControl) SignalAll() {}

@@ -1,5 +1,12 @@
 [
   {
+    "id": "7de0e13c-fc2f-4131-8e6d-b0b67e18a0a5",
+    "title": "Revert CC to known-good version (initCwnd=128, beta=0.9, always-slow-start)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T14:57:15.993466+00:00"
+  },
+  {
     "id": "5e11ebf2-ced2-468f-9414-6c0880580194",
     "title": "Replace fixed window with simple AIMD congestion control (always slow-start recovery)",
     "description": null,
