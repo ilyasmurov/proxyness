@@ -342,6 +342,11 @@ func (c *Controller) CwndStats() (cwnd int, inFlight int, slots int, losses int)
 	return c.cwnd.Stats()
 }
 
+// RTOMillis returns the current retransmission timeout in milliseconds.
+func (c *Controller) RTOMillis() int64 {
+	return c.rtt.RTO().Milliseconds()
+}
+
 // SendBufLen returns the number of unacked packets in the send buffer.
 func (c *Controller) SendBufLen() int {
 	return c.sendBuf.Len()

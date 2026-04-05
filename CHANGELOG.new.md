@@ -1,2 +1,2 @@
 ## fix
-Tune UDP CC: raise minCwnd/maxCwnd, softer beta, longer recovery epoch, limit retransmit burst
+Sort retransmit queue by PktNum (oldest first), add RTO to diagnostics

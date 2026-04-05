@@ -1,6 +1,7 @@
 package arq
 
 import (
+	"sort"
 	"sync"
 	"time"
 )
@@ -92,7 +93,8 @@ func (sb *SendBuffer) AckSelective(pktNum uint32) {
 	}
 }
 
-// Expired returns all unacked packets whose LastSentAt is older than rto.
+// Expired returns all unacked packets whose LastSentAt is older than rto,
+// sorted by PktNum ascending so oldest packets are retransmitted first.
 func (sb *SendBuffer) Expired(rto time.Duration) []*SentPacket {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
@@ -103,6 +105,9 @@ func (sb *SendBuffer) Expired(rto time.Duration) []*SentPacket {
 			result = append(result, pkt)
 		}
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].PktNum < result[j].PktNum
+	})
 	return result
 }
 

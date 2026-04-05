@@ -1,5 +1,12 @@
 [
   {
+    "id": "a5d4b34d-33be-48ee-8241-ca46fe898c70",
+    "title": "Sort retransmit queue by PktNum (oldest first), add RTO to diagnostics",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-05T15:46:42.735319+00:00"
+  },
+  {
     "id": "f53356ed-e489-4ef0-af55-eab30d206bf8",
     "title": "Tune UDP CC: raise minCwnd/maxCwnd, softer beta, longer recovery epoch, limit retransmit burst",
     "description": null,

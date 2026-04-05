@@ -318,8 +318,9 @@ func (l *Listener) sessionRetransmitLoop(sess *Session) {
 		case <-statsTicker.C:
 			cwnd, inFlight, slots, losses := sess.ARQ.CwndStats()
 			sendBuf := sess.ARQ.SendBufLen()
+			rto := sess.ARQ.RTOMillis()
 			if inFlight > 0 || sendBuf > 0 {
-				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d losses=%d", sess.Token, cwnd, inFlight, slots, sendBuf, losses)
+				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d losses=%d rto=%dms", sess.Token, cwnd, inFlight, slots, sendBuf, losses, rto)
 			}
 		}
 	}

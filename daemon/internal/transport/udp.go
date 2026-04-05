@@ -254,8 +254,9 @@ func (t *UDPTransport) retransmitLoop() {
 		case <-statsTicker.C:
 			cwnd, inFlight, slots, losses := t.arq.CwndStats()
 			sendBuf := t.arq.SendBufLen()
+			rto := t.arq.RTOMillis()
 			if inFlight > 0 || sendBuf > 0 {
-				log.Printf("udp: daemon cwnd=%d inFlight=%d slots=%d sendBuf=%d losses=%d", cwnd, inFlight, slots, sendBuf, losses)
+				log.Printf("udp: daemon cwnd=%d inFlight=%d slots=%d sendBuf=%d losses=%d rto=%dms", cwnd, inFlight, slots, sendBuf, losses, rto)
 			}
 		}
 	}
