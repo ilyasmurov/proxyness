@@ -22,9 +22,21 @@ const (
 	// 2.0 allows enough headroom for retransmits and bursty ACKs.
 	cwndGain = 2.0
 
-	// pacingGain is the multiplier for pacing rate over estimated maxBW.
-	// 1.25 probes for more bandwidth (BBR-style).
-	pacingGain = 1.25
+	// startupPacingGain is the pacing multiplier during STARTUP phase.
+	// 2/ln(2) ≈ 2.885 — doubles sending rate each RTT (same as BBR STARTUP).
+	startupPacingGain = 2.885
+
+	// steadyPacingGain is the pacing multiplier during steady-state.
+	// 1.25 probes for more bandwidth without excessive buffer bloat.
+	steadyPacingGain = 1.25
+
+	// startupFullBWCount is how many rounds of non-increasing delivery rate
+	// signal that the pipe is full and STARTUP should end.
+	startupFullBWCount = 3
+
+	// startupFullBWThresh is the minimum growth ratio to consider delivery
+	// rate "still increasing" during STARTUP (1.25 = 25% growth per round).
+	startupFullBWThresh = 1.25
 )
 
 // CongestionControl implements a BBR-like rate-based congestion control.
@@ -32,6 +44,11 @@ const (
 // Instead of reacting to packet loss (CUBIC), it estimates the actual delivery
 // rate and sets cwnd = BDP * gain. Random packet drops on ISP paths don't
 // reduce cwnd — only a decrease in measured delivery rate does.
+//
+// Phases:
+//   - STARTUP: high pacing gain (2.885x) to double sending rate each RTT.
+//     Exits when delivery rate stops growing for 3 consecutive rounds.
+//   - STEADY: moderate pacing gain (1.25x) to probe for bandwidth without bloat.
 //
 // The notify channel is a wake-up signal only; the authoritative send gate
 // is inFlight < cwnd checked under the mutex inside AcquireSlot.
@@ -41,14 +58,23 @@ type CongestionControl struct {
 	inFlight int
 	bwe      *BandwidthEstimator
 	notify   chan struct{} // wake-up signal for blocked senders
+
+	// STARTUP phase tracking
+	inStartup      bool
+	fullBWCount    int     // consecutive rounds with <25% growth
+	lastMaxBW      float64 // maxBW at end of previous round
+	roundAcked     int     // packets acked in current round
+	roundThreshold int     // ack threshold before checking round end
 }
 
 // NewCongestionControl creates a new rate-based CongestionControl.
 func NewCongestionControl() *CongestionControl {
 	cc := &CongestionControl{
-		cwnd:   startupCwnd,
-		bwe:    NewBandwidthEstimator(),
-		notify: make(chan struct{}, maxCwnd),
+		cwnd:           startupCwnd,
+		bwe:            NewBandwidthEstimator(),
+		notify:         make(chan struct{}, maxCwnd),
+		inStartup:      true,
+		roundThreshold: startupCwnd, // first round = initial window
 	}
 	// Pre-fill signals for initial cwnd
 	for i := 0; i < startupCwnd; i++ {
@@ -99,6 +125,11 @@ func (cc *CongestionControl) OnAck(n int) {
 		cc.inFlight = 0
 	}
 
+	// Check STARTUP exit: has delivery rate plateaued?
+	if cc.inStartup {
+		cc.checkStartupExit(n)
+	}
+
 	// Recalculate cwnd from BDP estimate
 	cc.recalcCwnd()
 
@@ -115,6 +146,53 @@ func (cc *CongestionControl) OnAck(n int) {
 		default:
 		}
 	}
+}
+
+// checkStartupExit checks whether delivery rate has stopped growing,
+// signaling that the pipe is full and STARTUP should end.
+// Checks once per "round" (after acking cwnd packets), not per ACK.
+// Must be called with mu held.
+func (cc *CongestionControl) checkStartupExit(acked int) {
+	cc.roundAcked += acked
+	if cc.roundAcked < cc.roundThreshold {
+		return // not enough data for a round yet
+	}
+
+	// Round complete — check growth
+	cc.roundAcked = 0
+	maxBW := cc.bwe.MaxBW()
+	if maxBW == 0 {
+		return
+	}
+
+	if cc.lastMaxBW > 0 && maxBW/cc.lastMaxBW < startupFullBWThresh {
+		cc.fullBWCount++
+		if cc.fullBWCount >= startupFullBWCount {
+			cc.inStartup = false
+		}
+	} else {
+		cc.fullBWCount = 0
+	}
+	cc.lastMaxBW = maxBW
+	// Next round threshold = current cwnd (one full window)
+	cc.roundThreshold = cc.cwnd
+}
+
+// PacingGain returns the current pacing gain based on CC phase.
+func (cc *CongestionControl) PacingGain() float64 {
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	if cc.inStartup {
+		return startupPacingGain
+	}
+	return steadyPacingGain
+}
+
+// InStartup reports whether the connection is still in STARTUP phase.
+func (cc *CongestionControl) InStartup() bool {
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	return cc.inStartup
 }
 
 // OnDrop releases n cwnd slots without growing the window (used when packets
@@ -151,16 +229,19 @@ func (cc *CongestionControl) OnLoss() {
 // recalcCwnd sets cwnd from the bandwidth estimate. Must be called with mu held.
 func (cc *CongestionControl) recalcCwnd() {
 	target := cc.bwe.CwndFromBDP(packetMSS, cwndGain)
-	if target > 0 {
-		if cc.bwe.IsStable() {
-			// Steady state: track BDP directly
-			cc.cwnd = target
-		} else if target > cc.cwnd {
-			// Startup: only grow, don't shrink — early samples are noisy
+	if target <= 0 {
+		return // no estimate yet, keep current cwnd
+	}
+
+	if cc.inStartup {
+		// STARTUP: only grow — early samples are noisy and we're probing upward
+		if target > cc.cwnd {
 			cc.cwnd = target
 		}
+	} else {
+		// Steady state: track BDP directly (can shrink on rate decrease)
+		cc.cwnd = target
 	}
-	// else: keep current cwnd (no estimate yet)
 
 	// Enforce bounds
 	if cc.cwnd < minCwnd {

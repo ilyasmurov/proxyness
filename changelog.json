@@ -1,5 +1,12 @@
 [
   {
+    "id": "df71d8c5-e9f9-49d3-9d0a-d5b5a319a6ed",
+    "title": "Add BBR-like STARTUP phase to congestion control",
+    "description": "High pacing gain (2.885x) doubles sending rate each RTT until pipe is full, then transitions to steady-state 1.25x probing",
+    "type": "improvement",
+    "createdAt": "2026-04-05T20:45:05.410159+00:00"
+  },
+  {
     "id": "f8dea96c-8546-49e3-80cd-6bd5ec41640a",
     "title": "Disable pacing during startup so BWE observes real pipe capacity",
     "description": null,

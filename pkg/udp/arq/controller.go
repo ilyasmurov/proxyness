@@ -91,13 +91,13 @@ func (c *Controller) Send(msgType byte, streamID, seq uint32, data []byte) error
 		return fmt.Errorf("controller closed")
 	}
 
-	// Pacing: during startup, don't pace — let cwnd be the only limiter so
-	// BWE can observe the real pipe capacity. Without loss-based CC, burst
-	// drops are handled by retransmit without cwnd collapse.
-	// After BWE stabilizes, switch to rate-based pacing to prevent buffer bloat.
+	// Pacing: use phase-appropriate gain. During STARTUP, high gain (2.885x)
+	// doubles the rate each RTT. During steady-state, moderate gain (1.25x)
+	// probes for bandwidth without excessive buffer bloat.
 	bwe := c.cwnd.BWE()
-	if bwe.IsStable() {
-		if pacingRate := bwe.PacingRate(pacingGain); pacingRate > 0 {
+	if bwe.HasEstimate() {
+		gain := c.cwnd.PacingGain()
+		if pacingRate := bwe.PacingRate(gain); pacingRate > 0 {
 			interval := time.Duration(float64(time.Second) * float64(packetMSS) / pacingRate)
 			c.pacer.Pace(interval)
 		}
