@@ -1,12 +1,13 @@
 package admin
 
 import (
+	"encoding/json"
 	"html/template"
+	"log"
 	"net/http"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
+	"sync"
+	"time"
 )
 
 type downloadFile struct {
@@ -74,8 +75,9 @@ h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 12px; background: linea
 </html>`))
 
 func LandingHandler(downloadsDir string) http.Handler {
+	cache := &releaseCache{}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		files := scanDownloads(downloadsDir)
+		files := cache.get()
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		landingTmpl.Execute(w, files)
 	})
@@ -83,57 +85,82 @@ func LandingHandler(downloadsDir string) http.Handler {
 
 const githubRepo = "ilyasmurov/smurov-proxy"
 
-func scanDownloads(dir string) []downloadFile {
-	entries, err := os.ReadDir(dir)
+type releaseCache struct {
+	mu      sync.Mutex
+	files   []downloadFile
+	fetched time.Time
+}
+
+func (c *releaseCache) get() []downloadFile {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if time.Since(c.fetched) < 5*time.Minute && c.files != nil {
+		return c.files
+	}
+	files := fetchGitHubAssets()
+	if files != nil {
+		c.files = files
+		c.fetched = time.Now()
+	}
+	if c.files != nil {
+		return c.files
+	}
+	return fallbackDownloads()
+}
+
+type ghRelease struct {
+	Assets []ghAsset `json:"assets"`
+}
+
+type ghAsset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
+func fetchGitHubAssets() []downloadFile {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("https://api.github.com/repos/" + githubRepo + "/releases/latest")
 	if err != nil {
+		log.Printf("[landing] github API error: %v", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		log.Printf("[landing] github API status: %d", resp.StatusCode)
 		return nil
 	}
 
-	var macArm, macIntel []string
-	var winExe []string
-
-	for _, e := range entries {
-		name := e.Name()
-		lower := strings.ToLower(name)
-		switch {
-		case (strings.HasSuffix(lower, ".dmg") || strings.HasSuffix(lower, ".pkg")) && strings.Contains(lower, "arm64"):
-			macArm = append(macArm, name)
-		case (strings.HasSuffix(lower, ".dmg") || strings.HasSuffix(lower, ".pkg")) && !strings.Contains(lower, "arm64"):
-			macIntel = append(macIntel, name)
-		case strings.HasSuffix(lower, ".exe") && strings.Contains(lower, "setup"):
-			winExe = append(winExe, name)
-		}
+	var rel ghRelease
+	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		log.Printf("[landing] github API decode error: %v", err)
+		return nil
 	}
-
-	// Sort descending so newest version comes first
-	sortDesc := func(s []string) { sort.Sort(sort.Reverse(sort.StringSlice(s))) }
-	sortDesc(macArm)
-	sortDesc(macIntel)
-	sortDesc(winExe)
-
-	ghBase := "https://github.com/" + githubRepo + "/releases/latest/download/"
 
 	var result []downloadFile
-	if len(macArm) > 0 {
-		result = append(result, downloadFile{
-			Name: macArm[0], URL: ghBase + macArm[0],
-			Label: "macOS Apple Silicon", Class: "mac",
-			Icon: "&#63743;", Badge: filepath.Ext(macArm[0]),
-		})
-	}
-	if len(macIntel) > 0 {
-		result = append(result, downloadFile{
-			Name: macIntel[0], URL: ghBase + macIntel[0],
-			Label: "macOS Intel", Class: "mac",
-			Icon: "&#63743;", Badge: filepath.Ext(macIntel[0]),
-		})
-	}
-	if len(winExe) > 0 {
-		result = append(result, downloadFile{
-			Name: winExe[0], URL: ghBase + winExe[0],
-			Label: "Windows", Class: "win",
-			Icon: "&#9114;", Badge: filepath.Ext(winExe[0]),
-		})
+	for _, a := range rel.Assets {
+		lower := strings.ToLower(a.Name)
+		switch {
+		case strings.HasSuffix(lower, ".pkg") && strings.Contains(lower, "arm64"):
+			result = append(result, downloadFile{
+				Name: a.Name, URL: a.BrowserDownloadURL,
+				Label: "macOS Apple Silicon", Class: "mac",
+				Icon: "&#63743;", Badge: ".pkg",
+			})
+		case strings.HasSuffix(lower, ".exe") && strings.Contains(lower, "setup"):
+			result = append(result, downloadFile{
+				Name: a.Name, URL: a.BrowserDownloadURL,
+				Label: "Windows", Class: "win",
+				Icon: "&#9114;", Badge: ".exe",
+			})
+		}
 	}
 	return result
+}
+
+func fallbackDownloads() []downloadFile {
+	ghBase := "https://github.com/" + githubRepo + "/releases/latest"
+	return []downloadFile{
+		{URL: ghBase, Label: "macOS Apple Silicon", Class: "mac", Icon: "&#63743;", Badge: ".pkg"},
+		{URL: ghBase, Label: "Windows", Class: "win", Icon: "&#9114;", Badge: ".exe"},
+	}
 }

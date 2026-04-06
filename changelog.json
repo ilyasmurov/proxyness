@@ -1,5 +1,19 @@
 [
   {
+    "id": "52334868-51c1-4b0c-9200-7d632af1caee",
+    "title": "UDP dead timeout too aggressive (5s → 20s)",
+    "description": "Two lost keepalive packets would kill the session. Now tolerates up to 6 lost packets.",
+    "type": "fix",
+    "createdAt": "2026-04-06T07:25:36.936424+00:00"
+  },
+  {
+    "id": "ff3f77e7-24c5-4e1a-8821-cf2488ecc030",
+    "title": "Landing page download links now fetch latest release from GitHub API",
+    "description": "Direct download URLs instead of broken local file scan.",
+    "type": "fix",
+    "createdAt": "2026-04-06T07:25:36.936576+00:00"
+  },
+  {
     "id": "37e09403-ebbe-4ead-a6ba-5458fdde5f52",
     "title": "Benchmark Test 10: SmurovProxy UDP vs TLS head-to-head on same server",
     "description": null,

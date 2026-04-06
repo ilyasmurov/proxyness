@@ -221,7 +221,7 @@ func (t *UDPTransport) recvLoop() {
 	}
 }
 
-const udpDeadTimeout = 5 * time.Second
+const udpDeadTimeout = 20 * time.Second
 
 // keepaliveLoop sends MsgKeepalive packets every 15s to prevent NAT timeout.
 // Also detects dead sessions: if no packet received for 5s, closes the transport.
