@@ -32,7 +32,7 @@ type windowsProcessInfo struct {
 	udpBuf []byte
 }
 
-const tableTTL = 500 * time.Millisecond
+const tableTTL = 2 * time.Second
 
 func newProcessInfo() ProcessInfo {
 	return &windowsProcessInfo{

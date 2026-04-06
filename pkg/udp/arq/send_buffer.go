@@ -30,9 +30,10 @@ func (p *SentPacket) IsRetransmit() bool {
 
 // SendBuffer stores unacknowledged sent packets for potential retransmission.
 type SendBuffer struct {
-	mu      sync.Mutex
-	packets map[uint32]*SentPacket
-	maxSize int
+	mu         sync.Mutex
+	packets    map[uint32]*SentPacket
+	maxSize    int
+	expiredBuf []*SentPacket // reusable slice for Expired results
 }
 
 // NewSendBuffer creates a SendBuffer with the given maximum capacity.
@@ -97,20 +98,23 @@ func (sb *SendBuffer) AckSelective(pktNum uint32) {
 
 // Expired returns all unacked packets whose LastSentAt is older than rto,
 // sorted by PktNum ascending so oldest packets are retransmitted first.
+// Reuses an internal buffer to avoid allocations on the hot path.
 func (sb *SendBuffer) Expired(rto time.Duration) []*SentPacket {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 	now := time.Now()
-	var result []*SentPacket
+	sb.expiredBuf = sb.expiredBuf[:0]
 	for _, pkt := range sb.packets {
 		if !pkt.Acked && now.Sub(pkt.LastSentAt) > rto {
-			result = append(result, pkt)
+			sb.expiredBuf = append(sb.expiredBuf, pkt)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].PktNum < result[j].PktNum
-	})
-	return result
+	if len(sb.expiredBuf) > 1 {
+		sort.Slice(sb.expiredBuf, func(i, j int) bool {
+			return sb.expiredBuf[i].PktNum < sb.expiredBuf[j].PktNum
+		})
+	}
+	return sb.expiredBuf
 }
 
 // MarkResent updates the packet entry in-place after retransmission.

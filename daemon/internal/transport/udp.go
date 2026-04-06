@@ -19,7 +19,7 @@ const (
 	udpHandshakeTO = 3 * time.Second
 	udpReadBuf     = 65535
 
-	arqRetransmitInterval = 10 * time.Millisecond
+	arqRetransmitInterval = 50 * time.Millisecond
 	arqAckInterval        = 25 * time.Millisecond
 )
 

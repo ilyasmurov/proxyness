@@ -377,7 +377,7 @@ func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 		if count == 1 {
 			log.Printf("[tun] bridgeInbound first packet: %d bytes, IPv%d", pktLen, ipVer)
 		}
-		if count%100 == 0 {
+		if count%10000 == 0 {
 			log.Printf("[tun] bridgeInbound injected %d packets (IPv4=%d, IPv6=%d)", count, ipv4Count, ipv6Count)
 		}
 

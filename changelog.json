@@ -1,5 +1,19 @@
 [
   {
+    "id": "64980b66-e796-4c51-85ee-0e2cf93755b7",
+    "title": "Reduce CPU usage on Windows — retransmit interval 10ms→50ms, process table cache 500ms→2s",
+    "description": "SendBuffer.Expired() now reuses buffer to avoid allocations on hot path.",
+    "type": "fix",
+    "createdAt": "2026-04-06T08:44:55.185259+00:00"
+  },
+  {
+    "id": "61ac2aa5-a024-4326-a1d6-6fa20c17f215",
+    "title": "Reduce log spam in bridgeInbound — log every 10000 packets instead of 100",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-06T08:44:55.185410+00:00"
+  },
+  {
     "id": "69299b11-4d94-4463-ad97-7ef90e796eaf",
     "title": "Changelog UI: swap time and badges — time on left, badges on right",
     "description": null,

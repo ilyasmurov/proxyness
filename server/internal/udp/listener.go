@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	arqRetransmitInterval = 10 * time.Millisecond
+	arqRetransmitInterval = 50 * time.Millisecond
 	arqAckInterval        = 25 * time.Millisecond
 )
 
