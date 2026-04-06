@@ -1,5 +1,12 @@
 [
   {
+    "id": "37e09403-ebbe-4ead-a6ba-5458fdde5f52",
+    "title": "Benchmark Test 10: SmurovProxy UDP vs TLS head-to-head on same server",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-06T07:15:19.911815+00:00"
+  },
+  {
     "id": "a5e3d8cd-7670-49b0-97ec-131426cf0194",
     "title": "Benchmark Test 9: SmurovProxy UDP v1.24.0 vs WireGuard head-to-head comparison",
     "description": null,

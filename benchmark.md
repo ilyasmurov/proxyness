@@ -509,3 +509,94 @@
 - **DNS**: SmurovProxy **1.7x быстрее** — резолвинг локальный
 - **TTFB**: SmurovProxy быстрее на github/telegram, WireGuard быстрее на google — примерный паритет
 - **Важно**: серверы разные (Aeza NL vs Timeweb), не полностью чистое сравнение
+
+---
+
+## Test 10: SmurovProxy UDP vs TLS — same server (2026-04-06)
+
+> Back-to-back comparison on same machine, same server (Aeza NL 95.181.162.242). v1.24.0.
+
+### UDP transport
+
+**External IP:** 95.181.162.242
+
+#### Ping (10 packets)
+| Target     | Min     | Avg     | Max     | Stddev | Loss  |
+|------------|---------|---------|---------|--------|-------|
+| 8.8.8.8    | 60.0 ms | 63.5 ms | 68.3 ms | 3.3 ms | 0%    |
+
+#### DNS Resolution
+| Domain       | Time  |
+|--------------|-------|
+| google.com   | 76 ms |
+| youtube.com  | 70 ms |
+| github.com   | 68 ms |
+| ya.ru        | 62 ms |
+| telegram.org | 61 ms |
+
+#### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.259 s  | 1.066 s  | 1.443 s  |
+| https://youtube.com  | 0.238 s  | 1.029 s  | 1.537 s  |
+| https://github.com   | 0.121 s  | 0.450 s  | 0.607 s  |
+| https://ya.ru        | 0.003 s  | 1.039 s  | 1.039 s  |
+| https://telegram.org | 0.119 s  | 0.497 s  | 0.498 s  |
+
+#### Speed
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Download  | 4.3 MB/s    | 25 MB via Cloudflare, 5.6 s    |
+| Upload    | 4.6 MB/s    | 25 MB via Cloudflare, 5.5 s    |
+
+### TLS transport (same session)
+
+**External IP:** 95.181.162.242
+
+#### Ping (10 packets)
+| Target     | Min     | Avg     | Max     | Stddev | Loss  |
+|------------|---------|---------|---------|--------|-------|
+| 8.8.8.8    | 60.1 ms | 62.0 ms | 68.6 ms | 3.3 ms | 0%    |
+
+#### DNS Resolution
+| Domain       | Time  |
+|--------------|-------|
+| google.com   | 64 ms |
+| youtube.com  | 66 ms |
+| github.com   | 69 ms |
+| ya.ru        | 71 ms |
+| telegram.org | 61 ms |
+
+#### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect  | TTFB     | Total    |
+|----------------------|----------|----------|----------|
+| https://google.com   | 0.118 s  | 1.586 s  | 1.794 s  |
+| https://youtube.com  | 0.008 s  | 1.651 s  | 2.251 s  |
+| https://github.com   | 0.119 s  | 0.886 s  | 1.550 s  |
+| https://ya.ru        | 0.003 s  | 0.995 s  | 0.995 s  |
+| https://telegram.org | 0.003 s  | 0.823 s  | 0.832 s  |
+
+#### Speed
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Download  | 7.6 MB/s    | 25 MB via Cloudflare, 3.1 s    |
+| Upload    | 5.6 MB/s    | 25 MB via Cloudflare, 4.5 s    |
+
+### Head-to-head
+
+| Metric              | UDP         | TLS         | Winner |
+|---------------------|-------------|-------------|--------|
+| Ping 8.8.8.8        | 63.5 ms     | 62.0 ms     | ~same  |
+| DNS avg             | 67 ms       | 66 ms       | ~same  |
+| TTFB google.com     | **1.07 s**  | 1.59 s      | UDP (1.5x) |
+| TTFB github.com     | **0.45 s**  | 0.89 s      | UDP (2.0x) |
+| TTFB telegram.org   | **0.50 s**  | 0.82 s      | UDP (1.6x) |
+| Download            | 4.3 MB/s    | **7.6 MB/s**| TLS (1.8x) |
+| Upload              | 4.6 MB/s    | **5.6 MB/s**| TLS (1.2x) |
+
+### Выводы
+- **TTFB**: UDP **1.5-2x быстрее** — нет TCP-over-TCP, нет head-of-line blocking
+- **Download**: TLS **1.8x быстрее** (7.6 vs 4.3 MB/s) — kernel TCP congestion control зрелее нашего BBR
+- **Upload**: TLS **1.2x быстрее** (5.6 vs 4.6 MB/s)
+- **Ping/DNS**: идентичны — оба через тот же сервер
+- **Вывод**: UDP оптимален для browsing (TTFB), TLS — для тяжёлых загрузок. AutoTransport выбирает UDP по умолчанию — правильное решение для типичного использования

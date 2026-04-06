@@ -1,2 +1,2 @@
 ## improvement
-Benchmark Test 9: SmurovProxy UDP v1.24.0 vs WireGuard head-to-head comparison
+Benchmark Test 10: SmurovProxy UDP vs TLS head-to-head on same server
