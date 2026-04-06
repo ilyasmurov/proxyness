@@ -74,15 +74,15 @@ export function Changelog() {
               return (
                 <Card key={e.id} className="py-0">
                   <CardContent className="flex items-start gap-3 px-4 py-3">
-                    <Badge variant="outline" className={`${cfg.color} shrink-0 mt-0.5 text-xs`}>
-                      {cfg.label}
-                    </Badge>
+                    <span className="text-xs text-muted-foreground shrink-0 mt-1 w-10">
+                      {formatTime(e.createdAt)}
+                    </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <p className="text-sm font-medium">{e.title}</p>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {formatTime(e.createdAt)}
-                        </span>
+                        <Badge variant="outline" className={`${cfg.color} shrink-0 text-xs`}>
+                          {cfg.label}
+                        </Badge>
                       </div>
                       {e.description && (
                         <p className="text-xs text-muted-foreground mt-0.5">{e.description}</p>

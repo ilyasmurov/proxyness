@@ -1,5 +1,12 @@
 [
   {
+    "id": "69299b11-4d94-4463-ad97-7ef90e796eaf",
+    "title": "Changelog UI: swap time and badges — time on left, badges on right",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-06T08:19:17.816174+00:00"
+  },
+  {
     "id": "52334868-51c1-4b0c-9200-7d632af1caee",
     "title": "UDP dead timeout too aggressive (5s → 20s)",
     "description": "Two lost keepalive packets would kill the session. Now tolerates up to 6 lost packets.",
