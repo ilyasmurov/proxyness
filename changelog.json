@@ -1,5 +1,12 @@
 [
   {
+    "id": "3eb97e49-df31-4e26-8e06-52c35c07fecd",
+    "title": "Сидовый список встроенных сайтов перенесён в Go-код сервера",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T17:49:20.584400+00:00"
+  },
+  {
     "id": "54a803ba-103e-4bb2-8266-cb878922aec1",
     "title": "Серверные таблицы для каталога сайтов и per-user sync",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-31T14:36:56Z"
-  },
-  {
-    "id": "0a6f5595-fbe4-473a-b31b-7da39bdafe62",
-    "title": "Единый переключатель «Браузеры» для SOCKS5",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-03-31T16:33:10Z"
   }
 ]
