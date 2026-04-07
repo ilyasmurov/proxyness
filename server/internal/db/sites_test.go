@@ -314,3 +314,74 @@ func TestGetMySitesJoinsDomainsAndIPs(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyToggleOpLWW(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	// Attach site id=1 at t=1000 enabled
+	d.sql.Exec(`INSERT INTO user_sites (user_id, site_id, enabled, updated_at) VALUES (?, 1, 1, 1000)`, userID)
+
+	// Older disable op should be stale
+	tx, _ := d.sql.Begin()
+	status := d.ApplyToggleOp(tx, userID, 1, false, 500)
+	tx.Commit()
+	if status != ToggleStale {
+		t.Fatalf("old op status = %v, want stale", status)
+	}
+	var enabled int
+	var updatedAt int64
+	d.sql.QueryRow(`SELECT enabled, updated_at FROM user_sites WHERE user_id=? AND site_id=1`, userID).Scan(&enabled, &updatedAt)
+	if enabled != 1 || updatedAt != 1000 {
+		t.Fatalf("row mutated: enabled=%d updated_at=%d", enabled, updatedAt)
+	}
+
+	// Newer disable op wins
+	tx2, _ := d.sql.Begin()
+	status = d.ApplyToggleOp(tx2, userID, 1, false, 2000)
+	tx2.Commit()
+	if status != ToggleOK {
+		t.Fatalf("new op status = %v, want ok", status)
+	}
+	d.sql.QueryRow(`SELECT enabled, updated_at FROM user_sites WHERE user_id=? AND site_id=1`, userID).Scan(&enabled, &updatedAt)
+	if enabled != 0 || updatedAt != 2000 {
+		t.Fatalf("updated row wrong: enabled=%d updated_at=%d", enabled, updatedAt)
+	}
+}
+
+func TestApplyToggleOpMissingRow(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	tx, _ := d.sql.Begin()
+	status := d.ApplyToggleOp(tx, userID, 999, true, 1000)
+	tx.Rollback()
+	if status != ToggleNotFound {
+		t.Fatalf("missing row status = %v, want not_found", status)
+	}
+}
+
+func TestApplyRemoveOp(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	d.sql.Exec(`INSERT INTO user_sites (user_id, site_id, enabled, updated_at) VALUES (?, 1, 1, 1000)`, userID)
+
+	tx, _ := d.sql.Begin()
+	if err := d.ApplyRemoveOp(tx, userID, 1); err != nil {
+		t.Fatalf("ApplyRemoveOp: %v", err)
+	}
+	tx.Commit()
+
+	var count int
+	d.sql.QueryRow(`SELECT COUNT(*) FROM user_sites WHERE user_id=? AND site_id=1`, userID).Scan(&count)
+	if count != 0 {
+		t.Fatalf("row not removed: %d", count)
+	}
+
+	// sites row untouched
+	d.sql.QueryRow(`SELECT COUNT(*) FROM sites WHERE id=1`).Scan(&count)
+	if count != 1 {
+		t.Fatalf("catalog row was touched: %d", count)
+	}
+}

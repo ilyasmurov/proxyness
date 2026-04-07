@@ -1,5 +1,12 @@
 [
   {
+    "id": "42a5068e-a8ac-45e8-a8bc-8ff9e787bb6b",
+    "title": "ApplyToggleOp (last-write-wins) и ApplyRemoveOp для sync-операций",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T17:57:52.799013+00:00"
+  },
+  {
     "id": "f04239a3-84ed-41a3-8d0b-ad8c75ae75d2",
     "title": "ApplyAddOp с дедупликацией, slug collision handling и валидацией домена",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Избегаем проблем с QUIC",
     "type": "fix",
     "createdAt": "2026-03-31T16:33:10Z"
-  },
-  {
-    "id": "ca36b50a-3429-4c00-98d0-411007f4e766",
-    "title": "Перезапуск TUN при повторном запуске приложения",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-03-31T15:42:37Z"
   }
 ]

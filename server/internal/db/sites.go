@@ -212,3 +212,55 @@ func labelFromDomain(domain string) string {
 	}
 	return strings.ToUpper(base[:1]) + base[1:]
 }
+
+// ToggleStatus enumerates the outcomes of an ApplyToggleOp call.
+type ToggleStatus int
+
+const (
+	ToggleOK       ToggleStatus = iota // the row was updated
+	ToggleStale                        // op's at was older than updated_at, no change
+	ToggleNotFound                     // user_sites row didn't exist
+)
+
+// ApplyToggleOp updates enabled/updated_at on an existing user_sites row
+// only if the incoming op's at is >= current updated_at (last-write-wins).
+// Returns a status explaining what happened.
+func (d *DB) ApplyToggleOp(tx *sql.Tx, userID, siteID int, enabled bool, at int64) ToggleStatus {
+	var currentAt int64
+	err := tx.QueryRow(
+		`SELECT updated_at FROM user_sites WHERE user_id=? AND site_id=?`,
+		userID, siteID,
+	).Scan(&currentAt)
+	if err == sql.ErrNoRows {
+		return ToggleNotFound
+	}
+	if err != nil {
+		return ToggleNotFound
+	}
+	if at < currentAt {
+		return ToggleStale
+	}
+
+	enabledInt := 0
+	if enabled {
+		enabledInt = 1
+	}
+	if _, err := tx.Exec(
+		`UPDATE user_sites SET enabled=?, updated_at=? WHERE user_id=? AND site_id=?`,
+		enabledInt, at, userID, siteID,
+	); err != nil {
+		return ToggleNotFound
+	}
+	return ToggleOK
+}
+
+// ApplyRemoveOp deletes the user_sites row for (user, site). The catalog
+// row is not touched. Returns an error only for unexpected DB errors;
+// deleting a missing row is a silent no-op.
+func (d *DB) ApplyRemoveOp(tx *sql.Tx, userID, siteID int) error {
+	_, err := tx.Exec(
+		`DELETE FROM user_sites WHERE user_id=? AND site_id=?`,
+		userID, siteID,
+	)
+	return err
+}

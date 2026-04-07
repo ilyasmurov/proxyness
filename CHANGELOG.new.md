@@ -1,2 +1,2 @@
 ## feature
-ApplyAddOp с дедупликацией, slug collision handling и валидацией домена
+ApplyToggleOp (last-write-wins) и ApplyRemoveOp для sync-операций
