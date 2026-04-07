@@ -1,2 +1,2 @@
 ## feature
-План имплементации: sites catalog + per-user sync (этап A)
+Серверные таблицы для каталога сайтов и per-user sync

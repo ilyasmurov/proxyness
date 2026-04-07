@@ -1,5 +1,12 @@
 [
   {
+    "id": "54a803ba-103e-4bb2-8266-cb878922aec1",
+    "title": "Серверные таблицы для каталога сайтов и per-user sync",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T17:47:58.900487+00:00"
+  },
+  {
     "id": "9c45efad-ca5c-41df-a534-95248de6ff88",
     "title": "План имплементации: sites catalog + per-user sync (этап A)",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-03-31T16:33:10Z"
-  },
-  {
-    "id": "30a6ce43-6c57-4bc7-bab4-015e2e412e8c",
-    "title": "TUN прозрачный прокси с gVisor netstack",
-    "description": "Полный перехват трафика приложений",
-    "type": "feature",
-    "createdAt": "2026-04-01T09:52:23Z"
   }
 ]

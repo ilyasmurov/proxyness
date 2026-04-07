@@ -94,6 +94,34 @@ CREATE TABLE IF NOT EXISTS logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
+CREATE TABLE IF NOT EXISTS sites (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug                TEXT UNIQUE NOT NULL,
+    label               TEXT NOT NULL,
+    primary_domain      TEXT UNIQUE NOT NULL,
+    approved            INTEGER NOT NULL DEFAULT 1,
+    created_by_user_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS site_domains (
+    site_id     INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    domain      TEXT NOT NULL,
+    is_primary  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (site_id, domain)
+);
+CREATE INDEX IF NOT EXISTS idx_site_domains_domain ON site_domains(domain);
+CREATE TABLE IF NOT EXISTS site_ips (
+    site_id  INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    cidr     TEXT NOT NULL,
+    PRIMARY KEY (site_id, cidr)
+);
+CREATE TABLE IF NOT EXISTS user_sites (
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    site_id     INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    updated_at  INTEGER NOT NULL,
+    PRIMARY KEY (user_id, site_id)
+);
 `
 
 // Open opens (or creates) the SQLite database at path and runs migrations.
