@@ -1,5 +1,12 @@
 [
   {
+    "id": "3f612f91-af70-46d0-93e6-f8a1ef3f544f",
+    "title": "Tunnel: kill switch — отказ новых SOCKS5 запросов в Reconnecting",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T15:44:06.827123+00:00"
+  },
+  {
     "id": "22df5123-eb70-441d-bcc1-1a3ff26798bb",
     "title": "Tunnel: детекторы D1/D2/D3 для автоматического перехода в Reconnecting",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-29T09:47:52Z"
-  },
-  {
-    "id": "e8f58c10-31bc-4bcb-a9cb-3c3eb18ea9bd",
-    "title": "SOCKS5 прокси через TLS на порт 443",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-29T09:27:03Z"
   }
 ]

@@ -493,6 +493,15 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 	target := fmt.Sprintf("%s:%d", req.Addr, req.Port)
 	log.Printf("[tunnel] new request: %s", target)
 
+	// Kill switch: while reconnecting, refuse new SOCKS5 requests so the
+	// browser cannot fall back to a native dialer. The browser sees a
+	// SOCKS5 failure, retries within seconds, gets failure again — until
+	// the daemon flips back to Connected.
+	if t.GetStatus() == Reconnecting {
+		socks5.SendFailure(conn)
+		return
+	}
+
 	// Light up the matching browser tile immediately so the LIVE
 	// indicator reacts before the first relayed byte. The relay
 	// callback below keeps refreshing the timestamp while traffic
