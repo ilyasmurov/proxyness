@@ -1,5 +1,12 @@
 [
   {
+    "id": "b7241213-e623-42f8-b916-946ab3eff216",
+    "title": "useSites React hook с триггерами sync (старт, online, 5-мин интервал)",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T18:12:36.331641+00:00"
+  },
+  {
     "id": "8ba01b56-a002-406c-ba68-8657cbf8b575",
     "title": "Core sync модуль для клиентского каталога сайтов",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-03-31T19:46:38Z"
-  },
-  {
-    "id": "783d86b4-48d3-4132-9858-c4cff5d2c969",
-    "title": "Фикс установки обновлений на Windows (EBUSY)",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-03-31T19:38:07Z"
   }
 ]

@@ -1,2 +1,2 @@
 ## feature
-Core sync модуль для клиентского каталога сайтов
+useSites React hook с триггерами sync (старт, online, 5-мин интервал)
