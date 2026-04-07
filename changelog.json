@@ -1,5 +1,12 @@
 [
   {
+    "id": "c9a25cdb-8172-4043-9cd4-941c559daa89",
+    "title": "Device-key auth middleware + rate-limiter для sync API",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T17:59:29.250593+00:00"
+  },
+  {
     "id": "42a5068e-a8ac-45e8-a8bc-8ff9e787bb6b",
     "title": "ApplyToggleOp (last-write-wins) и ApplyRemoveOp для sync-операций",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Для работы системного резолвера",
     "type": "fix",
     "createdAt": "2026-03-31T17:08:25Z"
-  },
-  {
-    "id": "61830ad9-57dd-4a60-98fe-dda1ae19a0fc",
-    "title": "Браузеры используют SOCKS5/PAC вместо TUN",
-    "description": "Избегаем проблем с QUIC",
-    "type": "fix",
-    "createdAt": "2026-03-31T16:33:10Z"
   }
 ]

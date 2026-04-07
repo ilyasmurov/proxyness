@@ -1,2 +1,2 @@
 ## feature
-ApplyToggleOp (last-write-wins) и ApplyRemoveOp для sync-операций
+Device-key auth middleware + rate-limiter для sync API
