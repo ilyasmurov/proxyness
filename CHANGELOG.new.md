@@ -1,2 +1,2 @@
-## feature
-Tunnel: kill switch — отказ новых SOCKS5 запросов в Reconnecting
+## improvement
+Tunnel: unit-тесты для state machine, детектора stall и kill switch

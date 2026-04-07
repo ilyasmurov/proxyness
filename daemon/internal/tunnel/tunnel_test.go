@@ -196,3 +196,179 @@ func TestGetActiveHostsSweepsStale(t *testing.T) {
 		t.Fatalf("expected map to be swept clean, got %d entries", remaining)
 	}
 }
+
+func TestSetReconnectingOnlyFromConnected(t *testing.T) {
+	tn := New(dstats.NewRateMeter())
+
+	// status starts as Disconnected → setReconnecting must be a no-op
+	tn.setReconnecting()
+	if tn.GetStatus() != Disconnected {
+		t.Fatalf("expected Disconnected, got %s", tn.GetStatus())
+	}
+
+	// Force Connected
+	tn.mu.Lock()
+	tn.status = Connected
+	tn.mu.Unlock()
+
+	tn.setReconnecting()
+	if tn.GetStatus() != Reconnecting {
+		t.Fatalf("expected Reconnecting, got %s", tn.GetStatus())
+	}
+
+	// Idempotent: a second call from Reconnecting must not panic / change state
+	tn.setReconnecting()
+	if tn.GetStatus() != Reconnecting {
+		t.Fatalf("setReconnecting should be idempotent, got %s", tn.GetStatus())
+	}
+}
+
+func TestSetConnectedOnlyFromReconnecting(t *testing.T) {
+	tn := New(dstats.NewRateMeter())
+
+	tn.setConnected()
+	if tn.GetStatus() != Disconnected {
+		t.Fatalf("setConnected from Disconnected must be a no-op, got %s", tn.GetStatus())
+	}
+
+	tn.mu.Lock()
+	tn.status = Connected
+	tn.mu.Unlock()
+	tn.setConnected()
+	if tn.GetStatus() != Connected {
+		t.Fatalf("setConnected from Connected must be a no-op, got %s", tn.GetStatus())
+	}
+
+	tn.mu.Lock()
+	tn.status = Reconnecting
+	tn.mu.Unlock()
+	tn.setConnected()
+	if tn.GetStatus() != Connected {
+		t.Fatalf("expected Connected after recovery, got %s", tn.GetStatus())
+	}
+}
+
+func TestStallDetectedRequiresActiveHosts(t *testing.T) {
+	meter := dstats.NewRateMeter()
+	tn := New(meter)
+
+	// Even with stale lastByteAt, an idle session (no active hosts)
+	// must not trip the stall detector — otherwise we'd flicker
+	// Reconnecting forever during inactive periods.
+	meter.Add(1, 0)
+	meter.SeedLastByteAtForTest(time.Now().Add(-2 * stallThreshold))
+	if tn.stallDetected() {
+		t.Fatalf("idle session must not trigger stall detector")
+	}
+
+	// Touch a host but with a fresh lastByteAt → still no stall
+	tn.touchHost("example.com")
+	meter.SeedLastByteAtForTest(time.Now())
+	if tn.stallDetected() {
+		t.Fatalf("fresh meter must not trigger stall detector")
+	}
+}
+
+func TestStallDetectedTripsWhenStale(t *testing.T) {
+	meter := dstats.NewRateMeter()
+	tn := New(meter)
+	tn.touchHost("example.com")
+	meter.Add(1, 0)
+	meter.SeedLastByteAtForTest(time.Now().Add(-2 * stallThreshold))
+
+	if !tn.stallDetected() {
+		t.Fatalf("expected stallDetected=true with stale lastByteAt and active hosts")
+	}
+}
+
+func TestSetReconnectingClosesActiveConns(t *testing.T) {
+	tn := New(dstats.NewRateMeter())
+	tn.mu.Lock()
+	tn.status = Connected
+	tn.mu.Unlock()
+
+	a, b := net.Pipe()
+	defer b.Close()
+	tn.trackConn(a)
+
+	tn.setReconnecting()
+
+	// `a` should now be closed — Read returns immediately with an error.
+	a.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	buf := make([]byte, 1)
+	if _, err := a.Read(buf); err == nil {
+		t.Fatalf("expected closed conn to error on Read")
+	}
+}
+
+func TestHandleSOCKSRejectsDuringReconnecting(t *testing.T) {
+	tn := New(dstats.NewRateMeter())
+	tn.mu.Lock()
+	tn.status = Reconnecting
+	tn.mu.Unlock()
+
+	// Pipe pair: we play the SOCKS5 client on clientEnd and let
+	// handleSOCKS serve serverEnd.
+	clientEnd, serverEnd := net.Pipe()
+	defer clientEnd.Close()
+
+	// Channel carries the CONNECT reply bytes read by the client goroutine.
+	type result struct {
+		data []byte
+		err  error
+	}
+	replyCh := make(chan result, 1)
+
+	// The client goroutine drives the full handshake and collects the
+	// CONNECT reply so there is no read race with the test body.
+	go func() {
+		defer clientEnd.Close()
+		// auth method negotiation: ver=5, nmethods=1, method=NOAUTH
+		if _, err := clientEnd.Write([]byte{0x05, 0x01, 0x00}); err != nil {
+			replyCh <- result{nil, err}
+			return
+		}
+		// read the 2-byte method selection response
+		methodResp := make([]byte, 2)
+		if _, err := clientEnd.Read(methodResp); err != nil {
+			replyCh <- result{nil, err}
+			return
+		}
+		// connect request: ver=5, cmd=CONNECT, rsv=0, atyp=IPv4, 1.2.3.4, port 80
+		if _, err := clientEnd.Write([]byte{0x05, 0x01, 0x00, 0x01, 1, 2, 3, 4, 0, 80}); err != nil {
+			replyCh <- result{nil, err}
+			return
+		}
+		// read the CONNECT reply (10 bytes from SendFailure)
+		clientEnd.SetReadDeadline(time.Now().Add(2 * time.Second))
+		buf := make([]byte, 10)
+		n, err := clientEnd.Read(buf)
+		replyCh <- result{buf[:n], err}
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		tn.handleSOCKS(serverEnd)
+		close(done)
+	}()
+
+	res := <-replyCh
+	if res.err != nil {
+		t.Fatalf("expected SOCKS5 reply, got err=%v", res.err)
+	}
+	if len(res.data) < 2 {
+		t.Fatalf("expected at least 2 bytes, got %d", len(res.data))
+	}
+	if res.data[0] != 0x05 {
+		t.Fatalf("expected SOCKS5 version 0x05, got 0x%02x", res.data[0])
+	}
+	if res.data[1] == 0x00 {
+		t.Fatalf("expected SOCKS5 failure (REP != 0x00), got reply=%v", res.data)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handleSOCKS did not return")
+	}
+}

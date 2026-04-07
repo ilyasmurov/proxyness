@@ -1,5 +1,12 @@
 [
   {
+    "id": "0f44b7de-20c7-4020-b7ad-e5515282cde1",
+    "title": "Tunnel: unit-тесты для state machine, детектора stall и kill switch",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T15:47:33.739456+00:00"
+  },
+  {
     "id": "3f612f91-af70-46d0-93e6-f8a1ef3f544f",
     "title": "Tunnel: kill switch — отказ новых SOCKS5 запросов в Reconnecting",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-29T14:58:23Z"
-  },
-  {
-    "id": "e3c8dd54-16d5-43e4-8b50-a07d5161196a",
-    "title": "Electron клиент с управлением daemon и tray",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-29T09:47:52Z"
   }
 ]
