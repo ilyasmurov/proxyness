@@ -1,5 +1,12 @@
 [
   {
+    "id": "82cb0b5b-254e-4c34-8457-f94387296f0e",
+    "title": "Implementation plan для browser extension v1: 19 задач от server add_domain op до extension Flow 3 block detection",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T21:01:00.882457+00:00"
+  },
+  {
     "id": "c961ef87-847c-4062-9e71-fce2baf4bd4e",
     "title": "Спека extension v1: добавлен раздел Authentication & Pairing с per-extension token, paste-based pairing flow, обоснование почему не native messaging",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-01T08:34:08Z"
-  },
-  {
-    "id": "8f647d1c-3f25-4fbb-a685-d152f7a92eb1",
-    "title": "Убран лишний WriteConnect из proxyUDP",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-03-31T22:11:45Z"
   }
 ]
