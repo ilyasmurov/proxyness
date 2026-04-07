@@ -1,5 +1,12 @@
 [
   {
+    "id": "0fd2246c-67bf-4abb-8099-790899e3f3a5",
+    "title": "TUN Engine: Reconnecting статус с детекторами D1/D2",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T15:49:49.798097+00:00"
+  },
+  {
     "id": "0f44b7de-20c7-4020-b7ad-e5515282cde1",
     "title": "Tunnel: unit-тесты для state machine, детектора stall и kill switch",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-30T07:20:14Z"
-  },
-  {
-    "id": "0aa040d3-97c8-4fb9-a62d-cf22b0bda7b9",
-    "title": "Автообновление с VPS",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-29T14:58:23Z"
   }
 ]

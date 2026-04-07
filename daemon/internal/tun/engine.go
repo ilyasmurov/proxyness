@@ -34,8 +34,9 @@ import (
 type Status string
 
 const (
-	StatusInactive Status = "inactive"
-	StatusActive   Status = "active"
+	StatusInactive     Status = "inactive"
+	StatusActive       Status = "active"
+	StatusReconnecting Status = "reconnecting"
 )
 
 type Engine struct {
@@ -113,6 +114,40 @@ func (e *Engine) GetLastError() string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.lastError
+}
+
+// setReconnecting flips status from Active → Reconnecting and sweeps
+// every in-flight TCP/UDP conn (kill switch). Idempotent: calling twice
+// in the same state is a no-op. Caller must NOT hold e.mu.
+func (e *Engine) setReconnecting() {
+	e.mu.Lock()
+	if e.status != StatusActive {
+		e.mu.Unlock()
+		return
+	}
+	e.status = StatusReconnecting
+	e.mu.Unlock()
+
+	log.Printf("[tun] → reconnecting (kill switch engaged)")
+	e.closeAllConns()
+}
+
+// setConnected flips back to Active after recovery and reseeds the
+// stall detector's reference timestamp via the meter.
+// Caller must NOT hold e.mu.
+func (e *Engine) setConnected() {
+	e.mu.Lock()
+	if e.status != StatusReconnecting {
+		e.mu.Unlock()
+		return
+	}
+	e.status = StatusActive
+	e.mu.Unlock()
+
+	if e.meter != nil {
+		e.meter.SeedLastByteAt()
+	}
+	log.Printf("[tun] → active (recovered)")
 }
 
 // UpdateRules applies new rules and closes all active connections so apps
@@ -232,6 +267,9 @@ func (e *Engine) Start(req StartRequest) error {
 	e.startTime = time.Now()
 	e.lastError = ""
 	e.stopHealth = make(chan struct{})
+	if e.meter != nil {
+		e.meter.SeedLastByteAt()
+	}
 	go e.healthLoop()
 
 	log.Printf("[tun] engine started, server=%s", req.ServerAddr)
@@ -492,7 +530,7 @@ func (e *Engine) reconnectTransport() bool {
 
 func (e *Engine) healthLoop() {
 	const maxFailures = 3
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(5 * time.Second) // was 30s — needed for fast D2 detection
 	defer ticker.Stop()
 
 	doneCh := e.transportDone()
@@ -501,36 +539,45 @@ func (e *Engine) healthLoop() {
 		select {
 		case <-e.stopHealth:
 			return
+
 		case <-doneCh:
-			log.Printf("[tun] transport closed, attempting reconnect...")
+			// D1 — transport closed: engage kill switch, then try to reconnect.
+			log.Printf("[tun] D1: transport closed")
+			e.setReconnecting()
 			if e.reconnectTransport() {
 				doneCh = e.transportDone()
 				failures = 0
+				e.setConnected()
 				continue
 			}
-			log.Printf("[tun] reconnect failed, stopping engine")
+			log.Printf("[tun] D1: reconnect exhausted, stopping engine")
 			e.mu.Lock()
 			e.lastError = "Connection lost, please reconnect"
 			e.stopLocked()
 			e.mu.Unlock()
 			return
+
 		case <-ticker.C:
 			if err := e.healthCheck(); err != nil {
 				failures++
-				log.Printf("[tun] health check failed (%d/%d): %v", failures, maxFailures, err)
+				log.Printf("[tun] D2: health check failed (%d/%d): %v", failures, maxFailures, err)
+				if failures == 1 {
+					e.setReconnecting()
+				}
 				if failures >= maxFailures {
-					log.Printf("[tun] server unreachable, stopping engine")
+					log.Printf("[tun] D2: exhausted, stopping engine")
 					e.mu.Lock()
 					e.lastError = "Server temporarily unavailable"
 					e.stopLocked()
 					e.mu.Unlock()
 					return
 				}
-			} else {
-				if failures > 0 {
-					log.Printf("[tun] health check recovered after %d failures", failures)
-				}
+				continue
+			}
+			if failures > 0 {
+				log.Printf("[tun] D2: recovered after %d failures", failures)
 				failures = 0
+				e.setConnected()
 			}
 		}
 	}

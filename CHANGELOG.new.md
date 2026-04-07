@@ -1,2 +1,2 @@
-## improvement
-Tunnel: unit-тесты для state machine, детектора stall и kill switch
+## feature
+TUN Engine: Reconnecting статус с детекторами D1/D2
