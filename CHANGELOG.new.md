@@ -1,2 +1,2 @@
 ## feature
-Типы клиентского модуля sites
+Client storage helpers + PAC expand утилита

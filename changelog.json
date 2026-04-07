@@ -1,5 +1,12 @@
 [
   {
+    "id": "28afacda-29a3-4d3c-90ab-a8c6d6be7982",
+    "title": "Client storage helpers + PAC expand утилита",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T18:09:27.593756+00:00"
+  },
+  {
     "id": "8d239737-5673-46ae-bf32-66a5502af280",
     "title": "Типы клиентского модуля sites",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-03-31T19:28:32Z"
-  },
-  {
-    "id": "04ef0b49-b997-4dbe-a26b-8ba725e65b1a",
-    "title": "Клик по всей строке приложений и чекбоксам",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-03-31T18:26:45Z"
   }
 ]
