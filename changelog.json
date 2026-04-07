@@ -1,5 +1,12 @@
 [
   {
+    "id": "34d0ca67-8c52-43b5-b664-ca48810a1d44",
+    "title": "CLI export-seed для генерации seed_sites.json для клиента",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T18:06:08.789726+00:00"
+  },
+  {
     "id": "aad6f898-99d7-467d-b84a-f91b8c5987e8",
     "title": "Тесты на sync handler",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-31T18:06:56Z"
-  },
-  {
-    "id": "e78c4af2-ae98-4614-90b4-09a04201e48a",
-    "title": "Обход маршрутов через физический интерфейс на macOS",
-    "description": "IP_BOUND_IF",
-    "type": "feature",
-    "createdAt": "2026-03-31T17:51:32Z"
   }
 ]

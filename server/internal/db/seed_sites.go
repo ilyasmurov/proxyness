@@ -145,3 +145,9 @@ func (d *DB) SeedSitesIfEmpty() error {
 	}
 	return tx.Commit()
 }
+
+// ExportSeedSites returns the seed slice for tools like cmd/export-seed.
+// It's exported only because export-seed lives in a different package.
+func ExportSeedSites() []SeedSite {
+	return seedSites
+}
