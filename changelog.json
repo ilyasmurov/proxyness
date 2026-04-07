@@ -1,5 +1,12 @@
 [
   {
+    "id": "8d239737-5673-46ae-bf32-66a5502af280",
+    "title": "Типы клиентского модуля sites",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T18:08:08.660885+00:00"
+  },
+  {
     "id": "916a3489-56db-484e-b4ce-a5fdd9e1e0ca",
     "title": "make build-client генерирует seed_sites.json из Go-источника",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-03-31T18:26:45Z"
-  },
-  {
-    "id": "7ee19d91-31d2-44de-8cdd-f514c0a32386",
-    "title": "Принудительное обновление PAC при изменении сайтов",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-03-31T18:20:17Z"
   }
 ]
