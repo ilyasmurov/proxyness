@@ -1,5 +1,12 @@
 [
   {
+    "id": "aad6f898-99d7-467d-b84a-f91b8c5987e8",
+    "title": "Тесты на sync handler",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T18:04:54.860167+00:00"
+  },
+  {
     "id": "adb71f21-6684-483a-94d7-2390cf1fa9c7",
     "title": "POST /api/sync — batch sync endpoint для sites catalog",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "IP_BOUND_IF",
     "type": "feature",
     "createdAt": "2026-03-31T17:51:32Z"
-  },
-  {
-    "id": "761c697e-da28-4488-809a-783a7772af4f",
-    "title": "Весь трафик браузеров через SOCKS5 при активном TUN",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-03-31T17:21:31Z"
   }
 ]
