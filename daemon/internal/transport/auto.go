@@ -68,3 +68,29 @@ func (a *AutoTransport) Mode() string {
 	}
 	return a.active.Mode()
 }
+
+// DoneChan exposes the underlying transport's done channel so the engine's
+// health loop can react to session death (e.g., UDP dead-session detection).
+// Without this, transportDone() in engine.go falls through the interface
+// assertion and blocks forever on a nil channel, leaving the engine unaware
+// that its transport has died (common after macOS sleep/wake).
+func (a *AutoTransport) DoneChan() <-chan struct{} {
+	if a.active == nil {
+		return nil
+	}
+	if d, ok := a.active.(interface{ DoneChan() <-chan struct{} }); ok {
+		return d.DoneChan()
+	}
+	return nil
+}
+
+// Alive reports whether the underlying transport is still usable.
+func (a *AutoTransport) Alive() bool {
+	if a.active == nil {
+		return false
+	}
+	if al, ok := a.active.(interface{ Alive() bool }); ok {
+		return al.Alive()
+	}
+	return true
+}

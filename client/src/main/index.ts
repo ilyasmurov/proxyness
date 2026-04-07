@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell } from "electron";
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, powerMonitor } from "electron";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -411,6 +411,15 @@ function setupIpc() {
 
   ipcMain.on("tray-status", (_e, connected: boolean) => {
     setTrayConnected(connected);
+  });
+
+  // After macOS sleep/wake (or Windows suspend/resume), the UDP socket the
+  // daemon holds is silently dead: server-side NAT has forgotten us and any
+  // existing streams are stuck. Notify the renderer so it can tear down the
+  // old transport and reconnect fresh instead of waiting for the keepalive
+  // deadTicker to notice.
+  powerMonitor.on("resume", () => {
+    mainWindow?.webContents.send("system-resumed");
   });
 }
 

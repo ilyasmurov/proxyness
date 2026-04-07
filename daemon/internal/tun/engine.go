@@ -515,12 +515,7 @@ func (e *Engine) healthLoop() {
 			e.mu.Unlock()
 			return
 		case <-ticker.C:
-			e.mu.Lock()
-			addr := e.serverAddr
-			key := e.key
-			e.mu.Unlock()
-
-			if err := e.healthCheck(addr, key); err != nil {
+			if err := e.healthCheck(); err != nil {
 				failures++
 				log.Printf("[tun] health check failed (%d/%d): %v", failures, maxFailures, err)
 				if failures >= maxFailures {
@@ -541,26 +536,20 @@ func (e *Engine) healthLoop() {
 	}
 }
 
-func (e *Engine) healthCheck(serverAddr, key string) error {
-	conn, err := protectedDial("tcp", serverAddr)
-	if err != nil {
-		return fmt.Errorf("server unreachable: %w", err)
+// healthCheck validates the ACTIVE transport rather than dialing a fresh TCP
+// connection to the server. The old implementation would happily report
+// "healthy" when UDP was silently dead but TCP/TLS to the server still worked
+// (common after macOS sleep/wake), creating a blind spot. Checking Alive()
+// on the real transport avoids that false positive.
+func (e *Engine) healthCheck() error {
+	e.mu.Lock()
+	tr := e.transport
+	e.mu.Unlock()
+	if tr == nil {
+		return fmt.Errorf("no transport")
 	}
-	tlsConn := tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
-	defer tlsConn.Close()
-
-	if err := tlsConn.Handshake(); err != nil {
-		return fmt.Errorf("tls failed: %w", err)
-	}
-	if err := proto.WriteAuth(tlsConn, key); err != nil {
-		return fmt.Errorf("auth failed: %w", err)
-	}
-	ok, err := proto.ReadResult(tlsConn)
-	if err != nil {
-		return fmt.Errorf("auth failed: %w", err)
-	}
-	if !ok {
-		return fmt.Errorf("invalid key")
+	if a, ok := tr.(interface{ Alive() bool }); ok && !a.Alive() {
+		return fmt.Errorf("transport dead")
 	}
 	return nil
 }

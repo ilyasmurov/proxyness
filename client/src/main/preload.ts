@@ -28,6 +28,11 @@ contextBridge.exposeInMainWorld("appInfo", {
   setTrayStatus: (connected: boolean) => ipcRenderer.send("tray-status", connected),
   onTrayConnect: (cb: () => void) => ipcRenderer.on("tray-connect", () => cb()),
   onTrayDisconnect: (cb: () => void) => ipcRenderer.on("tray-disconnect", () => cb()),
+  onSystemResumed: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("system-resumed", handler);
+    return () => ipcRenderer.removeListener("system-resumed", handler);
+  },
 });
 
 contextBridge.exposeInMainWorld("tunProxy", {

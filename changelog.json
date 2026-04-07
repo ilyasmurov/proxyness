@@ -1,5 +1,12 @@
 [
   {
+    "id": "6ea1958a-0e71-4747-98a4-53da8a8e03d6",
+    "title": "Fix dead UDP session after macOS sleep/wake — engine now detects transport death and reconnects automatically",
+    "description": "Three fixes: AutoTransport now exposes DoneChan so the health loop sees UDP session death; healthCheck validates the actual active transport instead of a separate TCP/TLS dial; Electron client listens for powerMonitor 'resume' and forces a clean reconnect on wake.",
+    "type": "fix",
+    "createdAt": "2026-04-07T07:48:20.142909+00:00"
+  },
+  {
     "id": "64980b66-e796-4c51-85ee-0e2cf93755b7",
     "title": "Reduce CPU usage on Windows — retransmit interval 10ms→50ms, process table cache 500ms→2s",
     "description": "SendBuffer.Expired() now reuses buffer to avoid allocations on hot path.",

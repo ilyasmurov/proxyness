@@ -208,6 +208,33 @@ export function App() {
     (window as any).appInfo?.setTrayStatus(isConnected);
   }, [isConnected]);
 
+  // On system wake, the daemon's UDP session is silently dead (server forgot
+  // us during sleep). Tear down the old state and reconnect instead of waiting
+  // for the keepalive timeout. Uses a ref for the "was connected" check so the
+  // resume handler always sees the latest value without re-subscribing on
+  // every status change.
+  const wasConnectedOnWakeRef = useRef(false);
+  useEffect(() => {
+    wasConnectedOnWakeRef.current = isConnected;
+  }, [isConnected]);
+  useEffect(() => {
+    const app = (window as any).appInfo;
+    if (!app?.onSystemResumed) return;
+    const cleanup = app.onSystemResumed(async () => {
+      if (!wasConnectedOnWakeRef.current || !key) return;
+      console.log("[wake] system resumed, forcing reconnect");
+      if (proxyMode === "tun") {
+        await tunDisconnect();
+      } else {
+        await disconnect();
+      }
+      // Let the network stack settle before trying to reach the server.
+      await new Promise((r) => setTimeout(r, 500));
+      startReconnect();
+    });
+    return cleanup;
+  }, [key, proxyMode, tunDisconnect, disconnect, startReconnect]);
+
   // Handle tray connect/disconnect clicks
   useEffect(() => {
     const app = (window as any).appInfo;
