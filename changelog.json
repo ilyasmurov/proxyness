@@ -1,5 +1,12 @@
 [
   {
+    "id": "31fb938f-b1c2-4c82-ae7d-978ea34d5b27",
+    "title": "Reconnect detection + kill switch design spec",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T15:10:31.922513+00:00"
+  },
+  {
     "id": "b807d464-4354-4937-9e04-8b800b5a062e",
     "title": "LIVE indicators on browser site tiles — real active-connection tracking",
     "description": "The tunnel now tracks every in-flight SOCKS5 connection by hostname and exposes a /tunnel/active-hosts endpoint. The client polls it every 2 seconds and lights up a pulsing LIVE label on every site tile whose primary domain or related CDN domains currently have open connections. Works across the YouTube + googlevideo + ytimg set and similar tracker families via the existing RELATED_DOMAINS table.",
