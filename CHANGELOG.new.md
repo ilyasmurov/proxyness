@@ -1,2 +1,2 @@
 ## feature
-Client storage helpers + PAC expand утилита
+Core sync модуль для клиентского каталога сайтов

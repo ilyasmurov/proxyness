@@ -1,5 +1,12 @@
 [
   {
+    "id": "8ba01b56-a002-406c-ba68-8657cbf8b575",
+    "title": "Core sync модуль для клиентского каталога сайтов",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T18:11:33.159678+00:00"
+  },
+  {
     "id": "28afacda-29a3-4d3c-90ab-a8c6d6be7982",
     "title": "Client storage helpers + PAC expand утилита",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-03-31T19:38:07Z"
-  },
-  {
-    "id": "0fab6519-c48d-4b12-812b-7c61fd9547bc",
-    "title": "DNS маршруты через шлюз на Windows для TUN bypass",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-03-31T19:28:32Z"
   }
 ]
