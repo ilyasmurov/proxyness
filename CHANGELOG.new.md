@@ -1,2 +1,2 @@
 ## improvement
-Integration test для POST /api/sync (full round trip)
+Деплой каталога сайтов с per-user sync (server schema + POST /api/sync)
