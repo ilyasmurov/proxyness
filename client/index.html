@@ -13,6 +13,14 @@
         min-height: 100vh;
       }
       #root { padding: 24px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      /* Animation used by the StatusBar spinner (unique name to avoid collisions) */
+      @keyframes smurov-spin { to { transform: rotate(360deg); } }
+      /* Globe continent scroll: half of the doubled SVG width for seamless loop */
+      @keyframes smurov-globe-scroll {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-50%); }
+      }
     </style>
   </head>
   <body>

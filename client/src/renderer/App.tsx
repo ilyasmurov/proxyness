@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback, ClipboardEvent } from "react"
 import { useDaemon } from "./hooks/useDaemon";
 import { useStats } from "./hooks/useStats";
 import { StatusBar } from "./components/StatusBar";
-import { ConnectionButton } from "./components/ConnectionButton";
 import { ModeSelector, ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
 import { SpeedGraph } from "./components/SpeedGraph";
@@ -201,7 +200,32 @@ export function App() {
     } catch {} finally {
       setTunLoading(false);
     }
-  }, [disconnect]);
+  }, [disconnect, stopReconnect]);
+
+  // Handle transport mode change from the StatusBar badge dropdown.
+  // Persist the mode on the daemon, then force a reconnect so the running
+  // transport is replaced by one of the new kind.
+  const handleTransportChange = useCallback(
+    async (mode: string) => {
+      try {
+        await (window as any).transport?.setMode(mode);
+        setTransportMode(mode);
+      } catch {
+        return;
+      }
+      if (!key) return;
+      if (proxyMode === "tun") {
+        await tunDisconnect();
+        await new Promise((r) => setTimeout(r, 300));
+        await tunConnect(SERVER, key);
+      } else {
+        await disconnect();
+        await new Promise((r) => setTimeout(r, 300));
+        await connect(SERVER, key);
+      }
+    },
+    [key, proxyMode, connect, disconnect, tunConnect, tunDisconnect],
+  );
 
   // Update tray icon based on connection status
   useEffect(() => {
@@ -292,7 +316,7 @@ export function App() {
   };
 
   return (
-    <div style={{ maxWidth: 380, margin: "0 auto", paddingTop: 36 }}>
+    <div style={{ maxWidth: 760, margin: "0 auto", paddingTop: 36 }}>
       {/* Custom title bar */}
       <div
         style={{
@@ -334,20 +358,6 @@ export function App() {
                     (window as any).appInfo?.openUpdate();
                   }},
                   ...(!showSetup ? [{ label: "Change Key", onClick: () => { setShowSettings(false); handleReset(); } }] : []),
-                  ...(!showSetup ? [
-                    { label: `Transport: Auto${transportMode === "auto" ? " \u2713" : ""}`, onClick: () => {
-                      (window as any).transport?.setMode("auto");
-                      setTransportMode("auto");
-                    }},
-                    { label: `Transport: UDP${transportMode === "udp" ? " \u2713" : ""}`, onClick: () => {
-                      (window as any).transport?.setMode("udp");
-                      setTransportMode("udp");
-                    }},
-                    { label: `Transport: TLS${transportMode === "tls" ? " \u2713" : ""}`, onClick: () => {
-                      (window as any).transport?.setMode("tls");
-                      setTransportMode("tls");
-                    }},
-                  ] : []),
                   { label: "Logs", onClick: () => { setShowSettings(false); (window as any).appInfo?.openLogs(); } },
                 ].map((item) => (
                   <button
@@ -383,11 +393,36 @@ export function App() {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 20, fontWeight: 700 }}>SmurovProxy</h1>
-        <span style={{ fontSize: 11, color: "#444" }}>{SERVER.replace(":443", "")}</span>
       </div>
-      <StatusBar status={isConnected ? "connected" : "disconnected"} uptime={uptime} error={currentError} transport={activeTransport} />
+      {!showSetup && (
+        <StatusBar
+          connected={isConnected}
+          loading={isLoading}
+          reconnecting={reconnecting}
+          server={SERVER.replace(":443", "")}
+          uptime={uptime}
+          transport={activeTransport}
+          transportMode={transportMode}
+          error={currentError}
+          onConnect={() => {
+            if (proxyMode === "tun") {
+              tunConnect(SERVER, key);
+            } else {
+              connect(SERVER, key);
+            }
+          }}
+          onDisconnect={() => {
+            if (proxyMode === "tun") {
+              tunDisconnect();
+            } else {
+              disconnect();
+            }
+          }}
+          onTransportChange={handleTransportChange}
+        />
+      )}
       {isConnected && (
         <SpeedGraph
           download={stats.download}
@@ -428,25 +463,6 @@ export function App() {
       ) : (
         <>
           <ModeSelector mode={proxyMode} onChange={handleModeChange} disabled={isConnected} />
-          <ConnectionButton
-            connected={isConnected}
-            loading={isLoading}
-            reconnecting={reconnecting}
-            onConnect={() => {
-              if (proxyMode === "tun") {
-                tunConnect(SERVER, key);
-              } else {
-                connect(SERVER, key);
-              }
-            }}
-            onDisconnect={() => {
-              if (proxyMode === "tun") {
-                tunDisconnect();
-              } else {
-                disconnect();
-              }
-            }}
-          />
           <AppRules visible={proxyMode === "tun"} />
         </>
       )}

@@ -1,5 +1,19 @@
 [
   {
+    "id": "a38a4ba6-7815-4843-8c3b-91aa995076f6",
+    "title": "Redesigned status bar — wider window, inline Connect/Disconnect button, spinning globe indicator",
+    "description": "Doubled window width (420 → 840) and merged the old StatusBar + full-width ConnectionButton into a single row: animated wireframe Earth with scrolling continents when connected, red outlined circle when disconnected, spinner during connect/reconnect. \"Connected to <ip>\" now has the IP in grey, uptime pushed to the right next to the action button.",
+    "type": "improvement",
+    "createdAt": "2026-04-07T10:41:15.062555+00:00"
+  },
+  {
+    "id": "4b757ab9-227c-44a0-b4d1-c8466085b497",
+    "title": "Clickable transport badge to switch UDP/TLS/Auto on the fly",
+    "description": "Clicking the UDP/TLS badge in the status bar opens a dropdown with all three transport modes and instantly switches — daemon setMode + forced reconnect. The old Transport submenu in Settings is gone.",
+    "type": "feature",
+    "createdAt": "2026-04-07T10:41:15.062696+00:00"
+  },
+  {
     "id": "df9bded8-5faa-40b8-ab8f-8044cc536762",
     "title": "Deploy workflow: pass commit message via env var to avoid bash parse error on multi-line messages",
     "description": "Previous commit directly interpolated the commit message into a bash expression, which broke when the message had newlines. Using an env var fixes that and also closes a shell injection vector.",
