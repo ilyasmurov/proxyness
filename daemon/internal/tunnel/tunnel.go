@@ -20,7 +20,13 @@ const (
 	maxRetries     = 3
 	retryDelay     = 3 * time.Second
 	dialTimeout    = 5 * time.Second
-	healthInterval = 30 * time.Second
+	healthInterval = 5 * time.Second // was 30s — needs to fire fast enough for D2/D3
+
+	// stallThreshold is how long the meter can show no bytes while
+	// activeHosts > 0 before D3 trips. 5s ≈ two-three TCP retransmits;
+	// shorter causes false positives during ordinary jitter, longer lets
+	// banned-on-direct apps fire several leaked requests.
+	stallThreshold = 5 * time.Second
 
 	// defaultHostLiveWindow is how long a host stays "live" in
 	// GetActiveHosts after the last byte flowed through its SOCKS5
@@ -330,44 +336,89 @@ func (t *Tunnel) healthLoop() {
 		select {
 		case <-t.stopHealth:
 			return
+
 		case <-doneCh:
-			log.Printf("[tunnel] transport closed, attempting reconnect...")
+			// D1 — transport closed: engage kill switch, then try to reconnect.
+			log.Printf("[tunnel] D1: transport closed")
+			t.setReconnecting()
 			if t.reconnectTransport() {
 				doneCh = t.transportDone()
 				failures = 0
+				t.setConnected()
 				continue
 			}
-			log.Printf("[tunnel] reconnect failed, disconnecting")
+			log.Printf("[tunnel] D1: reconnect exhausted, disconnecting")
 			t.mu.Lock()
 			t.lastError = "Connection lost, please reconnect"
 			t.stopLocked()
 			t.mu.Unlock()
 			return
+
 		case <-ticker.C:
 			t.mu.Lock()
 			addr := t.serverAddr
 			key := t.key
+			status := t.status
 			t.mu.Unlock()
 
+			// Skip ticks while not in a "live" state.
+			if status != Connected && status != Reconnecting {
+				continue
+			}
+
+			// D2 — health check.
 			if err := verifyServer(addr, key); err != nil {
 				failures++
-				log.Printf("[tunnel] health check failed (%d/%d): %v", failures, maxRetries, err)
+				log.Printf("[tunnel] D2: health check failed (%d/%d): %v", failures, maxRetries, err)
+				if failures == 1 {
+					t.setReconnecting()
+				}
 				if failures >= maxRetries {
-					log.Printf("[tunnel] server unreachable, disconnecting")
+					log.Printf("[tunnel] D2: exhausted, disconnecting")
 					t.mu.Lock()
 					t.lastError = "Server temporarily unavailable, try again later"
 					t.stopLocked()
 					t.mu.Unlock()
 					return
 				}
-			} else {
-				if failures > 0 {
-					log.Printf("[tunnel] health check recovered after %d failures", failures)
-				}
+				continue
+			}
+
+			// D2 recovered.
+			if failures > 0 {
+				log.Printf("[tunnel] D2: recovered after %d failures", failures)
 				failures = 0
+				t.setConnected()
+			}
+
+			// D3 — stall detector. Only fires while we believe we're
+			// healthy AND the user is actively trying to use the proxy.
+			if status == Connected && t.stallDetected() {
+				log.Printf("[tunnel] D3: traffic stall detected")
+				t.setReconnecting()
 			}
 		}
 	}
+}
+
+// stallDetected returns true when the user is actively trying to use the
+// proxy (activeHosts > 0) but no bytes have flowed for stallThreshold.
+// Idle sessions (no active hosts) never trip this.
+func (t *Tunnel) stallDetected() bool {
+	t.activeHostsMu.Lock()
+	hostCount := len(t.activeHosts)
+	t.activeHostsMu.Unlock()
+	if hostCount == 0 {
+		return false
+	}
+	if t.meter == nil {
+		return false
+	}
+	last := t.meter.LastByteAt()
+	if last.IsZero() {
+		return false
+	}
+	return time.Since(last) > stallThreshold
 }
 
 func (t *Tunnel) reconnectTransport() bool {

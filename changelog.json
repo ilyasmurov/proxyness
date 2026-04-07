@@ -1,5 +1,12 @@
 [
   {
+    "id": "22df5123-eb70-441d-bcc1-1a3ff26798bb",
+    "title": "Tunnel: детекторы D1/D2/D3 для автоматического перехода в Reconnecting",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T15:42:55.294990+00:00"
+  },
+  {
     "id": "2188086a-6ec7-4dea-a9e8-84f61b62b633",
     "title": "Tunnel: новый статус Reconnecting с helper-методами для перехода",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-29T09:27:03Z"
-  },
-  {
-    "id": "df1f5350-c5a4-4477-9be3-7fdf82e1065b",
-    "title": "Админ-панель: пользователи, устройства, статистика",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-31T22:00:31Z"
   }
 ]
