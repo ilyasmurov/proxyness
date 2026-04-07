@@ -1,2 +1,2 @@
 ## feature
-IPC `get-seed-sites`: main процесс читает seed_sites.json из resources и отдаёт renderer'у
+AppRules.tsx использует useSites хук вместо хардкода сайтов

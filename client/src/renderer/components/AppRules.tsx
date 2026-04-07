@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSites } from "../sites/useSites";
+import { expandDomains } from "../sites/pac";
+import type { LocalSite } from "../sites/types";
 
 declare global {
   interface Window {
@@ -28,62 +31,6 @@ const KNOWN_APPS: KnownApp[] = [
   { id: "cursor", name: "Cursor", color: "#00D1FF", letter: "Cu", keywords: ["cursor"] },
   { id: "slack", name: "Slack", color: "#E01E5A", letter: "S", keywords: ["slack"] },
 ];
-
-interface BrowserSite {
-  domain: string;
-  label: string;
-  builtin?: boolean;
-}
-
-const DEFAULT_SITES: BrowserSite[] = [
-  { domain: "*", label: "All sites", builtin: true },
-  { domain: "youtube.com", label: "YouTube", builtin: true },
-  { domain: "instagram.com", label: "Instagram", builtin: true },
-  { domain: "twitter.com", label: "Twitter / X", builtin: true },
-  { domain: "facebook.com", label: "Facebook", builtin: true },
-  { domain: "discord.com", label: "Discord (web)", builtin: true },
-  { domain: "linkedin.com", label: "LinkedIn", builtin: true },
-  { domain: "medium.com", label: "Medium", builtin: true },
-  { domain: "claude.ai", label: "Claude", builtin: true },
-  { domain: "youtrack.cloud", label: "YouTrack", builtin: true },
-  { domain: "web.telegram.org", label: "Telegram (web)", builtin: true },
-];
-
-// Related domains that must be proxied together with the main domain
-const RELATED_DOMAINS: Record<string, string[]> = {
-  "youtube.com": [
-    "googlevideo.com", "ytimg.com", "ggpht.com",
-    "youtube-nocookie.com", "youtu.be",
-    "googleapis.com", "gstatic.com", "google.com",
-  ],
-  "instagram.com": [
-    "cdninstagram.com", "fbcdn.net", "facebook.com",
-    "fbsbx.com", "instagram.com",
-  ],
-  "twitter.com": [
-    "x.com", "twimg.com", "t.co", "abs.twimg.com",
-  ],
-  "facebook.com": [
-    "fbcdn.net", "fbsbx.com", "facebook.net",
-    "cdninstagram.com", "fb.com",
-  ],
-  "discord.com": [
-    "discordapp.com", "discordapp.net", "discord.gg",
-    "discord.media",
-  ],
-  "linkedin.com": [
-    "licdn.com", "linkedin.cn",
-  ],
-  "claude.ai": [
-    "anthropic.com",
-  ],
-  "youtrack.cloud": [
-    "jetbrains.com",
-  ],
-  "web.telegram.org": [
-    "telegram.org", "t.me", "telegram.me",
-  ],
-};
 
 // Brand SVG icon paths (Simple Icons, viewBox 0 0 24 24)
 const ICON_PATHS: Record<string, string> = {
@@ -245,36 +192,7 @@ function SiteTileIcon({
   );
 }
 
-const STORAGE_KEY_SITES = "smurov-proxy-sites";
-const STORAGE_KEY_ENABLED_SITES = "smurov-proxy-enabled-sites";
 const STORAGE_KEY_NO_TLS = "smurov-proxy-no-tls";
-
-function loadSites(): BrowserSite[] {
-  const custom = localStorage.getItem(STORAGE_KEY_SITES);
-  if (custom) {
-    try {
-      return [...DEFAULT_SITES, ...JSON.parse(custom)];
-    } catch {}
-  }
-  return [...DEFAULT_SITES];
-}
-
-function saveCustomSites(sites: BrowserSite[]) {
-  const custom = sites.filter((s) => !s.builtin);
-  localStorage.setItem(STORAGE_KEY_SITES, JSON.stringify(custom));
-}
-
-function loadEnabledSites(): Set<string> {
-  const saved = localStorage.getItem(STORAGE_KEY_ENABLED_SITES);
-  if (saved) {
-    try { return new Set(JSON.parse(saved)); } catch {}
-  }
-  return new Set(["*"]); // default: all sites
-}
-
-function saveEnabledSites(enabled: Set<string>) {
-  localStorage.setItem(STORAGE_KEY_ENABLED_SITES, JSON.stringify([...enabled]));
-}
 
 function loadNoTLS(): Set<string> {
   const saved = localStorage.getItem(STORAGE_KEY_NO_TLS);
@@ -304,9 +222,12 @@ export function AppRules({ visible }: Props) {
   const [resolved, setResolved] = useState<ResolvedApp[]>([]);
   const [enabled, setEnabled] = useState<Set<string>>(new Set(KNOWN_APPS.map((a) => a.id)));
 
-  // Browser sites
-  const [sites, setSites] = useState<BrowserSite[]>(loadSites);
-  const [enabledSites, setEnabledSites] = useState<Set<string>>(loadEnabledSites);
+  // Browser sites — backed by the sites sync module.
+  const { sites: localSites, addSite, removeSite: removeSiteById, toggleSite: toggleSiteById } = useSites();
+  // All-sites toggle: a local-only mode flag that bypasses per-site picks.
+  const [allSitesOn, setAllSitesOn] = useState<boolean>(
+    () => localStorage.getItem("smurov-proxy-all-sites-on") !== "false"
+  );
   const [noTLS, setNoTLS] = useState<Set<string>>(loadNoTLS);
   const [browsersOn] = useState(() => localStorage.getItem("smurov-proxy-browsers-on") !== "false");
   const [addSiteModalOpen, setAddSiteModalOpen] = useState(false);
@@ -337,26 +258,32 @@ export function AppRules({ visible }: Props) {
     };
   }, [visible]);
 
-  // Map from active hosts to the set of site domains that are currently live.
-  // A site is live when any of its primary or RELATED_DOMAINS matches (by
-  // suffix) at least one active host.
+  // Derive enabled domain list for PAC generation.
+  const enabledDomains = localSites
+    .filter((s) => s.enabled)
+    .flatMap((s) => s.domains);
+  const siteDomains = expandDomains(enabledDomains);
+
+  // Map from active hosts to the set of site ids that are currently live.
+  // A site is live when any of its domains matches (by suffix) at least one active host.
   const liveSites = (() => {
-    if (activeHosts.length === 0) return new Set<string>();
-    const live = new Set<string>();
+    if (activeHosts.length === 0) return new Set<number>();
+    const live = new Set<number>();
     const hostMatches = (host: string, pattern: string): boolean =>
       host === pattern || host.endsWith("." + pattern);
-    for (const site of sites) {
-      if (site.domain === "*") continue;
-      const patterns = [site.domain, ...(RELATED_DOMAINS[site.domain] || [])];
+    for (const s of localSites) {
       for (const host of activeHosts) {
-        if (patterns.some((p) => hostMatches(host, p))) {
-          live.add(site.domain);
+        if (s.domains.some((p) => hostMatches(host, p))) {
+          live.add(s.id);
           break;
         }
       }
     }
     return live;
   })();
+
+  // Derive enabled set (by id) for SitesGrid.
+  const enabledSet = new Set(localSites.filter((s) => s.enabled).map((s) => s.id));
 
   useEffect(() => {
     if (!visible) return;
@@ -416,30 +343,28 @@ export function AppRules({ visible }: Props) {
     });
   }, [visible]);
 
-  const expandDomains = useCallback((domains: string[]): string[] => {
-    const all = new Set<string>();
-    for (const d of domains) {
-      all.add(d);
-      const related = RELATED_DOMAINS[d];
-      if (related) {
-        for (const r of related) all.add(r);
+  const applyPac = useCallback(
+    (on: boolean) => {
+      if (!on) {
+        window.sysproxy?.disable();
+        return;
       }
-    }
-    return [...all];
-  }, []);
+      if (allSitesOn) {
+        window.sysproxy?.setPacSites({ proxy_all: true, sites: [] });
+      } else {
+        window.sysproxy?.setPacSites({ proxy_all: false, sites: siteDomains });
+      }
+      window.sysproxy?.enable();
+    },
+    [allSitesOn, siteDomains]
+  );
 
-  const applyPac = useCallback((on: boolean, eSites: Set<string>) => {
-    if (!on) {
-      window.sysproxy?.disable();
-      return;
-    }
-    const proxyAll = eSites.has("*");
-    const siteDomains = proxyAll ? [] : expandDomains([...eSites]);
-    window.sysproxy?.setPacSites({ proxy_all: proxyAll, sites: siteDomains });
-    window.sysproxy?.enable();
-  }, [expandDomains]);
+  // Re-apply PAC whenever browsersOn or site selection changes.
+  useEffect(() => {
+    applyPac(browsersOn);
+  }, [applyPac, browsersOn]);
 
-  const applyRules = useCallback((m: Mode, enabledIds: Set<string>, resolvedApps: ResolvedApp[], bOn: boolean, eSites: Set<string>, noTLSIds: Set<string>) => {
+  const applyRules = useCallback((m: Mode, enabledIds: Set<string>, resolvedApps: ResolvedApp[], bOn: boolean, noTLSIds: Set<string>) => {
     if (m === "all") {
       window.tunProxy?.setRules({ mode: "proxy_all_except", apps: [] });
       window.sysproxy?.setPacSites({ proxy_all: true, sites: [] });
@@ -456,13 +381,13 @@ export function AppRules({ visible }: Props) {
         }
       }
       window.tunProxy?.setRules({ mode: "proxy_only", apps: paths, no_tls_apps: noTLSPaths });
-      applyPac(bOn, eSites);
+      applyPac(bOn);
     }
   }, [applyPac]);
 
   const handleModeChange = (m: Mode) => {
     setMode(m);
-    applyRules(m, enabled, resolved, browsersOn, enabledSites, noTLS);
+    applyRules(m, enabled, resolved, browsersOn, noTLS);
   };
 
   const toggleApp = (appId: string) => {
@@ -470,7 +395,7 @@ export function AppRules({ visible }: Props) {
       const next = new Set(prev);
       if (next.has(appId)) next.delete(appId);
       else next.add(appId);
-      applyRules(mode, next, resolved, browsersOn, enabledSites, noTLS);
+      applyRules(mode, next, resolved, browsersOn, noTLS);
       return next;
     });
   };
@@ -481,41 +406,24 @@ export function AppRules({ visible }: Props) {
       if (next.has(appId)) next.delete(appId);
       else next.add(appId);
       saveNoTLS(next);
-      applyRules(mode, enabled, resolved, browsersOn, enabledSites, next);
+      applyRules(mode, enabled, resolved, browsersOn, next);
       return next;
     });
   };
 
-  const toggleSite = (domain: string) => {
-    setEnabledSites((prev) => {
-      const next = new Set(prev);
-      if (domain === "*") {
-        // Toggle the "All browsers" override. We preserve the underlying
-        // individual site state so turning it off restores the previous
-        // picks, and turning it back on just layers the wildcard over them.
-        if (next.has("*")) {
-          next.delete("*");
-        } else {
-          next.add("*");
-        }
-      } else {
-        // Click on a specific site tile:
-        //  - If All browsers ("*") is on: switch from "all" mode to
-        //    "selected" mode. Remove "*". If the tile was already enabled,
-        //    leave it alone; otherwise enable it.
-        //  - If All browsers is off: normal toggle on the tile.
-        if (next.has("*")) {
-          next.delete("*");
-          next.add(domain);
-        } else {
-          if (next.has(domain)) next.delete(domain);
-          else next.add(domain);
-        }
-      }
-      saveEnabledSites(next);
-      applyPac(browsersOn, next);
-      return next;
-    });
+  const handleToggleTile = (site: LocalSite) => {
+    if (allSitesOn) {
+      // Clicking a tile while "all" is on: switch to per-site mode.
+      setAllSitesOn(false);
+      localStorage.setItem("smurov-proxy-all-sites-on", "false");
+    }
+    toggleSiteById(site.id, !site.enabled);
+  };
+
+  const handleToggleAll = () => {
+    const next = !allSitesOn;
+    setAllSitesOn(next);
+    localStorage.setItem("smurov-proxy-all-sites-on", String(next));
   };
 
   // addSiteByDomain normalizes the input and adds the site to the list if
@@ -525,44 +433,18 @@ export function AppRules({ visible }: Props) {
     if (!domain) return;
     domain = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
     if (!domain) return;
-    if (sites.some((s) => s.domain === domain)) {
-      // Already in the list — just enable it.
-      setEnabledSites((prev) => {
-        const ns = new Set(prev);
-        ns.delete("*");
-        ns.add(domain);
-        saveEnabledSites(ns);
-        applyPac(browsersOn, ns);
-        return ns;
-      });
+    // If a site with this primary domain already exists, just enable it.
+    const existing = localSites.find((s) => s.domains[0] === domain);
+    if (existing) {
+      if (!existing.enabled) toggleSiteById(existing.id, true);
       return;
     }
     const label = labelFromDomain(domain);
-    const site: BrowserSite = { domain, label };
-    const next = [...sites, site];
-    setSites(next);
-    saveCustomSites(next);
-    setEnabledSites((prev) => {
-      const ns = new Set(prev);
-      ns.delete("*");
-      ns.add(domain);
-      saveEnabledSites(ns);
-      applyPac(browsersOn, ns);
-      return ns;
-    });
+    addSite(domain, label);
   };
 
-  const removeSite = (domain: string) => {
-    const next = sites.filter((s) => s.domain !== domain);
-    setSites(next);
-    saveCustomSites(next);
-    setEnabledSites((prev) => {
-      const ns = new Set(prev);
-      ns.delete(domain);
-      saveEnabledSites(ns);
-      applyPac(browsersOn, ns);
-      return ns;
-    });
+  const handleRemoveSite = (siteId: number) => {
+    removeSiteById(siteId);
   };
 
   if (!visible) return null;
@@ -596,11 +478,13 @@ export function AppRules({ visible }: Props) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <SitesGrid
-            sites={sites.filter((s) => s.domain !== "*")}
-            enabledSites={enabledSites}
+            sites={localSites}
+            enabledSites={enabledSet}
             liveSites={liveSites}
-            onToggleSite={toggleSite}
-            onRemoveSite={removeSite}
+            allSitesOn={allSitesOn}
+            onToggleAll={handleToggleAll}
+            onToggleSite={handleToggleTile}
+            onRemoveSite={handleRemoveSite}
             onAddSite={() => setAddSiteModalOpen(true)}
           />
 
@@ -616,7 +500,7 @@ export function AppRules({ visible }: Props) {
       {addSiteModalOpen && (
         <AddSiteModal
           onClose={() => setAddSiteModalOpen(false)}
-          onAdd={(domain) => {
+          onAdd={(domain: string) => {
             addSiteByDomain(domain);
             setAddSiteModalOpen(false);
           }}
@@ -704,19 +588,22 @@ function SitesGrid({
   sites,
   enabledSites,
   liveSites,
+  allSitesOn,
+  onToggleAll,
   onToggleSite,
   onRemoveSite,
   onAddSite,
 }: {
-  sites: BrowserSite[];
-  enabledSites: Set<string>;
-  liveSites: Set<string>;
-  onToggleSite: (domain: string) => void;
-  onRemoveSite: (domain: string) => void;
+  sites: LocalSite[];
+  enabledSites: Set<number>;
+  liveSites: Set<number>;
+  allSitesOn: boolean;
+  onToggleAll: () => void;
+  onToggleSite: (site: LocalSite) => void;
+  onRemoveSite: (siteId: number) => void;
   onAddSite: () => void;
 }) {
-  const allOn = enabledSites.has("*");
-  const enabledCount = sites.filter((s) => enabledSites.has(s.domain)).length;
+  const enabledCount = sites.filter((s) => enabledSites.has(s.id)).length;
 
   return (
     <div>
@@ -777,7 +664,7 @@ function SitesGrid({
               letterSpacing: 0,
             }}
           >
-            {allOn ? "all sites" : `${enabledCount} enabled`}
+            {allSitesOn ? "all sites" : `${enabledCount} enabled`}
           </span>
         </div>
         <button
@@ -811,19 +698,19 @@ function SitesGrid({
         }}
       >
         <AllBrowsersTile
-          enabled={allOn}
+          enabled={allSitesOn}
           live={liveSites.size > 0}
-          onClick={() => onToggleSite("*")}
+          onClick={onToggleAll}
         />
         {sites.map((site) => (
           <SiteTile
-            key={site.domain}
+            key={site.id}
             site={site}
-            enabled={enabledSites.has(site.domain)}
-            live={liveSites.has(site.domain)}
-            dimmed={allOn}
-            onClick={() => onToggleSite(site.domain)}
-            onRemove={!site.builtin ? () => onRemoveSite(site.domain) : undefined}
+            enabled={enabledSites.has(site.id)}
+            live={liveSites.has(site.id)}
+            dimmed={allSitesOn}
+            onClick={() => onToggleSite(site)}
+            onRemove={() => onRemoveSite(site.id)}
           />
         ))}
       </div>
@@ -920,14 +807,15 @@ function SiteTile({
   onClick,
   onRemove,
 }: {
-  site: BrowserSite;
+  site: LocalSite;
   enabled: boolean;
   live: boolean;
   dimmed: boolean;
   onClick: () => void;
   onRemove?: () => void;
 }) {
-  const color = SITE_COLORS[site.domain] || "#4285F4";
+  const primaryDomain = site.domains[0] || "";
+  const color = SITE_COLORS[primaryDomain] || "#4285F4";
   return (
     <div
       onClick={onClick}
@@ -1002,7 +890,7 @@ function SiteTile({
         }}
       >
         <SiteTileIcon
-          domain={site.domain}
+          domain={primaryDomain}
           name={site.label}
           color={color}
           size={40}
@@ -1029,7 +917,7 @@ function SiteTile({
           color: enabled ? "#888" : "#555",
         }}
       >
-        {site.domain}
+        {primaryDomain}
       </div>
     </div>
   );
