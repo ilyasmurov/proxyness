@@ -13,7 +13,7 @@
     {
       "from": "resources/",
       "to": "resources/",
-      "filter": ["daemon-*", "helper-*", "wintun.dll"]
+      "filter": ["daemon-*", "helper-*", "wintun.dll", "seed_sites.json"]
     }
   ],
   "publish": {

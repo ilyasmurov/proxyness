@@ -415,6 +415,19 @@ function setupIpc() {
 
   ipcMain.handle("get-installed-apps", () => getInstalledApps());
 
+  ipcMain.handle("get-seed-sites", () => {
+    try {
+      const resourcesPath = app.isPackaged
+        ? path.join(process.resourcesPath, "resources")
+        : path.join(__dirname, "../../resources");
+      const content = fs.readFileSync(path.join(resourcesPath, "seed_sites.json"), "utf-8");
+      return JSON.parse(content);
+    } catch (err) {
+      console.error("[seed] failed to load seed_sites.json:", err);
+      return [];
+    }
+  });
+
   ipcMain.on("tray-status", (_e, connected: boolean) => {
     setTrayConnected(connected);
   });

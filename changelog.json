@@ -1,5 +1,12 @@
 [
   {
+    "id": "49021e01-853a-425c-aac1-fb401b159372",
+    "title": "IPC `get-seed-sites`: main процесс читает seed_sites.json из resources и отдаёт renderer'у",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T18:21:48.426101+00:00"
+  },
+  {
     "id": "b7241213-e623-42f8-b916-946ab3eff216",
     "title": "useSites React hook с триггерами sync (старт, online, 5-мин интервал)",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-31T19:49:12Z"
-  },
-  {
-    "id": "35d6ab57-be67-44d7-98d2-f1d7176fac31",
-    "title": "Оптимизация TUN на Windows — кеш поиска процессов",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-03-31T19:46:38Z"
   }
 ]
