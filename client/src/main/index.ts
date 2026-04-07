@@ -1,8 +1,7 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, powerMonitor } from "electron";
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, powerMonitor, net } from "electron";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
-import https from "https";
 import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
@@ -118,20 +117,37 @@ function isNewer(latest: string, current: string): boolean {
 
 let installerPath = "";
 
+// Uses Electron's net.fetch (Chromium network stack) instead of the Node.js
+// built-in fetch so that the request goes through the system proxy / PAC
+// script. SmurovProxy enables a system proxy in TUN mode, so the update
+// check is routed through the VPN — otherwise on Windows the direct fetch
+// to github.com fails because GitHub is blocked at the ISP level in Russia
+// and Node's undici fetch ignores the system proxy.
 async function fetchYml(): Promise<{ version: string; filename: string } | null> {
   const ymlFile = process.platform === "darwin" ? "latest-mac.yml" : "latest.yml";
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const res = await fetch(`${UPDATE_BASE}/${ymlFile}`, { signal: controller.signal });
+    const res = await net.fetch(`${UPDATE_BASE}/${ymlFile}`, {
+      signal: controller.signal,
+      redirect: "follow",
+    });
     clearTimeout(timeout);
+    if (!res.ok) {
+      console.error(`[update] fetch ${ymlFile} returned ${res.status}`);
+      return null;
+    }
     const text = await res.text();
     const ver = text.match(/^version:\s*(.+)$/m);
     const p = text.match(/^path:\s*(.+)$/m);
-    if (!ver || !p) return null;
+    if (!ver || !p) {
+      console.error(`[update] failed to parse ${ymlFile}: ${text.slice(0, 200)}`);
+      return null;
+    }
     return { version: ver[1].trim(), filename: p[1].trim() };
-  } catch {
+  } catch (err) {
     clearTimeout(timeout);
+    console.error(`[update] fetch ${ymlFile} failed:`, err);
     return null;
   }
 }
@@ -156,6 +172,10 @@ function setupIpc() {
   });
 
   ipcMain.on("download-update", async () => {
+    // Uses net.fetch for the same reason as fetchYml: Node's https doesn't
+    // respect the system proxy, so direct download from github.com would
+    // fail on Windows where GitHub is blocked at the ISP level.
+    let file: fs.WriteStream | null = null;
     try {
       const info = await fetchYml();
       if (!info) {
@@ -164,63 +184,49 @@ function setupIpc() {
       }
 
       const dest = path.join(app.getPath("temp"), info.filename);
-      const file = fs.createWriteStream(dest);
+      file = fs.createWriteStream(dest);
 
-      function followRedirects(url: string, maxRedirects = 5) {
-        https.get(url, (res) => {
-          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            res.resume(); // drain response
-            if (maxRedirects <= 0) {
-              file.close();
-              sendUpdate("update-error");
-              return;
-            }
-            followRedirects(res.headers.location, maxRedirects - 1);
-            return;
-          }
-
-          if (res.statusCode !== 200) {
-            file.close();
-            sendUpdate("update-error");
-            return;
-          }
-
-          const total = parseInt(res.headers["content-length"] || "0", 10);
-          let downloaded = 0;
-          let lastPercent = 0;
-
-          res.on("data", (chunk: Buffer) => {
-            downloaded += chunk.length;
-            file.write(chunk);
-            if (total > 0) {
-              const percent = Math.round((downloaded / total) * 100);
-              if (percent !== lastPercent) {
-                lastPercent = percent;
-                sendUpdate("update-progress", percent);
-              }
-            } else {
-              sendUpdate("update-progress", -downloaded);
-            }
-          });
-
-          res.on("end", () => {
-            file.end(() => {
-              installerPath = dest;
-              sendUpdate("update-downloaded");
-            });
-          });
-
-          res.on("error", handleError);
-        }).on("error", handleError);
-      }
-
-      function handleError() {
+      const res = await net.fetch(`${UPDATE_BASE}/${info.filename}`, {
+        redirect: "follow",
+      });
+      if (!res.ok || !res.body) {
+        console.error(`[update] download returned ${res.status}`);
         file.close();
         sendUpdate("update-error");
+        return;
       }
 
-      followRedirects(`${UPDATE_BASE}/${info.filename}`);
-    } catch {
+      const total = parseInt(res.headers.get("content-length") || "0", 10);
+      let downloaded = 0;
+      let lastPercent = 0;
+
+      const reader = res.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          file.write(Buffer.from(value));
+          downloaded += value.length;
+          if (total > 0) {
+            const percent = Math.round((downloaded / total) * 100);
+            if (percent !== lastPercent) {
+              lastPercent = percent;
+              sendUpdate("update-progress", percent);
+            }
+          } else {
+            sendUpdate("update-progress", -downloaded);
+          }
+        }
+      }
+
+      const f = file;
+      f.end(() => {
+        installerPath = dest;
+        sendUpdate("update-downloaded");
+      });
+    } catch (err) {
+      console.error(`[update] download failed:`, err);
+      if (file) file.close();
       sendUpdate("update-error");
     }
   });

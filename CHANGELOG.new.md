@@ -1,7 +1,3 @@
-## improvement
-Redesigned status bar — wider window, inline Connect/Disconnect button, spinning globe indicator
-Doubled window width (420 → 840) and merged the old StatusBar + full-width ConnectionButton into a single row: animated wireframe Earth with scrolling continents when connected, red outlined circle when disconnected, spinner during connect/reconnect. "Connected to <ip>" now has the IP in grey, uptime pushed to the right next to the action button.
-
-## feature
-Clickable transport badge to switch UDP/TLS/Auto on the fly
-Clicking the UDP/TLS badge in the status bar opens a dropdown with all three transport modes and instantly switches — daemon setMode + forced reconnect. The old Transport submenu in Settings is gone.
+## fix
+Auto-update check now works on Windows — routed through system proxy via Electron net.fetch
+The previous implementation used Node's fetch and https modules, neither of which respect the system proxy. On macOS the direct github.com fetch somehow squeaked through the TUN routes, but on Windows it failed with "Connection error" because GitHub is blocked at the ISP level in Russia. Switched both the version check and the installer download to Electron's net module, which uses Chromium's networking stack and routes through the SOCKS5 system proxy SmurovProxy sets up in TUN mode.

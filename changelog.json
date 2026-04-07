@@ -1,5 +1,12 @@
 [
   {
+    "id": "d00b7ccc-ad61-420f-8c3f-cdead545187a",
+    "title": "Auto-update check now works on Windows — routed through system proxy via Electron net.fetch",
+    "description": "The previous implementation used Node's fetch and https modules, neither of which respect the system proxy. On macOS the direct github.com fetch somehow squeaked through the TUN routes, but on Windows it failed with \"Connection error\" because GitHub is blocked at the ISP level in Russia. Switched both the version check and the installer download to Electron's net module, which uses Chromium's networking stack and routes through the SOCKS5 system proxy SmurovProxy sets up in TUN mode.",
+    "type": "fix",
+    "createdAt": "2026-04-07T10:55:25.685576+00:00"
+  },
+  {
     "id": "a38a4ba6-7815-4843-8c3b-91aa995076f6",
     "title": "Redesigned status bar — wider window, inline Connect/Disconnect button, spinning globe indicator",
     "description": "Doubled window width (420 → 840) and merged the old StatusBar + full-width ConnectionButton into a single row: animated wireframe Earth with scrolling continents when connected, red outlined circle when disconnected, spinner during connect/reconnect. \"Connected to <ip>\" now has the IP in grey, uptime pushed to the right next to the action button.",
