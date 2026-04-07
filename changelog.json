@@ -1,5 +1,12 @@
 [
   {
+    "id": "9440fa0e-d0ad-481a-8344-e99990aaffd7",
+    "title": "GetMySites возвращает снапшот каталога юзера с доменами и IP",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T17:53:33.884010+00:00"
+  },
+  {
     "id": "7a0453fb-97c9-4960-a485-ac7dce193177",
     "title": "Сид каталога сайтов на старте сервера",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-31T15:42:37Z"
-  },
-  {
-    "id": "fac09a7a-dd84-4f22-8038-9872debafd3a",
-    "title": "Сброс соединений при обновлении правил или PAC",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-03-31T15:20:10Z"
   }
 ]

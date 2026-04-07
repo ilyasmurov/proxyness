@@ -79,3 +79,68 @@ func TestSeedSitesIdempotent(t *testing.T) {
 		t.Fatalf("after reopen: expected %d sites, got %d (seed ran twice?)", len(seedSites), count)
 	}
 }
+
+func seedUser(t *testing.T, d *DB) int {
+	t.Helper()
+	u, err := d.CreateUser("test")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	return u.ID
+}
+
+func TestGetMySitesEmpty(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	sites, err := d.GetMySites(userID)
+	if err != nil {
+		t.Fatalf("GetMySites: %v", err)
+	}
+	if len(sites) != 0 {
+		t.Fatalf("expected empty, got %d sites", len(sites))
+	}
+}
+
+func TestGetMySitesJoinsDomainsAndIPs(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	// Attach seed site id=1 (youtube) to this user as enabled
+	if _, err := d.sql.Exec(
+		`INSERT INTO user_sites (user_id, site_id, enabled, updated_at) VALUES (?, 1, 1, 1000)`,
+		userID,
+	); err != nil {
+		t.Fatalf("insert user_sites: %v", err)
+	}
+
+	sites, err := d.GetMySites(userID)
+	if err != nil {
+		t.Fatalf("GetMySites: %v", err)
+	}
+	if len(sites) != 1 {
+		t.Fatalf("expected 1 site, got %d", len(sites))
+	}
+
+	s := sites[0]
+	if s.ID != 1 || s.Slug != "youtube" || !s.Enabled {
+		t.Fatalf("unexpected site: %+v", s)
+	}
+	// The primary domain plus all extras should be present
+	wantDomains := append([]string{"youtube.com"}, seedSites[0].Domains...)
+	if len(s.Domains) != len(wantDomains) {
+		t.Fatalf("domains len = %d, want %d", len(s.Domains), len(wantDomains))
+	}
+	for _, want := range wantDomains {
+		found := false
+		for _, got := range s.Domains {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing domain %q in %v", want, s.Domains)
+		}
+	}
+}
