@@ -1,5 +1,12 @@
 [
   {
+    "id": "0b9684f8-3ea6-4e05-b6b3-ad04c6e31eed",
+    "title": "Каталог сайтов с синхронизацией: грид сайтов теперь синкается между устройствами через сервер",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T19:43:33.124041+00:00"
+  },
+  {
     "id": "1aabb493-4b6e-4cc8-b092-59b55842da16",
     "title": "Integration test для POST /api/sync (full round trip)",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-31T21:54:09Z"
-  },
-  {
-    "id": "0c090171-0ee9-4142-bddc-08e32ec112c2",
-    "title": "Фикс IP_UNICAST_IF на Windows",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-03-31T20:17:42Z"
   }
 ]
