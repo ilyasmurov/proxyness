@@ -1,5 +1,12 @@
 [
   {
+    "id": "245ef2b6-1589-4cd3-86f8-c7c09aea5a8f",
+    "title": "TUN Engine: unit-тесты для state machine и kill switch",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T15:52:49.928727+00:00"
+  },
+  {
     "id": "322cf4d6-66b4-42f4-b28d-49b895ef850b",
     "title": "TUN: kill switch — отказ новых TCP/UDP потоков в Reconnecting",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-03-29T16:40:47Z"
-  },
-  {
-    "id": "77d53194-9dde-4b6c-b758-67e7557baa44",
-    "title": "Обновление настроек прокси Windows",
-    "description": "InternetSetOption",
-    "type": "fix",
-    "createdAt": "2026-03-29T16:27:48Z"
   }
 ]

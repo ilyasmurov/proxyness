@@ -1,2 +1,2 @@
-## feature
-TUN: kill switch — отказ новых TCP/UDP потоков в Reconnecting
+## improvement
+TUN Engine: unit-тесты для state machine и kill switch
