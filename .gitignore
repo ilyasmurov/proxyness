@@ -10,6 +10,7 @@ client/dist-electron/
 client/release/
 client/resources/daemon-*
 client/resources/helper-*
+client/resources/seed_sites.json
 server/admin-ui/node_modules/
 server/admin-ui/dist/
 server/internal/admin/static/

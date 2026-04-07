@@ -1,2 +1,2 @@
 ## feature
-CLI export-seed для генерации seed_sites.json для клиента
+make build-client генерирует seed_sites.json из Go-источника

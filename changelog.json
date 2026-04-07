@@ -1,5 +1,12 @@
 [
   {
+    "id": "916a3489-56db-484e-b4ce-a5fdd9e1e0ca",
+    "title": "make build-client генерирует seed_sites.json из Go-источника",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T18:07:13.928262+00:00"
+  },
+  {
     "id": "34d0ca67-8c52-43b5-b664-ca48810a1d44",
     "title": "CLI export-seed для генерации seed_sites.json для клиента",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-03-31T18:20:17Z"
-  },
-  {
-    "id": "345db1b4-28c7-4f0c-869e-a6e86dc64a12",
-    "title": "Расширенные домены для проксирования сайтов",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-31T18:06:56Z"
   }
 ]

@@ -25,6 +25,8 @@ install-daemon:
 
 # Electron GUI
 build-client: build-daemon build-helper
+	mkdir -p client/resources
+	go run ./server/cmd/export-seed > client/resources/seed_sites.json
 	cd client && npm run build && npx electron-builder
 
 # Run all Go tests
