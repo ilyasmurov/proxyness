@@ -156,6 +156,12 @@ func Open(path string) (*DB, error) {
 	}
 
 	d := &DB{sql: sqlDB}
+
+	if err := d.SeedSitesIfEmpty(); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("seed sites: %w", err)
+	}
+
 	d.syncChangelog()
 	d.cleanOldLogs()
 	return d, nil

@@ -1,5 +1,12 @@
 [
   {
+    "id": "7a0453fb-97c9-4960-a485-ac7dce193177",
+    "title": "Сид каталога сайтов на старте сервера",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T17:51:50.010861+00:00"
+  },
+  {
     "id": "3eb97e49-df31-4e26-8e06-52c35c07fecd",
     "title": "Сидовый список встроенных сайтов перенесён в Go-код сервера",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-03-31T15:20:10Z"
-  },
-  {
-    "id": "1cec661d-746f-4009-9e76-62147cfed3ca",
-    "title": "Проксирование по сайтам через PAC файл",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-31T14:36:56Z"
   }
 ]

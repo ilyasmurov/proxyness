@@ -91,3 +91,57 @@ var seedSites = []SeedSite{
 		Domains:       []string{"telegram.org", "t.me", "telegram.me"},
 	},
 }
+
+// SeedSitesIfEmpty populates the sites/site_domains/site_ips tables
+// with the built-in catalog. It's a no-op if sites already has any row,
+// so it runs once per fresh database and is safe to call on every start.
+// Uses explicit ids (i+1) so the bundled seed JSON can predict them.
+func (d *DB) SeedSitesIfEmpty() error {
+	var count int
+	if err := d.sql.QueryRow(`SELECT COUNT(*) FROM sites`).Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for i, s := range seedSites {
+		id := int64(i + 1)
+		if _, err := tx.Exec(
+			`INSERT INTO sites (id, slug, label, primary_domain, approved, created_by_user_id)
+			 VALUES (?, ?, ?, ?, 1, NULL)`,
+			id, s.Slug, s.Label, s.PrimaryDomain,
+		); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(
+			`INSERT INTO site_domains (site_id, domain, is_primary) VALUES (?, ?, 1)`,
+			id, s.PrimaryDomain,
+		); err != nil {
+			return err
+		}
+		for _, dom := range s.Domains {
+			if _, err := tx.Exec(
+				`INSERT INTO site_domains (site_id, domain, is_primary) VALUES (?, ?, 0)`,
+				id, dom,
+			); err != nil {
+				return err
+			}
+		}
+		for _, cidr := range s.IPs {
+			if _, err := tx.Exec(
+				`INSERT INTO site_ips (site_id, cidr) VALUES (?, ?)`,
+				id, cidr,
+			); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
+}
