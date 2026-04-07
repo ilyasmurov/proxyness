@@ -2,9 +2,10 @@
 # Pre-commit hook: enforce changelog entry on every commit.
 # Create CHANGELOG.new.md with entries before committing.
 
-# Allow commits that only modify changelog infrastructure
+# Allow commits that only modify changelog infrastructure or backlog notes
+# (backlog/ is for deferred ideas and doesn't need a user-facing changelog entry)
 CHANGED=$(git diff --cached --name-only)
-if echo "$CHANGED" | grep -qvE '^(scripts/|changelog\.json|\.gitignore|CHANGELOG\.new\.md)'; then
+if echo "$CHANGED" | grep -qvE '^(scripts/|changelog\.json|\.gitignore|CHANGELOG\.new\.md|backlog/)'; then
     # Non-infrastructure files changed — require changelog
     if [ ! -f "CHANGELOG.new.md" ]; then
         echo ""
