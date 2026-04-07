@@ -1,2 +1,2 @@
-## feature
-App: индикатор Reconnecting от daemon мерджится в StatusBar
+## fix
+StatusBar: кнопка Disconnect остаётся кликабельной во время Reconnecting

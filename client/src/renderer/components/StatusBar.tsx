@@ -263,7 +263,7 @@ export function StatusBar({
           )}
           <button
             onClick={connected ? onDisconnect : onConnect}
-            disabled={busy}
+            disabled={loading}
             style={{
               padding: "8px 22px",
               background: busy
