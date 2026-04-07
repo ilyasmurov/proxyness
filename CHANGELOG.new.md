@@ -1,2 +1,2 @@
 ## feature
-Дизайн-спек: серверный каталог сайтов + per-user sync (этап A)
+План имплементации: sites catalog + per-user sync (этап A)

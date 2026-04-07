@@ -1,5 +1,12 @@
 [
   {
+    "id": "9c45efad-ca5c-41df-a534-95248de6ff88",
+    "title": "План имплементации: sites catalog + per-user sync (этап A)",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T17:41:42.886259+00:00"
+  },
+  {
     "id": "9607d453-d4f0-4a27-90c5-f1f9f96dbb95",
     "title": "Дизайн-спек: серверный каталог сайтов + per-user sync (этап A)",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Полный перехват трафика приложений",
     "type": "feature",
     "createdAt": "2026-04-01T09:52:23Z"
-  },
-  {
-    "id": "5fb99898-f671-4fbf-8f32-a4bb7eecfc37",
-    "title": "Helper для управления TUN устройством",
-    "description": "macOS (utun) + Windows (wintun)",
-    "type": "feature",
-    "createdAt": "2026-03-30T13:58:32Z"
   }
 ]
