@@ -1,5 +1,12 @@
 [
   {
+    "id": "df9bded8-5faa-40b8-ab8f-8044cc536762",
+    "title": "Deploy workflow: pass commit message via env var to avoid bash parse error on multi-line messages",
+    "description": "Previous commit directly interpolated the commit message into a bash expression, which broke when the message had newlines. Using an env var fixes that and also closes a shell injection vector.",
+    "type": "fix",
+    "createdAt": "2026-04-07T08:34:08.499221+00:00"
+  },
+  {
     "id": "55180410-dbd9-487f-8cdc-a239339314a4",
     "title": "Server graceful shutdown — broadcast MsgSessionClose to all UDP sessions on SIGTERM",
     "description": "Docker stop now gives the server 5s to send a new 0x07 MsgSessionClose packet to every active session before exiting. Daemon handles the message by closing the transport immediately, which triggers engine.healthLoop to reconnect within ~1s instead of waiting for the 20s keepalive dead-ticker. Cuts deploy downtime from ~4 minutes to ~2s for v1.24.3+ clients.",

@@ -12,18 +12,24 @@ jobs:
   # Skip the whole deploy pipeline when the commit message contains
   # [skip-deploy]. Use this for docs/changelog/backlog changes that don't
   # need to restart the production server.
+  #
+  # The commit message is passed via env var (not direct interpolation) so
+  # multi-line messages and shell metacharacters can't break the bash parser
+  # or be used for command injection.
   check:
     runs-on: ubuntu-latest
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
     steps:
       - id: check
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          if [[ "${{ github.event.head_commit.message }}" == *"[skip-deploy]"* ]]; then
-            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          if [[ "$COMMIT_MSG" == *"[skip-deploy]"* ]]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
             echo "Commit message contains [skip-deploy], skipping deploy"
           else
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
           fi
 
   test:
