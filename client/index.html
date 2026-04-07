@@ -21,6 +21,15 @@
         from { transform: translateX(0); }
         to   { transform: translateX(-50%); }
       }
+      /* Used by the LIVE / active-count indicators in the sites grid */
+      @keyframes smurov-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+      @keyframes smurov-live-glow {
+        0%, 100% { box-shadow: 0 0 3px rgba(76,175,80,0.5); }
+        50%      { box-shadow: 0 0 8px rgba(76,175,80,0.9); }
+      }
     </style>
   </head>
   <body>

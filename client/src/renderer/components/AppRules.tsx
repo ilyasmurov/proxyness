@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 declare global {
   interface Window {
@@ -142,6 +142,109 @@ function BrandIcon({ iconKey, size = 16, color = "#fff" }: { iconKey: string; si
   );
 }
 
+// Label derived from a domain: "reddit.com" -> "Reddit", "x.com" -> "X",
+// "www.example.com" -> "Example".
+function labelFromDomain(domain: string): string {
+  const stripped = domain.replace(/^www\./, "");
+  const first = stripped.split(".")[0];
+  if (!first) return domain;
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
+
+// Stable HSL hue from a domain so each fallback avatar gets its own color.
+function hashHue(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+  return Math.abs(h) % 360;
+}
+
+// Letter-avatar fallback used when the favicon can't be fetched.
+function LetterAvatar({ name, domain, size = 40 }: { name: string; domain: string; size?: number }) {
+  const hue = hashHue(domain);
+  const letter = (name.charAt(0) || "?").toUpperCase();
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 8,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        fontWeight: 700,
+        fontSize: size * 0.5,
+        textTransform: "uppercase",
+        letterSpacing: "-0.5px",
+        background: `linear-gradient(135deg, hsl(${hue}, 65%, 50%), hsl(${(hue + 25) % 360}, 65%, 38%))`,
+        flexShrink: 0,
+      }}
+    >
+      {letter}
+    </div>
+  );
+}
+
+// SiteTileIcon renders the best available icon for a site:
+//  1. Built-in site with a Simple Icons entry -> BrandIcon (vector brand mark)
+//  2. Otherwise -> Google S2 favicons API, with LetterAvatar fallback when
+//     the image is missing, errors, or is Google's 16x16 generic globe.
+function SiteTileIcon({
+  domain,
+  name,
+  color,
+  size = 40,
+  monochrome,
+}: {
+  domain: string;
+  name: string;
+  color: string;
+  size?: number;
+  monochrome?: boolean;
+}) {
+  const iconKey = SITE_ICON_MAP[domain];
+  const [failed, setFailed] = useState(false);
+
+  // Reset the "failed" flag when the domain changes so re-rendering with a
+  // new site attempts the favicon fetch fresh.
+  useEffect(() => {
+    setFailed(false);
+  }, [domain]);
+
+  if (iconKey) {
+    return <BrandIcon iconKey={iconKey} size={size} color={monochrome ? "#555" : color} />;
+  }
+
+  if (failed) {
+    return <LetterAvatar name={name} domain={domain} size={size} />;
+  }
+
+  const src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  return (
+    <img
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      style={{
+        width: size,
+        height: size,
+        objectFit: "contain",
+        borderRadius: 6,
+        filter: monochrome ? "grayscale(1) opacity(0.5)" : undefined,
+      }}
+      onError={() => setFailed(true)}
+      onLoad={(e) => {
+        // Google returns a 16x16 generic globe for unknown domains. Treat
+        // any image at or below that size as "no real favicon".
+        if ((e.currentTarget as HTMLImageElement).naturalWidth <= 16) {
+          setFailed(true);
+        }
+      }}
+    />
+  );
+}
+
 const STORAGE_KEY_SITES = "smurov-proxy-sites";
 const STORAGE_KEY_ENABLED_SITES = "smurov-proxy-enabled-sites";
 const STORAGE_KEY_NO_TLS = "smurov-proxy-no-tls";
@@ -205,9 +308,11 @@ export function AppRules({ visible }: Props) {
   const [sites, setSites] = useState<BrowserSite[]>(loadSites);
   const [enabledSites, setEnabledSites] = useState<Set<string>>(loadEnabledSites);
   const [noTLS, setNoTLS] = useState<Set<string>>(loadNoTLS);
-  const [browsersOn, setBrowsersOn] = useState(() => localStorage.getItem("smurov-proxy-browsers-on") !== "false");
-  const [showSites, setShowSites] = useState(false);
-  const [newSite, setNewSite] = useState("");
+  const [browsersOn] = useState(() => localStorage.getItem("smurov-proxy-browsers-on") !== "false");
+  const [addSiteModalOpen, setAddSiteModalOpen] = useState(false);
+  // TODO: wire up real live-traffic tracking from the daemon. For now the
+  // LIVE indicator stays off until we add per-site stats to the tunnel.
+  const liveSites = new Set<string>();
 
   useEffect(() => {
     if (!visible) return;
@@ -337,29 +442,31 @@ export function AppRules({ visible }: Props) {
     });
   };
 
-  const toggleBrowsers = () => {
-    const next = !browsersOn;
-    setBrowsersOn(next);
-    localStorage.setItem("smurov-proxy-browsers-on", next ? "true" : "false");
-    applyPac(next, enabledSites);
-  };
-
   const toggleSite = (domain: string) => {
     setEnabledSites((prev) => {
       const next = new Set(prev);
       if (domain === "*") {
-        // "All sites" toggle: if turning on, enable only "*"; if turning off, clear
+        // Toggle the "All browsers" override. We preserve the underlying
+        // individual site state so turning it off restores the previous
+        // picks, and turning it back on just layers the wildcard over them.
         if (next.has("*")) {
           next.delete("*");
         } else {
-          next.clear();
           next.add("*");
         }
       } else {
-        // Specific site: disable "all sites" if it was on
-        next.delete("*");
-        if (next.has(domain)) next.delete(domain);
-        else next.add(domain);
+        // Click on a specific site tile:
+        //  - If All browsers ("*") is on: switch from "all" mode to
+        //    "selected" mode. Remove "*". If the tile was already enabled,
+        //    leave it alone; otherwise enable it.
+        //  - If All browsers is off: normal toggle on the tile.
+        if (next.has("*")) {
+          next.delete("*");
+          next.add(domain);
+        } else {
+          if (next.has(domain)) next.delete(domain);
+          else next.add(domain);
+        }
       }
       saveEnabledSites(next);
       applyPac(browsersOn, next);
@@ -367,16 +474,27 @@ export function AppRules({ visible }: Props) {
     });
   };
 
-  const addSite = () => {
-    let domain = newSite.trim().toLowerCase();
+  // addSiteByDomain normalizes the input and adds the site to the list if
+  // it's new. Called by the AddSiteModal.
+  const addSiteByDomain = (raw: string) => {
+    let domain = raw.trim().toLowerCase();
     if (!domain) return;
-    // Strip protocol and path
     domain = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
-    if (!domain || sites.some((s) => s.domain === domain)) {
-      setNewSite("");
+    if (!domain) return;
+    if (sites.some((s) => s.domain === domain)) {
+      // Already in the list — just enable it.
+      setEnabledSites((prev) => {
+        const ns = new Set(prev);
+        ns.delete("*");
+        ns.add(domain);
+        saveEnabledSites(ns);
+        applyPac(browsersOn, ns);
+        return ns;
+      });
       return;
     }
-    const site: BrowserSite = { domain, label: domain };
+    const label = labelFromDomain(domain);
+    const site: BrowserSite = { domain, label };
     const next = [...sites, site];
     setSites(next);
     saveCustomSites(next);
@@ -388,7 +506,6 @@ export function AppRules({ visible }: Props) {
       applyPac(browsersOn, ns);
       return ns;
     });
-    setNewSite("");
   };
 
   const removeSite = (domain: string) => {
@@ -433,133 +550,33 @@ export function AppRules({ visible }: Props) {
           All traffic goes through proxy
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {/* Browsers toggle with expandable sites */}
-          <div>
-            <div
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "6px 8px", borderRadius: 6, cursor: "pointer",
-                background: browsersOn ? "rgba(59,130,246,0.08)" : "transparent",
-              }}
-              onClick={() => setShowSites(!showSites)}
-            >
-              <div
-                style={{
-                  width: 28, height: 28, borderRadius: 6,
-                  background: browsersOn ? "#4285F4" : "#333",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 12, fontWeight: 700, color: browsersOn ? "#fff" : "#666",
-                  flexShrink: 0,
-                }}
-              >
-                B
-              </div>
-              <div style={{ flex: 1, fontSize: 13, color: browsersOn ? "#eee" : "#666" }}>
-                Browsers
-                <span style={{ fontSize: 10, color: "#555", marginLeft: 6 }}>
-                  {enabledSites.has("*") ? "all sites" : `${enabledSites.size} site${enabledSites.size !== 1 ? "s" : ""}`}
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: 10, color: "#555",
-                  transition: "transform 0.2s",
-                  transform: showSites ? "rotate(90deg)" : "rotate(0deg)",
-                  display: "inline-block", userSelect: "none",
-                }}
-              >
-                ▶
-              </span>
-              <div
-                onClick={(e) => { e.stopPropagation(); toggleBrowsers(); }}
-                style={{
-                  width: 36, height: 20, borderRadius: 10,
-                  background: browsersOn ? "#3b82f6" : "#333",
-                  position: "relative", transition: "background 0.2s", cursor: "pointer",
-                }}
-              >
-                <div style={{
-                  width: 16, height: 16, borderRadius: 8, background: "#fff",
-                  position: "absolute", top: 2, left: browsersOn ? 18 : 2,
-                  transition: "left 0.2s",
-                }} />
-              </div>
-            </div>
-
-            {showSites && (
-              <div style={{ marginLeft: 38, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
-                {sites.map((site) => {
-                  const isOn = enabledSites.has(site.domain);
-                  return (
-                    <div key={site.domain} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", cursor: "pointer" }} onClick={() => toggleSite(site.domain)}>
-                      <div style={{ width: 14, height: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {SITE_ICON_MAP[site.domain] && (
-                          <BrandIcon
-                            iconKey={SITE_ICON_MAP[site.domain]}
-                            size={14}
-                            color={isOn ? (SITE_COLORS[site.domain] || "#ccc") : "#555"}
-                          />
-                        )}
-                      </div>
-                      <span style={{ flex: 1, fontSize: 12, color: isOn ? "#ccc" : "#666" }}>{site.label}</span>
-                      {!site.builtin && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); removeSite(site.domain); }}
-                          style={{
-                            background: "transparent", border: "none", color: "#555",
-                            fontSize: 14, cursor: "pointer", padding: "0 4px", lineHeight: 1,
-                          }}
-                        >
-                          ×
-                        </button>
-                      )}
-                      <div
-                        style={{
-                          width: 16, height: 16, borderRadius: 4,
-                          background: isOn ? "#3b82f6" : "transparent",
-                          border: `1.5px solid ${isOn ? "#3b82f6" : "#555"}`,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 10, color: "#fff", flexShrink: 0,
-                        }}
-                      >
-                        {isOn && "✓"}
-                      </div>
-                    </div>
-                  );
-                })}
-                <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-                  <input
-                    value={newSite}
-                    onChange={(e) => setNewSite(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addSite()}
-                    placeholder="example.com"
-                    style={{
-                      flex: 1, padding: "4px 8px", fontSize: 12,
-                      background: "#0d1117", border: "1px solid #333", borderRadius: 4,
-                      color: "#ccc", outline: "none",
-                    }}
-                  />
-                  <button
-                    onClick={addSite}
-                    style={{
-                      padding: "4px 10px", fontSize: 11,
-                      background: "#1a3a5c", border: "1px solid #3b82f6", borderRadius: 4,
-                      color: "#fff", cursor: "pointer",
-                    }}
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <SitesGrid
+            sites={sites.filter((s) => s.domain !== "*")}
+            enabledSites={enabledSites}
+            liveSites={liveSites}
+            onToggleSite={toggleSite}
+            onRemoveSite={removeSite}
+            onAddSite={() => setAddSiteModalOpen(true)}
+          />
 
           {/* App toggles */}
-          {resolved.map(({ app }) => (
-            <AppToggle key={app.id} app={app} isOn={enabled.has(app.id)} noTLS={noTLS.has(app.id)} onToggle={toggleApp} onToggleTLS={toggleNoTLS} />
-          ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {resolved.map(({ app }) => (
+              <AppToggle key={app.id} app={app} isOn={enabled.has(app.id)} noTLS={noTLS.has(app.id)} onToggle={toggleApp} onToggleTLS={toggleNoTLS} />
+            ))}
+          </div>
         </div>
+      )}
+
+      {addSiteModalOpen && (
+        <AddSiteModal
+          onClose={() => setAddSiteModalOpen(false)}
+          onAdd={(domain) => {
+            addSiteByDomain(domain);
+            setAddSiteModalOpen(false);
+          }}
+        />
       )}
     </div>
   );
@@ -632,5 +649,626 @@ function AppToggle({ app, isOn, noTLS, onToggle, onToggleTLS }: {
         }} />
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SitesGrid — grid of tiles for the browser sites picker
+// ---------------------------------------------------------------------------
+
+function SitesGrid({
+  sites,
+  enabledSites,
+  liveSites,
+  onToggleSite,
+  onRemoveSite,
+  onAddSite,
+}: {
+  sites: BrowserSite[];
+  enabledSites: Set<string>;
+  liveSites: Set<string>;
+  onToggleSite: (domain: string) => void;
+  onRemoveSite: (domain: string) => void;
+  onAddSite: () => void;
+}) {
+  const allOn = enabledSites.has("*");
+  const activeCount = allOn
+    ? sites.length
+    : sites.filter((s) => enabledSites.has(s.domain)).length;
+
+  return (
+    <div>
+      {/* Section header: label + active counter on the left, Add button on right */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            color: "#888",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+            fontWeight: 600,
+            fontFamily: "ui-monospace, monospace",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>Browser sites</span>
+          {liveSites.size > 0 && (
+            <span
+              style={{
+                fontSize: 10,
+                color: "#4caf50",
+                textTransform: "none",
+                letterSpacing: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                fontFamily: "ui-monospace, monospace",
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#4caf50",
+                  boxShadow: "0 0 4px rgba(76,175,80,0.8)",
+                  animation: "smurov-pulse 1.5s ease-in-out infinite",
+                }}
+              />
+              {liveSites.size} active
+            </span>
+          )}
+          <span
+            style={{
+              fontSize: 10,
+              color: "#555",
+              textTransform: "none",
+              letterSpacing: 0,
+            }}
+          >
+            {activeCount} enabled
+          </span>
+        </div>
+        <button
+          onClick={onAddSite}
+          style={{
+            padding: "5px 12px 5px 10px",
+            background: "#1a3a5c",
+            border: "1px solid #3b82f6",
+            borderRadius: 5,
+            color: "#fff",
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 700, lineHeight: 1 }}>+</span>
+          Add site
+        </button>
+      </div>
+
+      {/* Grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 10,
+        }}
+      >
+        <AllBrowsersTile
+          enabled={allOn}
+          live={liveSites.size > 0}
+          onClick={() => onToggleSite("*")}
+        />
+        {sites.map((site) => (
+          <SiteTile
+            key={site.domain}
+            site={site}
+            enabled={enabledSites.has(site.domain)}
+            live={liveSites.has(site.domain)}
+            dimmed={allOn}
+            onClick={() => onToggleSite(site.domain)}
+            onRemove={!site.builtin ? () => onRemoveSite(site.domain) : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// All browsers mega-tile (spans 2 columns)
+function AllBrowsersTile({
+  enabled,
+  live,
+  onClick,
+}: {
+  enabled: boolean;
+  live: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        gridColumn: "span 2",
+        position: "relative",
+        padding: 18,
+        borderRadius: 10,
+        cursor: "pointer",
+        transition: "transform 0.15s ease, background 0.2s, border-color 0.2s, color 0.2s",
+        minHeight: 130,
+        background: enabled
+          ? "linear-gradient(135deg, rgba(76, 175, 80, 0.18), rgba(76, 175, 80, 0.06))"
+          : "#0d111c",
+        border: enabled
+          ? "1px solid rgba(76, 175, 80, 0.5)"
+          : "1px solid #222",
+        color: enabled ? "#4caf50" : "#555",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "none";
+      }}
+    >
+      {enabled && live && <LiveLabel />}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          width: "100%",
+          height: "100%",
+        }}
+      >
+        <div style={{ flexShrink: 0 }}>
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
+            <circle cx="12" cy="12" r="10" />
+            <ellipse cx="12" cy="12" rx="10" ry="4" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <ellipse cx="12" cy="12" rx="4" ry="10" />
+          </svg>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              fontSize: 17,
+              fontWeight: 700,
+              color: enabled ? "#eee" : "#666",
+              marginBottom: 4,
+            }}
+          >
+            All browsers
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: enabled ? "#888" : "#555",
+              lineHeight: 1.4,
+            }}
+          >
+            Route every browser site through the proxy
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Individual site tile
+function SiteTile({
+  site,
+  enabled,
+  live,
+  dimmed,
+  onClick,
+  onRemove,
+}: {
+  site: BrowserSite;
+  enabled: boolean;
+  live: boolean;
+  dimmed: boolean;
+  onClick: () => void;
+  onRemove?: () => void;
+}) {
+  const color = SITE_COLORS[site.domain] || "#4285F4";
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        position: "relative",
+        padding: "16px 10px 14px",
+        borderRadius: 10,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 6,
+        cursor: "pointer",
+        transition:
+          "transform 0.15s ease, background 0.2s, border-color 0.2s, color 0.2s, filter 0.25s, opacity 0.25s",
+        minHeight: 130,
+        background: enabled ? `${color}14` : "#0d111c",
+        border: enabled ? `1px solid ${color}40` : "1px solid #222",
+        filter: dimmed ? "grayscale(0.8)" : undefined,
+        opacity: dimmed ? 0.35 : 1,
+      }}
+      onMouseEnter={(e) => {
+        if (!dimmed) e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "none";
+      }}
+    >
+      {enabled && live && !dimmed && <LiveLabel />}
+      {onRemove && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          title="Remove site"
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 6,
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            background: "transparent",
+            border: "none",
+            color: "#555",
+            fontSize: 14,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 1,
+            padding: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#2a3040";
+            e.currentTarget.style.color = "#f44336";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "#555";
+          }}
+        >
+          ×
+        </button>
+      )}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 4,
+        }}
+      >
+        <SiteTileIcon
+          domain={site.domain}
+          name={site.label}
+          color={color}
+          size={40}
+          monochrome={!enabled}
+        />
+      </div>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          textAlign: "center",
+          lineHeight: 1.2,
+          color: enabled ? "#eee" : "#666",
+        }}
+      >
+        {site.label}
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          fontFamily: "ui-monospace, monospace",
+          textAlign: "center",
+          opacity: 0.8,
+          color: enabled ? "#888" : "#555",
+        }}
+      >
+        {site.domain}
+      </div>
+    </div>
+  );
+}
+
+// Green LIVE pill with pulsing glow
+function LiveLabel() {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 8,
+        right: 8,
+        fontSize: 9,
+        fontWeight: 700,
+        color: "#4caf50",
+        background: "rgba(76, 175, 80, 0.12)",
+        border: "1px solid rgba(76, 175, 80, 0.4)",
+        padding: "2px 6px",
+        borderRadius: 4,
+        letterSpacing: 0.5,
+        fontFamily: "ui-monospace, monospace",
+        animation: "smurov-live-glow 1.5s ease-in-out infinite",
+      }}
+    >
+      ● LIVE
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AddSiteModal — modal dialog for adding a new custom site with live preview
+// ---------------------------------------------------------------------------
+
+function AddSiteModal({
+  onClose,
+  onAdd,
+}: {
+  onClose: () => void;
+  onAdd: (domain: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+  const cleanDomain = normalized.replace(/^www\./, "");
+  const previewName = cleanDomain ? labelFromDomain(cleanDomain) : "";
+
+  const submit = () => {
+    if (!cleanDomain) return;
+    onAdd(cleanDomain);
+  };
+
+  return (
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.65)",
+        backdropFilter: "blur(3px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        style={{
+          width: 420,
+          background: "#16213e",
+          border: "1px solid #333",
+          borderRadius: 12,
+          padding: 24,
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.6)",
+          position: "relative",
+        }}
+      >
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            background: "transparent",
+            border: "none",
+            color: "#888",
+            fontSize: 18,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 1,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#2a3040";
+            e.currentTarget.style.color = "#fff";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "#888";
+          }}
+        >
+          ✕
+        </button>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#eee", marginBottom: 6 }}>
+          Add site
+        </div>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.5 }}>
+          Enter the main domain you want to proxy.
+        </div>
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+          placeholder="example.com"
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            background: "#0b0f1a",
+            border: "1px solid #333",
+            borderRadius: 6,
+            color: "#eee",
+            fontSize: 14,
+            outline: "none",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            marginBottom: 14,
+          }}
+        />
+
+        {/* Preview */}
+        <div style={{ marginBottom: 14 }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "#666",
+              textTransform: "uppercase",
+              letterSpacing: 1,
+              fontFamily: "ui-monospace, monospace",
+              marginBottom: 6,
+            }}
+          >
+            Preview
+          </div>
+          <div
+            style={{
+              padding: "16px 10px 14px",
+              background: "#0b0f1a",
+              border: "1px solid #333",
+              borderRadius: 10,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 6,
+              minHeight: 120,
+              justifyContent: cleanDomain ? "flex-start" : "center",
+            }}
+          >
+            {cleanDomain ? (
+              <>
+                <SiteTileIcon
+                  domain={cleanDomain}
+                  name={previewName}
+                  color="#4285F4"
+                  size={40}
+                />
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>
+                  {previewName}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "ui-monospace, monospace",
+                    color: "#888",
+                  }}
+                >
+                  {cleanDomain}
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 11, color: "#555" }}>
+                Type a domain to see a preview
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{
+            fontSize: 11,
+            color: "#9ca3af",
+            marginBottom: 14,
+            padding: "10px 12px",
+            background: "rgba(59, 130, 246, 0.08)",
+            border: "1px solid rgba(59, 130, 246, 0.25)",
+            borderRadius: 6,
+            lineHeight: 1.6,
+          }}
+        >
+          The main domain, <Code>www.</Code> and all <Code>*.</Code> subdomains
+          are added automatically. Related CDN domains (like{" "}
+          <Code>redditmedia.com</Code>) would need manual curation for full
+          coverage.
+        </div>
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "8px 18px",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              background: "transparent",
+              color: "#888",
+              border: "1px solid #333",
+              fontFamily: "inherit",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!cleanDomain}
+            style={{
+              padding: "8px 18px",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: cleanDomain ? "pointer" : "not-allowed",
+              background: cleanDomain ? "#3b82f6" : "#2a3040",
+              color: "#fff",
+              border: "none",
+              fontFamily: "inherit",
+              opacity: cleanDomain ? 1 : 0.6,
+            }}
+          >
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code
+      style={{
+        fontFamily: "ui-monospace, monospace",
+        color: "#cbd5e1",
+        background: "rgba(0,0,0,0.25)",
+        padding: "1px 4px",
+        borderRadius: 3,
+        fontSize: 10,
+      }}
+    >
+      {children}
+    </code>
   );
 }
