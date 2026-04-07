@@ -1,5 +1,12 @@
 [
   {
+    "id": "c961ef87-847c-4062-9e71-fce2baf4bd4e",
+    "title": "Спека extension v1: добавлен раздел Authentication & Pairing с per-extension token, paste-based pairing flow, обоснование почему не native messaging",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T20:44:59.940827+00:00"
+  },
+  {
     "id": "0428f4c2-69e8-4553-9153-406b5b7d203c",
     "title": "Спека browser extension v1: in-page панелька, auto-discovery через webRequest, block detection с silent verification",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-03-31T22:11:45Z"
-  },
-  {
-    "id": "db27ab53-a2f7-42d3-b3be-dd34e533481e",
-    "title": "Показ TLS/raw соединений по устройствам в админке",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-31T22:00:31Z"
   }
 ]

@@ -119,12 +119,24 @@ existing `127.0.0.1:9090` HTTP server. The daemon adds CORS headers allowing
 the extension's `chrome-extension://<id>` origin (the extension's stable ID
 will be hardcoded after first publish to the Web Store).
 
+All four endpoints require an `Authorization: Bearer <token>` header. The
+token is established via the pairing flow described in
+**Authentication & Pairing** below. Requests without a valid token return
+`401 Unauthorized`.
+
 | Method | Path | Purpose | Request | Response |
 |--------|------|---------|---------|----------|
 | `GET`  | `/sites/match?host=<eTLD+1>` | Is this host in the catalog? Is it currently proxy-enabled? | — | `{ in_catalog: bool, site_id: int?, proxy_enabled: bool, daemon_running: true }` |
 | `POST` | `/sites/add` | Add a new site (or dedup to existing) | `{ primary_domain, label }` | `{ site_id, deduped: bool }` |
 | `POST` | `/sites/discover` | Push discovered domains for a site | `{ site_id, domains: string[] }` | `{ added: int, deduped: int }` |
 | `POST` | `/sites/test` | Verify a URL through the proxy (block detection) | `{ url }` | `{ likely_blocked: bool, status_code: int? }` |
+
+**Scope note:** the existing daemon endpoints (`/tun/*`, `/pac/*`,
+`/transport`, `/tunnel/active-hosts`) remain **unauthenticated** in v1.
+Extending token auth to them would require lockstep updates to the desktop
+client and is out of scope for this spec — the new `/sites/*` endpoints are
+the only ones the extension calls, and they're the only ones that need the
+new auth boundary.
 
 These wrap calls to the existing `/api/sync` server endpoint:
 
@@ -140,6 +152,81 @@ The `/sites/test` endpoint is the only one that requires new daemon-side
 machinery (an `http.Client` whose `Transport.DialContext` routes through the
 existing tunnel rather than the protected dialer). Everything else is plumbing
 on top of the existing sync module.
+
+### Authentication & Pairing
+
+The daemon's new `/sites/*` endpoints require a per-extension bearer token.
+Without auth, any local process — including arbitrary JS loaded in any tab
+of any browser via `fetch("http://127.0.0.1:9090/...")` — could read or
+mutate the catalog. The threat is real because the very thing the extension
+does (talk to localhost from JS) is also what an attacker can do.
+
+#### Token generation
+
+On first start (and whenever the token file is missing), the daemon generates
+a 32-byte cryptographically-random token, hex-encodes it, and persists it:
+
+- **Unix:** `~/.config/smurov-proxy/daemon-token` with mode `0600`
+- **Windows:** `%APPDATA%\SmurovProxy\daemon-token` with the user's ACL only
+
+The token has no expiry. The user can manually rotate it (delete the file,
+restart the daemon) which invalidates all paired extensions.
+
+#### Token check middleware
+
+A new middleware in `daemon/internal/api/auth.go` is mounted **only on
+`/sites/*`** routes. It:
+
+1. Reads `Authorization: Bearer <token>` from the request.
+2. Constant-time-compares against the loaded token.
+3. On mismatch returns `401 Unauthorized` with no body.
+4. On the very first call from a new origin, also records the
+   `Origin` header so the desktop client can show "Paired with Chrome
+   extension `<id>`" in its UI.
+
+The middleware does NOT validate `Origin` against an allowlist — the token
+itself is the gate.
+
+#### Pairing flow
+
+1. User installs the extension and clicks the toolbar icon for the first time.
+2. Extension popup checks `chrome.storage.local` for a stored token. None
+   found → renders the pairing screen: "Open Smurov Proxy desktop app →
+   Browser Extension tab → copy the token here: `[_______________]`."
+3. User opens the desktop client, navigates to a new **Browser Extension**
+   tab. The tab shows the token with a Copy button, plus pairing status.
+4. User pastes the token into the extension popup. Popup validates by
+   calling `GET /sites/match?host=test.local` with the token. On 200, stores
+   the token in `chrome.storage.local` (key: `daemon_token`), shows ✓ Paired.
+5. From this point, every daemon API call from the service worker includes
+   the token in the `Authorization` header.
+6. The desktop client polls its own daemon for paired extension origins
+   every few seconds and updates its UI to show "Paired ✓".
+
+#### Re-pairing
+
+If a request returns 401 (token rotated, or token file missing because the
+user wiped state), the extension drops the cached token, re-shows the
+pairing screen, and prompts the user to fetch a new token from the desktop
+client. No data is lost — the pairing is purely about local API access.
+
+#### Why not native messaging
+
+The Manifest V3 native messaging API would let the extension fetch the
+token automatically without manual paste. We chose paste-based pairing
+because:
+
+- Native messaging requires shipping a separate native host binary AND
+  registering a manifest file at OS-specific paths (~/Library/...
+  /Chrome/NativeMessagingHosts/com.smurov.proxy.json on Mac, similar on
+  Win), which is extra build/install plumbing for both the desktop client
+  installer AND the extension.
+- The user only pairs once per browser. Friction is one-time and small.
+- Manual pairing makes the trust relationship visible to the user, which
+  matches the security-conscious posture this whole system is built on.
+
+Native messaging stays in the back pocket if pairing UX feedback shows it's
+worth the complexity later.
 
 ### Server Changes
 
@@ -211,6 +298,11 @@ Notes on the permissions:
   refresh when the user switches tabs.
 
 ## UX Flows
+
+All flows below assume the extension is **already paired** with the daemon
+(see Authentication & Pairing). The pairing screen is shown the first time
+the user clicks the extension icon and is dismissed forever after a
+successful token paste.
 
 ### Flow 1 — Add a new site
 
@@ -368,13 +460,14 @@ manifest tweaks for V3 differences). Safari is explicitly out of scope.
    when there's actionable state; keep the always-on content script under
    1KB (just bootstraps and waits for service worker messages).
 
-4. **Daemon API discoverable from any localhost process.** Currently anyone
-   running on `127.0.0.1` can hit the daemon API, including malicious
-   browser-loaded JS via `fetch("http://127.0.0.1:9090")`. Mitigation: add
-   a per-extension token (generated by daemon on startup, written to a
-   user-only-readable file, fetched by extension via native messaging on
-   first run). **Deferred to v1.1** — for the 7 trusted users localhost
-   trust is acceptable.
+4. **Token leak via filesystem.** The daemon's token file
+   (`~/.config/smurov-proxy/daemon-token`) is the gate to the new
+   `/sites/*` endpoints. Mode `0600` protects it from other Unix users on
+   the same machine, but malware running as the same user can read it.
+   That's the same threat surface as the device key file the desktop
+   client already stores, so we accept it. Token rotation by deleting the
+   file and restarting the daemon is a manual recovery path documented in
+   the README.
 
 5. **Catalog pollution.** A misbehaving extension copy could pump junk
    domains into popular sites' `site_domains` lists. Partial mitigation
@@ -398,7 +491,11 @@ manifest tweaks for V3 differences). Safari is explicitly out of scope.
 - Safari extension
 - Mobile browsers
 - Per-user discovery preferences (always-on for new sites in v1)
-- Daemon API authentication beyond localhost trust
+- Token auth for the existing `/tun/*`, `/pac/*`, `/transport`, and
+  `/tunnel/active-hosts` daemon endpoints (only the new `/sites/*` are
+  authenticated in v1)
+- Native messaging instead of paste-pairing (deferred until pairing UX
+  feedback shows it's worth the complexity)
 - Disable proxy for one specific subdomain on a proxied site
 - Browser bookmarklet fallback for users who can't install extensions
 - Telemetry / usage analytics inside the extension

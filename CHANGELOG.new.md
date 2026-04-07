@@ -1,2 +1,2 @@
 ## improvement
-Спека browser extension v1: in-page панелька, auto-discovery через webRequest, block detection с silent verification
+Спека extension v1: добавлен раздел Authentication & Pairing с per-extension token, paste-based pairing flow, обоснование почему не native messaging
