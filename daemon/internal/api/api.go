@@ -68,6 +68,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /proxy.pac", s.handlePAC)
 	mux.HandleFunc("POST /pac/sites", s.handlePacSitesUpdate)
 	mux.HandleFunc("GET /pac/sites", s.handlePacSitesGet)
+	mux.HandleFunc("GET /tunnel/active-hosts", s.handleActiveHosts)
 	// TUN endpoints
 	mux.HandleFunc("POST /tun/start", s.handleTUNStart)
 	mux.HandleFunc("POST /tun/stop", s.handleTUNStop)
@@ -234,6 +235,17 @@ func (s *Server) handlePacSitesGet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{
 		"proxy_all": proxyAll,
 		"sites":     sites,
+	})
+}
+
+// handleActiveHosts returns a snapshot of the hosts with at least one
+// in-flight SOCKS5 connection. Used by the UI to light up LIVE indicators
+// on browser-site tiles.
+func (s *Server) handleActiveHosts(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	hosts := s.tunnel.GetActiveHosts()
+	json.NewEncoder(w).Encode(map[string]any{
+		"hosts": hosts,
 	})
 }
 

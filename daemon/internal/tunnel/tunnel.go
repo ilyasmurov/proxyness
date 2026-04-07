@@ -50,10 +50,59 @@ type Tunnel struct {
 	connsMu sync.Mutex
 	conns   map[uint64]net.Conn
 	connSeq uint64
+
+	// Active-site tracking: host → number of in-flight SOCKS5 connections.
+	// Fed from handleSOCKS / exposed via GetActiveHosts so the UI can light
+	// up LIVE indicators on the corresponding browser tile.
+	activeHostsMu sync.Mutex
+	activeHosts   map[string]int
 }
 
 func New(meter *dstats.RateMeter) *Tunnel {
-	return &Tunnel{status: Disconnected, meter: meter, conns: make(map[uint64]net.Conn)}
+	return &Tunnel{
+		status:      Disconnected,
+		meter:       meter,
+		conns:       make(map[uint64]net.Conn),
+		activeHosts: make(map[string]int),
+	}
+}
+
+// trackHost increments the in-flight counter for a SOCKS5 destination host
+// so the UI can light up a LIVE indicator for the matching browser tile.
+func (t *Tunnel) trackHost(host string) {
+	if host == "" {
+		return
+	}
+	t.activeHostsMu.Lock()
+	t.activeHosts[host]++
+	t.activeHostsMu.Unlock()
+}
+
+// untrackHost decrements the in-flight counter and removes the entry when
+// it reaches zero.
+func (t *Tunnel) untrackHost(host string) {
+	if host == "" {
+		return
+	}
+	t.activeHostsMu.Lock()
+	t.activeHosts[host]--
+	if t.activeHosts[host] <= 0 {
+		delete(t.activeHosts, host)
+	}
+	t.activeHostsMu.Unlock()
+}
+
+// GetActiveHosts returns a snapshot of every host with at least one
+// in-flight SOCKS5 connection. Used by the /tunnel/active-hosts API for the
+// UI LIVE indicators.
+func (t *Tunnel) GetActiveHosts() []string {
+	t.activeHostsMu.Lock()
+	defer t.activeHostsMu.Unlock()
+	out := make([]string, 0, len(t.activeHosts))
+	for h := range t.activeHosts {
+		out = append(out, h)
+	}
+	return out
 }
 
 func (t *Tunnel) SetTransport(tr transport.Transport) {
@@ -345,6 +394,11 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 	}
 	target := fmt.Sprintf("%s:%d", req.Addr, req.Port)
 	log.Printf("[tunnel] new request: %s", target)
+
+	// Track this host as "live" for the duration of the relay so the UI
+	// LIVE indicators can light up the matching browser tile.
+	t.trackHost(req.Addr)
+	defer t.untrackHost(req.Addr)
 
 	t.mu.Lock()
 	tr := t.transport

@@ -1,5 +1,33 @@
 [
   {
+    "id": "b807d464-4354-4937-9e04-8b800b5a062e",
+    "title": "LIVE indicators on browser site tiles — real active-connection tracking",
+    "description": "The tunnel now tracks every in-flight SOCKS5 connection by hostname and exposes a /tunnel/active-hosts endpoint. The client polls it every 2 seconds and lights up a pulsing LIVE label on every site tile whose primary domain or related CDN domains currently have open connections. Works across the YouTube + googlevideo + ytimg set and similar tracker families via the existing RELATED_DOMAINS table.",
+    "type": "feature",
+    "createdAt": "2026-04-07T12:06:15.013675+00:00"
+  },
+  {
+    "id": "c96cb19b-6d4c-4872-89a9-837b5493bc98",
+    "title": "Browser sites counter shows \"all sites\" instead of total count when All browsers is on",
+    "description": "Previously \"11 enabled\" was confusing when the wildcard was active. Now it reads \"all sites\" when the wildcard is on, and \"N enabled\" with the real count of explicitly selected sites otherwise.",
+    "type": "fix",
+    "createdAt": "2026-04-07T12:06:15.013828+00:00"
+  },
+  {
+    "id": "0b948769-e6c1-4909-be26-4f4a5b65fd01",
+    "title": "Daemon: per-host active-connection tracking in the tunnel",
+    "description": "Simple concurrent map[string]int of in-flight SOCKS5 connections, incremented/decremented in handleSOCKS. Exposed via the new GET /tunnel/active-hosts endpoint.",
+    "type": "improvement",
+    "createdAt": "2026-04-07T12:06:15.013834+00:00"
+  },
+  {
+    "id": "d5255d67-f525-4f3d-8e57-a831a4dd0f03",
+    "title": "Daemon deploys: server shutdown — tunnel now increments and decrements cleanly",
+    "description": "handleSOCKS calls trackHost and untrackHost around the relay lifetime so the counter never leaks on errors.",
+    "type": "fix",
+    "createdAt": "2026-04-07T12:06:15.013840+00:00"
+  },
+  {
     "id": "79228976-9bb8-485a-ae03-27fc648c02b6",
     "title": "Browser sites picker redesigned as a grid of brand tiles",
     "description": "Selected-apps mode now shows a 4-column grid of site tiles instead of the old collapsible list. The first tile is a wide \"All browsers\" card that toggles the wildcard proxy; when it's on, individual tiles dim to show they're overridden. Clicking any tile while All browsers is on switches to selected-sites mode and enables that tile. Tile colors come from the site's brand color, monochrome when disabled.",

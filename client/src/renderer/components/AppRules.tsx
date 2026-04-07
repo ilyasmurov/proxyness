@@ -310,9 +310,53 @@ export function AppRules({ visible }: Props) {
   const [noTLS, setNoTLS] = useState<Set<string>>(loadNoTLS);
   const [browsersOn] = useState(() => localStorage.getItem("smurov-proxy-browsers-on") !== "false");
   const [addSiteModalOpen, setAddSiteModalOpen] = useState(false);
-  // TODO: wire up real live-traffic tracking from the daemon. For now the
-  // LIVE indicator stays off until we add per-site stats to the tunnel.
-  const liveSites = new Set<string>();
+  // Set of hosts with active SOCKS5 connections, refreshed from the daemon.
+  // Each element is a raw hostname as seen by the tunnel (e.g. "m.youtube.com").
+  const [activeHosts, setActiveHosts] = useState<string[]>([]);
+
+  // Poll /tunnel/active-hosts every 2s while the picker is visible so the
+  // LIVE indicator on browser tiles reflects real traffic.
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("http://127.0.0.1:9090/tunnel/active-hosts");
+        if (!res.ok) return;
+        const data: { hosts?: string[] } = await res.json();
+        if (!cancelled) setActiveHosts(data.hosts || []);
+      } catch {
+        // Silently ignore — daemon might be restarting.
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [visible]);
+
+  // Map from active hosts to the set of site domains that are currently live.
+  // A site is live when any of its primary or RELATED_DOMAINS matches (by
+  // suffix) at least one active host.
+  const liveSites = (() => {
+    if (activeHosts.length === 0) return new Set<string>();
+    const live = new Set<string>();
+    const hostMatches = (host: string, pattern: string): boolean =>
+      host === pattern || host.endsWith("." + pattern);
+    for (const site of sites) {
+      if (site.domain === "*") continue;
+      const patterns = [site.domain, ...(RELATED_DOMAINS[site.domain] || [])];
+      for (const host of activeHosts) {
+        if (patterns.some((p) => hostMatches(host, p))) {
+          live.add(site.domain);
+          break;
+        }
+      }
+    }
+    return live;
+  })();
 
   useEffect(() => {
     if (!visible) return;
@@ -672,9 +716,7 @@ function SitesGrid({
   onAddSite: () => void;
 }) {
   const allOn = enabledSites.has("*");
-  const activeCount = allOn
-    ? sites.length
-    : sites.filter((s) => enabledSites.has(s.domain)).length;
+  const enabledCount = sites.filter((s) => enabledSites.has(s.domain)).length;
 
   return (
     <div>
@@ -735,7 +777,7 @@ function SitesGrid({
               letterSpacing: 0,
             }}
           >
-            {activeCount} enabled
+            {allOn ? "all sites" : `${enabledCount} enabled`}
           </span>
         </div>
         <button
