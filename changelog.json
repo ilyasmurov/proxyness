@@ -1,5 +1,12 @@
 [
   {
+    "id": "53b78c10-2c46-421a-ad6a-84381ed3d070",
+    "title": "Окно реконнекта увеличено до ~60 сек (20 попыток × 3 сек) вместо 15 сек",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T16:49:54.389926+00:00"
+  },
+  {
     "id": "f914ffde-33a4-4e3a-a289-c6f12fcb623a",
     "title": "TUN: детектор реконнекта по ошибкам OpenStream — срабатывает за ~5 сек вместо минуты, когда transport.Alive() врёт про живой транспорт",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-01T12:14:37Z"
-  },
-  {
-    "id": "a8007592-358c-4812-ae13-1d0ef4c45a16",
-    "title": "Блокировка QUIC (UDP 443) для фолбека на TCP",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-30T12:15:16Z"
   }
 ]

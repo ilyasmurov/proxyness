@@ -509,7 +509,10 @@ func (e *Engine) reconnectTransport() bool {
 		return false
 	}
 
-	const maxReconnects = 5
+	// 20 × 3s ≈ 60s total reconnect window — long enough to ride out a
+	// typical wifi flap, short enough that the user gives up manually
+	// rather than staring at "Reconnecting…" forever.
+	const maxReconnects = 20
 	const reconnectDelay = 3 * time.Second
 
 	for attempt := 1; attempt <= maxReconnects; attempt++ {
@@ -544,7 +547,9 @@ func (e *Engine) reconnectTransport() bool {
 }
 
 func (e *Engine) healthLoop() {
-	const maxFailures = 3
+	// 12 × 5s = 60s — matches the reconnectTransport budget above so
+	// both detectors give up at the same point.
+	const maxFailures = 12
 	ticker := time.NewTicker(5 * time.Second) // was 30s — needed for fast D2 detection
 	defer ticker.Stop()
 

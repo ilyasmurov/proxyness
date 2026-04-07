@@ -321,8 +321,12 @@ func (t *Tunnel) transportDone() <-chan struct{} {
 }
 
 const (
-	reconnectDelay    = 3 * time.Second
-	maxReconnects     = 5
+	reconnectDelay = 3 * time.Second
+	// 20 × 3s ≈ 60s reconnect window — long enough to ride out a wifi
+	// flap, short enough that the user gives up manually.
+	maxReconnects = 20
+	// 12 × 5s = 60s D2 budget, matches reconnectTransport.
+	maxHealthFailures = 12
 )
 
 func (t *Tunnel) healthLoop() {
@@ -369,11 +373,11 @@ func (t *Tunnel) healthLoop() {
 			// D2 — health check.
 			if err := verifyServer(addr, key); err != nil {
 				failures++
-				log.Printf("[tunnel] D2: health check failed (%d/%d): %v", failures, maxRetries, err)
+				log.Printf("[tunnel] D2: health check failed (%d/%d): %v", failures, maxHealthFailures, err)
 				if failures == 1 {
 					t.setReconnecting()
 				}
-				if failures >= maxRetries {
+				if failures >= maxHealthFailures {
 					log.Printf("[tunnel] D2: exhausted, disconnecting")
 					t.mu.Lock()
 					t.lastError = "Server temporarily unavailable, try again later"
