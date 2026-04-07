@@ -1,2 +1,2 @@
 ## improvement
-RateMeter: трекинг lastByteAt для детектора traffic stall
+Tunnel: новый статус Reconnecting с helper-методами для перехода

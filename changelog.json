@@ -1,5 +1,12 @@
 [
   {
+    "id": "2188086a-6ec7-4dea-a9e8-84f61b62b633",
+    "title": "Tunnel: новый статус Reconnecting с helper-методами для перехода",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T15:40:53.011046+00:00"
+  },
+  {
     "id": "fd32a3f6-9394-4874-b1ce-dda4fbf145cd",
     "title": "RateMeter: трекинг lastByteAt для детектора traffic stall",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-31T22:00:31Z"
-  },
-  {
-    "id": "9f3a65e9-b372-429b-938b-afc1771e38a4",
-    "title": "Мультиплексирование прокси и HTTP на одном порту",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-29T10:50:58Z"
   }
 ]

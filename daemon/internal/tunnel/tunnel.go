@@ -36,6 +36,7 @@ type Status string
 const (
 	Disconnected Status = "disconnected"
 	Connected    Status = "connected"
+	Reconnecting Status = "reconnecting"
 )
 
 // TransportFactory creates a new transport instance for (re)connection.
@@ -212,6 +213,10 @@ func (t *Tunnel) Start(listenAddr, serverAddr, key string) error {
 	t.startTime = time.Now()
 	t.stopHealth = make(chan struct{})
 
+	if t.meter != nil {
+		t.meter.SeedLastByteAt()
+	}
+
 	go t.acceptLoop(ln)
 	go t.healthLoop()
 	return nil
@@ -244,6 +249,40 @@ func (t *Tunnel) GetStatus() Status {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.status
+}
+
+// setReconnecting flips status from Connected → Reconnecting and engages
+// the kill switch (closes all in-flight relays). Idempotent: calling twice
+// in the same state is a no-op. Caller must NOT hold t.mu.
+func (t *Tunnel) setReconnecting() {
+	t.mu.Lock()
+	if t.status != Connected {
+		t.mu.Unlock()
+		return
+	}
+	t.status = Reconnecting
+	t.mu.Unlock()
+
+	log.Printf("[tunnel] → reconnecting (kill switch engaged)")
+	t.CloseAllConns()
+}
+
+// setConnected flips status back to Connected after a successful recovery
+// (D1 reconnect or D2 verify-success). Refreshes meter.lastByteAt so the
+// next D3 tick sees a fresh timestamp. Caller must NOT hold t.mu.
+func (t *Tunnel) setConnected() {
+	t.mu.Lock()
+	if t.status != Reconnecting {
+		t.mu.Unlock()
+		return
+	}
+	t.status = Connected
+	t.mu.Unlock()
+
+	if t.meter != nil {
+		t.meter.SeedLastByteAt()
+	}
+	log.Printf("[tunnel] → connected (recovered)")
 }
 
 func (t *Tunnel) LastError() string {
