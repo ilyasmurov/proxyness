@@ -1,2 +1,2 @@
 ## feature
-GetMySites возвращает снапшот каталога юзера с доменами и IP
+ApplyAddOp с дедупликацией, slug collision handling и валидацией домена

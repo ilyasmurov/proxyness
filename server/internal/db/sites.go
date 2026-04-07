@@ -1,7 +1,10 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
+	"regexp"
+	"strings"
 )
 
 // UserSite is a single row of the user's current catalog snapshot as
@@ -86,4 +89,126 @@ func (d *DB) GetMySites(userID int) ([]UserSite, error) {
 	}
 
 	return out, nil
+}
+
+// AddOpResult captures what happened for a single "add" sync op.
+type AddOpResult struct {
+	SiteID  int
+	Deduped bool // true if the primary_domain was already in the catalog
+}
+
+// domainRE is a permissive lowercase domain matcher used to reject
+// obviously bogus user input like "NOT A DOMAIN" or "foo". Requires at
+// least one dot and standard DNS label characters.
+var domainRE = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$`)
+
+// ApplyAddOp handles an "add" sync operation inside the given transaction.
+func (d *DB) ApplyAddOp(tx *sql.Tx, userID int, primaryDomain, label string, at int64) (AddOpResult, error) {
+	primaryDomain = strings.ToLower(strings.TrimSpace(primaryDomain))
+	if !domainRE.MatchString(primaryDomain) {
+		return AddOpResult{}, fmt.Errorf("invalid domain: %q", primaryDomain)
+	}
+	label = strings.TrimSpace(label)
+	if label == "" {
+		label = labelFromDomain(primaryDomain)
+	}
+
+	var existingID int
+	err := tx.QueryRow(`SELECT id FROM sites WHERE primary_domain = ?`, primaryDomain).Scan(&existingID)
+	if err != nil && err != sql.ErrNoRows {
+		return AddOpResult{}, err
+	}
+
+	if existingID != 0 {
+		if err := ensureUserSite(tx, userID, existingID, at); err != nil {
+			return AddOpResult{}, err
+		}
+		return AddOpResult{SiteID: existingID, Deduped: true}, nil
+	}
+
+	slug, err := pickSlug(tx, primaryDomain)
+	if err != nil {
+		return AddOpResult{}, err
+	}
+
+	res, err := tx.Exec(
+		`INSERT INTO sites (slug, label, primary_domain, approved, created_by_user_id)
+		 VALUES (?, ?, ?, 1, ?)`,
+		slug, label, primaryDomain, userID,
+	)
+	if err != nil {
+		return AddOpResult{}, err
+	}
+	siteID64, err := res.LastInsertId()
+	if err != nil {
+		return AddOpResult{}, err
+	}
+	siteID := int(siteID64)
+
+	if _, err := tx.Exec(
+		`INSERT INTO site_domains (site_id, domain, is_primary) VALUES (?, ?, 1)`,
+		siteID, primaryDomain,
+	); err != nil {
+		return AddOpResult{}, err
+	}
+
+	if err := ensureUserSite(tx, userID, siteID, at); err != nil {
+		return AddOpResult{}, err
+	}
+	return AddOpResult{SiteID: siteID, Deduped: false}, nil
+}
+
+func ensureUserSite(tx *sql.Tx, userID, siteID int, at int64) error {
+	_, err := tx.Exec(
+		`INSERT OR IGNORE INTO user_sites (user_id, site_id, enabled, updated_at)
+		 VALUES (?, ?, 1, ?)`,
+		userID, siteID, at,
+	)
+	return err
+}
+
+func pickSlug(tx *sql.Tx, primaryDomain string) (string, error) {
+	base := primaryDomain
+	if i := strings.Index(base, "."); i >= 0 {
+		base = base[:i]
+	}
+	var cleaned strings.Builder
+	for _, r := range base {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			cleaned.WriteRune(r)
+		}
+	}
+	slug := cleaned.String()
+	if slug == "" {
+		slug = "site"
+	}
+
+	attempt := slug
+	suffix := 2
+	for {
+		var existing int
+		err := tx.QueryRow(`SELECT id FROM sites WHERE slug = ?`, attempt).Scan(&existing)
+		if err == sql.ErrNoRows {
+			return attempt, nil
+		}
+		if err != nil {
+			return "", err
+		}
+		attempt = fmt.Sprintf("%s%d", slug, suffix)
+		suffix++
+		if suffix > 1000 {
+			return "", fmt.Errorf("too many slug collisions for %q", slug)
+		}
+	}
+}
+
+func labelFromDomain(domain string) string {
+	base := domain
+	if i := strings.Index(base, "."); i >= 0 {
+		base = base[:i]
+	}
+	if base == "" {
+		return domain
+	}
+	return strings.ToUpper(base[:1]) + base[1:]
 }

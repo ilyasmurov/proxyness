@@ -102,6 +102,176 @@ func TestGetMySitesEmpty(t *testing.T) {
 	}
 }
 
+func TestApplyAddOpNewSite(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	tx, err := d.sql.Begin()
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	res, err := d.ApplyAddOp(tx, userID, "example.com", "Example", 1000)
+	if err != nil {
+		t.Fatalf("ApplyAddOp: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	if res.Deduped {
+		t.Fatalf("new site should not be deduped")
+	}
+	if res.SiteID == 0 {
+		t.Fatalf("SiteID should be set")
+	}
+
+	var slug, primary string
+	if err := d.sql.QueryRow(`SELECT slug, primary_domain FROM sites WHERE id=?`, res.SiteID).Scan(&slug, &primary); err != nil {
+		t.Fatalf("lookup: %v", err)
+	}
+	if slug != "example" || primary != "example.com" {
+		t.Fatalf("row = %q/%q, want example/example.com", slug, primary)
+	}
+
+	// user_sites row created with enabled=true
+	var enabled int
+	if err := d.sql.QueryRow(
+		`SELECT enabled FROM user_sites WHERE user_id=? AND site_id=?`, userID, res.SiteID,
+	).Scan(&enabled); err != nil {
+		t.Fatalf("user_sites lookup: %v", err)
+	}
+	if enabled != 1 {
+		t.Fatalf("enabled = %d, want 1", enabled)
+	}
+
+	// site_domains has primary row
+	var isPrimary int
+	if err := d.sql.QueryRow(
+		`SELECT is_primary FROM site_domains WHERE site_id=? AND domain=?`, res.SiteID, "example.com",
+	).Scan(&isPrimary); err != nil {
+		t.Fatalf("site_domains: %v", err)
+	}
+	if isPrimary != 1 {
+		t.Fatalf("primary flag wrong")
+	}
+
+	// sites.created_by_user_id is set
+	var createdBy int
+	if err := d.sql.QueryRow(
+		`SELECT created_by_user_id FROM sites WHERE id=?`, res.SiteID,
+	).Scan(&createdBy); err != nil {
+		t.Fatalf("created_by: %v", err)
+	}
+	if createdBy != userID {
+		t.Fatalf("created_by = %d, want %d", createdBy, userID)
+	}
+}
+
+func TestApplyAddOpDedupExisting(t *testing.T) {
+	d := tempDB(t)
+	userA := seedUser(t, d)
+	userB, _ := d.CreateUser("b")
+
+	tx, _ := d.sql.Begin()
+	resA, _ := d.ApplyAddOp(tx, userA, "example.com", "Example", 1000)
+	tx.Commit()
+
+	tx2, _ := d.sql.Begin()
+	resB, err := d.ApplyAddOp(tx2, userB.ID, "example.com", "ExampleUnused", 2000)
+	if err != nil {
+		t.Fatalf("ApplyAddOp B: %v", err)
+	}
+	tx2.Commit()
+
+	if resB.SiteID != resA.SiteID {
+		t.Fatalf("dedup failed: A=%d B=%d", resA.SiteID, resB.SiteID)
+	}
+	if !resB.Deduped {
+		t.Fatalf("should be marked deduped")
+	}
+
+	// Label is not overwritten
+	var label string
+	d.sql.QueryRow(`SELECT label FROM sites WHERE id=?`, resA.SiteID).Scan(&label)
+	if label != "Example" {
+		t.Fatalf("label = %q, want Example", label)
+	}
+
+	// Both users have user_sites rows
+	var count int
+	d.sql.QueryRow(`SELECT COUNT(*) FROM user_sites WHERE site_id=?`, resA.SiteID).Scan(&count)
+	if count != 2 {
+		t.Fatalf("user_sites count = %d, want 2", count)
+	}
+}
+
+func TestApplyAddOpExistingUserSiteIsNoop(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	tx, _ := d.sql.Begin()
+	res1, _ := d.ApplyAddOp(tx, userID, "example.com", "Example", 1000)
+	tx.Commit()
+
+	// Disable it manually
+	d.sql.Exec(`UPDATE user_sites SET enabled=0, updated_at=1500 WHERE user_id=? AND site_id=?`, userID, res1.SiteID)
+
+	// Re-add should be a no-op: enabled stays 0, updated_at stays 1500
+	tx2, _ := d.sql.Begin()
+	res2, _ := d.ApplyAddOp(tx2, userID, "example.com", "Example", 3000)
+	tx2.Commit()
+
+	if res2.SiteID != res1.SiteID {
+		t.Fatalf("site id mismatch")
+	}
+
+	var enabled int
+	var updatedAt int64
+	d.sql.QueryRow(
+		`SELECT enabled, updated_at FROM user_sites WHERE user_id=? AND site_id=?`,
+		userID, res2.SiteID,
+	).Scan(&enabled, &updatedAt)
+	if enabled != 0 || updatedAt != 1500 {
+		t.Fatalf("re-add mutated state: enabled=%d updated_at=%d", enabled, updatedAt)
+	}
+}
+
+func TestApplyAddOpSlugCollision(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	tx, _ := d.sql.Begin()
+	// Add two different primary_domains that produce the same base slug
+	res1, _ := d.ApplyAddOp(tx, userID, "foo.com", "Foo", 1000)
+	res2, err := d.ApplyAddOp(tx, userID, "foo.net", "Foo Net", 1001)
+	if err != nil {
+		t.Fatalf("ApplyAddOp 2: %v", err)
+	}
+	tx.Commit()
+
+	var slug1, slug2 string
+	d.sql.QueryRow(`SELECT slug FROM sites WHERE id=?`, res1.SiteID).Scan(&slug1)
+	d.sql.QueryRow(`SELECT slug FROM sites WHERE id=?`, res2.SiteID).Scan(&slug2)
+	if slug1 != "foo" {
+		t.Fatalf("slug1 = %q, want foo", slug1)
+	}
+	if slug2 != "foo2" {
+		t.Fatalf("slug2 = %q, want foo2", slug2)
+	}
+}
+
+func TestApplyAddOpInvalidDomain(t *testing.T) {
+	d := tempDB(t)
+	userID := seedUser(t, d)
+
+	tx, _ := d.sql.Begin()
+	defer tx.Rollback()
+	_, err := d.ApplyAddOp(tx, userID, "NOT A DOMAIN", "Bad", 1000)
+	if err == nil {
+		t.Fatalf("expected error for invalid domain")
+	}
+}
+
 func TestGetMySitesJoinsDomainsAndIPs(t *testing.T) {
 	d := tempDB(t)
 	userID := seedUser(t, d)
