@@ -1,2 +1,2 @@
-## feature
-AppRules.tsx использует useSites хук вместо хардкода сайтов
+## improvement
+Integration test для POST /api/sync (full round trip)
