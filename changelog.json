@@ -1,5 +1,12 @@
 [
   {
+    "id": "9607d453-d4f0-4a27-90c5-f1f9f96dbb95",
+    "title": "Дизайн-спек: серверный каталог сайтов + per-user sync (этап A)",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T17:27:28.140166+00:00"
+  },
+  {
     "id": "53b78c10-2c46-421a-ad6a-84381ed3d070",
     "title": "Окно реконнекта увеличено до ~60 сек (20 попыток × 3 сек) вместо 15 сек",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "macOS (utun) + Windows (wintun)",
     "type": "feature",
     "createdAt": "2026-03-30T13:58:32Z"
-  },
-  {
-    "id": "3e0464ed-e161-4385-9a29-9bd7a46f7eb3",
-    "title": "Per-app правила маршрутизации",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-01T12:14:37Z"
   }
 ]
