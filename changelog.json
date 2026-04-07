@@ -1,5 +1,12 @@
 [
   {
+    "id": "0428f4c2-69e8-4553-9153-406b5b7d203c",
+    "title": "Спека browser extension v1: in-page панелька, auto-discovery через webRequest, block detection с silent verification",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T20:36:06.105861+00:00"
+  },
+  {
     "id": "0b9684f8-3ea6-4e05-b6b3-ad04c6e31eed",
     "title": "Каталог сайтов с синхронизацией: грид сайтов теперь синкается между устройствами через сервер",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-31T22:00:31Z"
-  },
-  {
-    "id": "f33d9eeb-001a-4d9a-8248-f93e24c42fd8",
-    "title": "Обнаружение приложений Windows через реестр",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-31T21:54:09Z"
   }
 ]
