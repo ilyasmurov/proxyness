@@ -11,7 +11,7 @@ declare global {
 }
 
 interface DaemonStatus {
-  status: "connected" | "disconnected";
+  status: "connected" | "disconnected" | "reconnecting";
   uptime: number;
 }
 
@@ -29,7 +29,9 @@ export function useDaemon() {
       const res = await fetch(`${API_BASE}/status`);
       if (res.ok) {
         const data = await res.json();
-        // Server disconnected us (health check failure)
+        // Server fully disconnected us (health check exhausted, or D2 max-fails).
+        // Reconnecting is a transient state — sysproxy stays enabled so the
+        // upstream kill switch can block traffic.
         if (prevStatus.current === "connected" && data.status === "disconnected") {
           window.sysproxy.disable();
           if (data.error) {
