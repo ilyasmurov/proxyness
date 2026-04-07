@@ -1,5 +1,12 @@
 [
   {
+    "id": "322cf4d6-66b4-42f4-b28d-49b895ef850b",
+    "title": "TUN: kill switch — отказ новых TCP/UDP потоков в Reconnecting",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T15:51:11.229131+00:00"
+  },
+  {
     "id": "0fd2246c-67bf-4abb-8099-790899e3f3a5",
     "title": "TUN Engine: Reconnecting статус с детекторами D1/D2",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "InternetSetOption",
     "type": "fix",
     "createdAt": "2026-03-29T16:27:48Z"
-  },
-  {
-    "id": "372fd697-29c4-4309-a6dd-7f5fbc3453c9",
-    "title": "Динамическая лендинг страница",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-30T07:20:14Z"
   }
 ]

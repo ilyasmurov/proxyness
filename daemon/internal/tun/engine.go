@@ -602,6 +602,14 @@ func (e *Engine) healthCheck() error {
 }
 
 func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
+	// Kill switch: refuse new TCP flows while reconnecting. Calling
+	// Complete(true) tells gVisor to send a RST — the originating app
+	// will see "connection refused".
+	if e.GetStatus() == StatusReconnecting {
+		r.Complete(true)
+		return
+	}
+
 	id := r.ID()
 	dstAddr := id.LocalAddress.String()
 	dstPort := id.LocalPort
@@ -734,6 +742,15 @@ func (e *Engine) bypassTCP(local net.Conn, dstAddr string, dstPort uint16) {
 }
 
 func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
+	// Kill switch: drop new UDP flows while reconnecting. Returning
+	// without calling CreateEndpoint causes gVisor to discard the
+	// inbound packet silently. Apps see UDP timeout. We apply this
+	// even to DNS (port 53) so apps fail cleanly instead of resolving
+	// but failing to connect.
+	if e.GetStatus() == StatusReconnecting {
+		return
+	}
+
 	id := r.ID()
 	dstAddr := id.LocalAddress.String()
 	dstPort := id.LocalPort
