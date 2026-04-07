@@ -1,2 +1,2 @@
 ## feature
-useDaemon: тип DaemonStatus расширен на статус reconnecting
+App: индикатор Reconnecting от daemon мерджится в StatusBar

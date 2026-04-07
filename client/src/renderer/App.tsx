@@ -25,7 +25,7 @@ export function App() {
   const [activeTransport, setActiveTransport] = useState<string>("");
 
   // TUN state
-  const [tunStatus, setTunStatus] = useState<"inactive" | "active">("inactive");
+  const [tunStatus, setTunStatus] = useState<"inactive" | "active" | "reconnecting">("inactive");
   const [tunUptime, setTunUptime] = useState(0);
   const [tunLoading, setTunLoading] = useState(false);
   const [tunError, setTunError] = useState<string | null>(null);
@@ -101,11 +101,18 @@ export function App() {
       try {
         const s = await (window as any).tunProxy?.getStatus();
         if (s) {
-          const active = s.status === "active";
-          setTunStatus(active ? "active" : "inactive");
+          // Map daemon's tun status enum into our local one (which now
+          // includes the third "reconnecting" value).
+          let next: "inactive" | "active" | "reconnecting" = "inactive";
+          if (s.status === "active") next = "active";
+          else if (s.status === "reconnecting") next = "reconnecting";
+          setTunStatus(next);
           setTunUptime(s.uptime || 0);
+          const active = next === "active";
           if (s.error) setTunError(s.error);
-          if (wasConnected.current && !active && s.error) {
+          // Only fire client-side startReconnect on a HARD disconnect, not
+          // while the daemon is still trying to reconnect on its own.
+          if (wasConnected.current && !active && next !== "reconnecting" && s.error) {
             if (s.error.includes("bound to a different machine")) {
               localStorage.removeItem(STORAGE_KEY);
               setKey("");
@@ -141,6 +148,12 @@ export function App() {
       }
     }
   }, [socksError, proxyMode, reconnecting, key, startReconnect]);
+
+  // Daemon-reported reconnecting state — distinct from the client-side
+  // `reconnecting` flag (which drives startReconnect()'s loop). Both
+  // mean the user should see "Reconnecting…" in the UI; OR them.
+  const daemonReconnecting =
+    socksStatus.status === "reconnecting" || tunStatus === "reconnecting";
 
   // Effective state based on mode
   const isConnected = proxyMode === "tun"
@@ -400,7 +413,7 @@ export function App() {
         <StatusBar
           connected={isConnected}
           loading={isLoading}
-          reconnecting={reconnecting}
+          reconnecting={reconnecting || daemonReconnecting}
           server={SERVER.replace(":443", "")}
           uptime={uptime}
           transport={activeTransport}

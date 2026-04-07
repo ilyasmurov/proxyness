@@ -1,5 +1,12 @@
 [
   {
+    "id": "f1b7a015-6b54-4335-b153-9e1e3f8dea60",
+    "title": "App: индикатор Reconnecting от daemon мерджится в StatusBar",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-07T15:56:40.221418+00:00"
+  },
+  {
     "id": "e63c47c6-565e-493b-8d62-2317ab2ecfae",
     "title": "useDaemon: тип DaemonStatus расширен на статус reconnecting",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-29T17:00:16Z"
-  },
-  {
-    "id": "1ad22333-fd15-47af-ba1f-b45c6f69d3f5",
-    "title": "Кнопка проверки обновлений",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-30T18:48:39Z"
   }
 ]
