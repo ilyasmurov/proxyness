@@ -509,3 +509,37 @@ func (l *Listener) sendClose(sess *Session, streamID uint32) {
 		sess.ARQ.Send(pkgudp.MsgStreamClose, streamID, 0, nil) //nolint:errcheck
 	}
 }
+
+// BroadcastSessionClose sends a MsgSessionClose packet to every active session
+// so clients can tear down their local state and reconnect immediately instead
+// of waiting for the keepalive dead-ticker. Used on graceful server shutdown.
+//
+// Sent directly on the socket (bypassing ARQ) because we're about to exit —
+// retransmit timers wouldn't have time to fire anyway. Packet loss here just
+// means a client falls back to the 20s timeout, same as before.
+func (l *Listener) BroadcastSessionClose() {
+	sessions := l.sessions.Snapshot()
+	sent := 0
+	for _, sess := range sessions {
+		sess.mu.Lock()
+		addr := sess.ClientAddr
+		key := sess.SessionKey
+		token := sess.Token
+		sess.mu.Unlock()
+		if addr == nil || key == nil {
+			continue
+		}
+		pkt := &pkgudp.Packet{
+			ConnID: token,
+			Type:   pkgudp.MsgSessionClose,
+		}
+		data, err := pkgudp.EncodePacket(pkt, key)
+		if err != nil {
+			continue
+		}
+		if _, err := l.conn.WriteTo(data, addr); err == nil {
+			sent++
+		}
+	}
+	log.Printf("udp: broadcast session close sent to %d/%d sessions", sent, len(sessions))
+}

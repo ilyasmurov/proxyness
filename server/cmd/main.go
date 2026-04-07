@@ -13,6 +13,8 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"smurov-proxy/server/internal/admin"
@@ -88,6 +90,26 @@ func main() {
 		func(conn net.Conn, isTLS bool) { proxyHandler.Handle(conn, isTLS) },
 		adminHandler,
 	)
+
+	// Graceful shutdown: on SIGTERM/SIGINT (what `docker stop` sends) we
+	// broadcast a MsgSessionClose to every active UDP session so clients
+	// reconnect immediately instead of waiting for the keepalive dead-ticker,
+	// then close the listeners so the process exits cleanly.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		sig := <-sigCh
+		log.Printf("shutdown: received %s, broadcasting session close", sig)
+		udpListener.BroadcastSessionClose()
+		// Give UDP packets ~500ms to actually leave the kernel socket buffer
+		// before we close the connection underneath them.
+		time.Sleep(500 * time.Millisecond)
+		ln.Close()
+		udpConn.Close()
+		log.Printf("shutdown: listeners closed, exiting")
+		os.Exit(0)
+	}()
+
 	m.Serve()
 }
 

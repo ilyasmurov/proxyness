@@ -196,6 +196,13 @@ func (t *UDPTransport) recvLoop() {
 		t.lastRecv.Store(time.Now().UnixNano())
 
 		switch pkt.Type {
+		case pkgudp.MsgSessionClose:
+			// Server is shutting down gracefully — close the transport now so
+			// engine.healthLoop picks up the done signal and reconnects
+			// immediately, instead of waiting 20s for the keepalive dead-ticker.
+			log.Printf("udp: received session close from server, closing transport")
+			go t.Close()
+			return
 		case pkgudp.MsgStreamData:
 			t.arq.HandleData(pkt)
 		case pkgudp.MsgAck:

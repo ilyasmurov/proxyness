@@ -1,5 +1,26 @@
 [
   {
+    "id": "55180410-dbd9-487f-8cdc-a239339314a4",
+    "title": "Server graceful shutdown — broadcast MsgSessionClose to all UDP sessions on SIGTERM",
+    "description": "Docker stop now gives the server 5s to send a new 0x07 MsgSessionClose packet to every active session before exiting. Daemon handles the message by closing the transport immediately, which triggers engine.healthLoop to reconnect within ~1s instead of waiting for the 20s keepalive dead-ticker. Cuts deploy downtime from ~4 minutes to ~2s for v1.24.3+ clients.",
+    "type": "fix",
+    "createdAt": "2026-04-07T08:32:13.010201+00:00"
+  },
+  {
+    "id": "fc4958a9-d4ba-4682-bd23-0d67eb108173",
+    "title": "Deploy workflow: [skip-deploy] commit-message filter",
+    "description": "Commits with [skip-deploy] in the message (docs, changelog, backlog updates) now skip the entire build/push/deploy pipeline so unrelated changes don't restart the production server.",
+    "type": "improvement",
+    "createdAt": "2026-04-07T08:32:13.010360+00:00"
+  },
+  {
+    "id": "7edf9356-1a02-4b31-b401-7e03429a6878",
+    "title": "Add backlog/ folder for deferred ideas",
+    "description": "First entry: full graceful reload design (option C — SIGUSR2 fork-exec + FD inheritance + UDP session handover). Deferred until usage patterns justify the 4-7 day effort.",
+    "type": "improvement",
+    "createdAt": "2026-04-07T08:32:13.010367+00:00"
+  },
+  {
     "id": "6ea1958a-0e71-4747-98a4-53da8a8e03d6",
     "title": "Fix dead UDP session after macOS sleep/wake — engine now detects transport death and reconnects automatically",
     "description": "Three fixes: AutoTransport now exposes DoneChan so the health loop sees UDP session death; healthCheck validates the actual active transport instead of a separate TCP/TLS dial; Electron client listens for powerMonitor 'resume' and forces a clean reconnect on wake.",

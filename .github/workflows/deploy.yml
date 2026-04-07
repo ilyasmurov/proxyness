@@ -9,7 +9,26 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # Skip the whole deploy pipeline when the commit message contains
+  # [skip-deploy]. Use this for docs/changelog/backlog changes that don't
+  # need to restart the production server.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - id: check
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == *"[skip-deploy]"* ]]; then
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "Commit message contains [skip-deploy], skipping deploy"
+          else
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+          fi
+
   test:
+    needs: check
+    if: needs.check.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +44,8 @@ jobs:
           cd ../test && go test -v -timeout 30s
 
   build-and-push:
-    needs: test
+    needs: [check, test]
+    if: needs.check.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,7 +71,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
   deploy:
-    needs: build-and-push
+    needs: [check, build-and-push]
+    if: needs.check.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -78,8 +99,10 @@ jobs:
             # Pull latest image
             docker pull ghcr.io/${{ github.repository }}:latest
 
-            # Stop old container
-            docker stop smurov-proxy 2>/dev/null || true
+            # Stop old container — give it 5s to broadcast MsgSessionClose
+            # to active UDP clients so they reconnect immediately instead of
+            # hanging on the 20s keepalive timeout.
+            docker stop -t 5 smurov-proxy 2>/dev/null || true
             docker rm smurov-proxy 2>/dev/null || true
 
             # Start new container

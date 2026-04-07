@@ -8,12 +8,13 @@ import (
 
 // Message types for the inner payload.
 const (
-	MsgHandshake   byte = 0x01
-	MsgStreamOpen  byte = 0x02
-	MsgStreamData  byte = 0x03
-	MsgStreamClose byte = 0x04
-	MsgKeepalive   byte = 0x05
-	MsgAck         byte = 0x06
+	MsgHandshake    byte = 0x01
+	MsgStreamOpen   byte = 0x02
+	MsgStreamData   byte = 0x03
+	MsgStreamClose  byte = 0x04
+	MsgKeepalive    byte = 0x05
+	MsgAck          byte = 0x06
+	MsgSessionClose byte = 0x07 // server → client: session is being torn down, reconnect immediately
 )
 
 // Packet is the logical unit of the UDP transport protocol.

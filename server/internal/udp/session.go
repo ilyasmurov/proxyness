@@ -167,6 +167,19 @@ func (m *SessionManager) Remove(token uint32) {
 	}
 }
 
+// Snapshot returns a shallow copy of all currently-active sessions.
+// Used by graceful shutdown to broadcast session-close to every client
+// without holding the manager lock while doing I/O.
+func (m *SessionManager) Snapshot() []*Session {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*Session, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		out = append(out, s)
+	}
+	return out
+}
+
 // Cleanup removes sessions older than maxAge.
 func (m *SessionManager) Cleanup(maxAge time.Duration) {
 	m.mu.Lock()
