@@ -121,3 +121,78 @@ func TestUptime(t *testing.T) {
 		t.Fatal("uptime should be >= 0")
 	}
 }
+
+// TestTouchHostExpiry verifies that hosts which haven't seen any traffic
+// for hostLiveWindow are removed from GetActiveHosts. This is the core
+// fix for stale LIVE indicators when a browser closes a tab but keeps
+// the SOCKS5 connection idle in its HTTP/2 pool.
+func TestTouchHostExpiry(t *testing.T) {
+	tun := New(dstats.NewRateMeter())
+	tun.hostLiveWindow = 30 * time.Millisecond
+
+	tun.touchHost("instagram.com")
+	tun.touchHost("youtube.com")
+
+	hosts := tun.GetActiveHosts()
+	if len(hosts) != 2 {
+		t.Fatalf("expected 2 active hosts, got %d: %v", len(hosts), hosts)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	hosts = tun.GetActiveHosts()
+	if len(hosts) != 0 {
+		t.Fatalf("expected 0 active hosts after window expiry, got %d: %v", len(hosts), hosts)
+	}
+}
+
+// TestTouchHostRefresh verifies that re-touching a host before the window
+// expires keeps it alive. This is what happens when bytes are still
+// flowing for an active site.
+func TestTouchHostRefresh(t *testing.T) {
+	tun := New(dstats.NewRateMeter())
+	tun.hostLiveWindow = 60 * time.Millisecond
+
+	tun.touchHost("instagram.com")
+	time.Sleep(40 * time.Millisecond)
+	tun.touchHost("instagram.com") // refresh before expiry
+	time.Sleep(40 * time.Millisecond)
+
+	hosts := tun.GetActiveHosts()
+	if len(hosts) != 1 || hosts[0] != "instagram.com" {
+		t.Fatalf("expected refreshed host to stay alive, got %v", hosts)
+	}
+}
+
+// TestTouchHostEmpty verifies that empty hostnames are silently ignored
+// (defensive: socks5 handshake could in theory yield an empty addr).
+func TestTouchHostEmpty(t *testing.T) {
+	tun := New(dstats.NewRateMeter())
+	tun.touchHost("")
+	if hosts := tun.GetActiveHosts(); len(hosts) != 0 {
+		t.Fatalf("empty host should be ignored, got %v", hosts)
+	}
+}
+
+// TestGetActiveHostsSweepsStale verifies that GetActiveHosts removes
+// stale entries from the underlying map (not just filters them out), so
+// the map does not grow unbounded over a long session.
+func TestGetActiveHostsSweepsStale(t *testing.T) {
+	tun := New(dstats.NewRateMeter())
+	tun.hostLiveWindow = 20 * time.Millisecond
+
+	for i := 0; i < 100; i++ {
+		tun.touchHost("host-" + string(rune('a'+i%26)))
+	}
+
+	time.Sleep(40 * time.Millisecond)
+	tun.GetActiveHosts() // sweep
+
+	tun.activeHostsMu.Lock()
+	remaining := len(tun.activeHosts)
+	tun.activeHostsMu.Unlock()
+
+	if remaining != 0 {
+		t.Fatalf("expected map to be swept clean, got %d entries", remaining)
+	}
+}

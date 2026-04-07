@@ -1,5 +1,12 @@
 [
   {
+    "id": "1e26fd14-465e-4dce-8af7-f9d0bd267164",
+    "title": "LIVE-индикаторы сайтов в браузере фейдятся в течение 5 секунд после прекращения трафика, а не залипают из-за idle HTTP/2 коннектов",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-07T15:36:39.882839+00:00"
+  },
+  {
     "id": "31fb938f-b1c2-4c82-ae7d-978ea34d5b27",
     "title": "Reconnect detection + kill switch design spec",
     "description": null,

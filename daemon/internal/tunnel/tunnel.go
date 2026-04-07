@@ -21,6 +21,14 @@ const (
 	retryDelay     = 3 * time.Second
 	dialTimeout    = 5 * time.Second
 	healthInterval = 30 * time.Second
+
+	// defaultHostLiveWindow is how long a host stays "live" in
+	// GetActiveHosts after the last byte flowed through its SOCKS5
+	// relay. Browsers keep HTTP/2 connections idle in pools long after
+	// a tab is closed, so a counter-based approach left LIVE indicators
+	// stuck on. The window is short enough that the UI fades within a
+	// few poll cycles, long enough to ride out brief lulls in traffic.
+	defaultHostLiveWindow = 5 * time.Second
 )
 
 type Status string
@@ -51,55 +59,55 @@ type Tunnel struct {
 	conns   map[uint64]net.Conn
 	connSeq uint64
 
-	// Active-site tracking: host → number of in-flight SOCKS5 connections.
-	// Fed from handleSOCKS / exposed via GetActiveHosts so the UI can light
-	// up LIVE indicators on the corresponding browser tile.
-	activeHostsMu sync.Mutex
-	activeHosts   map[string]int
+	// Active-site tracking: host → time of the last byte we relayed for
+	// it. Fed from handleSOCKS (initial touch) and the relay byte
+	// callback (refresh on every byte), filtered through hostLiveWindow
+	// in GetActiveHosts so the UI LIVE indicators reflect *traffic*, not
+	// merely an open TCP connection.
+	activeHostsMu  sync.Mutex
+	activeHosts    map[string]time.Time
+	hostLiveWindow time.Duration
 }
 
 func New(meter *dstats.RateMeter) *Tunnel {
 	return &Tunnel{
-		status:      Disconnected,
-		meter:       meter,
-		conns:       make(map[uint64]net.Conn),
-		activeHosts: make(map[string]int),
+		status:         Disconnected,
+		meter:          meter,
+		conns:          make(map[uint64]net.Conn),
+		activeHosts:    make(map[string]time.Time),
+		hostLiveWindow: defaultHostLiveWindow,
 	}
 }
 
-// trackHost increments the in-flight counter for a SOCKS5 destination host
-// so the UI can light up a LIVE indicator for the matching browser tile.
-func (t *Tunnel) trackHost(host string) {
+// touchHost records the moment we last saw activity for a SOCKS5
+// destination host. Called once when the request arrives (so the tile
+// lights up immediately) and again from the relay byte callback on every
+// chunk that flows. GetActiveHosts treats hosts older than hostLiveWindow
+// as stale, so the LIVE indicator fades shortly after traffic stops even
+// if the underlying TCP connection lingers in the browser's HTTP/2 pool.
+func (t *Tunnel) touchHost(host string) {
 	if host == "" {
 		return
 	}
 	t.activeHostsMu.Lock()
-	t.activeHosts[host]++
+	t.activeHosts[host] = time.Now()
 	t.activeHostsMu.Unlock()
 }
 
-// untrackHost decrements the in-flight counter and removes the entry when
-// it reaches zero.
-func (t *Tunnel) untrackHost(host string) {
-	if host == "" {
-		return
-	}
-	t.activeHostsMu.Lock()
-	t.activeHosts[host]--
-	if t.activeHosts[host] <= 0 {
-		delete(t.activeHosts, host)
-	}
-	t.activeHostsMu.Unlock()
-}
-
-// GetActiveHosts returns a snapshot of every host with at least one
-// in-flight SOCKS5 connection. Used by the /tunnel/active-hosts API for the
-// UI LIVE indicators.
+// GetActiveHosts returns a snapshot of every host that saw traffic within
+// the last hostLiveWindow. Stale entries are deleted from the underlying
+// map during the sweep so it does not grow unbounded over a long session.
+// Exposed via /tunnel/active-hosts for the UI LIVE indicators.
 func (t *Tunnel) GetActiveHosts() []string {
+	cutoff := time.Now().Add(-t.hostLiveWindow)
 	t.activeHostsMu.Lock()
 	defer t.activeHostsMu.Unlock()
 	out := make([]string, 0, len(t.activeHosts))
-	for h := range t.activeHosts {
+	for h, last := range t.activeHosts {
+		if last.Before(cutoff) {
+			delete(t.activeHosts, h)
+			continue
+		}
 		out = append(out, h)
 	}
 	return out
@@ -395,10 +403,11 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 	target := fmt.Sprintf("%s:%d", req.Addr, req.Port)
 	log.Printf("[tunnel] new request: %s", target)
 
-	// Track this host as "live" for the duration of the relay so the UI
-	// LIVE indicators can light up the matching browser tile.
-	t.trackHost(req.Addr)
-	defer t.untrackHost(req.Addr)
+	// Light up the matching browser tile immediately so the LIVE
+	// indicator reacts before the first relayed byte. The relay
+	// callback below keeps refreshing the timestamp while traffic
+	// flows; once it stops, hostLiveWindow lets it fade out.
+	t.touchHost(req.Addr)
 
 	t.mu.Lock()
 	tr := t.transport
@@ -430,6 +439,9 @@ func (t *Tunnel) handleSOCKSTransport(conn net.Conn, tr transport.Transport, add
 	socks5.SendSuccess(conn)
 	countingRelay(conn, stream, func(in, out int64) {
 		t.meter.Add(in, out)
+		if in > 0 || out > 0 {
+			t.touchHost(addr)
+		}
 	})
 }
 
@@ -495,6 +507,9 @@ func (t *Tunnel) handleSOCKSLegacy(conn net.Conn, addr string, port uint16, targ
 	socks5.SendSuccess(conn)
 	proto.CountingRelay(conn, tlsConn, func(in, out int64) {
 		t.meter.Add(in, out)
+		if in > 0 || out > 0 {
+			t.touchHost(addr)
+		}
 	})
 }
 

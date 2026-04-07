@@ -1,2 +1,2 @@
-## feature
-Reconnect detection + kill switch design spec
+## fix
+LIVE-индикаторы сайтов в браузере фейдятся в течение 5 секунд после прекращения трафика, а не залипают из-за idle HTTP/2 коннектов
