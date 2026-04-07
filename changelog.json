@@ -1,5 +1,12 @@
 [
   {
+    "id": "f914ffde-33a4-4e3a-a289-c6f12fcb623a",
+    "title": "TUN: детектор реконнекта по ошибкам OpenStream — срабатывает за ~5 сек вместо минуты, когда transport.Alive() врёт про живой транспорт",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-07T16:38:49.999156+00:00"
+  },
+  {
     "id": "4db5a318-2ab6-4368-b6e0-4ce5c3f2c6e1",
     "title": "StatusBar: кнопка Disconnect остаётся кликабельной во время Reconnecting",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-03-30T12:15:16Z"
-  },
-  {
-    "id": "98038b89-54dc-465f-8153-00402e781d1c",
-    "title": "Группировка соединений по устройствам в админке",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-03-29T17:03:32Z"
   }
 ]

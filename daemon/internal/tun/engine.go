@@ -65,7 +65,22 @@ type Engine struct {
 	connsMu sync.Mutex
 	conns   map[uint64]net.Conn
 	connSeq uint64
+
+	// streamOpenFailures counts consecutive OpenStream errors from the
+	// active transport. Reset to 0 on any successful OpenStream. The
+	// healthLoop reads it each tick and forces a reconnect when the
+	// counter crosses streamFailureThreshold — this catches the case
+	// where transport.Alive() falsely reports "healthy" while every
+	// real stream dial fails (network went away under TUN routes).
+	streamOpenFailures atomic.Int32
 }
+
+// streamFailureThreshold is how many consecutive OpenStream failures
+// must pile up before the healthLoop treats the transport as dead.
+// 3 matches the existing D2 failure budget and lines up with the 5s
+// tick — in practice this fires within ~5s of network death because
+// apps re-dial aggressively.
+const streamFailureThreshold = 3
 
 func NewEngine(meter *dstats.RateMeter) *Engine {
 	selfPath, _ := os.Executable()
@@ -558,6 +573,26 @@ func (e *Engine) healthLoop() {
 			return
 
 		case <-ticker.C:
+			// D3 — stream-failure detector. transport.Alive() is too
+			// optimistic for TLS (reports "alive" even when the OS has
+			// dropped all routes), so we also watch the OpenStream
+			// failure counter. Apps retry aggressively, so once the
+			// network is down the counter races past the threshold in
+			// ~1s. When it does, we force-close the transport so the
+			// <-doneCh: branch picks up the reconnect naturally on the
+			// next iteration.
+			if e.streamOpenFailures.Load() >= streamFailureThreshold {
+				log.Printf("[tun] D3: %d consecutive stream failures, forcing transport close",
+					e.streamOpenFailures.Load())
+				e.streamOpenFailures.Store(0)
+				e.setReconnecting()
+				e.mu.Lock()
+				if e.transport != nil {
+					e.transport.Close()
+				}
+				e.mu.Unlock()
+				continue
+			}
 			if err := e.healthCheck(); err != nil {
 				failures++
 				log.Printf("[tun] D2: health check failed (%d/%d): %v", failures, maxFailures, err)
@@ -663,6 +698,7 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPat
 func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16) {
 	stream, err := tr.OpenStream(0x01, dstAddr, dstPort)
 	if err != nil {
+		e.streamOpenFailures.Add(1)
 		log.Printf("[tun] open TCP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
 			e.mu.Lock()
@@ -672,6 +708,7 @@ func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAd
 		}
 		return
 	}
+	e.streamOpenFailures.Store(0)
 
 	streamRelay(local, stream, func(in, out int64) {
 		e.meter.Add(in, out)
@@ -830,6 +867,7 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16) {
 	stream, err := tr.OpenStream(0x02, dstAddr, dstPort)
 	if err != nil {
+		e.streamOpenFailures.Add(1)
 		log.Printf("[tun] open UDP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
 			e.mu.Lock()
@@ -839,6 +877,7 @@ func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAd
 		}
 		return
 	}
+	e.streamOpenFailures.Store(0)
 	defer stream.Close()
 
 	done := make(chan struct{}, 2)

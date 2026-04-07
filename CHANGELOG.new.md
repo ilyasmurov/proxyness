@@ -1,2 +1,2 @@
 ## fix
-StatusBar: кнопка Disconnect остаётся кликабельной во время Reconnecting
+TUN: детектор реконнекта по ошибкам OpenStream — срабатывает за ~5 сек вместо минуты, когда transport.Alive() врёт про живой транспорт
