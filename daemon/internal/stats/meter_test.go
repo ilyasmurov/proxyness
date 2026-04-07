@@ -59,3 +59,34 @@ func TestRateMeterSnapshotWhenEmpty(t *testing.T) {
 		t.Fatalf("expected empty history, got %d", len(snap.History))
 	}
 }
+
+func TestLastByteAtUpdatedOnAdd(t *testing.T) {
+	m := NewRateMeter()
+	defer m.Stop()
+
+	zero := m.LastByteAt()
+	if !zero.IsZero() {
+		t.Fatalf("expected zero time before any Add, got %v", zero)
+	}
+
+	before := time.Now()
+	m.Add(10, 0)
+	got := m.LastByteAt()
+	if got.Before(before) {
+		t.Fatalf("LastByteAt %v should be >= %v after Add", got, before)
+	}
+}
+
+func TestLastByteAtUnchangedWhenAddZero(t *testing.T) {
+	m := NewRateMeter()
+	defer m.Stop()
+
+	m.Add(5, 0)
+	first := m.LastByteAt()
+	time.Sleep(5 * time.Millisecond)
+	m.Add(0, 0)
+	second := m.LastByteAt()
+	if !first.Equal(second) {
+		t.Fatalf("Add(0,0) should not bump LastByteAt; first=%v second=%v", first, second)
+	}
+}

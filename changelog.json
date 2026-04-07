@@ -1,5 +1,12 @@
 [
   {
+    "id": "fd32a3f6-9394-4874-b1ce-dda4fbf145cd",
+    "title": "RateMeter: трекинг lastByteAt для детектора traffic stall",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-07T15:38:22.120523+00:00"
+  },
+  {
     "id": "e74af52e-800e-497a-810d-e55c65b01231",
     "title": "План имплементации: автоматический реконнект и kill switch",
     "description": null,
