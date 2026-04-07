@@ -1,2 +1,2 @@
 ## feature
-Device-key auth middleware + rate-limiter для sync API
+POST /api/sync — batch sync endpoint для sites catalog

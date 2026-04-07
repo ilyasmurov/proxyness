@@ -172,6 +172,12 @@ func (d *DB) Close() {
 	d.sql.Close()
 }
 
+// SQL returns the underlying *sql.DB. Used by handlers that need to
+// drive a transaction manually.
+func (d *DB) SQL() *sql.DB {
+	return d.sql
+}
+
 // ---- Users ----
 
 // CreateUser inserts a new user and returns the created record.

@@ -17,12 +17,14 @@ type Handler struct {
 	user         string
 	password     string
 	downloadsDir string
+	deviceAuth   *DeviceAuth
 	mux          *http.ServeMux
 }
 
 // NewHandler creates and wires up the admin HTTP handler.
 func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string) *Handler {
 	h := &Handler{db: d, tracker: tr, user: user, password: password, downloadsDir: downloadsDir}
+	h.deviceAuth = NewDeviceAuth(d)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /admin/api/users", h.auth(h.listUsers))
@@ -45,6 +47,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("POST /api/report-version", h.reportVersion)
 	mux.HandleFunc("POST /api/lock-device", h.lockDevice)
 	mux.HandleFunc("POST /api/unlock-device", h.unlockDevice)
+	mux.HandleFunc("POST /api/sync", h.deviceAuth.Wrap(h.handleSync))
 
 	// Download files
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
