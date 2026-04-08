@@ -1,2 +1,2 @@
 ## feature
-In-memory my_sites cache в демоне с subdomain matching
+Browser extension scaffold: manifest v3 + папочная структура + sideload README

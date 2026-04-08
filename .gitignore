@@ -29,3 +29,6 @@ CHANGELOG.new.md
 # OS
 .DS_Store
 Thumbs.db
+
+# Extension
+extension/build/
