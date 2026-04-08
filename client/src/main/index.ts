@@ -7,13 +7,17 @@ import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
 import { getDaemonToken, cachedDaemonToken } from "./extension";
 
-// Diagnostic crash logger: writes unhandled main-process exceptions and
-// promise rejections to a file the user can easily find, BEFORE Electron
-// tears the process down. Without this, Windows silently exits and leaves
-// no trace in Event Viewer or %APPDATA% logs, making crashes impossible
-// to debug remotely.
+// Diagnostic crash logger — opt-in, off by default. Enable by launching
+// the app with `--debug` or setting SMUROV_DEBUG=1 in the environment.
+// When active, writes unhandled main-process exceptions, renderer crashes
+// and per-phase boot traces to ~/Desktop/smurov-crash.log so we can debug
+// startup/runtime failures that leave no trace in Event Viewer or
+// %APPDATA% logs. Kept around permanently so future reports can be
+// triaged by asking the user to relaunch with the flag.
+const DEBUG_ENABLED = process.argv.includes("--debug") || process.env.SMUROV_DEBUG === "1";
 const CRASH_LOG = path.join(require("os").homedir(), "Desktop", "smurov-crash.log");
 function logCrash(tag: string, err: unknown) {
+  if (!DEBUG_ENABLED) return;
   try {
     const stamp = new Date().toISOString();
     const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
@@ -22,17 +26,18 @@ function logCrash(tag: string, err: unknown) {
     // best-effort: if we can't even write the log, there's nothing else to do
   }
 }
-process.on("uncaughtException", (err) => logCrash("uncaughtException", err));
-process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
-// Heartbeat: write a line at each boot phase so we can pinpoint where the
-// crash happens even if it's a native-level abort (no JS stack available).
 function bootTrace(step: string) {
+  if (!DEBUG_ENABLED) return;
   try {
     const stamp = new Date().toISOString();
     fs.appendFileSync(CRASH_LOG, `[${stamp}] boot: ${step}\n`);
   } catch {}
 }
-bootTrace("process started");
+if (DEBUG_ENABLED) {
+  process.on("uncaughtException", (err) => logCrash("uncaughtException", err));
+  process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
+  bootTrace("process started (debug mode)");
+}
 
 const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/download";
 
@@ -303,11 +308,16 @@ function createWindow() {
     logCrash("preload-error", `${preload}: ${err?.stack || err}`);
   });
   mainWindow.webContents.on("console-message", (_e, level, message, line, sourceId) => {
-    // level: 0=verbose 1=info 2=warning 3=error — only log warnings+
-    if (level >= 2) {
-      bootTrace(`renderer console[${level}] ${sourceId}:${line} ${message}`);
-    }
+    bootTrace(`renderer console[${level}] ${sourceId}:${line} ${message}`);
   });
+  mainWindow.webContents.on("did-start-loading", () => bootTrace("wc did-start-loading"));
+  mainWindow.webContents.on("did-finish-load", () => bootTrace("wc did-finish-load"));
+  mainWindow.webContents.on("dom-ready", () => bootTrace("wc dom-ready"));
+  mainWindow.webContents.on("unresponsive", () => bootTrace("wc unresponsive"));
+  mainWindow.webContents.on("crashed" as any, (_e: any, killed: boolean) => bootTrace(`wc crashed killed=${killed}`));
+  mainWindow.on("closed", () => bootTrace("mainWindow closed event"));
+  mainWindow.on("show", () => bootTrace("mainWindow show event"));
+  mainWindow.on("ready-to-show", () => bootTrace("mainWindow ready-to-show"));
 
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -833,10 +843,14 @@ app.on("before-quit", () => {
 });
 
 app.on("window-all-closed", () => {
+  bootTrace(`window-all-closed fired, windows=${BrowserWindow.getAllWindows().length}`);
   if (process.platform !== "darwin") {
     app.quit();
   }
 });
+app.on("before-quit", () => bootTrace("app before-quit"));
+app.on("will-quit", () => bootTrace("app will-quit"));
+app.on("quit", (_e, code) => bootTrace(`app quit exitCode=${code}`));
 
 app.on("activate", () => {
   mainWindow?.show();

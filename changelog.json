@@ -1,5 +1,12 @@
 [
   {
+    "id": "8586d833-59cc-4f1b-bf91-e732eafcef4a",
+    "title": "More diagnostic hooks for Windows startup crash",
+    "description": "Added window lifecycle, webContents load/dom/crash/unresponsive, app quit-phase traces and console-message capture at all levels to pinpoint the silent exit after bootMainApp.",
+    "type": "fix",
+    "createdAt": "2026-04-08T22:39:59.722466+00:00"
+  },
+  {
     "id": "7f3cf4ee-5b2f-4980-a0d7-13885e6a3a01",
     "title": "Landing page overhaul",
     "description": "Redesigned landing: hero, 6 feature cards (port 443, AutoTransport, hybrid TUN+Browser, split tunneling, Kill Switch, hardware-bound), benchmark table vs WireGuard and Outline, 3-step onboarding. EN/RU language switcher, admin panel link removed, download buttons auto-resolve to the latest GitHub release with proper Apple and Windows SVG logos.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-04T09:18:50.845126+00:00"
-  },
-  {
-    "id": "a48084e3-9d8c-4cb3-b296-86c5fb93c474",
-    "title": "Bump version to 1.23.3",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T09:04:08.408334+00:00"
   }
 ]
