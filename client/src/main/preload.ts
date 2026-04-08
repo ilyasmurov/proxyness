@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("appInfo", {
   openUpdate: () => ipcRenderer.send("open-update"),
   setTrayStatus: (connected: boolean) => ipcRenderer.send("tray-status", connected),
   getSeedSites: () => ipcRenderer.invoke("get-seed-sites"),
+  getDaemonToken: () => ipcRenderer.invoke("get-daemon-token"),
   onTrayConnect: (cb: () => void) => ipcRenderer.on("tray-connect", () => cb()),
   onTrayDisconnect: (cb: () => void) => ipcRenderer.on("tray-disconnect", () => cb()),
   onSystemResumed: (cb: () => void) => {

@@ -1,2 +1,2 @@
 ## feature
-Daemon SyncClient — HTTP клиент к серверному /api/sync для extension API
+Вкладка "Browser Extension" в десктоп-клиенте с токеном для пейринга

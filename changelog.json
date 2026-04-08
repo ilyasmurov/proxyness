@@ -1,5 +1,12 @@
 [
   {
+    "id": "53694ff2-8690-4781-9190-cb8c03015541",
+    "title": "Вкладка \"Browser Extension\" в десктоп-клиенте с токеном для пейринга",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T06:59:05.235597+00:00"
+  },
+  {
     "id": "ebda2a58-9203-48c6-8eab-edb3ca8e2280",
     "title": "Daemon SyncClient — HTTP клиент к серверному /api/sync для extension API",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-01T10:13:54Z"
-  },
-  {
-    "id": "eacd51f6-9d2d-4a0a-b494-243f4216a5c4",
-    "title": "Raw UDP bypass — обход gVisor для UDP трафика",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-01T12:14:37Z"
   }
 ]

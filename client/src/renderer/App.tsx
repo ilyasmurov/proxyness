@@ -5,6 +5,7 @@ import { StatusBar } from "./components/StatusBar";
 import { ModeSelector, ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
 import { SpeedGraph } from "./components/SpeedGraph";
+import { BrowserExtension } from "./components/BrowserExtension";
 
 const SERVER = "95.181.162.242:443";
 const STORAGE_KEY = "smurov-proxy-key";
@@ -14,6 +15,7 @@ export function App() {
   const [showSetup, setShowSetup] = useState(!key);
   const [version, setVersion] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState<"main" | "extension">("main");
   const settingsRef = useRef<HTMLDivElement>(null);
   const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
   const [proxyMode, setProxyMode] = useState<ProxyMode>(
@@ -475,8 +477,34 @@ export function App() {
         </div>
       ) : (
         <>
-          <ModeSelector mode={proxyMode} onChange={handleModeChange} disabled={isConnected} />
-          <AppRules visible={proxyMode === "tun"} />
+          <div style={{ display: "flex", gap: 4, marginBottom: 12, borderBottom: "1px solid #1e2533" }}>
+            {(["main", "extension"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  padding: "6px 14px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: activeTab === tab ? "2px solid #3b82f6" : "2px solid transparent",
+                  color: activeTab === tab ? "#fff" : "#666",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  fontWeight: activeTab === tab ? 600 : 400,
+                  marginBottom: -1,
+                }}
+              >
+                {tab === "main" ? "Main" : "Extension"}
+              </button>
+            ))}
+          </div>
+          {activeTab === "main" && (
+            <>
+              <ModeSelector mode={proxyMode} onChange={handleModeChange} disabled={isConnected} />
+              <AppRules visible={proxyMode === "tun"} />
+            </>
+          )}
+          {activeTab === "extension" && <BrowserExtension />}
         </>
       )}
 

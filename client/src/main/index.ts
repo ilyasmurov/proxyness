@@ -5,6 +5,7 @@ import fs from "fs";
 import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
+import { getDaemonToken } from "./extension";
 
 const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/download";
 
@@ -414,6 +415,8 @@ function setupIpc() {
   });
 
   ipcMain.handle("get-installed-apps", () => getInstalledApps());
+
+  ipcMain.handle("get-daemon-token", () => getDaemonToken());
 
   ipcMain.handle("get-seed-sites", () => {
     try {
