@@ -1,2 +1,2 @@
 ## feature
-Extension discovery: webRequest hook → накопление доменов → батч flush в /sites/discover
+Extension Flow 2: failed sub-resource на проксируемом сайте → immediate discover

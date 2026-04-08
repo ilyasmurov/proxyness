@@ -20,6 +20,15 @@ const tabState = new Map();
 // Map<tabId, { siteId, host, queue: Set<string>, flushTimer }>
 const discoveryState = new Map();
 
+const SUSPICIOUS_ERRORS = new Set([
+  "net::ERR_CONNECTION_RESET",
+  "net::ERR_CONNECTION_TIMED_OUT",
+  "net::ERR_NAME_NOT_RESOLVED",
+  "net::ERR_CONNECTION_CLOSED",
+  "net::ERR_SSL_PROTOCOL_ERROR",
+  "net::ERR_CONNECTION_REFUSED",
+]);
+
 // ---------- helpers ----------
 
 function pushStateToTab(tabId) {
@@ -129,6 +138,29 @@ chrome.webRequest.onBeforeRequest.addListener(
     // Skip localhost / IP literals / our own daemon.
     if (host === "127.0.0.1" || host === "localhost") return;
     disc.queue.add(host);
+  },
+  { urls: ["<all_urls>"] }
+);
+
+chrome.webRequest.onErrorOccurred.addListener(
+  (details) => {
+    if (details.tabId < 0) return;
+    if (details.type === "main_frame") return;  // handled by Flow 3 in Task 18
+    if (!SUSPICIOUS_ERRORS.has(details.error)) return;
+
+    const tab = tabState.get(details.tabId);
+    if (!tab || tab.state !== "proxied") return;
+    if (!tab.siteId) return;
+
+    let urlObj;
+    try { urlObj = new URL(details.url); } catch { return; }
+    const failedHost = urlObj.hostname;
+    const failedSld = getDomain(failedHost);
+    if (failedSld === tab.host) return;  // same SLD = should already be covered
+
+    // Strong signal: a request from a proxied page failed at a non-covered
+    // host with a block-like error. Push it to discover IMMEDIATELY.
+    daemonClient.discover(tab.siteId, [failedHost]);
   },
   { urls: ["<all_urls>"] }
 );

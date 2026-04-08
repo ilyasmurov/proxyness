@@ -1,5 +1,12 @@
 [
   {
+    "id": "06b57f37-d3d5-47e3-95ab-f0eb37b4d1ea",
+    "title": "Extension Flow 2: failed sub-resource на проксируемом сайте → immediate discover",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:19:06.740660+00:00"
+  },
+  {
     "id": "0bfdbfd4-7dee-48f7-9865-5d94bc0a2010",
     "title": "Extension discovery: webRequest hook → накопление доменов → батч flush в /sites/discover",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Только Apple Silicon (arm64)",
     "type": "improvement",
     "createdAt": "2026-04-03T17:18:05Z"
-  },
-  {
-    "id": "612a99fa-7182-4635-9845-50ea9180b32f",
-    "title": "Миграция на новый VPS — Aeza NL",
-    "description": "4 CPU, 8 GB RAM, 1 Gbps, Нидерланды",
-    "type": "feature",
-    "createdAt": "2026-04-03T17:00:13Z"
   }
 ]
