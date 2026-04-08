@@ -1,5 +1,12 @@
 [
   {
+    "id": "c9be61a6-0d76-4980-8033-0c20cca470b1",
+    "title": "Спека popup'а как per-tab control panel для активной вкладки + минимальный refactor PAC ownership к daemon. Полная консолидация sites layer вынесена в backlog как отдельная инициатива.",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T08:44:25.767304+00:00"
+  },
+  {
     "id": "b8ac03f8-a65f-4ac3-937a-23c1d6349aad",
     "title": "Admin UI: страница Sites со списком и детальной страницей /admin/sites/{id} для модерации каталога",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T20:48:18Z"
-  },
-  {
-    "id": "3af5c4b6-d3f5-4c24-bd0e-53485b8cb7d0",
-    "title": "Переход на GitHub Releases для автообновления",
-    "description": "Вместо VPS",
-    "type": "improvement",
-    "createdAt": "2026-04-03T18:24:04Z"
   }
 ]
