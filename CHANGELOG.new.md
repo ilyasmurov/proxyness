@@ -1,2 +1,2 @@
 ## feature
-POST /sites/test — HEAD-запрос через SOCKS5 тоннель для подтверждения блокировки
+Extension discovery: webRequest hook → накопление доменов → батч flush в /sites/discover

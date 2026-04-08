@@ -1,5 +1,12 @@
 [
   {
+    "id": "0bfdbfd4-7dee-48f7-9865-5d94bc0a2010",
+    "title": "Extension discovery: webRequest hook → накопление доменов → батч flush в /sites/discover",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:18:08.024106+00:00"
+  },
+  {
     "id": "0038355f-f1b1-4e1b-9009-e7ea4f27bb7b",
     "title": "POST /sites/test — HEAD-запрос через SOCKS5 тоннель для подтверждения блокировки",
     "description": null,
@@ -1389,13 +1396,6 @@
     "id": "612a99fa-7182-4635-9845-50ea9180b32f",
     "title": "Миграция на новый VPS — Aeza NL",
     "description": "4 CPU, 8 GB RAM, 1 Gbps, Нидерланды",
-    "type": "feature",
-    "createdAt": "2026-04-03T17:00:13Z"
-  },
-  {
-    "id": "b2237534-abc4-4400-8be1-1f06e5a6bcb1",
-    "title": "Защита от запуска нескольких экземпляров клиента",
-    "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T17:00:13Z"
   }

@@ -17,6 +17,9 @@ function getDomain(host) {
 // Map<tabId, {host, state, siteId}>
 const tabState = new Map();
 
+// Map<tabId, { siteId, host, queue: Set<string>, flushTimer }>
+const discoveryState = new Map();
+
 // ---------- helpers ----------
 
 function pushStateToTab(tabId) {
@@ -53,6 +56,35 @@ async function refreshTabState(tabId, url) {
   pushStateToTab(tabId);
 }
 
+function startDiscovery(tabId, host, siteId) {
+  // Clean up any prior discovery for this tab.
+  stopDiscovery(tabId);
+  const state = {
+    siteId,
+    host,
+    queue: new Set(),
+    flushTimer: null,
+  };
+  discoveryState.set(tabId, state);
+  state.flushTimer = setInterval(() => flushDiscovery(tabId), 5000);
+}
+
+function stopDiscovery(tabId) {
+  const s = discoveryState.get(tabId);
+  if (!s) return;
+  if (s.flushTimer) clearInterval(s.flushTimer);
+  flushDiscovery(tabId);  // final flush
+  discoveryState.delete(tabId);
+}
+
+async function flushDiscovery(tabId) {
+  const s = discoveryState.get(tabId);
+  if (!s || s.queue.size === 0) return;
+  const domains = Array.from(s.queue);
+  s.queue.clear();
+  await daemonClient.discover(s.siteId, domains);
+}
+
 // ---------- tab events ----------
 
 chrome.tabs.onActivated.addListener(async (info) => {
@@ -63,14 +95,43 @@ chrome.tabs.onActivated.addListener(async (info) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
-  if (change.url || change.status === "complete") {
+  if (change.url) {
+    const disc = discoveryState.get(tabId);
+    if (disc) {
+      let newHost;
+      try { newHost = getDomain(new URL(tab.url).hostname); } catch { newHost = ""; }
+      if (newHost !== disc.host) {
+        stopDiscovery(tabId);
+        // Now that discovery is done, transition to plain "proxied" state.
+        tabState.set(tabId, { state: "proxied", host: disc.host, siteId: disc.siteId });
+      }
+    }
+    refreshTabState(tabId, tab.url);
+  } else if (change.status === "complete") {
     refreshTabState(tabId, tab.url);
   }
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  stopDiscovery(tabId);
   tabState.delete(tabId);
 });
+
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    if (details.tabId < 0) return;  // background fetch
+    const disc = discoveryState.get(details.tabId);
+    if (!disc) return;
+    let urlObj;
+    try { urlObj = new URL(details.url); } catch { return; }
+    if (urlObj.protocol !== "https:" && urlObj.protocol !== "http:") return;
+    const host = urlObj.hostname;
+    // Skip localhost / IP literals / our own daemon.
+    if (host === "127.0.0.1" || host === "localhost") return;
+    disc.queue.add(host);
+  },
+  { urls: ["<all_urls>"] }
+);
 
 // ---------- messages ----------
 
@@ -119,11 +180,10 @@ async function handleAddCurrentSite(tab) {
     return;
   }
 
-  // Show "discovering" immediately.
   tabState.set(tab.id, { state: "discovering", host });
   pushStateToTab(tab.id);
 
-  const r = await daemonClient.add(host, host);  // label = host as fallback
+  const r = await daemonClient.add(host, host);
   if (!r.ok) {
     tabState.set(tab.id, { state: "add", host });
     pushStateToTab(tab.id);
@@ -132,13 +192,7 @@ async function handleAddCurrentSite(tab) {
   const siteId = r.data.site_id;
   tabState.set(tab.id, { state: "discovering", host, siteId });
   pushStateToTab(tab.id);
-
-  // Discovery hook is enabled in Task 16. For now, just transition to
-  // "proxied" after a short delay.
-  setTimeout(() => {
-    tabState.set(tab.id, { state: "proxied", host, siteId });
-    pushStateToTab(tab.id);
-  }, 1500);
+  startDiscovery(tab.id, host, siteId);
 }
 
 console.log("[smurov-proxy] service worker loaded");
