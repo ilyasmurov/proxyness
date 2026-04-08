@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"smurov-proxy/daemon/internal/sites"
@@ -100,6 +101,88 @@ func TestHandleSitesTestConfirmsBlock(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["likely_blocked"] != true {
 		t.Fatalf("expected likely_blocked=true, got %+v", resp)
+	}
+}
+
+func TestSitesSetEnabledHappyPath(t *testing.T) {
+	// Fake server that flips a site to disabled.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(sites.SyncResponse{
+			MySites: []sites.MySite{
+				{ID: 47, PrimaryDomain: "youtube.com", Domains: []string{"youtube.com"}, Enabled: false},
+			},
+			OpResults:  []sites.OpResult{{Status: "ok"}},
+			ServerTime: 1000,
+		})
+	}))
+	defer upstream.Close()
+
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager(upstream.URL, keyStore)
+	mgr.Cache().Replace([]sites.MySite{
+		{ID: 47, PrimaryDomain: "youtube.com", Domains: []string{"youtube.com"}, Enabled: true},
+	})
+
+	store := sites.NewTokenStore(filepath.Join(t.TempDir(), "tok"))
+	tok, _ := store.GetOrCreate()
+	srv := newTestServerWithSitesAPI(t, mgr, store)
+
+	body := strings.NewReader(`{"site_id":47,"enabled":false}`)
+	req := httptest.NewRequest("POST", "/sites/set-enabled", body)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["ok"] != true {
+		t.Errorf("expected ok=true, got %v", resp["ok"])
+	}
+	mySites, ok := resp["my_sites"].([]interface{})
+	if !ok || len(mySites) != 1 {
+		t.Fatalf("expected my_sites with 1 entry, got %v", resp["my_sites"])
+	}
+}
+
+func TestSitesSetEnabledMissingSiteID(t *testing.T) {
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager("https://example.invalid", keyStore)
+	store := sites.NewTokenStore(filepath.Join(t.TempDir(), "tok"))
+	tok, _ := store.GetOrCreate()
+	srv := newTestServerWithSitesAPI(t, mgr, store)
+
+	body := strings.NewReader(`{"enabled":false}`)
+	req := httptest.NewRequest("POST", "/sites/set-enabled", body)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != 400 {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestSitesSetEnabledRequiresAuth(t *testing.T) {
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager("https://example.invalid", keyStore)
+	store := sites.NewTokenStore(filepath.Join(t.TempDir(), "tok"))
+	store.GetOrCreate()
+	srv := newTestServerWithSitesAPI(t, mgr, store)
+
+	body := strings.NewReader(`{"site_id":1,"enabled":false}`)
+	req := httptest.NewRequest("POST", "/sites/set-enabled", body)
+	// no Authorization header
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != 401 {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 

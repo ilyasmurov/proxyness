@@ -1,5 +1,12 @@
 [
   {
+    "id": "420da623-cda7-429b-8fcd-331de6940af3",
+    "title": "Add POST /sites/set-enabled endpoint for browser extension and desktop client",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:11:08.804266+00:00"
+  },
+  {
     "id": "2bd83437-2229-477b-84de-880d0e6e2286",
     "title": "Revert NewPacSites default and make TestRebuildPACSkipsCloseAllConnsWhenUnchanged self-contained",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-03T21:18:54.514305+00:00"
-  },
-  {
-    "id": "9421aabf-fc23-40ba-a83f-8b2c715b7820",
-    "title": "Исправлено название VPS провайдера: Timeweb → Aeza",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-03T21:17:13.654764+00:00"
   }
 ]

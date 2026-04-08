@@ -1,2 +1,2 @@
 ## improvement
-Revert NewPacSites default and make TestRebuildPACSkipsCloseAllConnsWhenUnchanged self-contained
+Add POST /sites/set-enabled endpoint for browser extension and desktop client

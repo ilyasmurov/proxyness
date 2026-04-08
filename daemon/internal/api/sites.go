@@ -83,6 +83,33 @@ func (s *Server) handleSitesDiscover(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleSitesSetEnabled(w http.ResponseWriter, r *http.Request) {
+	if s.sitesManager == nil {
+		http.Error(w, "daemon not ready", 503)
+		return
+	}
+	var req struct {
+		SiteID  int  `json:"site_id"`
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid body", 400)
+		return
+	}
+	if req.SiteID == 0 {
+		http.Error(w, "missing site_id", 400)
+		return
+	}
+	if err := s.sitesManager.SetEnabled(req.SiteID, req.Enabled); err != nil {
+		http.Error(w, err.Error(), 502)
+		return
+	}
+	writeJSON(w, 200, map[string]interface{}{
+		"ok":       true,
+		"my_sites": s.sitesManager.Cache().Snapshot(),
+	})
+}
+
 func (s *Server) handleSitesTest(w http.ResponseWriter, r *http.Request) {
 	if s.sitesTestClient == nil {
 		http.Error(w, "test client not configured", 503)
