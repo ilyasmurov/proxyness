@@ -1,2 +1,2 @@
 ## improvement
-Cache daemon token in memory in extension.ts to avoid disk reads on every IPC call
+Add IPC handlers for daemon site mutations and simplify pac-sites handler

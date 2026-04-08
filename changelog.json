@@ -1,5 +1,12 @@
 [
   {
+    "id": "48e1eb91-e414-4250-b1e4-b4bcc0b06877",
+    "title": "Add IPC handlers for daemon site mutations and simplify pac-sites handler",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:29:43.861576+00:00"
+  },
+  {
     "id": "ca6c536e-8462-427a-b8da-ec5afd98d3c7",
     "title": "Cache daemon token in memory in extension.ts to avoid disk reads on every IPC call",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-03T21:59:10.529775+00:00"
-  },
-  {
-    "id": "3e0d33cb-591d-45ba-a81d-82bf49d12392",
-    "title": "Синхронизация ченджлога обновляет существующие записи при изменении",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-03T21:58:06.589929+00:00"
   }
 ]

@@ -5,7 +5,7 @@ import fs from "fs";
 import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
-import { getDaemonToken } from "./extension";
+import { getDaemonToken, cachedDaemonToken } from "./extension";
 
 const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/download";
 
@@ -327,14 +327,58 @@ function setupIpc() {
     disableSystemProxy();
   });
 
-  ipcMain.on("pac-sites", (_e, data: { proxy_all: boolean; sites: string[] }) => {
+  ipcMain.on("pac-sites", (_e, data: { proxy_all: boolean }) => {
+    // The `sites` field is no longer accepted — daemon owns the domain list.
     fetch("http://127.0.0.1:9090/pac/sites", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ proxy_all: data.proxy_all }),
     })
       .then(() => enableSystemProxy())
       .catch(() => {});
+  });
+
+  ipcMain.handle("daemon-set-enabled", async (_e, siteId: number, enabled: boolean) => {
+    const token = cachedDaemonToken();
+    if (!token) throw new Error("daemon token unavailable — restart daemon");
+    const r = await fetch("http://127.0.0.1:9090/sites/set-enabled", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ site_id: siteId, enabled }),
+    });
+    if (!r.ok) throw new Error(`daemon ${r.status}`);
+    return await r.json(); // { ok: true, my_sites: [...] }
+  });
+
+  ipcMain.handle("daemon-add-site", async (_e, primaryDomain: string, label: string) => {
+    const token = cachedDaemonToken();
+    if (!token) throw new Error("daemon token unavailable — restart daemon");
+    const r = await fetch("http://127.0.0.1:9090/sites/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ primary_domain: primaryDomain, label }),
+    });
+    if (!r.ok) throw new Error(`daemon ${r.status}`);
+    return await r.json(); // { site_id, deduped }
+  });
+
+  ipcMain.handle("daemon-remove-site", async (_e, siteId: number) => {
+    const token = cachedDaemonToken();
+    if (!token) throw new Error("daemon token unavailable — restart daemon");
+    const r = await fetch("http://127.0.0.1:9090/sites/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ site_id: siteId }),
+    });
+    if (!r.ok) throw new Error(`daemon ${r.status}`);
+    return await r.json(); // { ok: true, my_sites: [...] }
+  });
+
+  ipcMain.handle("daemon-list-sites", async () => {
+    // No auth needed for /sites/my (localhost-only, read-only).
+    const r = await fetch("http://127.0.0.1:9090/sites/my");
+    if (!r.ok) throw new Error(`daemon ${r.status}`);
+    return await r.json(); // { my_sites: [...] }
   });
 
   ipcMain.handle("tun-start", async (_e, server: string, key: string) => {
