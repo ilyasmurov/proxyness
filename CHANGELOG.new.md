@@ -1,2 +1,2 @@
 ## improvement
-Make AppRules handlers async with error logging for daemon-driven mutations
+Add setEnabled to extension daemon-client for popup proxy toggle

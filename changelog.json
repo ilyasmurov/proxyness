@@ -1,5 +1,12 @@
 [
   {
+    "id": "8fdbd2c1-fc5a-451c-8aa5-5a841ea10418",
+    "title": "Add setEnabled to extension daemon-client for popup proxy toggle",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:45:55.569911+00:00"
+  },
+  {
     "id": "7705c036-e873-4725-8b0e-0e9322f49e05",
     "title": "Make AppRules handlers async with error logging for daemon-driven mutations",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-04T05:41:03.971788+00:00"
-  },
-  {
-    "id": "5cd284c6-72de-47ba-b293-807a739d2900",
-    "title": "ACK encode/decode with 256-bit SACK bitmap for UDP ARQ reliability layer",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-04T05:39:05.064305+00:00"
   }
 ]

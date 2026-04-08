@@ -59,6 +59,7 @@ export const daemonClient = {
   add: (primaryDomain, label) => call("POST", "/sites/add", { primary_domain: primaryDomain, label }),
   discover: (siteId, domains) => call("POST", "/sites/discover", { site_id: siteId, domains }),
   test: (url) => call("POST", "/sites/test", { url }),
+  setEnabled: (siteId, enabled) => call("POST", "/sites/set-enabled", { site_id: siteId, enabled }),
   ping: async () => {
     // Used for daemon-up detection without needing a real query.
     const r = await call("GET", "/sites/match?host=ping.local");
