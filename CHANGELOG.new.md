@@ -1,2 +1,2 @@
 ## improvement
-Daemon now owns the PAC domain list — handlePacSitesUpdate ignores sites field
+Wire RebuildPAC into sites cache-replace callback for automatic PAC updates

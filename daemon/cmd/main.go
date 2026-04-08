@@ -47,6 +47,10 @@ func main() {
 	sitesManager := sites.NewManager("https://proxy.smurov.com", keyStore)
 	sitesManager.StartBackgroundRefresh(5 * time.Minute)
 	srv.SetSites(sitesManager, tokenStore)
+	// Wire RebuildPAC into the cache-replace callback so that any change
+	// to the cache (background refresh, mutation through extension API,
+	// or mutation through desktop client UI) automatically rebuilds PAC.
+	sitesManager.SetOnCacheReplaced(srv.RebuildPAC)
 
 	socksDialer, err := proxy.SOCKS5("tcp", *listenAddr, nil, proxy.Direct)
 	if err != nil {

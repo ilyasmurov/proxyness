@@ -1,5 +1,12 @@
 [
   {
+    "id": "4e3a86a6-75b5-4cfc-8c97-290cddbd3c3f",
+    "title": "Wire RebuildPAC into sites cache-replace callback for automatic PAC updates",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:26:54.491559+00:00"
+  },
+  {
     "id": "28f2c343-e107-4315-9074-c33314437d4d",
     "title": "Daemon now owns the PAC domain list — handlePacSitesUpdate ignores sites field",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-03T21:45:05.357363+00:00"
-  },
-  {
-    "id": "45e22f42-fbb7-4f92-b7a3-6cabf1fac7de",
-    "title": "Дата и время на каждой записи ченджлога вместо группировки по дням",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-03T21:44:32.629027+00:00"
   }
 ]
