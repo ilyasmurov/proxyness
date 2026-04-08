@@ -186,6 +186,41 @@ func TestSitesSetEnabledRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestSitesRemoveHappyPath(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(sites.SyncResponse{
+			MySites:    []sites.MySite{}, // site removed
+			OpResults:  []sites.OpResult{{Status: "ok"}},
+			ServerTime: 1000,
+		})
+	}))
+	defer upstream.Close()
+
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager(upstream.URL, keyStore)
+	mgr.Cache().Replace([]sites.MySite{
+		{ID: 47, PrimaryDomain: "youtube.com", Domains: []string{"youtube.com"}, Enabled: true},
+	})
+
+	store := sites.NewTokenStore(filepath.Join(t.TempDir(), "tok"))
+	tok, _ := store.GetOrCreate()
+	srv := newTestServerWithSitesAPI(t, mgr, store)
+
+	body := strings.NewReader(`{"site_id":47}`)
+	req := httptest.NewRequest("POST", "/sites/remove", body)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if mgr.Cache().Match("youtube.com") != nil {
+		t.Error("expected cache to be empty after remove")
+	}
+}
+
 func TestHandleSitesAdd(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]interface{}{

@@ -122,6 +122,8 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("POST /sites/test", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesTest)))
 		mux.Handle("POST /sites/set-enabled", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesSetEnabled)))
 		mux.Handle("OPTIONS /sites/set-enabled", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesSetEnabled)))
+		mux.Handle("POST /sites/remove", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesRemove)))
+		mux.Handle("OPTIONS /sites/remove", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesRemove)))
 		mux.Handle("OPTIONS /sites/match", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesMatch)))
 		mux.Handle("OPTIONS /sites/add", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesAdd)))
 		mux.Handle("OPTIONS /sites/discover", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesDiscover)))
