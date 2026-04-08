@@ -246,6 +246,41 @@ func TestRebuildPACPreservesProxyAllFlag(t *testing.T) {
 	}
 }
 
+func TestHandlePacSitesUpdateIgnoresSitesField(t *testing.T) {
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager("https://example.invalid", keyStore)
+	mgr.Cache().Replace([]sites.MySite{
+		{ID: 1, PrimaryDomain: "habr.com", Domains: []string{"habr.com"}, Enabled: true},
+	})
+	srv := newTestServerWithMgr(t, mgr)
+
+	// Renderer pushes proxy_all=false with bogus sites. Daemon must ignore
+	// the sites field and use its own cache instead.
+	body := strings.NewReader(`{"proxy_all":false,"sites":["bogus.example.com"]}`)
+	req := httptest.NewRequest("POST", "/pac/sites", body)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	proxyAll, domains := srv.pacSites.Get()
+	if proxyAll {
+		t.Error("expected proxy_all=false")
+	}
+	// Domains should come from cache (habr.com expanded), NOT from request body.
+	if len(domains) == 0 || domains[0] != "habr.com" {
+		t.Errorf("expected daemon-formed domains, got %v", domains)
+	}
+	for _, d := range domains {
+		if d == "bogus.example.com" {
+			t.Error("expected bogus.example.com to be ignored")
+		}
+	}
+}
+
 func TestRebuildPACSkipsCloseAllConnsWhenUnchanged(t *testing.T) {
 	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
 	keyStore.Save("dummy")

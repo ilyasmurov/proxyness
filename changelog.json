@@ -1,5 +1,12 @@
 [
   {
+    "id": "28f2c343-e107-4315-9074-c33314437d4d",
+    "title": "Daemon now owns the PAC domain list — handlePacSitesUpdate ignores sites field",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:24:45.738384+00:00"
+  },
+  {
     "id": "5b667a99-89c3-4e7e-9315-bcb6f14e6221",
     "title": "Add GET /sites/my endpoint (no auth, localhost-only) for desktop renderer to pull cache",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-03T21:44:32.629027+00:00"
-  },
-  {
-    "id": "9c6bdfa9-0d2f-43a1-9538-e503d012551f",
-    "title": "Добавлен UDP listener в серверный бинарник (пропущен в прошлом коммите)",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-03T21:41:06.740308+00:00"
   }
 ]

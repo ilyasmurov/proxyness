@@ -282,16 +282,17 @@ func (s *Server) handlePAC(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePacSitesUpdate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ProxyAll bool     `json:"proxy_all"`
-		Sites    []string `json:"sites"`
+		ProxyAll bool `json:"proxy_all"`
+		// sites field intentionally not parsed — daemon owns the domain list
+		// after the popup control panel refactor.
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	s.pacSites.Set(req.ProxyAll, req.Sites)
-	// Close existing SOCKS5 connections so browsers reconnect with updated PAC
-	s.tunnel.CloseAllConns()
+	// Set proxy_all flag, then RebuildPAC fills domains from cache.
+	s.pacSites.Set(req.ProxyAll, nil)
+	s.RebuildPAC()
 	w.WriteHeader(http.StatusOK)
 }
 
