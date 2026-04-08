@@ -1,5 +1,12 @@
 [
   {
+    "id": "8a2d76d2-c3ce-4ba0-a071-3c2f59301764",
+    "title": "add_domain sync op для обогащения site_domains через discovery",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T06:48:28.847542+00:00"
+  },
+  {
     "id": "82cb0b5b-254e-4c34-8457-f94387296f0e",
     "title": "Implementation plan для browser extension v1: 19 задач от server add_domain op до extension Flow 3 block detection",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-01T08:38:00Z"
-  },
-  {
-    "id": "6fc49574-ec58-44b8-ba4a-869a45898b68",
-    "title": "TCP idle timeout предотвращает утечку горутин на Windows",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-01T08:34:08Z"
   }
 ]

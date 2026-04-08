@@ -1,2 +1,2 @@
-## improvement
-Implementation plan для browser extension v1: 19 задач от server add_domain op до extension Flow 3 block detection
+## feature
+add_domain sync op для обогащения site_domains через discovery

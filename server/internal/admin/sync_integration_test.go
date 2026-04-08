@@ -9,6 +9,65 @@ import (
 	"smurov-proxy/server/internal/db"
 )
 
+func TestSyncIntegrationAddDomainOp(t *testing.T) {
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer d.Close()
+
+	user, _ := d.CreateUser("alice")
+	dev, _ := d.CreateDevice(user.ID, "mac")
+	h := NewHandler(d, nil, "admin", "pw", t.TempDir())
+
+	// Create habr.com site first (it's not in the seed).
+	w := postSync(t, h, dev.Key, map[string]interface{}{
+		"last_sync_at": 0,
+		"ops": []map[string]interface{}{
+			{"op": "add", "local_id": -1, "site": map[string]string{"primary_domain": "habr.com", "label": "Habr"}, "at": 1000},
+		},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("add habr code=%d", w.Code)
+	}
+	var r1 map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&r1)
+	siteID := int(r1["op_results"].([]interface{})[0].(map[string]interface{})["site_id"].(float64))
+
+	// Add a discovered domain.
+	w = postSync(t, h, dev.Key, map[string]interface{}{
+		"last_sync_at": 0,
+		"ops": []map[string]interface{}{
+			{"op": "add_domain", "site_id": siteID, "domain": "habrcdn.io", "at": 2000},
+		},
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("add_domain code=%d: %s", w.Code, w.Body.String())
+	}
+	var r2 map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&r2)
+	op := r2["op_results"].([]interface{})[0].(map[string]interface{})
+	if op["status"] != "ok" {
+		t.Fatalf("expected ok, got %+v", op)
+	}
+	if op["deduped"] == true {
+		t.Fatalf("first add should not be deduped")
+	}
+
+	// Same domain again should dedupe.
+	w = postSync(t, h, dev.Key, map[string]interface{}{
+		"last_sync_at": 0,
+		"ops": []map[string]interface{}{
+			{"op": "add_domain", "site_id": siteID, "domain": "habrcdn.io", "at": 3000},
+		},
+	})
+	json.NewDecoder(w.Body).Decode(&r2)
+	op = r2["op_results"].([]interface{})[0].(map[string]interface{})
+	if op["deduped"] != true {
+		t.Fatalf("expected dedup, got %+v", op)
+	}
+}
+
 func TestSyncIntegrationFullFlow(t *testing.T) {
 	d, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
 	if err != nil {

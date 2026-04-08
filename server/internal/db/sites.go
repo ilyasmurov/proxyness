@@ -213,6 +213,45 @@ func labelFromDomain(domain string) string {
 	return strings.ToUpper(base[:1]) + base[1:]
 }
 
+// AddDomainOpResult captures what happened for a single "add_domain" sync op.
+type AddDomainOpResult struct {
+	Deduped bool
+}
+
+// ApplyAddDomainOp adds a domain to an existing site, only if the user is
+// linked to that site via user_sites. Used by the discovery flow to enrich
+// the global catalog with subdomains/CDN hosts a user encounters while
+// browsing a site they have enabled.
+func (d *DB) ApplyAddDomainOp(tx *sql.Tx, userID, siteID int, domain string, at int64) (AddDomainOpResult, error) {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	if !domainRE.MatchString(domain) {
+		return AddDomainOpResult{}, fmt.Errorf("invalid domain: %q", domain)
+	}
+
+	// Auth: only users who have the site enabled can enrich its domains.
+	var dummy int
+	err := tx.QueryRow(
+		`SELECT 1 FROM user_sites WHERE user_id=? AND site_id=?`,
+		userID, siteID,
+	).Scan(&dummy)
+	if err == sql.ErrNoRows {
+		return AddDomainOpResult{}, fmt.Errorf("user %d not linked to site %d", userID, siteID)
+	}
+	if err != nil {
+		return AddDomainOpResult{}, err
+	}
+
+	res, err := tx.Exec(
+		`INSERT OR IGNORE INTO site_domains (site_id, domain, is_primary) VALUES (?, ?, 0)`,
+		siteID, domain,
+	)
+	if err != nil {
+		return AddDomainOpResult{}, err
+	}
+	rows, _ := res.RowsAffected()
+	return AddDomainOpResult{Deduped: rows == 0}, nil
+}
+
 // ToggleStatus enumerates the outcomes of an ApplyToggleOp call.
 type ToggleStatus int
 

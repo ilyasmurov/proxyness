@@ -18,10 +18,11 @@ type syncRequest struct {
 }
 
 type syncOp struct {
-	Op      string   `json:"op"` // "add" | "remove" | "enable" | "disable"
+	Op      string   `json:"op"` // "add" | "remove" | "enable" | "disable" | "add_domain"
 	LocalID *int     `json:"local_id,omitempty"`
 	SiteID  int      `json:"site_id,omitempty"`
 	Site    *siteDTO `json:"site,omitempty"`
+	Domain  string   `json:"domain,omitempty"`
 	At      int64    `json:"at"`
 }
 
@@ -140,6 +141,22 @@ func (h *Handler) applyOp(tx *sql.Tx, userID int, op syncOp) opResult {
 			res.Status = "error"
 			res.Message = "site not found"
 		}
+
+	case "add_domain":
+		if op.SiteID == 0 || op.Domain == "" {
+			res.Status = "invalid"
+			res.Message = "missing site_id or domain"
+			return res
+		}
+		r, err := h.db.ApplyAddDomainOp(tx, userID, op.SiteID, op.Domain, op.At)
+		if err != nil {
+			res.Status = "error"
+			res.Message = err.Error()
+			return res
+		}
+		res.Status = "ok"
+		res.SiteID = op.SiteID
+		res.Deduped = r.Deduped
 
 	default:
 		res.Status = "invalid"

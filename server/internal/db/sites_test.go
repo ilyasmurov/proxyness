@@ -361,6 +361,76 @@ func TestApplyToggleOpMissingRow(t *testing.T) {
 	}
 }
 
+func TestApplyAddDomainOpAddsAndDedupes(t *testing.T) {
+	d := tempDB(t)
+	user, _ := d.CreateUser("alice")
+	tx, _ := d.sql.Begin()
+	addRes, err := d.ApplyAddOp(tx, user.ID, "habr.com", "Habr", 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	siteID := addRes.SiteID
+
+	// First insert: added.
+	r, err := d.ApplyAddDomainOp(tx, user.ID, siteID, "habrcdn.io", 2000)
+	if err != nil {
+		t.Fatalf("first add: %v", err)
+	}
+	if r.Deduped {
+		t.Fatalf("expected added, got deduped")
+	}
+
+	// Second insert of same domain: dedup.
+	r2, err := d.ApplyAddDomainOp(tx, user.ID, siteID, "habrcdn.io", 3000)
+	if err != nil {
+		t.Fatalf("second add: %v", err)
+	}
+	if !r2.Deduped {
+		t.Fatalf("expected deduped, got added")
+	}
+
+	tx.Commit()
+
+	// Verify row exists.
+	var count int
+	d.sql.QueryRow(
+		`SELECT COUNT(*) FROM site_domains WHERE site_id=? AND domain=?`,
+		siteID, "habrcdn.io",
+	).Scan(&count)
+	if count != 1 {
+		t.Fatalf("expected 1 row, got %d", count)
+	}
+}
+
+func TestApplyAddDomainOpRejectsNonLinkedUser(t *testing.T) {
+	d := tempDB(t)
+	owner, _ := d.CreateUser("owner")
+	stranger, _ := d.CreateUser("stranger")
+
+	tx, _ := d.sql.Begin()
+	addRes, _ := d.ApplyAddOp(tx, owner.ID, "habr.com", "Habr", 1000)
+
+	// Stranger should NOT be allowed to add domains to owner's site.
+	_, err := d.ApplyAddDomainOp(tx, stranger.ID, addRes.SiteID, "habrcdn.io", 2000)
+	if err == nil {
+		t.Fatalf("expected error for non-linked user, got nil")
+	}
+	tx.Rollback()
+}
+
+func TestApplyAddDomainOpRejectsInvalidDomain(t *testing.T) {
+	d := tempDB(t)
+	user, _ := d.CreateUser("alice")
+	tx, _ := d.sql.Begin()
+	addRes, _ := d.ApplyAddOp(tx, user.ID, "habr.com", "Habr", 1000)
+
+	_, err := d.ApplyAddDomainOp(tx, user.ID, addRes.SiteID, "NOT A DOMAIN", 2000)
+	if err == nil {
+		t.Fatalf("expected error for invalid domain")
+	}
+	tx.Rollback()
+}
+
 func TestApplyRemoveOp(t *testing.T) {
 	d := tempDB(t)
 	userID := seedUser(t, d)
