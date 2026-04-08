@@ -1,5 +1,12 @@
 [
   {
+    "id": "2400ca1c-e9e3-4806-81ab-12aa3d6e3e7e",
+    "title": "Desktop notifications on connect, disconnect, and reconnect",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T20:46:29.754497+00:00"
+  },
+  {
     "id": "2aa043ab-c976-4491-a5ab-e4e86a4fbfdd",
     "title": "D3 stall detector now rebuilds transport",
     "description": "Previously left tunnel wedged in Reconnecting state forever.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T06:59:27.009706+00:00"
-  },
-  {
-    "id": "fcbb48cd-9db4-4d5f-8e97-53d13bc6ae66",
-    "title": "ARQ: channel semaphore вместо sync.Cond для cwnd",
-    "description": "ARQ: дроп пакетов при maxRetransmits с освобождением cwnd слота\nARQ: конфигурируемые размеры буферов (SendBufSize, RecvBufSize, MaxStreams)",
-    "type": "improvement",
-    "createdAt": "2026-04-04T06:58:37.034217+00:00"
   }
 ]

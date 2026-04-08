@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, powerMonitor, net } from "electron";
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, powerMonitor, net, Notification } from "electron";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -718,6 +718,25 @@ function setupIpc() {
 
   ipcMain.on("tray-status", (_e, connected: boolean) => {
     setTrayConnected(connected);
+  });
+
+  ipcMain.on("show-notification", (_e, data: { title: string; body: string }) => {
+    if (!Notification.isSupported()) return;
+    const opts: Electron.NotificationConstructorOptions = {
+      title: data.title,
+      body: data.body,
+      silent: false,
+    };
+    // macOS pulls the icon from the app bundle automatically; passing it
+    // is a no-op there. Windows needs it explicitly or the notification
+    // shows a blank placeholder.
+    if (process.platform === "win32") {
+      const buildDir = app.isPackaged
+        ? path.join(process.resourcesPath, "app.asar", "build")
+        : path.join(__dirname, "../../build");
+      opts.icon = path.join(buildDir, "icon.png");
+    }
+    new Notification(opts).show();
   });
 
   // After macOS sleep/wake (or Windows suspend/resume), the UDP socket the

@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld("appInfo", {
   openLogs: () => ipcRenderer.send("open-logs"),
   openUpdate: () => ipcRenderer.send("open-update"),
   setTrayStatus: (connected: boolean) => ipcRenderer.send("tray-status", connected),
+  showNotification: (title: string, body: string) =>
+    ipcRenderer.send("show-notification", { title, body }),
   getSeedSites: () => ipcRenderer.invoke("get-seed-sites"),
   getDaemonToken: () => ipcRenderer.invoke("get-daemon-token"),
   daemonSetEnabled: (siteId: number, enabled: boolean) =>

@@ -295,6 +295,26 @@ export function App() {
     (window as any).appInfo?.setTrayStatus(isConnected);
   }, [isConnected]);
 
+  // Desktop notifications on connection state transitions.
+  // prevNotifState tracks the last state we notified on so we only fire
+  // on real edges (connected → disconnected, etc.), not on every render.
+  // Skip the very first run so we don't spam a "Disconnected" toast at
+  // app launch before auto-connect has had a chance to run.
+  const prevNotifState = useRef<"connected" | "disconnected" | "reconnecting" | null>(null);
+  useEffect(() => {
+    const current: "connected" | "disconnected" | "reconnecting" =
+      isConnected ? "connected" : daemonReconnecting || reconnecting ? "reconnecting" : "disconnected";
+    const prev = prevNotifState.current;
+    prevNotifState.current = current;
+    if (prev === null) return;
+    if (prev === current) return;
+    const notify = (window as any).appInfo?.showNotification;
+    if (!notify) return;
+    if (current === "connected") notify("SmurovProxy", "Connected");
+    else if (current === "reconnecting") notify("SmurovProxy", "Reconnecting...");
+    else if (current === "disconnected") notify("SmurovProxy", "Disconnected");
+  }, [isConnected, daemonReconnecting, reconnecting]);
+
   // On system wake, the daemon's UDP session is silently dead (server forgot
   // us during sleep). Tear down the old state and reconnect instead of waiting
   // for the keepalive timeout. Uses a ref for the "was connected" check so the
