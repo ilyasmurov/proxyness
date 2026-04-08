@@ -13,6 +13,7 @@ import (
 	"time"
 
 	dstats "smurov-proxy/daemon/internal/stats"
+	"smurov-proxy/daemon/internal/sites"
 	"smurov-proxy/daemon/internal/transport"
 	"smurov-proxy/daemon/internal/tun"
 	"smurov-proxy/daemon/internal/tunnel"
@@ -28,6 +29,7 @@ type Server struct {
 	sessionID       string
 	serverAddr      string              // remembered for unlock on disconnect
 	key             string
+	keyStore        *sites.KeyStore
 	pacSites        *PacSites
 	transportMode   string              // "auto", "udp", or "tls"
 	activeTransport transport.Transport  // current transport instance
@@ -56,6 +58,19 @@ func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string, meter *dstats.Rate
 		sessionID:     hex.EncodeToString(b),
 		pacSites:      NewPacSites(),
 		transportMode: transport.ModeAuto,
+	}
+}
+
+// SetKeyStore wires the KeyStore and loads the persisted device key, if any,
+// so /sites/* endpoints (added in later tasks) can reach the server even
+// before the user explicitly connects the tunnel.
+func (s *Server) SetKeyStore(ks *sites.KeyStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.keyStore = ks
+	// Restore key from disk on startup.
+	if s.key == "" {
+		s.key = ks.Load()
 	}
 }
 
@@ -133,6 +148,11 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.serverAddr = req.ServerAddr
 	s.key = req.Key
+	if s.keyStore != nil {
+		if err := s.keyStore.Save(req.Key); err != nil {
+			log.Printf("[sites] failed to persist device key: %v", err)
+		}
+	}
 	s.mu.Unlock()
 
 	if req.Version != "" {

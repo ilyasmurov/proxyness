@@ -1,5 +1,12 @@
 [
   {
+    "id": "c00c54c1-20d4-4a95-8e89-ac12948eb0e9",
+    "title": "Демон персистит device key на диск для использования /sites/* API без активного туннеля",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T06:52:38.600010+00:00"
+  },
+  {
     "id": "8a2d76d2-c3ce-4ba0-a071-3c2f59301764",
     "title": "add_domain sync op для обогащения site_domains через discovery",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Предотвращает автотюнинг до 4 МБ на соединение",
     "type": "fix",
     "createdAt": "2026-04-01T08:54:08Z"
-  },
-  {
-    "id": "b758ed21-55c5-4a1f-98e3-a9adebe46322",
-    "title": "Уменьшен TCP idle timeout с 5 до 2 минут",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-01T08:38:00Z"
   }
 ]

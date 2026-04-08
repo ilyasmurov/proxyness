@@ -8,6 +8,7 @@ import (
 
 	"smurov-proxy/daemon/internal/api"
 	dstats "smurov-proxy/daemon/internal/stats"
+	"smurov-proxy/daemon/internal/sites"
 	"smurov-proxy/daemon/internal/tun"
 	"smurov-proxy/daemon/internal/tunnel"
 )
@@ -33,6 +34,8 @@ func main() {
 	}
 
 	srv := api.New(tnl, tunEngine, *listenAddr, meter)
+	keyStore := sites.NewKeyStore(sites.DefaultKeyPath())
+	srv.SetKeyStore(keyStore)
 	log.Printf("API listening on %s", *apiAddr)
 	if err := http.ListenAndServe(*apiAddr, srv.Handler()); err != nil {
 		log.Fatalf("api: %v", err)
