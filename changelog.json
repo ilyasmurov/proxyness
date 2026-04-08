@@ -1,5 +1,12 @@
 [
   {
+    "id": "d73891a5-1420-4733-be46-db2e7ca55aff",
+    "title": "Vendor ExpandDomains from TypeScript to Go in daemon/internal/sites",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T12:35:53.524268+00:00"
+  },
+  {
     "id": "a029d81a-9d2d-408b-b4b3-071d2799abdf",
     "title": "План имплементации popup control panel: 33 task'а с TDD-разбивкой по 4 фазам — daemon (Go), desktop client (TS), browser extension (JS), E2E verification.",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T20:33:01Z"
-  },
-  {
-    "id": "6eb4e7e5-5126-4d79-a6fe-1569593215f2",
-    "title": "Автовыбор транспорта: UDP с фолбеком на TLS",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-03T20:22:42Z"
   }
 ]
