@@ -1,3 +1,3 @@
 ## fix
-Diagnostic crash logger for Windows startup
-Writes uncaught exceptions and boot-phase traces to ~/Desktop/smurov-crash.log to pinpoint where startup crashes happen on Windows.
+Renderer crash diagnostics
+Hooks render-process-gone, did-fail-load, preload-error and console-messages into the crash log so we can catch renderer-side startup failures too.

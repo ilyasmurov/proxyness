@@ -1,5 +1,12 @@
 [
   {
+    "id": "61c3babe-9a5c-46e4-95ef-ae9120131cd2",
+    "title": "Renderer crash diagnostics",
+    "description": "Hooks render-process-gone, did-fail-load, preload-error and console-messages into the crash log so we can catch renderer-side startup failures too.",
+    "type": "fix",
+    "createdAt": "2026-04-08T22:29:35.000372+00:00"
+  },
+  {
     "id": "932c1a49-fcbc-4d9e-8042-e549cf45cee9",
     "title": "Diagnostic crash logger for Windows startup",
     "description": "Writes uncaught exceptions and boot-phase traces to ~/Desktop/smurov-crash.log to pinpoint where startup crashes happen on Windows.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T08:58:15.276164+00:00"
-  },
-  {
-    "id": "654195c3-6795-41f4-b7d6-72386d4e2da3",
-    "title": "UDP debug логи для диагностики проблем с подключением",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-04T08:37:41.121087+00:00"
   }
 ]

@@ -290,6 +290,25 @@ function createWindow() {
     },
   });
 
+  // Renderer diagnostics — everything that can go wrong on the renderer side
+  // gets captured here because main-process-only logging missed the 1.27+
+  // Windows startup crash entirely (main finished boot cleanly, window died).
+  mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    logCrash("render-process-gone", JSON.stringify(details));
+  });
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    logCrash("did-fail-load", `${code} ${desc} ${url}`);
+  });
+  mainWindow.webContents.on("preload-error", (_e, preload, err) => {
+    logCrash("preload-error", `${preload}: ${err?.stack || err}`);
+  });
+  mainWindow.webContents.on("console-message", (_e, level, message, line, sourceId) => {
+    // level: 0=verbose 1=info 2=warning 3=error — only log warnings+
+    if (level >= 2) {
+      bootTrace(`renderer console[${level}] ${sourceId}:${line} ${message}`);
+    }
+  });
+
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
