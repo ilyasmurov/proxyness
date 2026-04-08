@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSites } from "../sites/useSites";
 import { expandDomains } from "../sites/pac";
 import type { LocalSite } from "../sites/types";
@@ -258,15 +258,23 @@ export function AppRules({ visible }: Props) {
     };
   }, [visible]);
 
-  // Derive enabled domain list for PAC generation.
-  const enabledDomains = localSites
-    .filter((s) => s.enabled)
-    .flatMap((s) => s.domains);
-  const siteDomains = expandDomains(enabledDomains);
+  // All three derivations below MUST be memoized: siteDomains is a dep of
+  // applyPac (useCallback), which is a dep of the re-apply useEffect. Without
+  // useMemo they're fresh references every render, which caused applyPac to
+  // be fresh every render, which caused the effect to fire every render,
+  // which hammered networksetup via setPacSites+enableSystemProxy and hung
+  // macOS in v1.25.0. enabledSet and liveSites are memoized for the same
+  // reason (passed as props to SitesGrid, would break memo/reconciliation).
+  const siteDomains = useMemo(() => {
+    const enabledDomains = localSites
+      .filter((s) => s.enabled)
+      .flatMap((s) => s.domains);
+    return expandDomains(enabledDomains);
+  }, [localSites]);
 
   // Map from active hosts to the set of site ids that are currently live.
   // A site is live when any of its domains matches (by suffix) at least one active host.
-  const liveSites = (() => {
+  const liveSites = useMemo(() => {
     if (activeHosts.length === 0) return new Set<number>();
     const live = new Set<number>();
     const hostMatches = (host: string, pattern: string): boolean =>
@@ -280,10 +288,13 @@ export function AppRules({ visible }: Props) {
       }
     }
     return live;
-  })();
+  }, [activeHosts, localSites]);
 
   // Derive enabled set (by id) for SitesGrid.
-  const enabledSet = new Set(localSites.filter((s) => s.enabled).map((s) => s.id));
+  const enabledSet = useMemo(
+    () => new Set(localSites.filter((s) => s.enabled).map((s) => s.id)),
+    [localSites]
+  );
 
   useEffect(() => {
     if (!visible) return;

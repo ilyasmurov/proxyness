@@ -1,5 +1,12 @@
 [
   {
+    "id": "8c15d662-3005-4268-9e02-53d2f76d4bf4",
+    "title": "AppRules.tsx: memoize siteDomains/liveSites/enabledSet — без этого applyPac useCallback и re-apply useEffect фаерились на каждом рендере, зовя networksetup десятки раз в секунду, что вешало macOS при запуске клиента",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-08T07:27:50.982335+00:00"
+  },
+  {
     "id": "8d0fcbe2-b572-4450-ab76-f72b1e4dadf9",
     "title": "Extension Flow 3: detect top-level block → verify через /sites/test → banner с одним кликом",
     "description": null,
@@ -1389,13 +1396,6 @@
     "id": "cf3032b0-bebf-4f79-a456-f121f85f3787",
     "title": "Вкладка Releases в админ-панели",
     "description": "Загрузка данных с GitHub API",
-    "type": "feature",
-    "createdAt": "2026-04-03T17:51:21Z"
-  },
-  {
-    "id": "5e7975d8-7b3e-4672-a952-1cce5568affa",
-    "title": "Авторизация на SPA страницах админки",
-    "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T17:51:21Z"
   }
