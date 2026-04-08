@@ -1,5 +1,12 @@
 [
   {
+    "id": "479f187a-7f3b-4df8-9177-da2af7857823",
+    "title": "Content script panel renders catalog_disabled state with Enable button",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T13:53:42.624669+00:00"
+  },
+  {
     "id": "2b008fcf-4c0e-45af-8540-0d229ad9b2c3",
     "title": "Add control panel layout styles to popup.css",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-04T05:55:55.682203+00:00"
-  },
-  {
-    "id": "1c74d621-9e2e-4a25-86c5-cc912b17fc68",
-    "title": "ARQ send buffer with retransmit tracking",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-04T05:54:32.433423+00:00"
   }
 ]

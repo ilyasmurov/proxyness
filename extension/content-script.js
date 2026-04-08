@@ -98,6 +98,24 @@
         actionsEl.style.display = "flex";
         panel.classList.remove("collapsed");
         break;
+      case "catalog_disabled":
+        iconEl.className = "icon gray";
+        labelEl.textContent = `${s.host} off`;
+        const enableBtn = document.createElement("button");
+        enableBtn.textContent = "Enable";
+        enableBtn.addEventListener("click", () => {
+          chrome.runtime.sendMessage({
+            type: "popup_set_enabled",
+            site_id: s.siteId,
+            enabled: true,
+          }, (resp) => {
+            if (resp?.ok) location.reload();
+          });
+        });
+        actionsEl.appendChild(enableBtn);
+        actionsEl.style.display = "flex";
+        panel.classList.remove("collapsed");
+        break;
       case "blocked":
         iconEl.className = "icon red";
         labelEl.textContent = `${s.host} blocked`;

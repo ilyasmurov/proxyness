@@ -1,2 +1,2 @@
-## improvement
-Add control panel layout styles to popup.css
+## feature
+Content script panel renders catalog_disabled state with Enable button
