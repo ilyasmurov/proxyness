@@ -1,5 +1,12 @@
 [
   {
+    "id": "243cf666-bf41-4e55-9b21-3b3e10492185",
+    "title": "Extension README с install + usage инструкциями для sideload",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T07:16:17.974200+00:00"
+  },
+  {
     "id": "bf03f11d-edfa-4409-8714-b2962e7b5759",
     "title": "Extension Flow 1: клик \"Add to proxy\" → /sites/add → state→discovering",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-03T17:00:13Z"
-  },
-  {
-    "id": "42b3a4c2-88b9-4b52-b94c-282e2e6626f8",
-    "title": "SVG иконки приложений и сайтов",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-01T13:27:25Z"
   }
 ]
