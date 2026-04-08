@@ -1,5 +1,12 @@
 [
   {
+    "id": "a6cc0f00-8eb9-4ea4-9298-cb0827cb18f8",
+    "title": "Daemon Sites Manager — координирует key store, sync client, in-memory cache",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:04:49.666011+00:00"
+  },
+  {
     "id": "96241e90-80e4-44cb-929c-037ffc94354c",
     "title": "Browser extension scaffold: manifest v3 + папочная структура + sideload README",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-01T11:21:59Z"
-  },
-  {
-    "id": "91d31218-73e5-4798-a19d-d281c3a595d1",
-    "title": "Привязка устройств к железу (hardware fingerprint)",
-    "description": "Один ключ = одна машина",
-    "type": "feature",
-    "createdAt": "2026-04-01T10:52:28Z"
   }
 ]
