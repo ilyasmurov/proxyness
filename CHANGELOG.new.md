@@ -1,2 +1,2 @@
-## improvement
-Демон персистит device key на диск для использования /sites/* API без активного туннеля
+## feature
+Per-extension auth token + middleware для /sites/* эндпоинтов демона

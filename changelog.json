@@ -1,5 +1,12 @@
 [
   {
+    "id": "a6a14627-4e18-46a8-8089-21fa627525d9",
+    "title": "Per-extension auth token + middleware для /sites/* эндпоинтов демона",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T06:56:07.611228+00:00"
+  },
+  {
     "id": "c00c54c1-20d4-4a95-8e89-ac12948eb0e9",
     "title": "Демон персистит device key на диск для использования /sites/* API без активного туннеля",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-01T09:48:06Z"
-  },
-  {
-    "id": "e932017f-6964-45c3-b2a8-7083382d19f5",
-    "title": "Ограничение TCP буферов gVisor до 128 КБ",
-    "description": "Предотвращает автотюнинг до 4 МБ на соединение",
-    "type": "fix",
-    "createdAt": "2026-04-01T08:54:08Z"
   }
 ]
