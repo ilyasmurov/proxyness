@@ -1,2 +1,2 @@
 ## improvement
-Expose 4 new daemon site IPC methods in preload and drop sites from setPacSites
+Drop sites field from setPacSites window declaration in useDaemon.ts

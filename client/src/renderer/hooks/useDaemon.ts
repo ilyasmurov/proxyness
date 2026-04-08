@@ -6,7 +6,7 @@ declare const __APP_VERSION__: string;
 
 declare global {
   interface Window {
-    sysproxy: { enable: () => void; disable: () => void; setPacSites: (data: { proxy_all: boolean; sites: string[] }) => void };
+    sysproxy: { enable: () => void; disable: () => void; setPacSites: (data: { proxy_all: boolean }) => void };
   }
 }
 
