@@ -1,5 +1,12 @@
 [
   {
+    "id": "3cab9a76-fb91-4383-a568-43157f7f063b",
+    "title": "Windows daemon idle CPU burn — cache physical interface index",
+    "description": "Windows CachePhysicalInterface was a no-op stub, so every protectedDial was calling net.Interfaces → GetAdaptersAddresses per connection. A pprof capture of an idle TUN-mode daemon showed ~28% CPU in that path plus another ~35% in GC cleaning up the allocations — a busy browser was burning 40-60% of one core on nothing but interface enumeration. Now mirrors the darwin implementation: detect once at engine.Start, cache, clear on Stop.",
+    "type": "fix",
+    "createdAt": "2026-04-08T23:28:04.701601+00:00"
+  },
+  {
     "id": "614cbfc3-1fdf-4a1e-aad8-5d5c72f3ec06",
     "title": "pprof endpoints on daemon for CPU profiling",
     "description": "Daemon now exposes /debug/pprof/* on its local 127.0.0.1:9090 API so we can capture CPU profiles to investigate Windows idle CPU burn. Curl /debug/pprof/profile?seconds=30 for a 30s CPU sample.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T12:56:49.572828+00:00"
-  },
-  {
-    "id": "58568146-a3ef-47cc-84a3-b725a17fd127",
-    "title": "ARQ: fix cwnd death spiral — skip OnLoss at minimum cwnd to preserve slow start",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T12:47:34.060986+00:00"
   }
 ]
