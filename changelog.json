@@ -1,5 +1,12 @@
 [
   {
+    "id": "7f3cf4ee-5b2f-4980-a0d7-13885e6a3a01",
+    "title": "Landing page overhaul",
+    "description": "Redesigned landing: hero, 6 feature cards (port 443, AutoTransport, hybrid TUN+Browser, split tunneling, Kill Switch, hardware-bound), benchmark table vs WireGuard and Outline, 3-step onboarding. EN/RU language switcher, admin panel link removed, download buttons auto-resolve to the latest GitHub release with proper Apple and Windows SVG logos.",
+    "type": "feature",
+    "createdAt": "2026-04-08T22:30:08.997624+00:00"
+  },
+  {
     "id": "61c3babe-9a5c-46e4-95ef-ae9120131cd2",
     "title": "Renderer crash diagnostics",
     "description": "Hooks render-process-gone, did-fail-load, preload-error and console-messages into the crash log so we can catch renderer-side startup failures too.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T09:04:08.408334+00:00"
-  },
-  {
-    "id": "0e0bc9fc-2554-42e3-8dc0-521e7dfefe26",
-    "title": "ARQ: запись PktNum для stream open/close в ACK state — фикс блокировки UDP",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T08:58:15.276164+00:00"
   }
 ]
