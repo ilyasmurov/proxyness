@@ -1,5 +1,12 @@
 [
   {
+    "id": "878f8aa3-db22-4045-a6c9-343bdeae74ea",
+    "title": "Extension popup: pairing screen + paired state с unpair кнопкой",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:13:15.076621+00:00"
+  },
+  {
     "id": "f5ba19e3-aa2a-4f21-b263-e318c378400f",
     "title": "Daemon HTTP API: GET /sites/match, POST /sites/add, POST /sites/discover",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-01T12:45:21Z"
-  },
-  {
-    "id": "7cb37c3d-9071-4390-b81c-4137442fc415",
-    "title": "Автоскрытие ошибок в интерфейсе через 15 секунд",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-01T11:56:42Z"
   }
 ]

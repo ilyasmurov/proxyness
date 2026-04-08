@@ -1,2 +1,2 @@
 ## feature
-Daemon HTTP API: GET /sites/match, POST /sites/add, POST /sites/discover
+Extension popup: pairing screen + paired state с unpair кнопкой
