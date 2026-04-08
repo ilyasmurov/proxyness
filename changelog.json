@@ -1,5 +1,12 @@
 [
   {
+    "id": "a59d4cc8-d5aa-4c2c-89f2-9bb15c34a54e",
+    "title": "Document Windows window-handoff ordering rule and --trace flag in CLAUDE.md",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T23:00:45.657741+00:00"
+  },
+  {
     "id": "e39f5464-4299-4da6-8c07-73272ebd0b24",
     "title": "Windows startup crash since 1.27 — loader-to-main window handoff",
     "description": "Create the main window before destroying the loader. The old order destroyed the loader first, which synchronously fired window-all-closed (zero windows for one tick) and on Windows that handler quits the app — the subsequent createWindow ran inside an already-quitting process and the main UI never appeared.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T10:24:25.927268+00:00"
-  },
-  {
-    "id": "352f5111-3d10-4b9b-a2be-8ae5ae8d1d8a",
-    "title": "ARQ: увеличен minRTO до 200ms, немедленный ACK каждые 2 пакета, initial RTO 200ms",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T10:14:32.138391+00:00"
   }
 ]
