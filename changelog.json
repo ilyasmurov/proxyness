@@ -1,5 +1,12 @@
 [
   {
+    "id": "60ffffe3-791c-413b-84ae-84c1419dc84c",
+    "title": "Delete unused pac.ts (expandDomains moved to daemon)",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:33:40.657757+00:00"
+  },
+  {
     "id": "85029731-e50f-4730-b315-1e4e36d754d3",
     "title": "Drop siteDomains memo and simplify PAC push in AppRules",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T23:14:02.551638+00:00"
-  },
-  {
-    "id": "caa87135-350b-4b73-bcc0-23e15542213d",
-    "title": "UDP vs TLS benchmark results",
-    "description": "Added Test 5 with UDP/TLS transport comparison and full comparison table across all VPN solutions",
-    "type": "improvement",
-    "createdAt": "2026-04-03T22:55:51.753422+00:00"
   }
 ]
