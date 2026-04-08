@@ -226,6 +226,52 @@ func TestManagerSetEnabledServerError(t *testing.T) {
 	}
 }
 
+func TestManagerRemoveSite(t *testing.T) {
+	var mu sync.Mutex
+	var receivedOps []map[string]interface{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&req)
+		raw, _ := req["ops"].([]interface{})
+		mu.Lock()
+		for _, o := range raw {
+			receivedOps = append(receivedOps, o.(map[string]interface{}))
+		}
+		mu.Unlock()
+		json.NewEncoder(w).Encode(SyncResponse{
+			MySites:    []MySite{},
+			OpResults:  []OpResult{{Status: "ok"}},
+			ServerTime: 1000,
+		})
+	}))
+	defer srv.Close()
+
+	keyStore := NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := NewManager(srv.URL, keyStore)
+
+	mgr.cache.Replace([]MySite{
+		{ID: 47, PrimaryDomain: "youtube.com", Domains: []string{"youtube.com"}, Enabled: true},
+	})
+
+	if err := mgr.RemoveSite(47); err != nil {
+		t.Fatalf("RemoveSite: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(receivedOps) != 1 || receivedOps[0]["op"] != "remove" {
+		t.Errorf("expected remove op, got %v", receivedOps)
+	}
+	if int(receivedOps[0]["site_id"].(float64)) != 47 {
+		t.Errorf("expected site_id=47, got %v", receivedOps[0]["site_id"])
+	}
+
+	if mgr.cache.Match("youtube.com") != nil {
+		t.Error("expected cache to be empty after remove")
+	}
+}
+
 func TestManagerEnabledDomains(t *testing.T) {
 	dir := t.TempDir()
 	keyStore := NewKeyStore(filepath.Join(dir, "key"))

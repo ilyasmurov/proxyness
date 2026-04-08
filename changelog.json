@@ -1,5 +1,12 @@
 [
   {
+    "id": "d505e08d-1ad8-40fb-a2bb-a6cbd105256e",
+    "title": "Add Manager.RemoveSite for per-user site deletion through server sync",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T12:54:48.725909+00:00"
+  },
+  {
     "id": "17a62c59-4aab-49a3-bbde-b1b2bed5f54e",
     "title": "Fix latent data race in TestManagerSetEnabledTogglesViaSync",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-03T21:09:24.131224+00:00"
-  },
-  {
-    "id": "6a814ac5-4178-48aa-8cb7-7a1a08457d37",
-    "title": "Система ченджлога через файл с pre-commit хуком",
-    "description": "CHANGELOG.new.md → changelog.json → SQLite DB при старте сервера",
-    "type": "feature",
-    "createdAt": "2026-04-03T21:08:45.284598+00:00"
   }
 ]

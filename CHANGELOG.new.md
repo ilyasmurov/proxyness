@@ -1,2 +1,2 @@
 ## improvement
-Fix latent data race in TestManagerSetEnabledTogglesViaSync
+Add Manager.RemoveSite for per-user site deletion through server sync

@@ -108,6 +108,30 @@ func (m *Manager) SetEnabled(siteID int, enabled bool) error {
 	return nil
 }
 
+// RemoveSite deletes a site for this user through server sync. Symmetric
+// to AddSite. Cache is replaced with the fresh my_sites snapshot.
+func (m *Manager) RemoveSite(siteID int) error {
+	resp, err := m.client.SyncOps([]map[string]interface{}{
+		{
+			"op":      "remove",
+			"site_id": siteID,
+			"at":      time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if len(resp.OpResults) == 0 {
+		return fmt.Errorf("no op_results in response")
+	}
+	if r := resp.OpResults[0]; r.Status != "ok" {
+		return fmt.Errorf("server: %s", r.Message)
+	}
+	m.cache.Replace(resp.MySites)
+	m.fireOnCacheReplaced()
+	return nil
+}
+
 // AddDomains enqueues add_domain ops for the given domains.
 func (m *Manager) AddDomains(siteID int, domains []string) (int, int, error) {
 	now := time.Now().Unix()
