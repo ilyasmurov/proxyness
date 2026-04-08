@@ -1,2 +1,2 @@
 ## improvement
-Add SetOnCacheReplaced callback wiring to sites Manager
+Add Manager.SetEnabled for per-user enable/disable through server sync

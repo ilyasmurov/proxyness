@@ -79,6 +79,35 @@ func (m *Manager) AddSite(primaryDomain, label string) (int, bool, error) {
 	return r.SiteID, r.Deduped, nil
 }
 
+// SetEnabled toggles the per-user enabled flag for a site through server
+// sync. On success the cache is replaced with the fresh my_sites snapshot
+// and the OnCacheReplaced callback fires.
+func (m *Manager) SetEnabled(siteID int, enabled bool) error {
+	op := "disable"
+	if enabled {
+		op = "enable"
+	}
+	resp, err := m.client.SyncOps([]map[string]interface{}{
+		{
+			"op":      op,
+			"site_id": siteID,
+			"at":      time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if len(resp.OpResults) == 0 {
+		return fmt.Errorf("no op_results in response")
+	}
+	if r := resp.OpResults[0]; r.Status != "ok" {
+		return fmt.Errorf("server: %s", r.Message)
+	}
+	m.cache.Replace(resp.MySites)
+	m.fireOnCacheReplaced()
+	return nil
+}
+
 // AddDomains enqueues add_domain ops for the given domains.
 func (m *Manager) AddDomains(siteID int, domains []string) (int, int, error) {
 	now := time.Now().Unix()

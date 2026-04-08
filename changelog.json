@@ -1,5 +1,12 @@
 [
   {
+    "id": "149763d7-32de-4583-bac7-0f7b9bda6173",
+    "title": "Add Manager.SetEnabled for per-user enable/disable through server sync",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T12:49:23.790904+00:00"
+  },
+  {
     "id": "9646ac87-21d2-42c9-a1e7-449f4fd1632d",
     "title": "Add SetOnCacheReplaced callback wiring to sites Manager",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Группировка по датам, цветные бейджи типов, компактные карточки",
     "type": "improvement",
     "createdAt": "2026-04-03T21:08:45.284765+00:00"
-  },
-  {
-    "id": "6eff7430-8635-49ba-aa1e-5f70ca791d8a",
-    "title": "UDP транспорт с шифрованием XChaCha20-Poly1305",
-    "description": "Обмен ключами X25519, forward secrecy",
-    "type": "feature",
-    "createdAt": "2026-04-03T20:01:50Z"
   }
 ]

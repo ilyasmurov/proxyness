@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -127,6 +128,95 @@ func TestManagerCallbackNilSafe(t *testing.T) {
 	mgr := NewManager(srv.URL, keyStore)
 	if err := mgr.Refresh(); err != nil {
 		t.Fatalf("refresh: %v", err)
+	}
+}
+
+func TestManagerSetEnabledTogglesViaSync(t *testing.T) {
+	var receivedOps []map[string]interface{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		json.NewDecoder(r.Body).Decode(&req)
+		raw, _ := req["ops"].([]interface{})
+		for _, o := range raw {
+			receivedOps = append(receivedOps, o.(map[string]interface{}))
+		}
+
+		// Server responds with the site flipped to disabled.
+		json.NewEncoder(w).Encode(SyncResponse{
+			MySites: []MySite{
+				{ID: 47, PrimaryDomain: "youtube.com", Domains: []string{"youtube.com"}, Enabled: false},
+			},
+			OpResults:  []OpResult{{Status: "ok"}},
+			ServerTime: 1000,
+		})
+	}))
+	defer srv.Close()
+
+	keyStore := NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := NewManager(srv.URL, keyStore)
+
+	if err := mgr.SetEnabled(47, false); err != nil {
+		t.Fatalf("SetEnabled: %v", err)
+	}
+
+	if len(receivedOps) != 1 {
+		t.Fatalf("expected 1 op, got %d", len(receivedOps))
+	}
+	op := receivedOps[0]
+	if op["op"] != "disable" {
+		t.Errorf("expected op=disable, got %v", op["op"])
+	}
+	if int(op["site_id"].(float64)) != 47 {
+		t.Errorf("expected site_id=47, got %v", op["site_id"])
+	}
+
+	// Cache should now reflect the disabled state.
+	m := mgr.cache.Match("youtube.com")
+	if m == nil || m.Enabled {
+		t.Errorf("cache not updated, got %+v", m)
+	}
+}
+
+func TestManagerSetEnabledFiresCallback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(SyncResponse{
+			MySites:    []MySite{},
+			OpResults:  []OpResult{{Status: "ok"}},
+			ServerTime: 1000,
+		})
+	}))
+	defer srv.Close()
+
+	keyStore := NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := NewManager(srv.URL, keyStore)
+
+	var calls int32
+	mgr.SetOnCacheReplaced(func() { atomic.AddInt32(&calls, 1) })
+
+	mgr.SetEnabled(1, true)
+
+	if atomic.LoadInt32(&calls) != 1 {
+		t.Fatalf("expected 1 callback fire, got %d", calls)
+	}
+}
+
+func TestManagerSetEnabledServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(SyncResponse{
+			OpResults: []OpResult{{Status: "error", Message: "site not found"}},
+		})
+	}))
+	defer srv.Close()
+
+	keyStore := NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := NewManager(srv.URL, keyStore)
+
+	err := mgr.SetEnabled(999, false)
+	if err == nil || !strings.Contains(err.Error(), "site not found") {
+		t.Fatalf("expected error containing 'site not found', got %v", err)
 	}
 }
 
