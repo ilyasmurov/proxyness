@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSites } from "../sites/useSites";
-import { expandDomains } from "../sites/pac";
 import type { LocalSite } from "../sites/types";
 
 declare global {
@@ -258,19 +257,9 @@ export function AppRules({ visible }: Props) {
     };
   }, [visible]);
 
-  // All three derivations below MUST be memoized: siteDomains is a dep of
-  // applyPac (useCallback), which is a dep of the re-apply useEffect. Without
-  // useMemo they're fresh references every render, which caused applyPac to
-  // be fresh every render, which caused the effect to fire every render,
-  // which hammered networksetup via setPacSites+enableSystemProxy and hung
-  // macOS in v1.25.0. enabledSet and liveSites are memoized for the same
-  // reason (passed as props to SitesGrid, would break memo/reconciliation).
-  const siteDomains = useMemo(() => {
-    const enabledDomains = localSites
-      .filter((s) => s.enabled)
-      .flatMap((s) => s.domains);
-    return expandDomains(enabledDomains);
-  }, [localSites]);
+  // enabledSet and liveSites MUST be memoized: they are passed as props to
+  // SitesGrid — without useMemo they'd be fresh references every render,
+  // breaking memo/reconciliation.
 
   // Map from active hosts to the set of site ids that are currently live.
   // A site is live when any of its domains matches (by suffix) at least one active host.
@@ -360,14 +349,10 @@ export function AppRules({ visible }: Props) {
         window.sysproxy?.disable();
         return;
       }
-      if (allSitesOn) {
-        window.sysproxy?.setPacSites({ proxy_all: true, sites: [] });
-      } else {
-        window.sysproxy?.setPacSites({ proxy_all: false, sites: siteDomains });
-      }
+      window.sysproxy?.setPacSites({ proxy_all: allSitesOn });
       window.sysproxy?.enable();
     },
-    [allSitesOn, siteDomains]
+    [allSitesOn]
   );
 
   // Re-apply PAC whenever browsersOn or site selection changes.
@@ -378,7 +363,7 @@ export function AppRules({ visible }: Props) {
   const applyRules = useCallback((m: Mode, enabledIds: Set<string>, resolvedApps: ResolvedApp[], bOn: boolean, noTLSIds: Set<string>) => {
     if (m === "all") {
       window.tunProxy?.setRules({ mode: "proxy_all_except", apps: [] });
-      window.sysproxy?.setPacSites({ proxy_all: true, sites: [] });
+      window.sysproxy?.setPacSites({ proxy_all: true });
       window.sysproxy?.enable();
     } else {
       const paths: string[] = [];

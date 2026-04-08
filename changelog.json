@@ -1,5 +1,12 @@
 [
   {
+    "id": "85029731-e50f-4730-b315-1e4e36d754d3",
+    "title": "Drop siteDomains memo and simplify PAC push in AppRules",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:33:16.605043+00:00"
+  },
+  {
     "id": "7a5d7bfc-6062-49d6-9431-82135e17ef63",
     "title": "Drop sites field in tunConnect setPacSites payload in App.tsx",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Added Test 5 with UDP/TLS transport comparison and full comparison table across all VPN solutions",
     "type": "improvement",
     "createdAt": "2026-04-03T22:55:51.753422+00:00"
-  },
-  {
-    "id": "584e7dcb-1e4b-445d-90af-ac647521ee69",
-    "title": "UDP transport throughput",
-    "description": "Buffered packet channel on server, 4MB UDP socket buffers on both sides, larger stream receive buffer on client",
-    "type": "improvement",
-    "createdAt": "2026-04-03T22:49:53.382053+00:00"
   }
 ]
