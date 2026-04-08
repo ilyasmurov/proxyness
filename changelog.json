@@ -1,5 +1,12 @@
 [
   {
+    "id": "0f4a66c9-2a5b-45ed-8aec-91128fc17db9",
+    "title": "Контент-скрипт расширения с панелью на Shadow DOM",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:08:14.801587+00:00"
+  },
+  {
     "id": "9125b674-d3f2-4403-9af8-b82a2c490851",
     "title": "Extension service worker + daemon client wrapper с token storage",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-01T11:56:42Z"
-  },
-  {
-    "id": "6dc5a7aa-ff2a-4933-9066-fad6615bcd82",
-    "title": "Анимированная кнопка Connecting / Reconnecting",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-01T11:24:39Z"
   }
 ]

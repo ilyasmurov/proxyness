@@ -1,2 +1,2 @@
 ## feature
-Extension service worker + daemon client wrapper с token storage
+Контент-скрипт расширения с панелью на Shadow DOM
