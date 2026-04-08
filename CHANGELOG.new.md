@@ -1,2 +1,2 @@
-## improvement
-Bump desktop client version to 1.26.0 for popup control panel feature
+## feature
+Popup-расширение теперь панель управления для активной вкладки: проксировать сайт одним кликом, выключить проксирование, переключение применяется немедленно через автоматический reload вкладки. Daemon забрал на себя формирование PAC — refactor устраняет race conditions между переключениями из popup'а и из десктоп-клиента.
