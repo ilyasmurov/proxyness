@@ -1,5 +1,12 @@
 [
   {
+    "id": "ca6c536e-8462-427a-b8da-ec5afd98d3c7",
+    "title": "Cache daemon token in memory in extension.ts to avoid disk reads on every IPC call",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:28:16.876469+00:00"
+  },
+  {
     "id": "4e3a86a6-75b5-4cfc-8c97-290cddbd3c3f",
     "title": "Wire RebuildPAC into sites cache-replace callback for automatic PAC updates",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-03T21:58:06.589929+00:00"
-  },
-  {
-    "id": "8e8ff4f8-7fd7-44cf-8b74-a9f22936001e",
-    "title": "Группировка по дням + время на каждой записи ченджлога",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-03T21:45:05.357363+00:00"
   }
 ]
