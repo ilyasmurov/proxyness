@@ -150,6 +150,51 @@ func (s *Server) handleSitesMy(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleSitesSearch(w http.ResponseWriter, r *http.Request) {
+	if s.sitesManager == nil {
+		http.Error(w, "daemon not ready", 503)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		writeJSON(w, 200, []interface{}{})
+		return
+	}
+	ql := strings.ToLower(q)
+
+	type result struct {
+		ID            int    `json:"id"`
+		Label         string `json:"label"`
+		PrimaryDomain string `json:"primary_domain"`
+	}
+
+	// 1. Search local cache (instant, always available).
+	seen := map[int]bool{}
+	var out []result
+	for _, site := range s.sitesManager.Cache().Snapshot() {
+		if strings.Contains(strings.ToLower(site.Label), ql) ||
+			strings.Contains(strings.ToLower(site.PrimaryDomain), ql) {
+			out = append(out, result{site.ID, site.Label, site.PrimaryDomain})
+			seen[site.ID] = true
+		}
+	}
+
+	// 2. Try server catalog (may fail if server not deployed yet).
+	if remote, err := s.sitesManager.SearchCatalog(q); err == nil {
+		for _, r := range remote {
+			if !seen[r.ID] {
+				out = append(out, result{r.ID, r.Label, r.PrimaryDomain})
+				seen[r.ID] = true
+			}
+		}
+	}
+
+	if out == nil {
+		out = []result{}
+	}
+	writeJSON(w, 200, out)
+}
+
 func (s *Server) handleSitesTest(w http.ResponseWriter, r *http.Request) {
 	if s.sitesTestClient == nil {
 		http.Error(w, "test client not configured", 503)

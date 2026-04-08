@@ -219,6 +219,11 @@ func (m *Manager) fireOnCacheReplaced() {
 	}
 }
 
+// SearchCatalog delegates to the sync client's catalog search.
+func (m *Manager) SearchCatalog(q string) ([]CatalogSite, error) {
+	return m.client.SearchCatalog(q)
+}
+
 // EnabledDomains returns the flat expanded domain list for all sites
 // where Enabled == true. Used to feed pacSites in Server.RebuildPAC.
 func (m *Manager) EnabledDomains() []string {

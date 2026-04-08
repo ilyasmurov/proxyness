@@ -103,8 +103,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /proxy.pac", s.handlePAC)
 	mux.HandleFunc("POST /pac/sites", s.handlePacSitesUpdate)
 	mux.HandleFunc("GET /pac/sites", s.handlePacSitesGet)
-	// Read-only sites endpoint for local desktop client renderer (no auth).
+	// Read-only sites endpoints for local desktop client renderer (no auth).
 	mux.HandleFunc("GET /sites/my", s.handleSitesMy)
+	mux.HandleFunc("GET /sites/search", s.handleSitesSearch)
 	mux.HandleFunc("GET /tunnel/active-hosts", s.handleActiveHosts)
 	// TUN endpoints
 	mux.HandleFunc("POST /tun/start", s.handleTUNStart)

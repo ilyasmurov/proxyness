@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld("appInfo", {
     ipcRenderer.invoke("daemon-remove-site", siteId),
   daemonListSites: () =>
     ipcRenderer.invoke("daemon-list-sites"),
+  daemonSearchSites: (q: string) =>
+    ipcRenderer.invoke("daemon-search-sites", q),
   onTrayConnect: (cb: () => void) => ipcRenderer.on("tray-connect", () => cb()),
   onTrayDisconnect: (cb: () => void) => ipcRenderer.on("tray-disconnect", () => cb()),
   onSystemResumed: (cb: () => void) => {

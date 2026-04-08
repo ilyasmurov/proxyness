@@ -1,5 +1,12 @@
 [
   {
+    "id": "2d3c6f22-61b1-4b93-9db3-46cecf28420f",
+    "title": "Site catalog search in Add Site modal",
+    "description": "Search the global catalog when adding sites — type to find, click cards to select, add multiple at once.",
+    "type": "feature",
+    "createdAt": "2026-04-08T20:27:10.654588+00:00"
+  },
+  {
     "id": "aee624fd-aaf1-4db5-9053-6533d14b231a",
     "title": "Auto-connect on cold start",
     "description": "Client now re-establishes the SOCKS5 tunnel automatically on launch when a device key is stored, instead of leaving the browser proxy off until you click Connect.",
@@ -1391,12 +1398,5 @@
     "description": "Reliable UDP transport интегрирован в daemon и server",
     "type": "feature",
     "createdAt": "2026-04-04T06:51:07.016264+00:00"
-  },
-  {
-    "id": "3571af9d-8704-496b-b565-c893b92bf3c9",
-    "title": "Changelog система в admin панели",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-04T06:51:07.016434+00:00"
   }
 ]

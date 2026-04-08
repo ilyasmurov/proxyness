@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 )
@@ -113,4 +114,41 @@ func (c *SyncClient) SyncOps(ops []map[string]interface{}) (*SyncResponse, error
 		return nil, fmt.Errorf("decode: %w", err)
 	}
 	return &sr, nil
+}
+
+// CatalogSite is a lightweight search result from the global sites catalog.
+type CatalogSite struct {
+	ID            int    `json:"id"`
+	Label         string `json:"label"`
+	PrimaryDomain string `json:"primary_domain"`
+}
+
+// SearchCatalog queries GET /api/sites/search?q=... on the server.
+func (c *SyncClient) SearchCatalog(q string) ([]CatalogSite, error) {
+	if !c.hasKey() {
+		return nil, fmt.Errorf("no device key set")
+	}
+
+	req, err := http.NewRequest("GET", c.baseURL+"/api/sites/search?q="+url.QueryEscape(q), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", c.authHeader())
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		buf, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("search %d: %s", resp.StatusCode, string(buf))
+	}
+
+	var sites []CatalogSite
+	if err := json.NewDecoder(resp.Body).Decode(&sites); err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+	return sites, nil
 }

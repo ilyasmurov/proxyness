@@ -616,6 +616,12 @@ function setupIpc() {
     return await r.json(); // { my_sites: [...] }
   });
 
+  ipcMain.handle("daemon-search-sites", async (_e, q: string) => {
+    const r = await fetch(`http://127.0.0.1:9090/sites/search?q=${encodeURIComponent(q)}`);
+    if (!r.ok) throw new Error(`daemon ${r.status}`);
+    return await r.json(); // CatalogSite[]
+  });
+
   ipcMain.handle("tun-start", async (_e, server: string, key: string) => {
     try {
       const res = await fetch("http://127.0.0.1:9090/tun/start", {

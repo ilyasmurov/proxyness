@@ -91,6 +91,42 @@ func (d *DB) GetMySites(userID int) ([]UserSite, error) {
 	return out, nil
 }
 
+// CatalogSite is a lightweight search result from the global sites catalog.
+type CatalogSite struct {
+	ID            int    `json:"id"`
+	Label         string `json:"label"`
+	PrimaryDomain string `json:"primary_domain"`
+}
+
+// SearchCatalog searches all sites by label or primary_domain (case-insensitive
+// substring match). Used by the client's "add site" modal to show suggestions.
+func (d *DB) SearchCatalog(q string, limit int) ([]CatalogSite, error) {
+	q = "%" + strings.ToLower(strings.TrimSpace(q)) + "%"
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := d.sql.Query(`
+		SELECT id, label, primary_domain FROM sites
+		WHERE LOWER(label) LIKE ? OR LOWER(primary_domain) LIKE ?
+		ORDER BY label
+		LIMIT ?
+	`, q, q, limit)
+	if err != nil {
+		return nil, fmt.Errorf("search catalog: %w", err)
+	}
+	defer rows.Close()
+
+	var out []CatalogSite
+	for rows.Next() {
+		var s CatalogSite
+		if err := rows.Scan(&s.ID, &s.Label, &s.PrimaryDomain); err != nil {
+			return nil, fmt.Errorf("scan catalog: %w", err)
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // AddOpResult captures what happened for a single "add" sync op.
 type AddOpResult struct {
 	SiteID  int

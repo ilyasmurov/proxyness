@@ -104,6 +104,24 @@ function hashHue(str: string): number {
   return Math.abs(h) % 360;
 }
 
+// HSL → hex so colors work with the "${color}14" hex-alpha pattern.
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100;
+  l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const c = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * c).toString(16).padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+// Stable color for a site: brand color if known, otherwise hex from domain hash.
+function siteColor(domain: string): string {
+  return SITE_COLORS[domain] || hslToHex(hashHue(domain), 60, 55);
+}
+
 // Letter-avatar fallback used when the favicon can't be fetched.
 function LetterAvatar({ name, domain, size = 40 }: { name: string; domain: string; size?: number }) {
   const hue = hashHue(domain);
@@ -514,8 +532,9 @@ export function AppRules({ visible }: Props) {
       {addSiteModalOpen && (
         <AddSiteModal
           onClose={() => setAddSiteModalOpen(false)}
-          onAdd={(domain: string) => {
-            addSiteByDomain(domain);
+          existingSiteIds={new Set(localSites.map((s) => s.id))}
+          onAdd={(domains) => {
+            for (const d of domains) addSiteByDomain(d);
             setAddSiteModalOpen(false);
           }}
         />
@@ -829,7 +848,7 @@ function SiteTile({
   onRemove?: () => void;
 }) {
   const primaryDomain = site.domains[0] || "";
-  const color = SITE_COLORS[primaryDomain] || "#4285F4";
+  const color = siteColor(primaryDomain);
   return (
     <div
       onClick={onClick}
@@ -966,14 +985,25 @@ function LiveLabel() {
 // AddSiteModal — modal dialog for adding a new custom site with live preview
 // ---------------------------------------------------------------------------
 
+interface CatalogResult {
+  id: number;
+  label: string;
+  primary_domain: string;
+}
+
 function AddSiteModal({
   onClose,
   onAdd,
+  existingSiteIds,
 }: {
   onClose: () => void;
-  onAdd: (domain: string) => void;
+  onAdd: (domains: string[]) => void;
+  existingSiteIds: Set<number>;
 }) {
   const [value, setValue] = useState("");
+  const [results, setResults] = useState<CatalogResult[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -985,18 +1015,65 @@ function AddSiteModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Debounced search
+  useEffect(() => {
+    const q = value.trim();
+    if (q.length < 2) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await (window as any).appInfo?.daemonSearchSites(q);
+        if (Array.isArray(res)) setResults(res);
+        else setResults([]);
+      } catch {
+        setResults([]);
+      }
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [value]);
+
+  // Clear selection when results change
+  useEffect(() => {
+    setSelected(new Set());
+  }, [results]);
+
+  const toggleSelect = (id: number) => {
+    if (existingSiteIds.has(id)) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const normalized = value
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, "")
     .replace(/\/.*$/, "");
   const cleanDomain = normalized.replace(/^www\./, "");
-  const previewName = cleanDomain ? labelFromDomain(cleanDomain) : "";
+  const looksLikeDomain = cleanDomain.includes(".");
+
+  const canSubmit = selected.size > 0 || (looksLikeDomain && results.length === 0);
 
   const submit = () => {
-    if (!cleanDomain) return;
-    onAdd(cleanDomain);
+    if (selected.size > 0) {
+      const domains = results
+        .filter((r) => selected.has(r.id))
+        .map((r) => r.primary_domain);
+      onAdd(domains);
+    } else if (looksLikeDomain) {
+      onAdd([cleanDomain]);
+    }
   };
+
+  const hasResults = results.length > 0;
 
   return (
     <div
@@ -1016,7 +1093,7 @@ function AddSiteModal({
     >
       <div
         style={{
-          width: 420,
+          width: 480,
           background: "#16213e",
           border: "1px solid #333",
           borderRadius: 12,
@@ -1060,16 +1137,16 @@ function AddSiteModal({
           Add site
         </div>
         <div style={{ fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.5 }}>
-          Enter the main domain you want to proxy.
+          Search the catalog or enter a domain manually.
         </div>
         <input
           ref={inputRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
+            if (e.key === "Enter" && !hasResults) submit();
           }}
-          placeholder="example.com"
+          placeholder="Search or enter domain..."
           style={{
             width: "100%",
             padding: "10px 12px",
@@ -1084,80 +1161,163 @@ function AddSiteModal({
           }}
         />
 
-        {/* Preview */}
-        <div style={{ marginBottom: 14 }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "#666",
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              fontFamily: "ui-monospace, monospace",
-              marginBottom: 6,
-            }}
-          >
-            Preview
+        {/* Search results as card grid */}
+        {hasResults && (
+          <div style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                maxHeight: 280,
+                overflowY: "auto",
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 8,
+                padding: 2,
+              }}
+            >
+              {results.map((site) => {
+                const alreadyAdded = existingSiteIds.has(site.id);
+                const isSelected = selected.has(site.id);
+                const color = siteColor(site.primary_domain);
+                const active = isSelected || alreadyAdded;
+                return (
+                  <div
+                    key={site.id}
+                    onClick={() => toggleSelect(site.id)}
+                    style={{
+                      padding: "12px 8px 10px",
+                      borderRadius: 8,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 5,
+                      cursor: alreadyAdded ? "default" : "pointer",
+                      transition: "transform 0.12s ease, background 0.15s, border-color 0.15s",
+                      background: isSelected
+                        ? `${color}14`
+                        : alreadyAdded
+                        ? "rgba(76, 175, 80, 0.06)"
+                        : "#0d111c",
+                      border: isSelected
+                        ? `1px solid ${color}80`
+                        : alreadyAdded
+                        ? "1px solid rgba(76, 175, 80, 0.3)"
+                        : "1px solid #222",
+                      opacity: alreadyAdded ? 0.5 : 1,
+                      position: "relative",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!alreadyAdded) e.currentTarget.style.transform = "translateY(-1px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "none";
+                    }}
+                  >
+                    {alreadyAdded && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 4,
+                          right: 4,
+                          fontSize: 8,
+                          color: "#4caf50",
+                          fontWeight: 700,
+                          letterSpacing: 0.3,
+                        }}
+                      >
+                        ADDED
+                      </div>
+                    )}
+                    <SiteTileIcon
+                      domain={site.primary_domain}
+                      name={site.label}
+                      color={color}
+                      size={32}
+                      monochrome={!active}
+                    />
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        textAlign: "center",
+                        lineHeight: 1.2,
+                        color: active ? "#eee" : "#888",
+                      }}
+                    >
+                      {site.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 9,
+                        fontFamily: "ui-monospace, monospace",
+                        textAlign: "center",
+                        color: active ? "#888" : "#555",
+                      }}
+                    >
+                      {site.primary_domain}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div
-            style={{
-              padding: "16px 10px 14px",
-              background: "#0b0f1a",
-              border: "1px solid #333",
-              borderRadius: 10,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 6,
-              minHeight: 120,
-              justifyContent: cleanDomain ? "flex-start" : "center",
-            }}
-          >
-            {cleanDomain ? (
-              <>
-                <SiteTileIcon
-                  domain={cleanDomain}
-                  name={previewName}
-                  color="#4285F4"
-                  size={40}
-                />
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#eee" }}>
-                  {previewName}
-                </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontFamily: "ui-monospace, monospace",
-                    color: "#888",
-                  }}
-                >
-                  {cleanDomain}
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize: 11, color: "#555" }}>
-                Type a domain to see a preview
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
-        <div
-          style={{
-            fontSize: 11,
-            color: "#9ca3af",
-            marginBottom: 14,
-            padding: "10px 12px",
-            background: "rgba(59, 130, 246, 0.08)",
-            border: "1px solid rgba(59, 130, 246, 0.25)",
-            borderRadius: 6,
-            lineHeight: 1.6,
-          }}
-        >
-          The main domain, <Code>www.</Code> and all <Code>*.</Code> subdomains
-          are added automatically. Related CDN domains (like{" "}
-          <Code>redditmedia.com</Code>) would need manual curation for full
-          coverage.
-        </div>
+        {/* Manual preview — shown when no catalog results and input looks like a domain */}
+        {!hasResults && looksLikeDomain && !searching && (
+          <div style={{ marginBottom: 14 }}>
+            <div
+              style={{
+                fontSize: 10,
+                color: "#666",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                fontFamily: "ui-monospace, monospace",
+                marginBottom: 6,
+              }}
+            >
+              Manual entry
+            </div>
+            <div
+              style={{
+                padding: "14px 10px 12px",
+                background: "#0b0f1a",
+                border: "1px solid #333",
+                borderRadius: 10,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 5,
+              }}
+            >
+              <SiteTileIcon
+                domain={cleanDomain}
+                name={labelFromDomain(cleanDomain)}
+                color={siteColor(cleanDomain)}
+                size={36}
+              />
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#eee" }}>
+                {labelFromDomain(cleanDomain)}
+              </div>
+              <div style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: "#888" }}>
+                {cleanDomain}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Searching indicator */}
+        {searching && (
+          <div style={{ textAlign: "center", padding: "16px 0", marginBottom: 14, color: "#555", fontSize: 12 }}>
+            Searching...
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!hasResults && !searching && !looksLikeDomain && (
+          <div style={{ textAlign: "center", padding: "20px 0", marginBottom: 14, color: "#444", fontSize: 12 }}>
+            {cleanDomain ? "No matches — keep typing or enter a full domain" : "Type to search the catalog"}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button
@@ -1178,21 +1338,21 @@ function AddSiteModal({
           </button>
           <button
             onClick={submit}
-            disabled={!cleanDomain}
+            disabled={!canSubmit}
             style={{
               padding: "8px 18px",
               borderRadius: 6,
               fontSize: 13,
               fontWeight: 600,
-              cursor: cleanDomain ? "pointer" : "not-allowed",
-              background: cleanDomain ? "#3b82f6" : "#2a3040",
+              cursor: canSubmit ? "pointer" : "not-allowed",
+              background: canSubmit ? "#3b82f6" : "#2a3040",
               color: "#fff",
               border: "none",
               fontFamily: "inherit",
-              opacity: cleanDomain ? 1 : 0.6,
+              opacity: canSubmit ? 1 : 0.6,
             }}
           >
-            Add
+            {selected.size > 0 ? `Add (${selected.size})` : "Add"}
           </button>
         </div>
       </div>

@@ -54,6 +54,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("POST /api/lock-device", h.lockDevice)
 	mux.HandleFunc("POST /api/unlock-device", h.unlockDevice)
 	mux.HandleFunc("POST /api/sync", h.deviceAuth.Wrap(h.handleSync))
+	mux.HandleFunc("GET /api/sites/search", h.deviceAuth.Wrap(h.searchCatalog))
 
 	// Download files
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
@@ -349,6 +350,24 @@ func (h *Handler) listLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---- Sites ----
+
+// searchCatalog handles GET /api/sites/search?q=... (device auth).
+func (h *Handler) searchCatalog(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	if q == "" {
+		writeJSON(w, http.StatusOK, []db.CatalogSite{})
+		return
+	}
+	sites, err := h.db.SearchCatalog(q, 20)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	if sites == nil {
+		sites = []db.CatalogSite{}
+	}
+	writeJSON(w, http.StatusOK, sites)
+}
 
 func (h *Handler) listSites(w http.ResponseWriter, r *http.Request) {
 	sites, err := h.db.ListSitesWithStats()
