@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"strings"
 	"sync"
 	"time"
@@ -132,6 +133,23 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("OPTIONS /sites/discover", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesDiscover)))
 		mux.Handle("OPTIONS /sites/test", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesTest)))
 	}
+	// pprof endpoints for debugging daemon CPU/memory. Listens on 127.0.0.1
+	// only alongside the rest of the API — no external exposure. Capture a
+	// 30s CPU profile with:
+	//   curl http://127.0.0.1:9090/debug/pprof/profile?seconds=30 -o cpu.prof
+	// then: go tool pprof -http=:8080 cpu.prof
+	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+	mux.HandleFunc("GET /debug/pprof/allocs", pprof.Handler("allocs").ServeHTTP)
+	mux.HandleFunc("GET /debug/pprof/block", pprof.Handler("block").ServeHTTP)
+	mux.HandleFunc("GET /debug/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
+	mux.HandleFunc("GET /debug/pprof/heap", pprof.Handler("heap").ServeHTTP)
+	mux.HandleFunc("GET /debug/pprof/mutex", pprof.Handler("mutex").ServeHTTP)
+	mux.HandleFunc("GET /debug/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
+
 	// The API listens on 127.0.0.1 only, so any caller is already local.
 	// In `make dev` the renderer loads from http://localhost:5174 and hits
 	// this on 127.0.0.1:9090 — cross-origin, which requires CORS headers or

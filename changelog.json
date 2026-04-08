@@ -1,5 +1,19 @@
 [
   {
+    "id": "614cbfc3-1fdf-4a1e-aad8-5d5c72f3ec06",
+    "title": "pprof endpoints on daemon for CPU profiling",
+    "description": "Daemon now exposes /debug/pprof/* on its local 127.0.0.1:9090 API so we can capture CPU profiles to investigate Windows idle CPU burn. Curl /debug/pprof/profile?seconds=30 for a 30s CPU sample.",
+    "type": "improvement",
+    "createdAt": "2026-04-08T23:11:49.837028+00:00"
+  },
+  {
+    "id": "b1f90bc8-9ead-418c-baf6-a1a942ea6051",
+    "title": "ARQ send buffer early-out on empty state",
+    "description": "SendBuffer.Expired and AckCumulative skip their loops when the buffer is empty, cutting a bit of 20Hz × N-streams overhead in the UDP retransmit loop.",
+    "type": "improvement",
+    "createdAt": "2026-04-08T23:11:49.837177+00:00"
+  },
+  {
     "id": "a59d4cc8-d5aa-4c2c-89f2-9bb15c34a54e",
     "title": "Document Windows window-handoff ordering rule and --trace flag in CLAUDE.md",
     "description": null,
@@ -1384,19 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T12:47:34.060986+00:00"
-  },
-  {
-    "id": "da7a25d2-0264-46aa-b172-bba5f5ecdb9e",
-    "title": "ARQ: диагностические логи cwnd/inFlight/sendBuf каждые 2 секунды",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-04T10:34:43.121612+00:00"
-  },
-  {
-    "id": "0b1e7c5e-4b08-44ba-9529-11b85f0f1aa6",
-    "title": "UDP: fix stream open race condition with Dialing flag, clean up debug logs",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T10:24:25.927268+00:00"
   }
 ]

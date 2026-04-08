@@ -74,6 +74,9 @@ func (sb *SendBuffer) Get(pktNum uint32) *SentPacket {
 func (sb *SendBuffer) AckCumulative(cumAck uint32) int {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
+	if len(sb.packets) == 0 {
+		return 0
+	}
 	count := 0
 	for pktNum, pkt := range sb.packets {
 		if pktNum <= cumAck {
@@ -102,6 +105,12 @@ func (sb *SendBuffer) AckSelective(pktNum uint32) {
 func (sb *SendBuffer) Expired(rto time.Duration) []*SentPacket {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
+	// Fast path: empty buffer — retransmitLoop fires every 50ms even when
+	// nothing is in flight, and time.Now() + the map-iteration setup is
+	// still measurable overhead at 20Hz × N streams.
+	if len(sb.packets) == 0 {
+		return sb.expiredBuf[:0]
+	}
 	now := time.Now()
 	sb.expiredBuf = sb.expiredBuf[:0]
 	for _, pkt := range sb.packets {
