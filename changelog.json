@@ -1,5 +1,12 @@
 [
   {
+    "id": "bdee5411-fb31-491a-ad55-f501557bf2e4",
+    "title": "Popup is now a per-tab control panel with 6 states (pairing, daemon_down, system_page, not_in_catalog, proxied, catalog_disabled)",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T13:53:08.262404+00:00"
+  },
+  {
     "id": "e0b993ad-ba60-4b6f-9ee7-cd0463e0ca13",
     "title": "Service worker refreshTabState now correctly maps catalog_disabled state and exposes popup handlers",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T05:52:48.546939+00:00"
-  },
-  {
-    "id": "f35b8046-097a-459d-a233-799f121cd907",
-    "title": "CUBIC congestion control for UDP ARQ transport",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-04T05:50:33.222827+00:00"
   }
 ]
