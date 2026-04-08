@@ -1,5 +1,12 @@
 [
   {
+    "id": "b8ac03f8-a65f-4ac3-937a-23c1d6349aad",
+    "title": "Admin UI: страница Sites со списком и детальной страницей /admin/sites/{id} для модерации каталога",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:43:07.616735+00:00"
+  },
+  {
     "id": "f23af427-1bba-4704-af2d-e2459ed4ed45",
     "title": "Admin API: GET /admin/api/sites, GET /admin/api/sites/{id}, DELETE /admin/api/sites/{id}, DELETE /admin/api/sites/{id}/domains/{domain}",
     "description": null,
@@ -1389,13 +1396,6 @@
     "id": "3af5c4b6-d3f5-4c24-bd0e-53485b8cb7d0",
     "title": "Переход на GitHub Releases для автообновления",
     "description": "Вместо VPS",
-    "type": "improvement",
-    "createdAt": "2026-04-03T18:24:04Z"
-  },
-  {
-    "id": "2140cf61-2755-43bd-88fe-2200e151b7e7",
-    "title": "Улучшенная страница релизов в админке",
-    "description": "Иконки платформ и счётчик скачиваний",
     "type": "improvement",
     "createdAt": "2026-04-03T18:24:04Z"
   }

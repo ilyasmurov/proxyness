@@ -102,6 +102,44 @@ export interface LogsResponse {
   total: number;
 }
 
+export interface SiteWithStats {
+  id: number;
+  slug: string;
+  label: string;
+  primary_domain: string;
+  approved: boolean;
+  created_by_user_id: number | null;
+  created_by_user_name: string;
+  users_count: number;
+  domains_count: number;
+  created_at: string;
+}
+
+export interface SiteDomainRow {
+  domain: string;
+  is_primary: boolean;
+}
+
+export interface SiteUserRow {
+  id: number;
+  name: string;
+  enabled: boolean;
+  updated_at: number;
+}
+
+export interface SiteDetail {
+  id: number;
+  slug: string;
+  label: string;
+  primary_domain: string;
+  approved: boolean;
+  created_by_user_id: number | null;
+  created_by_user_name: string;
+  created_at: string;
+  domains: SiteDomainRow[];
+  users: SiteUserRow[];
+}
+
 export const api = {
   listUsers: (): Promise<User[]> => request("/users"),
   createUser: (name: string): Promise<User> =>
@@ -127,4 +165,9 @@ export const api = {
     request(`/changelog?page=${page}&per_page=${perPage}`),
   logs: (limit = 200, offset = 0, level = ""): Promise<LogsResponse> =>
     request(`/logs?limit=${limit}&offset=${offset}${level ? `&level=${level}` : ""}`),
+  listSites: (): Promise<SiteWithStats[]> => request("/sites"),
+  getSite: (id: number): Promise<SiteDetail> => request(`/sites/${id}`),
+  deleteSite: (id: number) => request(`/sites/${id}`, { method: "DELETE" }),
+  deleteSiteDomain: (id: number, domain: string) =>
+    request(`/sites/${id}/domains/${encodeURIComponent(domain)}`, { method: "DELETE" }),
 };

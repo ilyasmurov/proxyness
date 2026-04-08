@@ -1,2 +1,2 @@
 ## feature
-Admin API: GET /admin/api/sites, GET /admin/api/sites/{id}, DELETE /admin/api/sites/{id}, DELETE /admin/api/sites/{id}/domains/{domain}
+Admin UI: страница Sites со списком и детальной страницей /admin/sites/{id} для модерации каталога
