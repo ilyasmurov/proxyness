@@ -1,8 +1,10 @@
 package admin
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -39,6 +41,10 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("GET /admin/api/stats/traffic", h.auth(h.statsTraffic))
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
 	mux.HandleFunc("GET /admin/api/stats/rate", h.auth(h.statsRate))
+	mux.HandleFunc("GET /admin/api/sites", h.auth(h.listSites))
+	mux.HandleFunc("GET /admin/api/sites/{id}", h.auth(h.getSite))
+	mux.HandleFunc("DELETE /admin/api/sites/{id}", h.auth(h.deleteSite))
+	mux.HandleFunc("DELETE /admin/api/sites/{id}/domains/{domain}", h.auth(h.deleteSiteDomain))
 	mux.HandleFunc("GET /admin/api/changelog", h.auth(h.listChangelog))
 	mux.HandleFunc("GET /admin/api/changelog/unseen-count", h.auth(h.changelogUnseenCount))
 	mux.HandleFunc("GET /admin/api/logs", h.auth(h.listLogs))
@@ -340,6 +346,74 @@ func (h *Handler) listLogs(w http.ResponseWriter, r *http.Request) {
 		"entries": entries,
 		"total":   total,
 	})
+}
+
+// ---- Sites ----
+
+func (h *Handler) listSites(w http.ResponseWriter, r *http.Request) {
+	sites, err := h.db.ListSitesWithStats()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if sites == nil {
+		sites = []db.SiteWithStats{}
+	}
+	writeJSON(w, http.StatusOK, sites)
+}
+
+func (h *Handler) getSite(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	detail, err := h.db.GetSiteDetail(id)
+	if err == sql.ErrNoRows {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
+func (h *Handler) deleteSite(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	if err := h.db.DeleteSite(id); err == sql.ErrNoRows {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) deleteSiteDomain(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	rawDomain := r.PathValue("domain")
+	domain, err := url.PathUnescape(rawDomain)
+	if err != nil || domain == "" {
+		http.Error(w, "bad domain", http.StatusBadRequest)
+		return
+	}
+	if err := h.db.DeleteSiteDomain(id, domain); err == sql.ErrNoRows {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		// Includes the "cannot delete primary domain" case.
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) reportVersion(w http.ResponseWriter, r *http.Request) {

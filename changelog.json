@@ -1,5 +1,12 @@
 [
   {
+    "id": "f23af427-1bba-4704-af2d-e2459ed4ed45",
+    "title": "Admin API: GET /admin/api/sites, GET /admin/api/sites/{id}, DELETE /admin/api/sites/{id}, DELETE /admin/api/sites/{id}/domains/{domain}",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:38:12.476658+00:00"
+  },
+  {
     "id": "8c15d662-3005-4268-9e02-53d2f76d4bf4",
     "title": "AppRules.tsx: memoize siteDomains/liveSites/enabledSet — без этого applyPac useCallback и re-apply useEffect фаерились на каждом рендере, зовя networksetup десятки раз в секунду, что вешало macOS при запуске клиента",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Иконки платформ и счётчик скачиваний",
     "type": "improvement",
     "createdAt": "2026-04-03T18:24:04Z"
-  },
-  {
-    "id": "cf3032b0-bebf-4f79-a456-f121f85f3787",
-    "title": "Вкладка Releases в админ-панели",
-    "description": "Загрузка данных с GitHub API",
-    "type": "feature",
-    "createdAt": "2026-04-03T17:51:21Z"
   }
 ]
