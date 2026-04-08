@@ -14,7 +14,13 @@ import { getDaemonToken, cachedDaemonToken } from "./extension";
 // startup/runtime failures that leave no trace in Event Viewer or
 // %APPDATA% logs. Kept around permanently so future reports can be
 // triaged by asking the user to relaunch with the flag.
-const DEBUG_ENABLED = process.argv.includes("--debug") || process.env.SMUROV_DEBUG === "1";
+// TEMPORARILY always-on while we chase the 1.27+ Windows startup crash.
+// Windows UAC elevation (requireAdministrator) drops env vars on the
+// elevated child, and --debug conflicts with Electron's legacy Node flag,
+// so neither the SMUROV_DEBUG=1 env var nor --debug argv reaches us in a
+// packaged Windows build. Once the crash is fixed, gate this back on
+// --trace (new, non-conflicting flag name) or SMUROV_DEBUG.
+const DEBUG_ENABLED = true;
 const CRASH_LOG = path.join(require("os").homedir(), "Desktop", "smurov-crash.log");
 function logCrash(tag: string, err: unknown) {
   if (!DEBUG_ENABLED) return;
