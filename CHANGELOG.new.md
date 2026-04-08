@@ -1,2 +1,2 @@
 ## improvement
-Add IPC handlers for daemon site mutations and simplify pac-sites handler
+Expose 4 new daemon site IPC methods in preload and drop sites from setPacSites

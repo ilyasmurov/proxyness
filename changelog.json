@@ -1,5 +1,12 @@
 [
   {
+    "id": "a2661fe5-2ffa-43bf-9753-cf58518f23f2",
+    "title": "Expose 4 new daemon site IPC methods in preload and drop sites from setPacSites",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:30:47.541438+00:00"
+  },
+  {
     "id": "48e1eb91-e414-4250-b1e4-b4bcc0b06877",
     "title": "Add IPC handlers for daemon site mutations and simplify pac-sites handler",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Server was parsing encrypted handshake data as plaintext, causing auth failures",
     "type": "fix",
     "createdAt": "2026-04-03T22:10:22.372378+00:00"
-  },
-  {
-    "id": "6dc36de2-91d2-4bab-8df7-ccda80dcff33",
-    "title": "Добавлен файл бенчмарка и UDP интеграционные тесты",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-03T21:59:10.529775+00:00"
   }
 ]

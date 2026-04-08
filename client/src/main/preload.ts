@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld("updater", {
 contextBridge.exposeInMainWorld("sysproxy", {
   enable: () => ipcRenderer.send("enable-proxy"),
   disable: () => ipcRenderer.send("disable-proxy"),
-  setPacSites: (data: { proxy_all: boolean; sites: string[] }) => ipcRenderer.send("pac-sites", data),
+  setPacSites: (data: { proxy_all: boolean }) => ipcRenderer.send("pac-sites", data),
 });
 
 contextBridge.exposeInMainWorld("appInfo", {
@@ -28,6 +28,14 @@ contextBridge.exposeInMainWorld("appInfo", {
   setTrayStatus: (connected: boolean) => ipcRenderer.send("tray-status", connected),
   getSeedSites: () => ipcRenderer.invoke("get-seed-sites"),
   getDaemonToken: () => ipcRenderer.invoke("get-daemon-token"),
+  daemonSetEnabled: (siteId: number, enabled: boolean) =>
+    ipcRenderer.invoke("daemon-set-enabled", siteId, enabled),
+  daemonAddSite: (primaryDomain: string, label: string) =>
+    ipcRenderer.invoke("daemon-add-site", primaryDomain, label),
+  daemonRemoveSite: (siteId: number) =>
+    ipcRenderer.invoke("daemon-remove-site", siteId),
+  daemonListSites: () =>
+    ipcRenderer.invoke("daemon-list-sites"),
   onTrayConnect: (cb: () => void) => ipcRenderer.on("tray-connect", () => cb()),
   onTrayDisconnect: (cb: () => void) => ipcRenderer.on("tray-disconnect", () => cb()),
   onSystemResumed: (cb: () => void) => {
