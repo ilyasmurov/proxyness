@@ -1,2 +1,2 @@
 ## improvement
-Delete unused pac.ts (expandDomains moved to daemon)
+Sites mutations route through daemon HTTP — drop pendingOps queue and direct server sync

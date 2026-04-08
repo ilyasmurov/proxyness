@@ -1,5 +1,12 @@
 [
   {
+    "id": "27123849-ec02-4f8c-8795-8b67adece3c9",
+    "title": "Sites mutations route through daemon HTTP — drop pendingOps queue and direct server sync",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:36:20.998134+00:00"
+  },
+  {
     "id": "60ffffe3-791c-413b-84ae-84c1419dc84c",
     "title": "Delete unused pac.ts (expandDomains moved to daemon)",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T23:25:44.355850+00:00"
-  },
-  {
-    "id": "37e8ab8f-8fcb-4e8b-a06c-3193c9a1b64a",
-    "title": "UDP ARQ reliability layer design spec",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-03T23:14:02.551638+00:00"
   }
 ]
