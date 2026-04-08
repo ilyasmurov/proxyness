@@ -255,7 +255,10 @@ func TestRebuildPACSkipsCloseAllConnsWhenUnchanged(t *testing.T) {
 	})
 	srv := newTestServerWithMgr(t, mgr)
 
-	// First rebuild populates pacSites.
+	// Initial state: proxy_all=false so RebuildPAC actually populates domains.
+	srv.pacSites.Set(false, nil)
+
+	// First rebuild populates pacSites from manager cache.
 	srv.RebuildPAC()
 
 	// Subsequent rebuilds with identical cache should be no-ops.

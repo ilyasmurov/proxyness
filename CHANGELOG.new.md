@@ -1,2 +1,2 @@
 ## improvement
-Add Server.RebuildPAC with diff guard to avoid 5-min connection resets
+Revert NewPacSites default and make TestRebuildPACSkipsCloseAllConnsWhenUnchanged self-contained

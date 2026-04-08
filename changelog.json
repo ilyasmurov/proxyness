@@ -1,5 +1,12 @@
 [
   {
+    "id": "2bd83437-2229-477b-84de-880d0e6e2286",
+    "title": "Revert NewPacSites default and make TestRebuildPACSkipsCloseAllConnsWhenUnchanged self-contained",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:07:04.913903+00:00"
+  },
+  {
     "id": "aa5a4d94-9764-4435-b4dc-aa0005defdcd",
     "title": "Add Server.RebuildPAC with diff guard to avoid 5-min connection resets",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-03T21:17:13.654764+00:00"
-  },
-  {
-    "id": "0f02e8d4-0b81-400b-b8b9-6a40a90801f3",
-    "title": "Добавлен changelog.json в Docker-образ",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-03T21:12:48.986562+00:00"
   }
 ]
