@@ -407,13 +407,17 @@ export function AppRules({ visible }: Props) {
     });
   };
 
-  const handleToggleTile = (site: LocalSite) => {
+  const handleToggleTile = async (site: LocalSite) => {
     if (allSitesOn) {
       // Clicking a tile while "all" is on: switch to per-site mode.
       setAllSitesOn(false);
       localStorage.setItem("smurov-proxy-all-sites-on", "false");
     }
-    toggleSiteById(site.id, !site.enabled);
+    try {
+      await toggleSiteById(site.id, !site.enabled);
+    } catch (e) {
+      console.error("[AppRules] toggle failed:", e);
+    }
   };
 
   const handleToggleAll = () => {
@@ -424,7 +428,7 @@ export function AppRules({ visible }: Props) {
 
   // addSiteByDomain normalizes the input and adds the site to the list if
   // it's new. Called by the AddSiteModal.
-  const addSiteByDomain = (raw: string) => {
+  const addSiteByDomain = async (raw: string) => {
     let domain = raw.trim().toLowerCase();
     if (!domain) return;
     domain = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
@@ -432,15 +436,29 @@ export function AppRules({ visible }: Props) {
     // If a site with this primary domain already exists, just enable it.
     const existing = localSites.find((s) => s.domains[0] === domain);
     if (existing) {
-      if (!existing.enabled) toggleSiteById(existing.id, true);
+      if (!existing.enabled) {
+        try {
+          await toggleSiteById(existing.id, true);
+        } catch (e) {
+          console.error("[AppRules] toggle failed:", e);
+        }
+      }
       return;
     }
     const label = labelFromDomain(domain);
-    addSite(domain, label);
+    try {
+      await addSite(domain, label);
+    } catch (e) {
+      console.error("[AppRules] add failed:", e);
+    }
   };
 
-  const handleRemoveSite = (siteId: number) => {
-    removeSiteById(siteId);
+  const handleRemoveSite = async (siteId: number) => {
+    try {
+      await removeSiteById(siteId);
+    } catch (e) {
+      console.error("[AppRules] remove failed:", e);
+    }
   };
 
   if (!visible) return null;

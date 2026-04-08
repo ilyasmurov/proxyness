@@ -1,2 +1,2 @@
 ## improvement
-Type useSites mutations as async to match daemon-driven sync module
+Make AppRules handlers async with error logging for daemon-driven mutations
