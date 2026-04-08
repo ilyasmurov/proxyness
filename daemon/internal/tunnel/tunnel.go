@@ -397,9 +397,28 @@ func (t *Tunnel) healthLoop() {
 
 			// D3 — stall detector. Only fires while we believe we're
 			// healthy AND the user is actively trying to use the proxy.
+			// Previously this only flipped status to Reconnecting without
+			// replacing the transport — and since verifyServer keeps
+			// succeeding (server is fine, it's just our transport stuck),
+			// failures stays at 0 and the recovery branch above never
+			// fires, leaving the tunnel wedged in Reconnecting forever
+			// (user had to manually disconnect+connect). Now we mirror
+			// the D1 branch: actually rebuild the transport.
 			if status == Connected && t.stallDetected() {
 				log.Printf("[tunnel] D3: traffic stall detected")
 				t.setReconnecting()
+				if t.reconnectTransport() {
+					doneCh = t.transportDone()
+					failures = 0
+					t.setConnected()
+					continue
+				}
+				log.Printf("[tunnel] D3: reconnect exhausted, disconnecting")
+				t.mu.Lock()
+				t.lastError = "Connection stalled, please reconnect"
+				t.stopLocked()
+				t.mu.Unlock()
+				return
 			}
 		}
 	}

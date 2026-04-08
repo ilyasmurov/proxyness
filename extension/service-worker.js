@@ -203,7 +203,12 @@ chrome.webRequest.onBeforeRequest.addListener(
     const host = urlObj.hostname;
     // Skip localhost / IP literals / our own daemon.
     if (host === "127.0.0.1" || host === "localhost") return;
-    disc.queue.add(host);
+    // Collapse to eTLD+1 so a single entry covers all sibling subdomains —
+    // catching `a-api.anthropic.com` adds `anthropic.com`, which via PAC's
+    // dnsDomainIs match also covers `api.anthropic.com`, `console.`, etc.
+    // This cuts the discovered-domain list dramatically on SPAs that hit
+    // dozens of service subdomains.
+    disc.queue.add(getDomain(host));
   },
   { urls: ["<all_urls>"] }
 );
