@@ -1,2 +1,2 @@
 ## improvement
-Bump browser extension version to 0.2.0
+Bump desktop client version to 1.26.0 for popup control panel feature

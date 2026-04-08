@@ -1,5 +1,12 @@
 [
   {
+    "id": "7396ad8d-f43e-42e4-a13f-edc0b91d5af4",
+    "title": "Bump desktop client version to 1.26.0 for popup control panel feature",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:55:16.739794+00:00"
+  },
+  {
     "id": "2a47b9c3-8712-4c56-bace-eb3ce715fd85",
     "title": "Bump browser extension version to 0.2.0",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-04T06:00:18.718884+00:00"
-  },
-  {
-    "id": "b88b69a5-118b-4f8b-8186-6c5c453a643f",
-    "title": "AckState: received packet tracking and ACK generation for ARQ layer",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-04T05:57:29.012677+00:00"
   }
 ]
