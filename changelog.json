@@ -1,5 +1,12 @@
 [
   {
+    "id": "5b667a99-89c3-4e7e-9315-bcb6f14e6221",
+    "title": "Add GET /sites/my endpoint (no auth, localhost-only) for desktop renderer to pull cache",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:17:16.204556+00:00"
+  },
+  {
     "id": "319d9945-bc1b-4446-b8bc-1af988832a75",
     "title": "Add POST /sites/remove endpoint for browser extension and desktop client",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-03T21:41:06.740308+00:00"
-  },
-  {
-    "id": "a2889dc5-872c-417f-b6fb-81bf66d7fb42",
-    "title": "Проброс UDP порта 443 в Docker для работы UDP транспорта",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-03T21:30:21.699009+00:00"
   }
 ]

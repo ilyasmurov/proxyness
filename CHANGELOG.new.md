@@ -1,2 +1,2 @@
 ## improvement
-Add POST /sites/remove endpoint for browser extension and desktop client
+Add GET /sites/my endpoint (no auth, localhost-only) for desktop renderer to pull cache

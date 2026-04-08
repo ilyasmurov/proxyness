@@ -9,7 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/daemon/internal/sites"
+	"smurov-proxy/daemon/internal/tun"
+	"smurov-proxy/daemon/internal/tunnel"
 )
 
 func newTestServerWithSitesAPI(t *testing.T, mgr *sites.Manager, tokenStore *sites.TokenStore) *Server {
@@ -218,6 +221,51 @@ func TestSitesRemoveHappyPath(t *testing.T) {
 	}
 	if mgr.Cache().Match("youtube.com") != nil {
 		t.Error("expected cache to be empty after remove")
+	}
+}
+
+func TestSitesMyReturnsCacheSnapshot(t *testing.T) {
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager("https://example.invalid", keyStore)
+	mgr.Cache().Replace([]sites.MySite{
+		{ID: 1, PrimaryDomain: "habr.com", Domains: []string{"habr.com"}, Enabled: true},
+		{ID: 2, PrimaryDomain: "vk.com", Domains: []string{"vk.com"}, Enabled: false},
+	})
+	store := sites.NewTokenStore(filepath.Join(t.TempDir(), "tok"))
+	store.GetOrCreate()
+	srv := newTestServerWithSitesAPI(t, mgr, store)
+
+	req := httptest.NewRequest("GET", "/sites/my", nil)
+	// NO Authorization header — endpoint is not auth-gated.
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&resp)
+	mySites, ok := resp["my_sites"].([]interface{})
+	if !ok || len(mySites) != 2 {
+		t.Fatalf("expected 2 sites, got %v", resp["my_sites"])
+	}
+}
+
+func TestSitesMyReturns503WhenManagerNil(t *testing.T) {
+	// Build a server with no sites manager — must return 503.
+	// Use the same pattern as newTestServerWithMgr but without SetSites.
+	meter := dstats.NewRateMeter()
+	tnl := tunnel.New(meter)
+	srv := New(tnl, tun.NewEngine(meter), "127.0.0.1:0", meter)
+	// Intentionally no SetSites call — sitesManager stays nil.
+
+	req := httptest.NewRequest("GET", "/sites/my", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != 503 {
+		t.Errorf("expected 503, got %d", w.Code)
 	}
 }
 

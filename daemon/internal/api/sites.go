@@ -136,6 +136,20 @@ func (s *Server) handleSitesRemove(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleSitesMy returns the cached my_sites snapshot. No auth — this is
+// localhost-only and read-only, used by the desktop client renderer to
+// pull the authoritative sites list from the daemon (which is the single
+// source of truth after the popup-control-panel refactor).
+func (s *Server) handleSitesMy(w http.ResponseWriter, r *http.Request) {
+	if s.sitesManager == nil {
+		http.Error(w, "daemon not ready", 503)
+		return
+	}
+	writeJSON(w, 200, map[string]interface{}{
+		"my_sites": s.sitesManager.Cache().Snapshot(),
+	})
+}
+
 func (s *Server) handleSitesTest(w http.ResponseWriter, r *http.Request) {
 	if s.sitesTestClient == nil {
 		http.Error(w, "test client not configured", 503)
