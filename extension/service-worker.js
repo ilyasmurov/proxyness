@@ -82,7 +82,22 @@ async function refreshTabState(tabId, url) {
   if (!data.in_catalog) {
     tabState.set(tabId, { state: "add", host });
   } else if (data.proxy_enabled) {
-    tabState.set(tabId, { state: "proxied", host, siteId: data.site_id });
+    // Preserve the "discovering" panel while the discoveryState for
+    // this tab is still active — the panel needs it to keep showing
+    // the discovered counter and the manual reload button even after
+    // a reload (auto or manual) has re-run refreshTabState.
+    const disc = discoveryState.get(tabId);
+    const prev = tabState.get(tabId);
+    if (disc && disc.host === host) {
+      tabState.set(tabId, {
+        state: "discovering",
+        host,
+        siteId: data.site_id,
+        discoveredCount: prev?.discoveredCount || 0,
+      });
+    } else {
+      tabState.set(tabId, { state: "proxied", host, siteId: data.site_id });
+    }
   } else {
     tabState.set(tabId, { state: "catalog_disabled", host, siteId: data.site_id });
   }
@@ -97,6 +112,13 @@ function startDiscovery(tabId, host, siteId) {
     host,
     queue: new Set(),
     flushTimer: null,
+    // Budget for silent auto-reloads triggered by flushDiscovery.
+    // Only 1 — it covers the common case where subresources fail on
+    // the initial page load (subtitle CDN, video chunk host). After
+    // that, the panel's manual "Перезагрузить" button takes over so
+    // user-initiated activity doesn't get interrupted by surprise
+    // reloads that would drop their scroll / video position.
+    autoReloadsRemaining: 1,
   };
   discoveryState.set(tabId, state);
   state.flushTimer = setInterval(() => flushDiscovery(tabId), 5000);
@@ -115,7 +137,27 @@ async function flushDiscovery(tabId) {
   if (!s || s.queue.size === 0) return;
   const domains = Array.from(s.queue);
   s.queue.clear();
-  await daemonClient.discover(s.siteId, domains);
+  const r = await daemonClient.discover(s.siteId, domains);
+  if (!r?.ok || typeof r.data?.added !== "number" || r.data.added <= 0) return;
+
+  // Bump the per-tab discovered counter so the panel can show it and
+  // conditionally render the manual reload button.
+  const state = tabState.get(tabId);
+  if (state && state.state === "discovering") {
+    state.discoveredCount = (state.discoveredCount || 0) + r.data.added;
+    tabState.set(tabId, state);
+    pushStateToTab(tabId);
+  }
+
+  // Silent auto-reload — budgeted to 1 per discovery session (see
+  // startDiscovery). Covers the common "subresource failed on initial
+  // load" case so the user doesn't have to click anything on a freshly
+  // added site. After the budget is gone, the panel's manual reload
+  // button takes over.
+  if (s.autoReloadsRemaining > 0) {
+    s.autoReloadsRemaining--;
+    chrome.tabs.reload(tabId);
+  }
 }
 
 // ---------- tab events ----------
@@ -267,7 +309,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: false, error: r.error });
         return;
       }
-      sendResponse({ ok: true, site_id: r.data.site_id });
+      const siteId = r.data.site_id;
+      // If the popup told us which tab it was opened from, kick off
+      // discovery for that tab. Mirrors handleAddCurrentSite's flow
+      // for the in-page add banner: subsequent subresource requests
+      // (video CDN, subtitle host, etc.) get queued and flushed to
+      // /sites/discover so the user doesn't have to manually add each
+      // auxiliary domain. Only applies when the tab is actually on the
+      // site being added — the popup's "not_in_catalog" path enforces
+      // this by using the active tab's host.
+      if (typeof msg.tabId === "number") {
+        tabState.set(msg.tabId, {
+          state: "discovering",
+          host: msg.host,
+          siteId,
+          discoveredCount: 0,
+        });
+        pushStateToTab(msg.tabId);
+        startDiscovery(msg.tabId, msg.host, siteId);
+      }
+      sendResponse({ ok: true, site_id: siteId });
     });
     return true;
   }
@@ -297,6 +358,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     persistDismissal(msg.host);
     return false;
   }
+
+  if (msg.type === "finish_discovery") {
+    // User clicked "Finish scanning" in the panel — stop the discovery
+    // session for this tab and drop it into plain "proxied" state so the
+    // panel hides its action buttons. Per-tab only; if the user reloads
+    // or revisits the site, no new discovery session starts automatically
+    // (startDiscovery only fires on initial add), so "больше не
+    // сканировать" is satisfied without any extra persistence.
+    const tabId = sender.tab?.id;
+    if (typeof tabId === "number") {
+      stopDiscovery(tabId);
+      const st = tabState.get(tabId);
+      if (st && st.state === "discovering") {
+        tabState.set(tabId, { state: "proxied", host: st.host, siteId: st.siteId });
+        pushStateToTab(tabId);
+      }
+    }
+    return false;
+  }
 });
 
 async function handleAddCurrentSite(tab) {
@@ -308,7 +388,7 @@ async function handleAddCurrentSite(tab) {
     return;
   }
 
-  tabState.set(tab.id, { state: "discovering", host });
+  tabState.set(tab.id, { state: "discovering", host, discoveredCount: 0 });
   pushStateToTab(tab.id);
 
   const r = await daemonClient.add(host, host);
@@ -318,7 +398,7 @@ async function handleAddCurrentSite(tab) {
     return;
   }
   const siteId = r.data.site_id;
-  tabState.set(tab.id, { state: "discovering", host, siteId });
+  tabState.set(tab.id, { state: "discovering", host, siteId, discoveredCount: 0 });
   pushStateToTab(tab.id);
   startDiscovery(tab.id, host, siteId);
 }

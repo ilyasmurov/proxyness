@@ -53,7 +53,7 @@ export function useDaemon() {
   }, [fetchStatus]);
 
   const connect = useCallback(
-    async (server: string, key: string) => {
+    async (server: string, key: string): Promise<boolean> => {
       setLoading(true);
       setError(null);
       try {
@@ -63,13 +63,18 @@ export function useDaemon() {
           body: JSON.stringify({ server, key, version: __APP_VERSION__ }),
         });
         if (!res.ok) {
-          setError(await res.text());
-        } else {
-          window.sysproxy.enable();
-          await fetchStatus();
+          const body = await res.text();
+          setError(body || `daemon ${res.status}`);
+          console.warn("[useDaemon] /connect failed:", res.status, body);
+          return false;
         }
-      } catch {
+        window.sysproxy.enable();
+        await fetchStatus();
+        return true;
+      } catch (e) {
+        console.warn("[useDaemon] /connect threw:", e);
         setError("Failed to connect");
+        return false;
       } finally {
         setLoading(false);
       }

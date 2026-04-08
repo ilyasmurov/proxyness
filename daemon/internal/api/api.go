@@ -131,7 +131,29 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("OPTIONS /sites/discover", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesDiscover)))
 		mux.Handle("OPTIONS /sites/test", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesTest)))
 	}
-	return mux
+	// The API listens on 127.0.0.1 only, so any caller is already local.
+	// In `make dev` the renderer loads from http://localhost:5174 and hits
+	// this on 127.0.0.1:9090 — cross-origin, which requires CORS headers or
+	// the browser blocks every request (including the POST /connect preflight).
+	// In packaged builds the renderer loads from file:// (origin "null"), so
+	// this wrapper is a no-op there but still correct.
+	return withCORS(mux)
+}
+
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {

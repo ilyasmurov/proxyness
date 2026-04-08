@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SmurovProxy</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0b0f1a;
+        color: #eee;
+        min-height: 100vh;
+        overflow: hidden;
+        -webkit-app-region: drag;
+        user-select: none;
+      }
+      #close {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        background: transparent;
+        border: none;
+        color: #666;
+        font-size: 14px;
+        line-height: 20px;
+        text-align: center;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+      }
+      #close:hover { background: #1a1f2e; color: #ccc; }
+      .container {
+        padding: 28px 24px 20px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .spinner {
+        flex: 0 0 28px;
+        width: 28px;
+        height: 28px;
+        border: 3px solid #1a1f2e;
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      .spinner.error {
+        animation: none;
+        border: 3px solid #ef4444;
+        position: relative;
+      }
+      .spinner.error::after {
+        content: "!";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #ef4444;
+        font-weight: 700;
+        font-size: 16px;
+        line-height: 1;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .status {
+        font-size: 14px;
+        color: #eee;
+        flex: 1;
+        min-width: 0;
+        word-break: break-word;
+      }
+      .status.error { color: #ef4444; }
+      .retry-row {
+        margin-top: 14px;
+        padding-left: 44px;
+        display: none;
+      }
+      .retry-row.visible { display: block; }
+      .btn {
+        -webkit-app-region: no-drag;
+        padding: 6px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        background: #3b82f6;
+        color: #fff;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .btn:hover { background: #2563eb; }
+    </style>
+  </head>
+  <body>
+    <button id="close" title="Quit">×</button>
+    <div class="container">
+      <div class="row">
+        <div id="spinner" class="spinner"></div>
+        <div id="status" class="status">Starting...</div>
+      </div>
+      <div id="retry-row" class="retry-row">
+        <button id="retry" class="btn">Попробовать снова</button>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function setPhase(phase, message) {
+        $("status").textContent = message || phase;
+        const spinner = $("spinner");
+        const status = $("status");
+        const retryRow = $("retry-row");
+        if (phase === "error") {
+          spinner.classList.add("error");
+          status.classList.add("error");
+          retryRow.classList.add("visible");
+        } else {
+          spinner.classList.remove("error");
+          status.classList.remove("error");
+          retryRow.classList.remove("visible");
+        }
+      }
+
+      $("close").addEventListener("click", () => window.loaderApi.quit());
+      $("retry").addEventListener("click", () => window.loaderApi.retry());
+
+      window.loaderApi.onStatus((payload) => {
+        setPhase(payload.phase, payload.message);
+      });
+    </script>
+  </body>
+</html>

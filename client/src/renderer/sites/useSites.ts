@@ -68,10 +68,20 @@ export function useSites(): UseSitesReturn {
     // Periodic sync every 5 minutes
     const interval = setInterval(syncNow, 5 * 60 * 1000);
 
+    // Sync on daemon-sites-changed IPC — fires when the main-process poller
+    // notices the daemon's /sites/my snapshot changed. Catches mutations
+    // that bypass the renderer (e.g. browser-extension popup add/toggle/
+    // remove), so the UI reflects them within the poller interval instead
+    // of waiting for the 5-minute periodic tick.
+    const unsubIpc = (window as any).appInfo?.onSitesChanged?.(() => {
+      syncNow();
+    });
+
     return () => {
       unsub();
       window.removeEventListener("online", onOnline);
       clearInterval(interval);
+      if (typeof unsubIpc === "function") unsubIpc();
     };
   }, [ready, syncNow]);
 

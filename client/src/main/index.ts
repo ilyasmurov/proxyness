@@ -2,7 +2,7 @@ import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, powerMonit
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
-import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs } from "./daemon";
+import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs, waitForDaemonReady } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
 import { getDaemonToken, cachedDaemonToken } from "./extension";
@@ -12,7 +12,234 @@ const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/
 let mainWindow: BrowserWindow | null = null;
 let logsWindow: BrowserWindow | null = null;
 let updateWindow: BrowserWindow | null = null;
+let loaderWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+
+// mainBootCompleted guards the one-time setup that happens after the first
+// successful boot (createWindow / createTray / setupIpc / poller). If the
+// user retries from the loader after success this would re-register IPC
+// handlers and start a duplicate poller, so we early-return when the flag
+// is set.
+let mainBootCompleted = false;
+
+// systemProxyActive tracks whether the user wants the macOS/Windows
+// system PAC proxy turned on. We need this so the daemon-cache poller
+// (started below) only re-runs enableSystemProxy() — which bumps the
+// cache-busting timestamp on the PAC URL — when it's actually wanted,
+// avoiding accidentally re-enabling system proxy after the user disabled it.
+let systemProxyActive = false;
+let lastSitesSnapshot = "";
+
+// refreshSystemProxyIfActive forces Chrome/macOS to re-fetch the PAC by
+// calling enableSystemProxy() (which bumps the cache-busting `?t=...` query
+// param). Called after every site mutation we know about so PAC content
+// changes propagate immediately.
+function refreshSystemProxyIfActive() {
+  if (systemProxyActive) {
+    enableSystemProxy();
+  }
+}
+
+// startSitesCachePoller polls daemon /sites/my every 500ms and triggers
+// a system-proxy refresh whenever the cache snapshot changes. This catches
+// mutations that bypass main process IPC — namely the browser-extension
+// popup's add/toggle/remove flows, which go popup → service-worker → daemon
+// HTTP without ever touching the desktop client.
+//
+// 500ms was picked as the sweet spot between responsiveness and load. The
+// fetch hits the local loopback daemon so round-trip cost is negligible;
+// the user-perceived delay from "site added via popup" to "Chrome sees
+// fresh PAC" is now poller-tick (≤500ms) + macOS notify (~100ms) + Chrome
+// PAC refetch (~50ms) ≈ 650ms worst case, down from ~2.5s before.
+function startSitesCachePoller() {
+  setInterval(async () => {
+    try {
+      const r = await fetch("http://127.0.0.1:9090/sites/my");
+      if (!r.ok) return;
+      const json = await r.text();
+      if (json !== lastSitesSnapshot) {
+        const previous = lastSitesSnapshot;
+        lastSitesSnapshot = json;
+        // Don't refresh on the very first observation — that's just the
+        // poller learning the initial state, not a real change.
+        if (previous !== "") {
+          refreshSystemProxyIfActive();
+          mainWindow?.webContents.send("daemon-sites-changed");
+        }
+      }
+    } catch {
+      // daemon not reachable — leave snapshot as-is, next tick will retry
+    }
+  }, 500);
+}
+
+// MIN_LOADER_VISIBLE_MS guarantees the loader is on screen long enough for
+// the user to actually perceive it, even when the daemon is already warm
+// and /health responds in single-digit milliseconds. Without this floor the
+// window flashes invisibly between create and destroy.
+const MIN_LOADER_VISIBLE_MS = 600;
+
+// loaderShownAt is set the moment the loader window's contents finish loading
+// (ready-to-show fires). bootMainApp uses it to compute the elapsed visible
+// time and pad with a delay before destroying.
+let loaderShownAt = 0;
+
+// createLoaderWindow shows the small splash window that the user sees while
+// the daemon and helper are starting. It's frameless, non-resizable, has no
+// system close/min/max buttons (closable: false) — only the custom × button
+// inside loader.html can dismiss it, and that route runs the full quit flow
+// via the loader-quit IPC handler. Bringing the window up before runBoot()
+// means the user always sees feedback during the boot wait, even on the
+// very first cold start when the daemon takes ~1s to bind its listener.
+//
+// Returns a Promise that resolves when ready-to-show fires. bootMainApp
+// awaits this so we never call destroyLoaderWindow() against a window that
+// hasn't actually rendered yet. Falls back via a 2s safety timer in case
+// ready-to-show never fires (e.g. loader.html failed to load).
+function createLoaderWindow(): Promise<void> {
+  loaderWindow = new BrowserWindow({
+    width: 440,
+    height: 150,
+    resizable: false,
+    frame: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    closable: false,
+    backgroundColor: "#0b0f1a",
+    show: false,
+    center: true,
+    skipTaskbar: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, "preload-loader.js"),
+    },
+  });
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    loaderWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}loader.html`);
+  } else {
+    loaderWindow.loadFile(path.join(__dirname, "../../dist/loader.html"));
+  }
+
+  // closable:false disables the system close button, but Cmd+W on macOS
+  // can still fire a close event — intercept it so the only way out is the
+  // custom × button (which goes through destroyLoaderWindow → app.quit).
+  // destroyLoaderWindow() calls .destroy() which bypasses this handler.
+  loaderWindow.on("close", (e) => {
+    if (loaderWindow) e.preventDefault();
+  });
+  loaderWindow.on("closed", () => {
+    loaderWindow = null;
+  });
+
+  return new Promise<void>((resolve) => {
+    let resolved = false;
+    const done = () => {
+      if (resolved) return;
+      resolved = true;
+      loaderShownAt = Date.now();
+      loaderWindow?.show();
+      resolve();
+    };
+    loaderWindow!.once("ready-to-show", done);
+    // Safety net: if ready-to-show somehow never fires (loader.html broken,
+    // dev server unreachable, etc.) don't block the boot forever.
+    setTimeout(done, 2000);
+  });
+}
+
+function sendLoaderStatus(phase: "daemon" | "helper" | "ready" | "error", message: string) {
+  loaderWindow?.webContents.send("loader-status", { phase, message });
+}
+
+function destroyLoaderWindow() {
+  // destroy() bypasses any close handlers and is safe even on a window with
+  // closable: false — we use it instead of close() because closable: false
+  // makes close() a no-op.
+  if (loaderWindow) {
+    loaderWindow.destroy();
+    loaderWindow = null;
+  }
+}
+
+// runBoot is the actual boot sequence. It pushes status updates into the
+// loader window between each phase and returns false on the first hard
+// failure (currently: daemon /health never responds within waitForDaemonReady's
+// 5s budget). On false, the loader sticks around with the error state and
+// the user can click "Попробовать снова" to retry.
+async function runBoot(): Promise<boolean> {
+  sendLoaderStatus("daemon", "Starting daemon...");
+  startDaemon();
+  const ready = await waitForDaemonReady();
+  if (!ready) {
+    sendLoaderStatus("error", "Daemon failed to start");
+    return false;
+  }
+  // On packaged macOS, the helper is a launchd service installed by the PKG —
+  // startHelper() is a no-op there, so we don't show a "Starting helper" line
+  // that would be a lie.
+  const helperManaged = process.platform === "darwin" && app.isPackaged;
+  if (!helperManaged) {
+    sendLoaderStatus("helper", "Starting helper...");
+  }
+  startHelper();
+  sendLoaderStatus("ready", "Ready");
+  return true;
+}
+
+// bootMainApp orchestrates the boot sequence and the one-time post-boot
+// setup. Idempotent via mainBootCompleted: if a retry path lands here after
+// the main window is already up (shouldn't happen, but defensive) it bails.
+async function bootMainApp() {
+  if (mainBootCompleted) return;
+  const ok = await runBoot();
+  if (!ok) return; // loader keeps showing the error + retry button
+  // If the daemon was already warm and runBoot finished in milliseconds, the
+  // loader would flash invisibly — pad the visible time so the user actually
+  // perceives the splash. loaderShownAt is 0 if ready-to-show never fired,
+  // in which case the whole elapsed check is a no-op (elapsed is huge).
+  const elapsed = Date.now() - loaderShownAt;
+  if (loaderShownAt > 0 && elapsed < MIN_LOADER_VISIBLE_MS) {
+    await new Promise((r) => setTimeout(r, MIN_LOADER_VISIBLE_MS - elapsed));
+  }
+  destroyLoaderWindow();
+  createWindow();
+  createTray();
+  setupIpc();
+  startSitesCachePoller();
+  mainBootCompleted = true;
+}
+
+// setupLoaderIpc wires the two IPC channels the loader window can send
+// to the main process. Must be called before createLoaderWindow so the
+// handlers exist by the time the user can click anything.
+function setupLoaderIpc() {
+  ipcMain.on("loader-retry", async () => {
+    // Tear down whatever half-started state the previous attempt left and
+    // give the OS a beat to actually reap the processes before we spawn
+    // fresh — without the wait, startDaemon() could race against the dying
+    // process's port binding.
+    stopDaemon();
+    stopHelper();
+    sendLoaderStatus("daemon", "Restarting...");
+    await new Promise((r) => setTimeout(r, 300));
+    await bootMainApp();
+  });
+
+  ipcMain.on("loader-quit", () => {
+    // Full quit: kill daemon + helper, mark quitting so the main close
+    // handler doesn't intercept (no main window exists yet anyway) and
+    // exit the app.
+    destroyLoaderWindow();
+    stopDaemon();
+    stopHelper();
+    (app as any).isQuitting = true;
+    app.quit();
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -320,10 +547,12 @@ function setupIpc() {
   });
 
   ipcMain.on("enable-proxy", () => {
+    systemProxyActive = true;
     enableSystemProxy();
   });
 
   ipcMain.on("disable-proxy", () => {
+    systemProxyActive = false;
     disableSystemProxy();
   });
 
@@ -347,7 +576,9 @@ function setupIpc() {
       body: JSON.stringify({ site_id: siteId, enabled }),
     });
     if (!r.ok) throw new Error(`daemon ${r.status}`);
-    return await r.json(); // { ok: true, my_sites: [...] }
+    const json = await r.json(); // { ok: true, my_sites: [...] }
+    refreshSystemProxyIfActive();
+    return json;
   });
 
   ipcMain.handle("daemon-add-site", async (_e, primaryDomain: string, label: string) => {
@@ -359,7 +590,9 @@ function setupIpc() {
       body: JSON.stringify({ primary_domain: primaryDomain, label }),
     });
     if (!r.ok) throw new Error(`daemon ${r.status}`);
-    return await r.json(); // { site_id, deduped }
+    const json = await r.json(); // { site_id, deduped }
+    refreshSystemProxyIfActive();
+    return json;
   });
 
   ipcMain.handle("daemon-remove-site", async (_e, siteId: number) => {
@@ -371,7 +604,9 @@ function setupIpc() {
       body: JSON.stringify({ site_id: siteId }),
     });
     if (!r.ok) throw new Error(`daemon ${r.status}`);
-    return await r.json(); // { ok: true, my_sites: [...] }
+    const json = await r.json(); // { ok: true, my_sites: [...] }
+    refreshSystemProxyIfActive();
+    return json;
   });
 
   ipcMain.handle("daemon-list-sites", async () => {
@@ -498,12 +733,17 @@ if (!gotLock) {
     mainWindow?.focus();
   });
 
-  app.whenReady().then(() => {
-    startDaemon();
-    startHelper();
-    createWindow();
-    createTray();
-    setupIpc();
+  app.whenReady().then(async () => {
+    setupLoaderIpc();
+    // Await ready-to-show so loaderShownAt is populated before bootMainApp
+    // measures elapsed visible time. Without the await, a fast boot could
+    // race past the window before it's actually on screen.
+    await createLoaderWindow();
+    // bootMainApp drives startDaemon → waitForDaemonReady → startHelper and
+    // only opens the main window after the daemon is really accepting
+    // requests. The loader covers the wait (and shows an error+retry if
+    // anything goes wrong) — see runBoot / daemon.ts:waitForDaemonReady.
+    await bootMainApp();
   });
 }
 

@@ -43,6 +43,11 @@ contextBridge.exposeInMainWorld("appInfo", {
     ipcRenderer.on("system-resumed", handler);
     return () => ipcRenderer.removeListener("system-resumed", handler);
   },
+  onSitesChanged: (cb: () => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("daemon-sites-changed", handler);
+    return () => ipcRenderer.removeListener("daemon-sites-changed", handler);
+  },
 });
 
 contextBridge.exposeInMainWorld("tunProxy", {

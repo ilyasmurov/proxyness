@@ -71,6 +71,39 @@ export function startDaemon(): void {
   });
 }
 
+// waitForDaemonReady polls the daemon's /health endpoint until it
+// starts responding (or the deadline hits). Needed because spawn()
+// returns immediately but the Go process needs a beat to bind its HTTP
+// listener — if the renderer lets the user click Connect before that
+// moment, the first /connect fetch hits ECONNREFUSED and tunConnect's
+// in-hook retry (800ms) may not cover the full startup window, leaving
+// the user with SOCKS5 dead while TUN (which runs after an extra beat)
+// ends up fine. Main process awaits this before createWindow so the UI
+// only appears once the daemon is actually usable.
+export async function waitForDaemonReady(timeoutMs: number = 5000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      // Node 18+ has global fetch. AbortController keeps one poll from
+      // stalling the boot path if the daemon is unresponsive but TCP is
+      // accepted — rare but possible during startup.
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 300);
+      const res = await fetch("http://127.0.0.1:9090/health", { signal: ctrl.signal });
+      clearTimeout(to);
+      if (res.ok) {
+        addLog("daemon", "ready (health check passed)");
+        return true;
+      }
+    } catch {
+      // Connection refused / aborted / dns — keep polling.
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  addLog("daemon", `not ready after ${timeoutMs}ms, continuing anyway`);
+  return false;
+}
+
 function scheduleRestart(): void {
   if (!daemonShouldRun || daemonRestartTimer) return;
   addLog("daemon", "restarting in 2s...");

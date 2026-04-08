@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
@@ -9,9 +10,20 @@ import type { SiteWithStats } from "@/lib/api";
 
 export function Sites() {
   const [sites, setSites] = useState<SiteWithStats[]>([]);
+  const [query, setQuery] = useState("");
 
   const load = () => api.listSites().then(setSites).catch(() => {});
   useEffect(() => { load(); }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sites;
+    return sites.filter((s) =>
+      s.label.toLowerCase().includes(q) ||
+      s.primary_domain.toLowerCase().includes(q) ||
+      s.slug.toLowerCase().includes(q),
+    );
+  }, [sites, query]);
 
   const handleDelete = async (id: number, label: string) => {
     if (!confirm(`Delete site "${label}" and all its user links?`)) return;
@@ -23,8 +35,16 @@ export function Sites() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Sites</h1>
-        <div className="text-sm text-muted-foreground">{sites.length} total</div>
+        <div className="text-sm text-muted-foreground">
+          {query ? `${filtered.length} of ${sites.length}` : `${sites.length} total`}
+        </div>
       </div>
+      <Input
+        placeholder="Search by label, domain, or slug…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="max-w-md"
+      />
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -39,7 +59,7 @@ export function Sites() {
               <TableHead></TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {sites.map((s) => (
+              {filtered.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>
                     <Link to={`/admin/sites/${s.id}`} className="font-medium text-blue-500 hover:underline">

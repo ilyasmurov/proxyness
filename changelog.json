@@ -1,5 +1,33 @@
 [
   {
+    "id": "aee624fd-aaf1-4db5-9053-6533d14b231a",
+    "title": "Auto-connect on cold start",
+    "description": "Client now re-establishes the SOCKS5 tunnel automatically on launch when a device key is stored, instead of leaving the browser proxy off until you click Connect.",
+    "type": "fix",
+    "createdAt": "2026-04-08T18:54:37.452196+00:00"
+  },
+  {
+    "id": "af063409-3f1d-44fd-b3c5-62fe4a04f73f",
+    "title": "Daemon CORS for dev builds",
+    "description": "Added CORS headers on public daemon endpoints so `make dev` renderer (http://localhost:5174) can actually reach the API on 127.0.0.1:9090.",
+    "type": "fix",
+    "createdAt": "2026-04-08T18:54:37.452394+00:00"
+  },
+  {
+    "id": "c54ab636-9012-4834-b2c5-fa80f491825a",
+    "title": "Finish scanning button in the extension",
+    "description": "The discovery panel now has a \"Finish scanning\" button to dismiss the scanner on sites where you're done adding domains.",
+    "type": "feature",
+    "createdAt": "2026-04-08T18:54:37.452404+00:00"
+  },
+  {
+    "id": "13516b77-79c9-4d94-876e-c07fa9913574",
+    "title": "Search on admin Sites page",
+    "description": "Admin panel Sites table now has a search box that filters by label, primary domain, or slug.",
+    "type": "feature",
+    "createdAt": "2026-04-08T18:54:37.452411+00:00"
+  },
+  {
     "id": "2ba9496b-0c37-4b16-813d-04285edad6ce",
     "title": "Popup-расширение теперь панель управления для активной вкладки: проксировать сайт одним кликом, выключить проксирование, переключение применяется немедленно через автоматический reload вкладки. Daemon забрал на себя формирование PAC — refactor устраняет race conditions между переключениями из popup'а и из десктоп-клиента.",
     "description": null,
@@ -1370,33 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-04T06:51:07.016434+00:00"
-  },
-  {
-    "id": "9f1fea19-851e-44f6-b311-1d4439c6eea8",
-    "title": "RTT sampling, sender-side dup ACK, single OnLoss per tick in ARQ",
-    "description": "Sample RTT using Karn's algorithm, track sender-side duplicate ACKs for fast retransmit, call OnLoss/Backoff once per retransmit tick, fix goroutine leak on session cleanup, remove dead fields.",
-    "type": "fix",
-    "createdAt": "2026-04-04T06:15:17.594970+00:00"
-  },
-  {
-    "id": "07ebfad8-f883-4fac-a870-1b11a5668cd5",
-    "title": "Add UDP ACK round-trip integration test to verify ACK packet encoding and decoding over a real UDP socket",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-04T06:07:23.794728+00:00"
-  },
-  {
-    "id": "df29d1ca-2fb0-463c-9663-0d344540ca4b",
-    "title": "Integrate ARQ Controller into server UDP listener for reliable delivery with retransmits and congestion control",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-04T06:06:02.393504+00:00"
-  },
-  {
-    "id": "6b723bbd-2555-417b-b635-0c4c86e09c6e",
-    "title": "Integrate ARQ Controller into UDP transport for reliable delivery with congestion control",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-04T06:03:15.078114+00:00"
   }
 ]

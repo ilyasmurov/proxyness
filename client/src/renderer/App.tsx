@@ -66,13 +66,18 @@ export function App() {
       console.log(`[reconnect] attempt ${attempt}/${maxRetries}`);
       try {
         if (proxyMode === "tun") {
-          await connect(SERVER, key);
+          // connect() returns false on non-ok (e.g. 409 from lockDevice race
+          // against a stale server-side lock on cold start). Treat that as
+          // a retryable failure instead of silently leaving SOCKS5 down.
+          const ok = await connect(SERVER, key);
+          if (!ok) throw new Error("socks5 connect failed");
           const result = await (window as any).tunProxy?.start(SERVER, key);
           if (result && !result.ok) throw new Error(result.error);
           setTunStatus("active");
           wasConnected.current = true;
         } else {
-          await connect(SERVER, key);
+          const ok = await connect(SERVER, key);
+          if (!ok) throw new Error("connect failed");
         }
         setReconnecting(false);
         setTunError(null);
@@ -95,6 +100,27 @@ export function App() {
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
     };
   }, []);
+
+  // Auto-connect on mount when a previously-paired key is present.
+  //
+  // Intentionally reuses startReconnect() rather than tunConnect(): its
+  // retry-with-backoff loop (5 attempts, 5s apart) covers the transient
+  // failure modes on cold start — lockDevice races against a freshly-killed
+  // previous session, network stack not fully up yet, daemon's UDP transport
+  // mid-handshake. A single-shot tunConnect would just give up and leave the
+  // user with "Server unavailable" on a first boot blip.
+  //
+  // Fires exactly once per React mount via autoConnectFired ref. The !key /
+  // showSetup guards skip the new-user flow (no key → setup screen handles
+  // the first connect via connectWithKey) and the stale-key-cleared flow
+  // (machineID rejection clears the key and flips showSetup back on).
+  const autoConnectFired = useRef(false);
+  useEffect(() => {
+    if (autoConnectFired.current) return;
+    if (!key || showSetup) return;
+    autoConnectFired.current = true;
+    startReconnect();
+  }, [key, showSetup, startReconnect]);
 
   // Poll TUN status when in TUN mode
   useEffect(() => {
@@ -175,10 +201,32 @@ export function App() {
     setTunLoading(true);
     setTunError(null);
     try {
-      // Start SOCKS5 tunnel + enable system proxy with PAC
-      await connect(server, k);
-      (window as any).sysproxy?.setPacSites({ proxy_all: true });
-      (window as any).sysproxy?.enable();
+      // Start SOCKS5 tunnel + enable system proxy with PAC. This has to
+      // run BEFORE the TUN engine: browsers rely on PAC/SOCKS5 for the
+      // per-site proxy rules, and if this step fails silently the whole
+      // "proxy one site in Chrome" flow is dead while the UI still shows
+      // green because TUN (per-app routing) reports healthy.
+      //
+      // One retry with 800ms backoff covers transient lockDevice /
+      // handshake races — e.g. the previous daemon session hasn't fully
+      // released the device lock on the server yet when /connect reaches
+      // it a beat too soon.
+      let socksOk = await connect(server, k);
+      if (!socksOk) {
+        console.warn("[tunConnect] first /connect failed, retrying in 800ms");
+        await new Promise((r) => setTimeout(r, 800));
+        socksOk = await connect(server, k);
+      }
+      if (socksOk) {
+        (window as any).sysproxy?.setPacSites({ proxy_all: true });
+        (window as any).sysproxy?.enable();
+      } else {
+        // Don't bail — TUN still works for per-app proxying (Telegram,
+        // Cursor, etc.). Just surface the failure so the user knows
+        // browsers won't get per-site proxying until they reconnect.
+        console.warn("[tunConnect] SOCKS5 tunnel failed twice, continuing with TUN only");
+        setTunError("Browser proxy is off (SOCKS5 failed to start). Apps still go through TUN. Reconnect to retry.");
+      }
 
       // Start TUN for apps
       const result = await (window as any).tunProxy?.start(server, k);

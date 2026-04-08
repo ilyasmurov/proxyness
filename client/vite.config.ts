@@ -16,6 +16,7 @@ export default defineConfig({
         main: "index.html",
         logs: "logs.html",
         update: "update.html",
+        loader: "loader.html",
       },
     },
   },
@@ -48,6 +49,14 @@ export default defineConfig({
       },
       {
         entry: "src/main/preload-update.ts",
+        vite: {
+          build: {
+            outDir: "dist-electron/main",
+          },
+        },
+      },
+      {
+        entry: "src/main/preload-loader.ts",
         vite: {
           build: {
             outDir: "dist-electron/main",
