@@ -132,14 +132,17 @@ func TestManagerCallbackNilSafe(t *testing.T) {
 }
 
 func TestManagerSetEnabledTogglesViaSync(t *testing.T) {
+	var mu sync.Mutex
 	var receivedOps []map[string]interface{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&req)
 		raw, _ := req["ops"].([]interface{})
+		mu.Lock()
 		for _, o := range raw {
 			receivedOps = append(receivedOps, o.(map[string]interface{}))
 		}
+		mu.Unlock()
 
 		// Server responds with the site flipped to disabled.
 		json.NewEncoder(w).Encode(SyncResponse{
@@ -160,10 +163,13 @@ func TestManagerSetEnabledTogglesViaSync(t *testing.T) {
 		t.Fatalf("SetEnabled: %v", err)
 	}
 
+	mu.Lock()
 	if len(receivedOps) != 1 {
+		mu.Unlock()
 		t.Fatalf("expected 1 op, got %d", len(receivedOps))
 	}
 	op := receivedOps[0]
+	mu.Unlock()
 	if op["op"] != "disable" {
 		t.Errorf("expected op=disable, got %v", op["op"])
 	}

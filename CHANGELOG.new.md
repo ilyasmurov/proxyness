@@ -1,2 +1,2 @@
 ## improvement
-Add Manager.SetEnabled for per-user enable/disable through server sync
+Fix latent data race in TestManagerSetEnabledTogglesViaSync

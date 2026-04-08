@@ -1,5 +1,12 @@
 [
   {
+    "id": "17a62c59-4aab-49a3-bbde-b1b2bed5f54e",
+    "title": "Fix latent data race in TestManagerSetEnabledTogglesViaSync",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T12:53:17.123002+00:00"
+  },
+  {
     "id": "149763d7-32de-4583-bac7-0f7b9bda6173",
     "title": "Add Manager.SetEnabled for per-user enable/disable through server sync",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "CHANGELOG.new.md → changelog.json → SQLite DB при старте сервера",
     "type": "feature",
     "createdAt": "2026-04-03T21:08:45.284598+00:00"
-  },
-  {
-    "id": "27f81a30-452e-4269-81d2-59548b871053",
-    "title": "Обновлённая страница Changelog в админке",
-    "description": "Группировка по датам, цветные бейджи типов, компактные карточки",
-    "type": "improvement",
-    "createdAt": "2026-04-03T21:08:45.284765+00:00"
   }
 ]
