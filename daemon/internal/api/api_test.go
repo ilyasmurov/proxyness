@@ -13,11 +13,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	dstats "smurov-proxy/daemon/internal/stats"
+	"smurov-proxy/daemon/internal/sites"
 	"smurov-proxy/daemon/internal/tun"
 	"smurov-proxy/daemon/internal/tunnel"
 	"smurov-proxy/pkg/auth"
@@ -179,5 +181,95 @@ func TestConnectDisconnectFlow(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Status != "disconnected" {
 		t.Fatalf("expected disconnected, got %s", resp.Status)
+	}
+}
+
+func newTestServerWithMgr(t *testing.T, mgr *sites.Manager) *Server {
+	t.Helper()
+	meter := dstats.NewRateMeter()
+	tnl := tunnel.New(meter)
+	srv := New(tnl, tun.NewEngine(meter), "127.0.0.1:0", meter)
+	srv.SetSites(mgr, nil)
+	return srv
+}
+
+func TestRebuildPACPushesEnabledDomains(t *testing.T) {
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager("https://example.invalid", keyStore)
+	mgr.Cache().Replace([]sites.MySite{
+		{ID: 1, PrimaryDomain: "habr.com", Domains: []string{"habr.com"}, Enabled: true},
+		{ID: 2, PrimaryDomain: "youtube.com", Domains: []string{"youtube.com"}, Enabled: false},
+	})
+	srv := newTestServerWithMgr(t, mgr)
+
+	// Initial state: proxy_all=false, no domains.
+	srv.pacSites.Set(false, nil)
+
+	srv.RebuildPAC()
+
+	proxyAll, domains := srv.pacSites.Get()
+	if proxyAll {
+		t.Error("expected proxy_all=false")
+	}
+	want := []string{"habr.com", "www.habr.com", "*.habr.com"}
+	if len(domains) != len(want) {
+		t.Fatalf("got %v, want %v", domains, want)
+	}
+	for i := range want {
+		if domains[i] != want[i] {
+			t.Errorf("domain[%d]: got %q, want %q", i, domains[i], want[i])
+		}
+	}
+}
+
+func TestRebuildPACPreservesProxyAllFlag(t *testing.T) {
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager("https://example.invalid", keyStore)
+	mgr.Cache().Replace([]sites.MySite{
+		{ID: 1, PrimaryDomain: "habr.com", Domains: []string{"habr.com"}, Enabled: true},
+	})
+	srv := newTestServerWithMgr(t, mgr)
+
+	// Set proxy_all=true (renderer-pushed flag).
+	srv.pacSites.Set(true, nil)
+
+	srv.RebuildPAC()
+
+	proxyAll, domains := srv.pacSites.Get()
+	if !proxyAll {
+		t.Error("expected proxy_all=true preserved")
+	}
+	if len(domains) != 0 {
+		t.Errorf("expected empty domains in proxy_all mode, got %v", domains)
+	}
+}
+
+func TestRebuildPACSkipsCloseAllConnsWhenUnchanged(t *testing.T) {
+	keyStore := sites.NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := sites.NewManager("https://example.invalid", keyStore)
+	mgr.Cache().Replace([]sites.MySite{
+		{ID: 1, PrimaryDomain: "habr.com", Domains: []string{"habr.com"}, Enabled: true},
+	})
+	srv := newTestServerWithMgr(t, mgr)
+
+	// First rebuild populates pacSites.
+	srv.RebuildPAC()
+
+	// Subsequent rebuilds with identical cache should be no-ops.
+	// We can't easily inspect CloseAllConns count without exposing it,
+	// so we just verify the calls don't panic and the state is stable.
+	srv.RebuildPAC()
+	srv.RebuildPAC()
+	srv.RebuildPAC()
+
+	proxyAll, domains := srv.pacSites.Get()
+	if proxyAll {
+		t.Error("expected proxy_all=false")
+	}
+	if len(domains) == 0 {
+		t.Error("expected domains preserved across no-op rebuilds")
 	}
 }

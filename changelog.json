@@ -1,5 +1,12 @@
 [
   {
+    "id": "aa5a4d94-9764-4435-b4dc-aa0005defdcd",
+    "title": "Add Server.RebuildPAC with diff guard to avoid 5-min connection resets",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:00:03.443813+00:00"
+  },
+  {
     "id": "d505e08d-1ad8-40fb-a2bb-a6cbd105256e",
     "title": "Add Manager.RemoveSite for per-user site deletion through server sync",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-03T21:12:48.986562+00:00"
-  },
-  {
-    "id": "bab43bd7-7118-4bd3-b041-888675cc3b8a",
-    "title": "Исправлен импорт типа ChangelogEntry для verbatimModuleSyntax",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-03T21:09:24.131224+00:00"
   }
 ]

@@ -431,3 +431,55 @@ func (s *Server) handleTransportSet(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+// RebuildPAC refreshes pacSites from the sitesManager cache, preserving
+// the current proxy_all flag (which is owned by the renderer's UI toggle
+// and pushed via the existing /pac/sites endpoint).
+//
+// IMPORTANT — diff before CloseAllConns:
+//
+// This function gets called from background Refresh() every 5 minutes
+// even when nothing changed. Without diffing, every tick would kill all
+// in-flight SOCKS5 connections, giving users mysterious 5-minute
+// connection resets. So we compare the new domain list against the
+// previous one and only call CloseAllConns when something actually
+// changed.
+func (s *Server) RebuildPAC() {
+	if s.sitesManager == nil {
+		return
+	}
+	prevProxyAll, prevDomains := s.pacSites.Get()
+
+	var newProxyAll bool
+	var newDomains []string
+	if prevProxyAll {
+		newProxyAll = true
+		newDomains = nil
+	} else {
+		newProxyAll = false
+		newDomains = s.sitesManager.EnabledDomains()
+	}
+
+	changed := newProxyAll != prevProxyAll || !slicesEqual(prevDomains, newDomains)
+	if !changed {
+		return
+	}
+
+	s.pacSites.Set(newProxyAll, newDomains)
+	s.tunnel.CloseAllConns()
+}
+
+// slicesEqual checks if two string slices have the same elements in the
+// same order. Cheap because the lists are small (low hundreds even for
+// power users).
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

@@ -13,7 +13,7 @@ type PacSites struct {
 }
 
 func NewPacSites() *PacSites {
-	return &PacSites{proxyAll: true}
+	return &PacSites{proxyAll: false}
 }
 
 func (p *PacSites) Set(proxyAll bool, sites []string) {
