@@ -1,2 +1,2 @@
 ## feature
-Extension popup: pairing screen + paired state с unpair кнопкой
+Extension tab state machine — отслеживает текущий site и пушит state в content script

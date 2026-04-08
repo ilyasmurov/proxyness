@@ -1,5 +1,12 @@
 [
   {
+    "id": "44b37ec6-b5b7-4237-bb8a-844fec57fc70",
+    "title": "Extension tab state machine — отслеживает текущий site и пушит state в content script",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:13:48.918894+00:00"
+  },
+  {
     "id": "878f8aa3-db22-4045-a6c9-343bdeae74ea",
     "title": "Extension popup: pairing screen + paired state с unpair кнопкой",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-01T13:27:25Z"
-  },
-  {
-    "id": "d2de4f9d-f49f-407f-8392-101db458165c",
-    "title": "Обновлён список сайтов: Claude и YouTrack",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-01T12:45:21Z"
   }
 ]
