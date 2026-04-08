@@ -1,5 +1,19 @@
 [
   {
+    "id": "e39f5464-4299-4da6-8c07-73272ebd0b24",
+    "title": "Windows startup crash since 1.27 — loader-to-main window handoff",
+    "description": "Create the main window before destroying the loader. The old order destroyed the loader first, which synchronously fired window-all-closed (zero windows for one tick) and on Windows that handler quits the app — the subsequent createWindow ran inside an already-quitting process and the main UI never appeared.",
+    "type": "fix",
+    "createdAt": "2026-04-08T22:59:04.062176+00:00"
+  },
+  {
+    "id": "055619d8-dce1-49b3-90a0-dfdb8986df87",
+    "title": "Diagnostic crash logger behind --trace flag",
+    "description": "Launch with --trace (or SMUROV_DEBUG=1 on macOS) to enable boot traces and crash capture to ~/Desktop/smurov-crash.log for future troubleshooting.",
+    "type": "improvement",
+    "createdAt": "2026-04-08T22:59:04.062328+00:00"
+  },
+  {
     "id": "77c2783c-73ae-436b-8f90-d658ad3a2a94",
     "title": "Force diagnostic logger on for Windows debug cycle",
     "description": "Windows UAC elevation drops env vars so SMUROV_DEBUG=1 never reaches the elevated child, and --debug conflicts with Electron's legacy Node flag. Temporarily always-on until the 1.27+ Windows crash is found.",
@@ -1384,19 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T10:14:32.138391+00:00"
-  },
-  {
-    "id": "94faa814-8152-4646-81d0-74cf4f8efa95",
-    "title": "UDP: deduplicate retransmitted stream open — prevent double-dial race",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T09:55:48.425216+00:00"
-  },
-  {
-    "id": "4e585956-e490-4239-8fd7-61e50b7466bc",
-    "title": "UDP: per-stream write channel — deliverFn больше не блокирует processLoop",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T09:37:20.970409+00:00"
   }
 ]

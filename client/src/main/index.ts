@@ -14,13 +14,12 @@ import { getDaemonToken, cachedDaemonToken } from "./extension";
 // startup/runtime failures that leave no trace in Event Viewer or
 // %APPDATA% logs. Kept around permanently so future reports can be
 // triaged by asking the user to relaunch with the flag.
-// TEMPORARILY always-on while we chase the 1.27+ Windows startup crash.
-// Windows UAC elevation (requireAdministrator) drops env vars on the
-// elevated child, and --debug conflicts with Electron's legacy Node flag,
-// so neither the SMUROV_DEBUG=1 env var nor --debug argv reaches us in a
-// packaged Windows build. Once the crash is fixed, gate this back on
-// --trace (new, non-conflicting flag name) or SMUROV_DEBUG.
-const DEBUG_ENABLED = true;
+// Opt-in crash logger. Enable by launching with `--trace` (Electron
+// reserves --debug for its legacy Node inspector, so we can't use that
+// name). SMUROV_DEBUG=1 env var works on macOS but NOT on Windows,
+// because requireAdministrator elevation drops env vars on the
+// elevated child — so on Windows the only reliable switch is --trace.
+const DEBUG_ENABLED = process.argv.includes("--trace") || process.env.SMUROV_DEBUG === "1";
 const CRASH_LOG = path.join(require("os").homedir(), "Desktop", "smurov-crash.log");
 function logCrash(tag: string, err: unknown) {
   if (!DEBUG_ENABLED) return;
@@ -245,10 +244,18 @@ async function bootMainApp() {
   if (loaderShownAt > 0 && elapsed < MIN_LOADER_VISIBLE_MS) {
     await new Promise((r) => setTimeout(r, MIN_LOADER_VISIBLE_MS - elapsed));
   }
-  bootTrace("destroyLoaderWindow");
-  destroyLoaderWindow();
+  // CRITICAL: create the main window BEFORE destroying the loader.
+  // destroyLoaderWindow() calls BrowserWindow.destroy() which fires
+  // window-all-closed synchronously if it was the only window, and on
+  // Windows that handler calls app.quit() — so if we destroy first and
+  // createWindow second, we end up calling createWindow() inside a
+  // quitting app and the new window is closed immediately. Overlapping
+  // the two (create main, then destroy loader) keeps the window count
+  // above zero across the transition. See 1.27+ Windows crash.
   bootTrace("createWindow");
   createWindow();
+  bootTrace("destroyLoaderWindow");
+  destroyLoaderWindow();
   bootTrace("createTray");
   createTray();
   bootTrace("setupIpc");
