@@ -1,2 +1,2 @@
 ## improvement
-Drop sites field from setPacSites window declaration in useDaemon.ts
+Drop sites field in tunConnect setPacSites payload in App.tsx

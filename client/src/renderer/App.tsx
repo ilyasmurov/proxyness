@@ -177,7 +177,7 @@ export function App() {
     try {
       // Start SOCKS5 tunnel + enable system proxy with PAC
       await connect(server, k);
-      (window as any).sysproxy?.setPacSites({ proxy_all: true, sites: [] });
+      (window as any).sysproxy?.setPacSites({ proxy_all: true });
       (window as any).sysproxy?.enable();
 
       // Start TUN for apps
