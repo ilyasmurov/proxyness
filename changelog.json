@@ -1,5 +1,12 @@
 [
   {
+    "id": "9125b674-d3f2-4403-9af8-b82a2c490851",
+    "title": "Extension service worker + daemon client wrapper с token storage",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:06:18.456469+00:00"
+  },
+  {
     "id": "a6cc0f00-8eb9-4ea4-9298-cb0827cb18f8",
     "title": "Daemon Sites Manager — координирует key store, sync client, in-memory cache",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-01T11:24:39Z"
-  },
-  {
-    "id": "6e69a0c5-562d-40bd-b062-6b3b8e61b0bb",
-    "title": "Отключение и сброс ключа при отказе по Machine ID",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-01T11:21:59Z"
   }
 ]
