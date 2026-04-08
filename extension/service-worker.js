@@ -101,8 +101,44 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Handlers for "add_current_site", "add_current_site_and_reload",
-  // "dismiss_block" arrive in Tasks 15 and 18.
+  if (msg.type === "add_current_site") {
+    handleAddCurrentSite(sender.tab);
+    return false;
+  }
+
+  // Handlers for "add_current_site_and_reload",
+  // "dismiss_block" arrive in Task 18.
 });
+
+async function handleAddCurrentSite(tab) {
+  if (!tab || !tab.url) return;
+  let host;
+  try {
+    host = getDomain(new URL(tab.url).hostname);
+  } catch {
+    return;
+  }
+
+  // Show "discovering" immediately.
+  tabState.set(tab.id, { state: "discovering", host });
+  pushStateToTab(tab.id);
+
+  const r = await daemonClient.add(host, host);  // label = host as fallback
+  if (!r.ok) {
+    tabState.set(tab.id, { state: "add", host });
+    pushStateToTab(tab.id);
+    return;
+  }
+  const siteId = r.data.site_id;
+  tabState.set(tab.id, { state: "discovering", host, siteId });
+  pushStateToTab(tab.id);
+
+  // Discovery hook is enabled in Task 16. For now, just transition to
+  // "proxied" after a short delay.
+  setTimeout(() => {
+    tabState.set(tab.id, { state: "proxied", host, siteId });
+    pushStateToTab(tab.id);
+  }, 1500);
+}
 
 console.log("[smurov-proxy] service worker loaded");

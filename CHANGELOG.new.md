@@ -1,2 +1,2 @@
 ## feature
-Extension tab state machine — отслеживает текущий site и пушит state в content script
+Extension Flow 1: клик "Add to proxy" → /sites/add → state→discovering

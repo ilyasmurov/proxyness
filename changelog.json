@@ -1,5 +1,12 @@
 [
   {
+    "id": "bf03f11d-edfa-4409-8714-b2962e7b5759",
+    "title": "Extension Flow 1: клик \"Add to proxy\" → /sites/add → state→discovering",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:15:42.721967+00:00"
+  },
+  {
     "id": "44b37ec6-b5b7-4237-bb8a-844fec57fc70",
     "title": "Extension tab state machine — отслеживает текущий site и пушит state в content script",
     "description": null,
@@ -1390,13 +1397,6 @@
     "title": "SVG иконки приложений и сайтов",
     "description": null,
     "type": "improvement",
-    "createdAt": "2026-04-01T13:27:25Z"
-  },
-  {
-    "id": "5f6fdd0d-68c3-4b71-97b8-4e2f4460fd23",
-    "title": "Добавлен Telegram Web в список сайтов",
-    "description": null,
-    "type": "feature",
     "createdAt": "2026-04-01T13:27:25Z"
   }
 ]
