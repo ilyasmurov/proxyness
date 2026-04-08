@@ -1,5 +1,12 @@
 [
   {
+    "id": "2b008fcf-4c0e-45af-8540-0d229ad9b2c3",
+    "title": "Add control panel layout styles to popup.css",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:53:23.946660+00:00"
+  },
+  {
     "id": "bdee5411-fb31-491a-ad55-f501557bf2e4",
     "title": "Popup is now a per-tab control panel with 6 states (pairing, daemon_down, system_page, not_in_catalog, proxied, catalog_disabled)",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-04T05:54:32.433423+00:00"
-  },
-  {
-    "id": "2b888490-221e-40c5-83e2-1c9e3ddbaec8",
-    "title": "Align CUBIC congestion control with spec: pure wall-clock time measurement, ssthresh minimum clamp",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T05:52:48.546939+00:00"
   }
 ]
