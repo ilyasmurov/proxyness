@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -83,5 +84,30 @@ func TestManagerAddSiteRefreshesCache(t *testing.T) {
 	// Cache should now contain habr.com.
 	if m := mgr.Cache().Match("habr.com"); m == nil {
 		t.Fatalf("expected cache to contain habr.com after AddSite")
+	}
+}
+
+func TestManagerEnabledDomains(t *testing.T) {
+	dir := t.TempDir()
+	keyStore := NewKeyStore(filepath.Join(dir, "key"))
+	keyStore.Save("dummy")
+	mgr := NewManager("https://example.invalid", keyStore)
+
+	mgr.cache.Replace([]MySite{
+		{ID: 1, PrimaryDomain: "habr.com", Domains: []string{"habr.com", "habrcdn.io"}, Enabled: true},
+		{ID: 2, PrimaryDomain: "youtube.com", Domains: []string{"youtube.com"}, Enabled: false},
+		{ID: 3, PrimaryDomain: "vk.com", Domains: []string{"vk.com"}, Enabled: true},
+	})
+
+	got := mgr.EnabledDomains()
+	// Expected: enabled-only sites' domains, expanded with www./*. variants.
+	// Order matches iteration order of cache.Snapshot.
+	want := []string{
+		"habr.com", "www.habr.com", "*.habr.com",
+		"habrcdn.io", "www.habrcdn.io", "*.habrcdn.io",
+		"vk.com", "www.vk.com", "*.vk.com",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
 	}
 }

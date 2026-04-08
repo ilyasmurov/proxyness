@@ -1,5 +1,12 @@
 [
   {
+    "id": "c268fc97-2c5b-4b0d-848f-f68e08841f09",
+    "title": "Add EnabledDomains helper to Manager",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T12:41:05.000326+00:00"
+  },
+  {
     "id": "d73891a5-1420-4733-be46-db2e7ca55aff",
     "title": "Vendor ExpandDomains from TypeScript to Go in daemon/internal/sites",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T20:08:12Z"
-  },
-  {
-    "id": "b796313e-9396-4a9f-9eaf-66c24f856844",
-    "title": "Мультиплексирование потоков через единый UDP канал",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-03T20:33:01Z"
   }
 ]

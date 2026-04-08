@@ -144,3 +144,17 @@ func (m *Manager) StopBackgroundRefresh() {
 		m.stopRefresh = nil
 	}
 }
+
+// EnabledDomains returns the flat expanded domain list for all sites
+// where Enabled == true. Used to feed pacSites in Server.RebuildPAC.
+func (m *Manager) EnabledDomains() []string {
+	snapshot := m.cache.Snapshot()
+	raw := make([]string, 0, len(snapshot))
+	for _, s := range snapshot {
+		if !s.Enabled {
+			continue
+		}
+		raw = append(raw, s.Domains...)
+	}
+	return ExpandDomains(raw)
+}
