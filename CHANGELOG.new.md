@@ -1,2 +1,2 @@
 ## feature
-Extension Flow 2: failed sub-resource на проксируемом сайте → immediate discover
+Extension Flow 3: detect top-level block → verify через /sites/test → banner с одним кликом

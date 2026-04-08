@@ -29,6 +29,30 @@ const SUSPICIOUS_ERRORS = new Set([
   "net::ERR_CONNECTION_REFUSED",
 ]);
 
+// In-memory dismissals: { host: dismissedAtMs }
+// Persisted to chrome.storage.local under "block_dismissals".
+const blockDismissals = new Map();
+const DISMISS_TTL_MS = 24 * 60 * 60 * 1000;
+
+async function loadDismissals() {
+  const stored = await chrome.storage.local.get("block_dismissals");
+  const data = stored.block_dismissals || {};
+  const now = Date.now();
+  for (const [host, at] of Object.entries(data)) {
+    if (now - at < DISMISS_TTL_MS) {
+      blockDismissals.set(host, at);
+    }
+  }
+}
+loadDismissals();
+
+async function persistDismissal(host) {
+  blockDismissals.set(host, Date.now());
+  const out = {};
+  for (const [h, at] of blockDismissals) out[h] = at;
+  await chrome.storage.local.set({ block_dismissals: out });
+}
+
 // ---------- helpers ----------
 
 function pushStateToTab(tabId) {
@@ -165,6 +189,29 @@ chrome.webRequest.onErrorOccurred.addListener(
   { urls: ["<all_urls>"] }
 );
 
+chrome.webRequest.onErrorOccurred.addListener(
+  async (details) => {
+    if (details.tabId < 0) return;
+    if (details.type !== "main_frame") return;
+    if (!SUSPICIOUS_ERRORS.has(details.error)) return;
+
+    let urlObj;
+    try { urlObj = new URL(details.url); } catch { return; }
+    const failedHost = getDomain(urlObj.hostname);
+    if (blockDismissals.has(failedHost)) return;
+
+    // Verify: ask daemon to test the URL through the tunnel.
+    const r = await daemonClient.test(details.url);
+    if (!r.ok || !r.data.likely_blocked) return;
+
+    // Push the "blocked" state to the failed tab. The content script
+    // will render the banner.
+    tabState.set(details.tabId, { state: "blocked", host: failedHost });
+    pushStateToTab(details.tabId);
+  },
+  { urls: ["<all_urls>"] }
+);
+
 // ---------- messages ----------
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -199,8 +246,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
 
-  // Handlers for "add_current_site_and_reload",
-  // "dismiss_block" arrive in Task 18.
+  if (msg.type === "add_current_site_and_reload") {
+    handleAddSiteAndReload(sender.tab);
+    return false;
+  }
+
+  if (msg.type === "dismiss_block") {
+    persistDismissal(msg.host);
+    return false;
+  }
 });
 
 async function handleAddCurrentSite(tab) {
@@ -225,6 +279,28 @@ async function handleAddCurrentSite(tab) {
   tabState.set(tab.id, { state: "discovering", host, siteId });
   pushStateToTab(tab.id);
   startDiscovery(tab.id, host, siteId);
+}
+
+async function handleAddSiteAndReload(tab) {
+  if (!tab) return;
+  const state = tabState.get(tab.id);
+  if (!state || state.state !== "blocked") return;
+
+  const r = await daemonClient.add(state.host, state.host);
+  if (!r.ok) {
+    console.warn("[smurov-proxy] add failed:", r);
+    return;
+  }
+  const siteId = r.data.site_id;
+
+  // Brief pause to let daemon's PAC update.
+  await new Promise((res) => setTimeout(res, 500));
+
+  tabState.set(tab.id, { state: "proxied", host: state.host, siteId });
+  pushStateToTab(tab.id);
+
+  // Reload the tab so the request goes through the proxy this time.
+  chrome.tabs.reload(tab.id);
 }
 
 console.log("[smurov-proxy] service worker loaded");

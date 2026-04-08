@@ -1,5 +1,12 @@
 [
   {
+    "id": "8d0fcbe2-b572-4450-ab76-f72b1e4dadf9",
+    "title": "Extension Flow 3: detect top-level block → verify через /sites/test → banner с одним кликом",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:20:22.393037+00:00"
+  },
+  {
     "id": "06b57f37-d3d5-47e3-95ab-f0eb37b4d1ea",
     "title": "Extension Flow 2: failed sub-resource на проксируемом сайте → immediate discover",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T17:51:21Z"
-  },
-  {
-    "id": "a0632875-e269-4c45-a8d8-63fff39642cd",
-    "title": "Убрана сборка для Intel macOS",
-    "description": "Только Apple Silicon (arm64)",
-    "type": "improvement",
-    "createdAt": "2026-04-03T17:18:05Z"
   }
 ]
