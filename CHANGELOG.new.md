@@ -1,2 +1,2 @@
 ## feature
-Контент-скрипт расширения с панелью на Shadow DOM
+Daemon HTTP API: GET /sites/match, POST /sites/add, POST /sites/discover

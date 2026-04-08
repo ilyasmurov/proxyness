@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"runtime/debug"
+	"time"
 
 	"smurov-proxy/daemon/internal/api"
 	dstats "smurov-proxy/daemon/internal/stats"
@@ -36,6 +37,21 @@ func main() {
 	srv := api.New(tnl, tunEngine, *listenAddr, meter)
 	keyStore := sites.NewKeyStore(sites.DefaultKeyPath())
 	srv.SetKeyStore(keyStore)
+	tokenStore := sites.NewTokenStore(sites.DefaultTokenPath())
+	if _, err := tokenStore.GetOrCreate(); err != nil {
+		log.Fatalf("daemon token: %v", err)
+	}
+	sitesManager := sites.NewManager("https://proxy.smurov.com", keyStore)
+	sitesManager.StartBackgroundRefresh(5 * time.Minute)
+	srv.SetSites(sitesManager, tokenStore)
+
+	// Best-effort first refresh — fine to fail if offline.
+	go func() {
+		if err := sitesManager.Refresh(); err != nil {
+			log.Printf("[sites] initial refresh: %v", err)
+		}
+	}()
+
 	log.Printf("API listening on %s", *apiAddr)
 	if err := http.ListenAndServe(*apiAddr, srv.Handler()); err != nil {
 		log.Fatalf("api: %v", err)

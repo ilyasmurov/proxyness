@@ -1,5 +1,12 @@
 [
   {
+    "id": "f5ba19e3-aa2a-4f21-b263-e318c378400f",
+    "title": "Daemon HTTP API: GET /sites/match, POST /sites/add, POST /sites/discover",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:11:42.271229+00:00"
+  },
+  {
     "id": "0f4a66c9-2a5b-45ed-8aec-91128fc17db9",
     "title": "Контент-скрипт расширения с панелью на Shadow DOM",
     "description": null,
@@ -1390,13 +1397,6 @@
     "title": "Автоскрытие ошибок в интерфейсе через 15 секунд",
     "description": null,
     "type": "improvement",
-    "createdAt": "2026-04-01T11:56:42Z"
-  },
-  {
-    "id": "74d923d2-5c1e-4da5-918d-2c3b4193f2c4",
-    "title": "lock-device больше не перезаписывает machine_id",
-    "description": null,
-    "type": "fix",
     "createdAt": "2026-04-01T11:56:42Z"
   }
 ]

@@ -30,6 +30,8 @@ type Server struct {
 	serverAddr      string              // remembered for unlock on disconnect
 	key             string
 	keyStore        *sites.KeyStore
+	sitesManager    *sites.Manager
+	tokenStore      *sites.TokenStore
 	pacSites        *PacSites
 	transportMode   string              // "auto", "udp", or "tls"
 	activeTransport transport.Transport  // current transport instance
@@ -74,6 +76,15 @@ func (s *Server) SetKeyStore(ks *sites.KeyStore) {
 	}
 }
 
+// SetSites wires the sites manager and token store. Called once at startup
+// from daemon main.
+func (s *Server) SetSites(mgr *sites.Manager, tokenStore *sites.TokenStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sitesManager = mgr
+	s.tokenStore = tokenStore
+}
+
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /connect", s.handleConnect)
@@ -94,6 +105,17 @@ func (s *Server) Handler() http.Handler {
 	// Transport endpoints
 	mux.HandleFunc("GET /transport", s.handleTransportGet)
 	mux.HandleFunc("POST /transport", s.handleTransportSet)
+	// Sites API for browser extension. All require Authorization: Bearer <token>.
+	if s.tokenStore != nil {
+		mux.Handle("GET /sites/match", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesMatch)))
+		mux.Handle("POST /sites/add", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesAdd)))
+		mux.Handle("POST /sites/discover", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesDiscover)))
+		mux.Handle("POST /sites/test", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesTest)))
+		mux.Handle("OPTIONS /sites/match", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesMatch)))
+		mux.Handle("OPTIONS /sites/add", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesAdd)))
+		mux.Handle("OPTIONS /sites/discover", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesDiscover)))
+		mux.Handle("OPTIONS /sites/test", requireExtensionToken(s.tokenStore, http.HandlerFunc(s.handleSitesTest)))
+	}
 	return mux
 }
 
@@ -152,6 +174,15 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		if err := s.keyStore.Save(req.Key); err != nil {
 			log.Printf("[sites] failed to persist device key: %v", err)
 		}
+	}
+	if s.sitesManager != nil {
+		s.sitesManager.SetKey(req.Key)
+		// Best-effort initial refresh; OK to fail (offline first connect).
+		go func() {
+			if err := s.sitesManager.Refresh(); err != nil {
+				log.Printf("[sites] initial refresh: %v", err)
+			}
+		}()
 	}
 	s.mu.Unlock()
 
