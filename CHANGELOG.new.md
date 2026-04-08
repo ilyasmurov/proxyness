@@ -1,2 +1,2 @@
 ## feature
-Вкладка "Browser Extension" в десктоп-клиенте с токеном для пейринга
+In-memory my_sites cache в демоне с subdomain matching

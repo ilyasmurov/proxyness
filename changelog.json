@@ -1,5 +1,12 @@
 [
   {
+    "id": "128d383e-a912-4994-8465-a1b394b4aab4",
+    "title": "In-memory my_sites cache в демоне с subdomain matching",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:01:09.581569+00:00"
+  },
+  {
     "id": "53694ff2-8690-4781-9190-cb8c03015541",
     "title": "Вкладка \"Browser Extension\" в десктоп-клиенте с токеном для пейринга",
     "description": null,
@@ -1388,13 +1395,6 @@
   {
     "id": "e6efe7e1-38a8-4c5f-80d4-31c93c924948",
     "title": "Ограничение heap Go до 512 МБ для стабильности на VPS",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-01T10:13:54Z"
-  },
-  {
-    "id": "85a970d0-f73e-4805-87e7-00cb3d27cfdc",
-    "title": "Уменьшение TCP буферов до 64 КБ",
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-01T10:13:54Z"
