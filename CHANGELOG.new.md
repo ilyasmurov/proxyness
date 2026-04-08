@@ -1,2 +1,2 @@
 ## feature
-Per-extension auth token + middleware для /sites/* эндпоинтов демона
+Daemon SyncClient — HTTP клиент к серверному /api/sync для extension API

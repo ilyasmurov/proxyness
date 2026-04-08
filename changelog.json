@@ -1,5 +1,12 @@
 [
   {
+    "id": "ebda2a58-9203-48c6-8eab-edb3ca8e2280",
+    "title": "Daemon SyncClient — HTTP клиент к серверному /api/sync для extension API",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T06:58:16.022106+00:00"
+  },
+  {
     "id": "a6a14627-4e18-46a8-8089-21fa627525d9",
     "title": "Per-extension auth token + middleware для /sites/* эндпоинтов демона",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-01T12:14:37Z"
-  },
-  {
-    "id": "940108e9-61ed-471a-9241-2a0ebf1d8a09",
-    "title": "NAT таблица с автоочисткой для маршрутизации ответов",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-01T09:48:06Z"
   }
 ]
