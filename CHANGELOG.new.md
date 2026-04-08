@@ -1,2 +1,2 @@
-## improvement
-Add setEnabled to extension daemon-client for popup proxy toggle
+## fix
+Service worker refreshTabState now correctly maps catalog_disabled state and exposes popup handlers

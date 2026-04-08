@@ -1,5 +1,12 @@
 [
   {
+    "id": "e0b993ad-ba60-4b6f-9ee7-cd0463e0ca13",
+    "title": "Service worker refreshTabState now correctly maps catalog_disabled state and exposes popup handlers",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-08T13:51:02.931427+00:00"
+  },
+  {
     "id": "8fdbd2c1-fc5a-451c-8aa5-5a841ea10418",
     "title": "Add setEnabled to extension daemon-client for popup proxy toggle",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-04T05:50:33.222827+00:00"
-  },
-  {
-    "id": "d99ca012-41bd-4926-981f-2b7ebf15c085",
-    "title": "Add Jacobson/Karels RTT estimator for UDP ARQ",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-04T05:41:03.971788+00:00"
   }
 ]

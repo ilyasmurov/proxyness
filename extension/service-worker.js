@@ -84,7 +84,7 @@ async function refreshTabState(tabId, url) {
   } else if (data.proxy_enabled) {
     tabState.set(tabId, { state: "proxied", host, siteId: data.site_id });
   } else {
-    tabState.set(tabId, { state: "add", host, siteId: data.site_id });
+    tabState.set(tabId, { state: "catalog_disabled", host, siteId: data.site_id });
   }
   pushStateToTab(tabId);
 }
@@ -238,6 +238,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === "ping_daemon") {
     daemonClient.ping().then((up) => sendResponse({ up }));
+    return true;
+  }
+
+  if (msg.type === "popup_get_state") {
+    daemonClient.match(msg.host).then((r) => {
+      if (!r.ok) {
+        sendResponse({ state: "daemon_down" });
+        return;
+      }
+      const data = r.data;
+      if (!data.in_catalog) {
+        sendResponse({ state: "not_in_catalog", host: msg.host });
+        return;
+      }
+      if (data.proxy_enabled === false) {
+        sendResponse({ state: "catalog_disabled", host: msg.host, site_id: data.site_id });
+        return;
+      }
+      sendResponse({ state: "proxied", host: msg.host, site_id: data.site_id });
+    });
+    return true;
+  }
+
+  if (msg.type === "popup_add_site") {
+    daemonClient.add(msg.host, msg.host).then((r) => {
+      if (!r.ok) {
+        sendResponse({ ok: false, error: r.error });
+        return;
+      }
+      sendResponse({ ok: true, site_id: r.data.site_id });
+    });
+    return true;
+  }
+
+  if (msg.type === "popup_set_enabled") {
+    daemonClient.setEnabled(msg.site_id, msg.enabled).then((r) => {
+      if (!r.ok) {
+        sendResponse({ ok: false, error: r.error });
+        return;
+      }
+      sendResponse({ ok: true });
+    });
     return true;
   }
 
