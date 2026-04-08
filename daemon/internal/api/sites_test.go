@@ -68,6 +68,41 @@ func TestHandleSitesMatchNotInCatalog(t *testing.T) {
 	}
 }
 
+func TestHandleSitesTestConfirmsBlock(t *testing.T) {
+	// Stub the "real" upstream that responds 200 (simulating a successful
+	// proxied fetch).
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	defer upstream.Close()
+
+	store := sites.NewTokenStore(filepath.Join(t.TempDir(), "tok"))
+	tok, _ := store.GetOrCreate()
+
+	// Use the default http.Client which dials directly — simulates the
+	// behavior of a working proxy without actually going through SOCKS5.
+	// This is sufficient to exercise the handler logic.
+	s := &Server{
+		tokenStore:      store,
+		sitesTestClient: &http.Client{},
+	}
+
+	body, _ := json.Marshal(map[string]string{"url": upstream.URL})
+	r := httptest.NewRequest("POST", "/sites/test", bytes.NewReader(body))
+	r.Header.Set("Authorization", "Bearer "+tok)
+	w := httptest.NewRecorder()
+	requireExtensionToken(store, http.HandlerFunc(s.handleSitesTest)).ServeHTTP(w, r)
+
+	if w.Code != 200 {
+		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["likely_blocked"] != true {
+		t.Fatalf("expected likely_blocked=true, got %+v", resp)
+	}
+}
+
 func TestHandleSitesAdd(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]interface{}{

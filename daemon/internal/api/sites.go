@@ -83,8 +83,42 @@ func (s *Server) handleSitesDiscover(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleSitesTest is implemented in Task 8 (needs the SOCKS5 client wrapper).
-// Placeholder so the route mounts compile.
 func (s *Server) handleSitesTest(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "not implemented yet", 501)
+	if s.sitesTestClient == nil {
+		http.Error(w, "test client not configured", 503)
+		return
+	}
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid body", 400)
+		return
+	}
+	if req.URL == "" {
+		http.Error(w, "missing url", 400)
+		return
+	}
+
+	httpReq, err := http.NewRequest("HEAD", req.URL, nil)
+	if err != nil {
+		writeJSON(w, 200, map[string]interface{}{"likely_blocked": false})
+		return
+	}
+	httpReq.Header.Set("User-Agent", "SmurovProxy-Discovery/1.0")
+
+	resp, err := s.sitesTestClient.Do(httpReq)
+	if err != nil {
+		writeJSON(w, 200, map[string]interface{}{"likely_blocked": false})
+		return
+	}
+	defer resp.Body.Close()
+
+	// 2xx/3xx via the tunnel = block confirmed (since the direct request
+	// failed before the extension called us).
+	likely := resp.StatusCode < 400
+	writeJSON(w, 200, map[string]interface{}{
+		"likely_blocked": likely,
+		"status_code":    resp.StatusCode,
+	})
 }

@@ -1,5 +1,12 @@
 [
   {
+    "id": "0038355f-f1b1-4e1b-9009-e7ea4f27bb7b",
+    "title": "POST /sites/test — HEAD-запрос через SOCKS5 тоннель для подтверждения блокировки",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T07:16:25.439564+00:00"
+  },
+  {
     "id": "243cf666-bf41-4e55-9b21-3b3e10492185",
     "title": "Extension README с install + usage инструкциями для sideload",
     "description": null,
@@ -1390,13 +1397,6 @@
     "title": "Защита от запуска нескольких экземпляров клиента",
     "description": null,
     "type": "feature",
-    "createdAt": "2026-04-03T17:00:13Z"
-  },
-  {
-    "id": "437255db-cac2-4e72-a3fd-2e8dcd70f817",
-    "title": "Улучшения интерфейса",
-    "description": null,
-    "type": "improvement",
     "createdAt": "2026-04-03T17:00:13Z"
   }
 ]

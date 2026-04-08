@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"time"
 
+	"golang.org/x/net/proxy"
 	"smurov-proxy/daemon/internal/api"
 	dstats "smurov-proxy/daemon/internal/stats"
 	"smurov-proxy/daemon/internal/sites"
@@ -44,6 +47,20 @@ func main() {
 	sitesManager := sites.NewManager("https://proxy.smurov.com", keyStore)
 	sitesManager.StartBackgroundRefresh(5 * time.Minute)
 	srv.SetSites(sitesManager, tokenStore)
+
+	socksDialer, err := proxy.SOCKS5("tcp", *listenAddr, nil, proxy.Direct)
+	if err != nil {
+		log.Fatalf("socks5 dialer: %v", err)
+	}
+	testClient := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return socksDialer.Dial(network, addr)
+			},
+		},
+	}
+	srv.SetSitesTestClient(testClient)
 
 	// Best-effort first refresh — fine to fail if offline.
 	go func() {

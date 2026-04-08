@@ -35,6 +35,7 @@ type Server struct {
 	pacSites        *PacSites
 	transportMode   string              // "auto", "udp", or "tls"
 	activeTransport transport.Transport  // current transport instance
+	sitesTestClient *http.Client        // dials through the local SOCKS5 tunnel
 }
 
 type ConnectRequest struct {
@@ -83,6 +84,14 @@ func (s *Server) SetSites(mgr *sites.Manager, tokenStore *sites.TokenStore) {
 	defer s.mu.Unlock()
 	s.sitesManager = mgr
 	s.tokenStore = tokenStore
+}
+
+// SetSitesTestClient wires the http.Client used by /sites/test. Built in
+// daemon main to dial through the local SOCKS5 tunnel.
+func (s *Server) SetSitesTestClient(c *http.Client) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sitesTestClient = c
 }
 
 func (s *Server) Handler() http.Handler {

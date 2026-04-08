@@ -1,2 +1,2 @@
-## improvement
-Extension README с install + usage инструкциями для sideload
+## feature
+POST /sites/test — HEAD-запрос через SOCKS5 тоннель для подтверждения блокировки
