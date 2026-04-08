@@ -1,5 +1,12 @@
 [
   {
+    "id": "2ba9496b-0c37-4b16-813d-04285edad6ce",
+    "title": "Popup-расширение теперь панель управления для активной вкладки: проксировать сайт одним кликом, выключить проксирование, переключение применяется немедленно через автоматический reload вкладки. Daemon забрал на себя формирование PAC — refactor устраняет race conditions между переключениями из popup'а и из десктоп-клиента.",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-08T13:59:02.270016+00:00"
+  },
+  {
     "id": "7396ad8d-f43e-42e4-a13f-edc0b91d5af4",
     "title": "Bump desktop client version to 1.26.0 for popup control panel feature",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-04T06:03:15.078114+00:00"
-  },
-  {
-    "id": "9942fbbd-97b3-4881-b7fb-e5b35bf40dbe",
-    "title": "ARQ Controller tying all components together",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-04T06:00:18.718884+00:00"
   }
 ]
