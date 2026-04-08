@@ -7,6 +7,33 @@ import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
 import { getDaemonToken, cachedDaemonToken } from "./extension";
 
+// Diagnostic crash logger: writes unhandled main-process exceptions and
+// promise rejections to a file the user can easily find, BEFORE Electron
+// tears the process down. Without this, Windows silently exits and leaves
+// no trace in Event Viewer or %APPDATA% logs, making crashes impossible
+// to debug remotely.
+const CRASH_LOG = path.join(require("os").homedir(), "Desktop", "smurov-crash.log");
+function logCrash(tag: string, err: unknown) {
+  try {
+    const stamp = new Date().toISOString();
+    const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+    fs.appendFileSync(CRASH_LOG, `[${stamp}] ${tag}\n${msg}\n\n`);
+  } catch {
+    // best-effort: if we can't even write the log, there's nothing else to do
+  }
+}
+process.on("uncaughtException", (err) => logCrash("uncaughtException", err));
+process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
+// Heartbeat: write a line at each boot phase so we can pinpoint where the
+// crash happens even if it's a native-level abort (no JS stack available).
+function bootTrace(step: string) {
+  try {
+    const stamp = new Date().toISOString();
+    fs.appendFileSync(CRASH_LOG, `[${stamp}] boot: ${step}\n`);
+  } catch {}
+}
+bootTrace("process started");
+
 const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/download";
 
 let mainWindow: BrowserWindow | null = null;
@@ -195,7 +222,9 @@ async function runBoot(): Promise<boolean> {
 // the main window is already up (shouldn't happen, but defensive) it bails.
 async function bootMainApp() {
   if (mainBootCompleted) return;
+  bootTrace("bootMainApp begin");
   const ok = await runBoot();
+  bootTrace(`runBoot returned ${ok}`);
   if (!ok) return; // loader keeps showing the error + retry button
   // If the daemon was already warm and runBoot finished in milliseconds, the
   // loader would flash invisibly — pad the visible time so the user actually
@@ -205,12 +234,18 @@ async function bootMainApp() {
   if (loaderShownAt > 0 && elapsed < MIN_LOADER_VISIBLE_MS) {
     await new Promise((r) => setTimeout(r, MIN_LOADER_VISIBLE_MS - elapsed));
   }
+  bootTrace("destroyLoaderWindow");
   destroyLoaderWindow();
+  bootTrace("createWindow");
   createWindow();
+  bootTrace("createTray");
   createTray();
+  bootTrace("setupIpc");
   setupIpc();
+  bootTrace("startSitesCachePoller");
   startSitesCachePoller();
   mainBootCompleted = true;
+  bootTrace("bootMainApp done");
 }
 
 // setupLoaderIpc wires the two IPC channels the loader window can send

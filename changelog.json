@@ -1,5 +1,12 @@
 [
   {
+    "id": "932c1a49-fcbc-4d9e-8042-e549cf45cee9",
+    "title": "Diagnostic crash logger for Windows startup",
+    "description": "Writes uncaught exceptions and boot-phase traces to ~/Desktop/smurov-crash.log to pinpoint where startup crashes happen on Windows.",
+    "type": "fix",
+    "createdAt": "2026-04-08T22:23:40.252271+00:00"
+  },
+  {
     "id": "0b1c3e63-e446-4ee6-8496-05f322ac7fb0",
     "title": "Mode selector moved to header, traffic switch on main tab",
     "description": "Full (TUN) / Browser only toggle is now always visible in the title bar; All traffic / Selected apps switch lives inline with the Main tab.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-04T08:37:41.121087+00:00"
-  },
-  {
-    "id": "35210c43-9378-4fdc-99da-28accc39a74f",
-    "title": "Исправлено скачивание обновлений (GitHub двойной редирект)",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T07:07:00.490676+00:00"
   }
 ]
