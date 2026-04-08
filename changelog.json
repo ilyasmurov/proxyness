@@ -1,5 +1,12 @@
 [
   {
+    "id": "ad467b0f-c77f-4a8f-a636-71c88cc8afd2",
+    "title": "Спека popup control panel: применены правки независимого ревью — async mutation API, диф перед CloseAllConns, renderer pull'ится от daemon вместо сервера каталога, daemon token caching, migration plan для legacy pendingOps.",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T09:04:44.825610+00:00"
+  },
+  {
     "id": "c9be61a6-0d76-4980-8033-0c20cca470b1",
     "title": "Спека popup'а как per-tab control panel для активной вкладки + минимальный refactor PAC ownership к daemon. Полная консолидация sites layer вынесена в backlog как отдельная инициатива.",
     "description": null,
@@ -1389,13 +1396,6 @@
     "id": "6d7f82ef-ea7f-4724-8095-ff51136d2c15",
     "title": "Переключение транспорта в настройках клиента",
     "description": "Auto / UDP / TLS",
-    "type": "feature",
-    "createdAt": "2026-04-03T20:48:18Z"
-  },
-  {
-    "id": "0c52ebcf-e7b6-4a30-9b6f-a2f40613f300",
-    "title": "Индикатор активного транспорта в статусбаре",
-    "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T20:48:18Z"
   }
