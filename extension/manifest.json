@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Smurov Proxy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Per-tab proxy controls and automatic domain discovery for Smurov Proxy.",
   "permissions": [
     "webRequest",

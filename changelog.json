@@ -1,5 +1,12 @@
 [
   {
+    "id": "2a47b9c3-8712-4c56-bace-eb3ce715fd85",
+    "title": "Bump browser extension version to 0.2.0",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:53:53.206860+00:00"
+  },
+  {
     "id": "479f187a-7f3b-4df8-9177-da2af7857823",
     "title": "Content script panel renders catalog_disabled state with Enable button",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-04T05:57:29.012677+00:00"
-  },
-  {
-    "id": "4e607546-3900-4e01-98a3-5c6db3535b1d",
-    "title": "Add per-stream receive reorder buffer for UDP ARQ",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-04T05:55:55.682203+00:00"
   }
 ]

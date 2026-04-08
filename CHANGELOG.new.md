@@ -1,2 +1,2 @@
-## feature
-Content script panel renders catalog_disabled state with Enable button
+## improvement
+Bump browser extension version to 0.2.0
