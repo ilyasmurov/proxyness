@@ -7,9 +7,9 @@ interface UseSitesReturn {
   syncing: boolean;
   lastSyncAt: number;
   ready: boolean;
-  addSite: (primaryDomain: string, label: string) => LocalSite;
-  removeSite: (siteId: number) => void;
-  toggleSite: (siteId: number, enabled: boolean) => void;
+  addSite: (primaryDomain: string, label: string) => Promise<LocalSite>;
+  removeSite: (siteId: number) => Promise<void>;
+  toggleSite: (siteId: number, enabled: boolean) => Promise<void>;
   syncNow: () => Promise<void>;
 }
 

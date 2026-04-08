@@ -1,2 +1,2 @@
 ## improvement
-Sites mutations route through daemon HTTP — drop pendingOps queue and direct server sync
+Type useSites mutations as async to match daemon-driven sync module

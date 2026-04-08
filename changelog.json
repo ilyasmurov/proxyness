@@ -1,5 +1,12 @@
 [
   {
+    "id": "7eb73bc4-b5df-4ce8-9b48-f3b24d66e679",
+    "title": "Type useSites mutations as async to match daemon-driven sync module",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T13:43:38.395304+00:00"
+  },
+  {
     "id": "27123849-ec02-4f8c-8795-8b67adece3c9",
     "title": "Sites mutations route through daemon HTTP — drop pendingOps queue and direct server sync",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-04T03:45:59.079889+00:00"
-  },
-  {
-    "id": "be28943b-f10c-4850-b7fd-87ab112ee6cc",
-    "title": "UDP ARQ reliability layer implementation plan",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-03T23:25:44.355850+00:00"
   }
 ]
