@@ -1,5 +1,12 @@
 [
   {
+    "id": "0b1c3e63-e446-4ee6-8496-05f322ac7fb0",
+    "title": "Mode selector moved to header, traffic switch on main tab",
+    "description": "Full (TUN) / Browser only toggle is now always visible in the title bar; All traffic / Selected apps switch lives inline with the Main tab.",
+    "type": "feature",
+    "createdAt": "2026-04-08T21:14:16.865321+00:00"
+  },
+  {
     "id": "2400ca1c-e9e3-4806-81ab-12aa3d6e3e7e",
     "title": "Desktop notifications on connect, disconnect, and reconnect",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T07:07:00.490676+00:00"
-  },
-  {
-    "id": "3ecd37f5-f450-4628-a31a-eff4ec07e507",
-    "title": "ARQ review fixes: channel semaphore, max retransmit drop, stream limits",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T06:59:27.009706+00:00"
   }
 ]

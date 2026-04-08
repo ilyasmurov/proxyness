@@ -16,6 +16,7 @@ export function App() {
   const [version, setVersion] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState<"main" | "extension">("main");
+  const [trafficMode, setTrafficMode] = useState<"all" | "selected">("all");
   const settingsRef = useRef<HTMLDivElement>(null);
   const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
   const [proxyMode, setProxyMode] = useState<ProxyMode>(
@@ -101,27 +102,6 @@ export function App() {
     };
   }, []);
 
-  // Auto-connect on mount when a previously-paired key is present.
-  //
-  // Intentionally reuses startReconnect() rather than tunConnect(): its
-  // retry-with-backoff loop (5 attempts, 5s apart) covers the transient
-  // failure modes on cold start — lockDevice races against a freshly-killed
-  // previous session, network stack not fully up yet, daemon's UDP transport
-  // mid-handshake. A single-shot tunConnect would just give up and leave the
-  // user with "Server unavailable" on a first boot blip.
-  //
-  // Fires exactly once per React mount via autoConnectFired ref. The !key /
-  // showSetup guards skip the new-user flow (no key → setup screen handles
-  // the first connect via connectWithKey) and the stale-key-cleared flow
-  // (machineID rejection clears the key and flips showSetup back on).
-  const autoConnectFired = useRef(false);
-  useEffect(() => {
-    if (autoConnectFired.current) return;
-    if (!key || showSetup) return;
-    autoConnectFired.current = true;
-    startReconnect();
-  }, [key, showSetup, startReconnect]);
-
   // Poll TUN status when in TUN mode
   useEffect(() => {
     if (proxyMode !== "tun") return;
@@ -192,9 +172,19 @@ export function App() {
   const uptime = proxyMode === "tun" ? tunUptime : socksStatus.uptime;
   const stats = useStats(isConnected);
 
-  const handleModeChange = (m: ProxyMode) => {
+  const handleModeChange = async (m: ProxyMode) => {
+    if (m === proxyMode) return;
+    const wasConnected = isConnected;
+    if (wasConnected) {
+      if (proxyMode === "tun") await tunDisconnect();
+      else await disconnect();
+    }
     setProxyMode(m);
     localStorage.setItem("smurov-proxy-mode", m);
+    if (wasConnected && key) {
+      if (m === "tun") await tunConnect(SERVER, key);
+      else await connect(SERVER, key);
+    }
   };
 
   const tunConnect = useCallback(async (server: string, k: string) => {
@@ -476,8 +466,11 @@ export function App() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700 }}>SmurovProxy</h1>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>SmurovProxy</h1>
+        {!showSetup && (
+          <ModeSelector mode={proxyMode} onChange={handleModeChange} />
+        )}
       </div>
       {!showSetup && (
         <StatusBar
@@ -545,32 +538,73 @@ export function App() {
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", gap: 4, marginBottom: 12, borderBottom: "1px solid #1e2533" }}>
-            {(["main", "extension"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "6px 14px",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: activeTab === tab ? "2px solid #3b82f6" : "2px solid transparent",
-                  color: activeTab === tab ? "#fff" : "#666",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  fontWeight: activeTab === tab ? 600 : 400,
-                  marginBottom: -1,
-                }}
-              >
-                {tab === "main" ? "Main" : "Extension"}
-              </button>
-            ))}
+          <div style={{ display: "flex", alignItems: "stretch", gap: 8, marginBottom: 12, borderBottom: "1px solid #1e2533" }}>
+            {(["main", "extension"] as const).map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <div
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 40,
+                    padding: 16,
+                    borderBottom: isActive ? "2px solid #3b82f6" : "2px solid transparent",
+                    color: isActive ? "#fff" : "#666",
+                    fontSize: 16,
+                    cursor: "pointer",
+                    fontWeight: isActive ? 600 : 400,
+                    marginBottom: -1,
+                  }}
+                >
+                  <span>{tab === "main" ? "Main" : "Extension"}</span>
+                  {tab === "main" && proxyMode === "tun" && (
+                    <div
+                      onClick={(e) => { if (isActive) e.stopPropagation(); }}
+                      style={{
+                        display: "inline-flex",
+                        padding: 2,
+                        background: "#0f1420",
+                        border: "1px solid #1e2533",
+                        borderRadius: 8,
+                        opacity: isActive ? 1 : 0.5,
+                        filter: isActive ? "none" : "grayscale(1)",
+                        pointerEvents: isActive ? "auto" : "none",
+                      }}
+                    >
+                      {(["all", "selected"] as const).map((k) => {
+                        const active = trafficMode === k;
+                        return (
+                          <button
+                            key={k}
+                            disabled={!isActive}
+                            onClick={() => setTrafficMode(k)}
+                            style={{
+                              padding: "5px 12px",
+                              background: active ? "#1a3a5c" : "transparent",
+                              border: `1px solid ${active ? "#3b82f6" : "transparent"}`,
+                              borderRadius: 6,
+                              color: active ? "#fff" : "#888",
+                              fontSize: 12,
+                              fontWeight: active ? 600 : 400,
+                              cursor: isActive ? "pointer" : "default",
+                            }}
+                          >
+                            {k === "all" ? "All traffic" : "Selected"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {activeTab === "main" && (
-            <>
-              <ModeSelector mode={proxyMode} onChange={handleModeChange} disabled={isConnected} />
-              <AppRules visible={proxyMode === "tun"} />
-            </>
+            <div style={{ marginTop: 16 }}>
+              <AppRules visible={proxyMode === "tun"} mode={trafficMode} onModeChange={setTrafficMode} hideModeSwitch />
+            </div>
           )}
           {activeTab === "extension" && <BrowserExtension />}
         </>

@@ -232,10 +232,18 @@ interface ResolvedApp {
 
 interface Props {
   visible: boolean;
+  mode?: Mode;
+  onModeChange?: (m: Mode) => void;
+  hideModeSwitch?: boolean;
 }
 
-export function AppRules({ visible }: Props) {
-  const [mode, setMode] = useState<Mode>("all");
+export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch }: Props) {
+  const [modeState, setModeState] = useState<Mode>("all");
+  const mode = modeProp ?? modeState;
+  const setMode = (m: Mode) => {
+    setModeState(m);
+    onModeChange?.(m);
+  };
   const [resolved, setResolved] = useState<ResolvedApp[]>([]);
   const [enabled, setEnabled] = useState<Set<string>>(new Set(KNOWN_APPS.map((a) => a.id)));
 
@@ -404,6 +412,13 @@ export function AppRules({ visible }: Props) {
     applyRules(m, enabled, resolved, browsersOn, noTLS);
   };
 
+  // React to externally-controlled mode changes (parent switcher).
+  useEffect(() => {
+    if (modeProp === undefined) return;
+    applyRules(modeProp, enabled, resolved, browsersOn, noTLS);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeProp]);
+
   const toggleApp = (appId: string) => {
     setEnabled((prev) => {
       const next = new Set(prev);
@@ -483,8 +498,11 @@ export function AppRules({ visible }: Props) {
 
   return (
     <div style={{ marginTop: 16, padding: 12, background: "#111827", borderRadius: 8, border: "1px solid #333" }}>
+      {!hideModeSwitch && (
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Traffic</div>
+      )}
 
+      {!hideModeSwitch && (
       <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
         {([["all", "All traffic"], ["selected", "Selected apps"]] as const).map(([key, label]) => (
           <button
@@ -502,6 +520,7 @@ export function AppRules({ visible }: Props) {
           </button>
         ))}
       </div>
+      )}
 
       {mode === "all" ? (
         <div style={{ color: "#666", fontSize: 12, textAlign: "center", padding: "4px 0" }}>
