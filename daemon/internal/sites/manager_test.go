@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -84,6 +85,48 @@ func TestManagerAddSiteRefreshesCache(t *testing.T) {
 	// Cache should now contain habr.com.
 	if m := mgr.Cache().Match("habr.com"); m == nil {
 		t.Fatalf("expected cache to contain habr.com after AddSite")
+	}
+}
+
+func TestManagerSetOnCacheReplacedFiresAfterRefresh(t *testing.T) {
+	// Use a fake server so Refresh() succeeds.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(SyncResponse{
+			MySites:    []MySite{{ID: 1, PrimaryDomain: "x.com", Enabled: true}},
+			ServerTime: 1000,
+		})
+	}))
+	defer srv.Close()
+
+	keyStore := NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := NewManager(srv.URL, keyStore)
+
+	var calls int32
+	mgr.SetOnCacheReplaced(func() {
+		atomic.AddInt32(&calls, 1)
+	})
+
+	if err := mgr.Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if atomic.LoadInt32(&calls) != 1 {
+		t.Fatalf("expected 1 callback fire, got %d", calls)
+	}
+}
+
+func TestManagerCallbackNilSafe(t *testing.T) {
+	// No callback set — Refresh must not panic.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(SyncResponse{ServerTime: 1000})
+	}))
+	defer srv.Close()
+
+	keyStore := NewKeyStore(filepath.Join(t.TempDir(), "key"))
+	keyStore.Save("dummy")
+	mgr := NewManager(srv.URL, keyStore)
+	if err := mgr.Refresh(); err != nil {
+		t.Fatalf("refresh: %v", err)
 	}
 }
 

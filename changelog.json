@@ -1,5 +1,12 @@
 [
   {
+    "id": "9646ac87-21d2-42c9-a1e7-449f4fd1632d",
+    "title": "Add SetOnCacheReplaced callback wiring to sites Manager",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T12:44:55.736632+00:00"
+  },
+  {
     "id": "c268fc97-2c5b-4b0d-848f-f68e08841f09",
     "title": "Add EnabledDomains helper to Manager",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Обмен ключами X25519, forward secrecy",
     "type": "feature",
     "createdAt": "2026-04-03T20:01:50Z"
-  },
-  {
-    "id": "ef148946-764c-4fd6-899e-bde36e034068",
-    "title": "Маскировка под QUIC трафик для обхода DPI",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-03T20:08:12Z"
   }
 ]

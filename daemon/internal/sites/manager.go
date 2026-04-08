@@ -15,8 +15,9 @@ type Manager struct {
 	client   *SyncClient
 	cache    *Cache
 
-	mu          sync.Mutex
-	stopRefresh chan struct{}
+	mu              sync.Mutex
+	stopRefresh     chan struct{}
+	onCacheReplaced func() // fired after every cache.Replace, nil-safe
 }
 
 func NewManager(serverURL string, keyStore *KeyStore) *Manager {
@@ -48,6 +49,7 @@ func (m *Manager) Refresh() error {
 		return err
 	}
 	m.cache.Replace(resp.MySites)
+	m.fireOnCacheReplaced()
 	return nil
 }
 
@@ -73,6 +75,7 @@ func (m *Manager) AddSite(primaryDomain, label string) (int, bool, error) {
 		return 0, false, fmt.Errorf("server: %s", r.Message)
 	}
 	m.cache.Replace(resp.MySites)
+	m.fireOnCacheReplaced()
 	return r.SiteID, r.Deduped, nil
 }
 
@@ -104,6 +107,7 @@ func (m *Manager) AddDomains(siteID int, domains []string) (int, int, error) {
 	}
 	if added > 0 {
 		m.cache.Replace(resp.MySites)
+		m.fireOnCacheReplaced()
 	}
 	return added, deduped, nil
 }
@@ -142,6 +146,23 @@ func (m *Manager) StopBackgroundRefresh() {
 	if m.stopRefresh != nil {
 		close(m.stopRefresh)
 		m.stopRefresh = nil
+	}
+}
+
+// SetOnCacheReplaced registers a callback that fires after cache.Replace
+// (and only after the lock has been released to avoid deadlock).
+func (m *Manager) SetOnCacheReplaced(fn func()) {
+	m.mu.Lock()
+	m.onCacheReplaced = fn
+	m.mu.Unlock()
+}
+
+func (m *Manager) fireOnCacheReplaced() {
+	m.mu.Lock()
+	cb := m.onCacheReplaced
+	m.mu.Unlock()
+	if cb != nil {
+		cb()
 	}
 }
 

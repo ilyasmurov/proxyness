@@ -1,2 +1,2 @@
 ## improvement
-Add EnabledDomains helper to Manager
+Add SetOnCacheReplaced callback wiring to sites Manager
