@@ -1,5 +1,12 @@
 [
   {
+    "id": "a029d81a-9d2d-408b-b4b3-071d2799abdf",
+    "title": "План имплементации popup control panel: 33 task'а с TDD-разбивкой по 4 фазам — daemon (Go), desktop client (TS), browser extension (JS), E2E verification.",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-08T09:26:28.387903+00:00"
+  },
+  {
     "id": "ad467b0f-c77f-4a8f-a636-71c88cc8afd2",
     "title": "Спека popup control panel: применены правки независимого ревью — async mutation API, диф перед CloseAllConns, renderer pull'ится от daemon вместо сервера каталога, daemon token caching, migration plan для legacy pendingOps.",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-03T20:22:42Z"
-  },
-  {
-    "id": "6d7f82ef-ea7f-4724-8095-ff51136d2c15",
-    "title": "Переключение транспорта в настройках клиента",
-    "description": "Auto / UDP / TLS",
-    "type": "feature",
-    "createdAt": "2026-04-03T20:48:18Z"
   }
 ]

@@ -1,2 +1,2 @@
 ## improvement
-Спека popup control panel: применены правки независимого ревью — async mutation API, диф перед CloseAllConns, renderer pull'ится от daemon вместо сервера каталога, daemon token caching, migration plan для legacy pendingOps.
+План имплементации popup control panel: 33 task'а с TDD-разбивкой по 4 фазам — daemon (Go), desktop client (TS), browser extension (JS), E2E verification.
