@@ -39,6 +39,7 @@
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": true,
-    "uninstallDisplayName": "SmurovProxy"
+    "uninstallDisplayName": "SmurovProxy",
+    "artifactName": "${productName}-Setup-${version}.${ext}"
   }
 }
