@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from "child_process";
+import { ChildProcess, spawn, execFileSync } from "child_process";
 import path from "path";
 import { app } from "electron";
 
@@ -41,9 +41,95 @@ function getDaemonPath(): string {
   return path.join(resourcesPath, `daemon-${platform}-${arch}`);
 }
 
+// killStaleDaemon hunts down a leftover daemon from a previous install
+// that's still holding the API port. This happens on macOS in particular
+// when the user runs an auto-updater install (new .app replaces the old
+// one on disk) but never actually quits and relaunches the app — the old
+// daemon, a child of the old-version Electron main process, keeps running
+// for days at a time with out-of-date code. Next fresh launch would spawn
+// its own daemon that immediately fails to bind 9090, crashes, and
+// scheduleRestart cycles forever with the stale process still winning.
+//
+// Approach: check if something is already answering /health on 127.0.0.1:9090.
+// If yes, look up the PID holding the port (lsof on macOS/Linux, netstat on
+// Windows) and kill it. We only do this when we're about to spawn our own
+// daemon, so we're not stepping on anything useful — anything binding 9090
+// in the user's session is either our daemon or a misbehaving squatter.
+function killStaleDaemon(): void {
+  // First probe: is something actually listening?
+  let hasStale = false;
+  try {
+    execFileSync("curl", ["-sf", "--max-time", "0.3", "http://127.0.0.1:9090/health"], {
+      stdio: "pipe",
+    });
+    hasStale = true;
+  } catch {
+    return; // nothing there, clean slate
+  }
+  if (!hasStale) return;
+
+  addLog("daemon", "detected stale daemon on :9090, killing");
+
+  const pids: string[] = [];
+  try {
+    if (process.platform === "win32") {
+      // netstat -ano | findstr :9090 — parse for the LISTENING PID
+      const out = execFileSync("cmd", ["/c", "netstat -ano | findstr :9090"], {
+        encoding: "utf-8",
+      });
+      for (const line of out.split("\n")) {
+        const m = line.match(/LISTENING\s+(\d+)/i);
+        if (m) pids.push(m[1]);
+      }
+    } else {
+      // lsof -ti :9090 prints just the PIDs, one per line
+      const out = execFileSync("/usr/sbin/lsof", ["-ti", ":9090"], {
+        encoding: "utf-8",
+      });
+      for (const line of out.split("\n")) {
+        const pid = line.trim();
+        if (pid) pids.push(pid);
+      }
+    }
+  } catch (err: any) {
+    addLog("daemon", `pid lookup failed: ${err?.message || err}`);
+    return;
+  }
+
+  for (const pid of pids) {
+    try {
+      if (process.platform === "win32") {
+        execFileSync("taskkill", ["/F", "/PID", pid], { stdio: "pipe" });
+      } else {
+        process.kill(parseInt(pid, 10), "SIGKILL");
+      }
+      addLog("daemon", `killed stale daemon pid=${pid}`);
+    } catch (err: any) {
+      addLog("daemon", `kill pid=${pid} failed: ${err?.message || err}`);
+    }
+  }
+
+  // Wait up to 1s for the socket to free. Each curl --max-time 0.2 call
+  // acts as both a probe AND the pacing (~5Hz loop). spawn immediately
+  // after the kill would race against the kernel releasing the port.
+  const deadline = Date.now() + 1000;
+  while (Date.now() < deadline) {
+    try {
+      execFileSync("curl", ["-sf", "--max-time", "0.2", "http://127.0.0.1:9090/health"], {
+        stdio: "pipe",
+      });
+      // still answering — next iteration will re-probe after curl's own delay
+    } catch {
+      return; // port is free
+    }
+  }
+}
+
 export function startDaemon(): void {
   if (daemonProcess) return;
   daemonShouldRun = true;
+
+  killStaleDaemon();
 
   const daemonPath = getDaemonPath();
   daemonProcess = spawn(daemonPath, ["-api", "127.0.0.1:9090", "-listen", "127.0.0.1:1080"], {

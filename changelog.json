@@ -1,5 +1,12 @@
 [
   {
+    "id": "5207e1be-4e89-4c24-9460-be506adab150",
+    "title": "Kill stale daemon on startup before spawning a fresh one",
+    "description": "If the Electron main process dies non-gracefully (force quit from Activity Monitor, kernel-level SIGKILL, crash without running before-quit), the child daemon process is orphaned and keeps running with whatever code version it was built from. Users who installed newer versions via PKG without explicitly quitting the old app ended up with a stale daemon from hours or days ago — no perf fixes, no bug fixes. startDaemon now probes 127.0.0.1:9090 before spawning: if something answers, it looks up the PID via lsof (macOS) or netstat (Windows) and SIGKILLs it, waits for the port to release, then starts the fresh binary.",
+    "type": "fix",
+    "createdAt": "2026-04-09T19:26:08.644328+00:00"
+  },
+  {
     "id": "c8a3cd0b-f6cd-42dc-9a7b-1e44d33722d4",
     "title": "TUN engine wedged in Reconnecting after UDP→TLS fallback + D3 force-close",
     "description": "Triggered by the 1.29.0 server redeploy: client's D1 caught the server session close, reconnected, UDP timed out and AutoTransport fell back to TLS, then D3 fired on accumulated stream failures and force-closed the TLS transport. TLSTransport had no DoneChan method, so AutoTransport.DoneChan returned nil, and the healthLoop's `<-doneCh` branch blocked forever on a nil channel — D1 never got the wake-up it was supposed to. D2 just counts failures without reconnecting, so after 60 seconds (12 × 5s) it exhausted and stopped the engine, leaving the user to press Connect manually. Two fixes: (1) TLSTransport now implements DoneChan + Alive to match UDPTransport so AutoTransport delegation works uniformly; (2) D3 no longer relies on Close-then-DoneChan to trigger D1 — it calls reconnectTransport directly, mirroring D1's own recovery path.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T12:08:18.469406+00:00"
-  },
-  {
-    "id": "aea2c57d-128a-4555-8e81-c7707816bd11",
-    "title": "Only backoff RTO on fresh packet losses to prevent RTO spiral to 2000ms",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T11:46:12.423534+00:00"
   }
 ]
