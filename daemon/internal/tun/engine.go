@@ -463,9 +463,17 @@ func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 }
 
 // bridgeOutbound reads outgoing packets from gVisor stack and sends to helper.
+//
+// Allocations: gVisor's buffer.Flatten() always does `make([]byte, 0, size)`
+// internally. Pre-1.28.10 we called it per packet, generating a fresh slice
+// every outbound packet just like bridgeInbound was doing on the inbound
+// side. Now we reuse a single growing frame buffer (length prefix + payload)
+// across iterations and copy via ReadAt straight into it. Single goroutine
+// per engine — no synchronization needed for the buffer itself; the helper
+// write is still serialized via helperWriteMu against bridgeInbound.
 func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.Endpoint) {
 	log.Printf("[tun] bridgeOutbound started")
-	lenBuf := make([]byte, 2)
+	frame := make([]byte, 2+2048) // 2-byte length prefix + 1500 MTU + headroom
 	var count int64
 	for {
 		pkt := ep.ReadContext(ctx)
@@ -479,15 +487,21 @@ func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.
 		}
 
 		buf := pkt.ToBuffer()
-		data := buf.Flatten()
+		size := int(buf.Size())
+		if cap(frame) < 2+size {
+			frame = make([]byte, 2+size)
+		}
+		frame = frame[:2+size]
+		binary.BigEndian.PutUint16(frame[:2], uint16(size))
+		// ReadAt copies straight into our buffer without allocating a temp.
+		if _, err := buf.ReadAt(frame[2:], 0); err != nil {
+			pkt.DecRef()
+			return
+		}
 		pkt.DecRef()
 
-		binary.BigEndian.PutUint16(lenBuf, uint16(len(data)))
 		e.helperWriteMu.Lock()
-		_, err1 := conn.Write(lenBuf)
-		if err1 == nil {
-			_, err1 = conn.Write(data)
-		}
+		_, err1 := conn.Write(frame)
 		e.helperWriteMu.Unlock()
 		if err1 != nil {
 			return

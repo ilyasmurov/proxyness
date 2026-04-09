@@ -1,3 +1,3 @@
 ## fix
-TUN bridgeInbound — eliminate per-packet slice allocation
-gVisor's buffer.MakeWithData copies the payload into its own pooled chunk, so the caller's slice is dead the instant InjectInbound returns. Pre-fix we made a fresh `[]byte` per inbound packet, generating one allocation per packet for GC to reap. Windows pprof showed ~70% CPU in runtime.gcDrain at idle. Now bridgeInbound reuses a single growing buffer across iterations (single-goroutine, no synchronization needed).
+TUN bridgeOutbound — eliminate per-packet Flatten() allocation
+gVisor's Buffer.Flatten() does an unconditional `make([]byte, 0, size)` internally, so calling it per outbound packet was generating one fresh slice per packet on the GC heap. Mirrors the bridgeInbound fix from 1.28.9: reuse a single growing frame buffer (length prefix + payload) across iterations and copy via ReadAt straight into it. Bonus: also coalesces the two conn.Write calls (length, then data) into a single Write — saves a syscall per packet on Windows.
