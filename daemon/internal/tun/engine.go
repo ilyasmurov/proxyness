@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -215,7 +216,14 @@ func (e *Engine) Start(req StartRequest) error {
 	defer e.mu.Unlock()
 
 	if e.status == StatusActive {
-		log.Printf("[tun] already active, restarting...")
+		// Log the goroutine stack so we can see who's hitting Start while
+		// the engine is already up. Restart-storms (multiple /tun/start
+		// HTTP calls in flight from a racy client retry loop) corrupt
+		// gVisor netstack and burn CPU rebuilding NAT tables; if this
+		// fires repeatedly, look at the trace to find the runaway caller.
+		buf := make([]byte, 4096)
+		n := runtime.Stack(buf, false)
+		log.Printf("[tun] already active, restarting...\n%s", buf[:n])
 		e.stopLocked()
 	}
 

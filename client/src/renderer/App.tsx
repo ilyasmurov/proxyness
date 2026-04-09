@@ -33,6 +33,14 @@ export function App() {
   const [tunLoading, setTunLoading] = useState(false);
   const [tunError, setTunError] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
+  // reconnectingRef mirrors `reconnecting` state but is updated synchronously.
+  // The state-only guard in startReconnect was racy: when the polling effect
+  // and a transport-error effect both fired in the same React tick, both saw
+  // reconnecting=false (state hadn't flushed yet), both passed the guard, and
+  // both spawned independent retry loops — each calling /tun/start, each
+  // triggering "engine already active, restarting" on the daemon side.
+  // Storming the engine restart path corrupts NAT state and burns CPU.
+  const reconnectingRef = useRef(false);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasConnected = useRef(false);
 
@@ -57,10 +65,20 @@ export function App() {
   const retryDelay = 5000;
 
   const startReconnect = useCallback(() => {
-    if (reconnecting || !key) return;
+    // Synchronous guard via ref (see comment on reconnectingRef above).
+    // The previous `if (reconnecting || ...)` check on React state was
+    // racy across same-tick callers.
+    if (reconnectingRef.current || !key) return;
+    reconnectingRef.current = true;
     setReconnecting(true);
     setTunError(null);
     let attempt = 0;
+
+    const finish = (err: string | null) => {
+      reconnectingRef.current = false;
+      setReconnecting(false);
+      if (err !== undefined) setTunError(err);
+    };
 
     const tryReconnect = async () => {
       attempt++;
@@ -80,12 +98,10 @@ export function App() {
           const ok = await connect(SERVER, key);
           if (!ok) throw new Error("connect failed");
         }
-        setReconnecting(false);
-        setTunError(null);
+        finish(null);
       } catch {
         if (attempt >= maxRetries) {
-          setReconnecting(false);
-          setTunError("Server unavailable");
+          finish("Server unavailable");
         } else {
           reconnectRef.current = setTimeout(tryReconnect, retryDelay);
         }
@@ -93,7 +109,7 @@ export function App() {
     };
 
     tryReconnect();
-  }, [reconnecting, key, proxyMode, connect]);
+  }, [key, proxyMode, connect]);
 
   // Cleanup reconnect timer on unmount
   useEffect(() => {

@@ -1,3 +1,7 @@
 ## fix
-NAT readLoop holding aliased IP slices into a reused packet buffer
-The 1.28.9 bridgeInbound buffer-reuse perf fix introduced a silent corruption: ParseIPv4Header returns srcIP/dstIP as net.IP slices into the caller's packet buffer, and NAT.HandlePacket was passing those slices directly to a goroutine that outlives the call. After bridgeInbound moved to the next packet, the goroutine's stored IPs became garbage — reply UDP packets (DNS responses, voice) were being built with bogus headers and dropped by Windows. Symptom: browsers fine (sites use SOCKS5, server-side resolve), but Telegram/Discord/anything depending on local DNS broken. Now both IPs are cloned before the readLoop spawns.
+Reentrancy guard in client startReconnect
+The previous guard checked the React `reconnecting` state, which is async — when the polling effect and a transport-error effect both fired in the same tick, both saw `reconnecting=false`, both passed, both spawned independent retry loops. Result: multiple parallel /tun/start calls hitting the daemon back-to-back, each triggering "engine already active, restarting" and rebuilding gVisor stack and NAT tables. Now uses a synchronous ref so only one retry loop ever runs.
+
+## improvement
+Goroutine stack trace on engine restart
+Engine.Start now logs a stack trace when it has to stop a still-active engine before starting. Makes runaway client retry loops immediately diagnosable instead of guessing from the daemon log.
