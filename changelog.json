@@ -1,5 +1,12 @@
 [
   {
+    "id": "d4be096c-4847-4c67-945c-734a6d03f8f5",
+    "title": "Bind transport sockets to physical interface IP, not just IP_UNICAST_IF",
+    "description": "1.28.15 set IP_UNICAST_IF on the daemon's transport sockets but a profile from a 1.28.15 install showed the daemon's UDP packets were still entering bridgeInbound (5.6s in the self-bypass branch). Turns out IP_UNICAST_IF on connected UDP sockets is only \"advisory\" on some Windows builds — the kernel can still pick the TUN default route. Now we additionally bind the socket source IP via Dialer.LocalAddr to the physical interface address, which forces the kernel's source-address selection and routing decision. IP_UNICAST_IF is kept as belt-and-suspenders. Added a one-shot log line so the next bug shows local/remote/ifIndex of the actual socket.",
+    "type": "fix",
+    "createdAt": "2026-04-09T12:00:58.040650+00:00"
+  },
+  {
     "id": "5027b186-f576-4de3-8f95-ae6f28d2e733",
     "title": "UDP and TLS transports now use protected dial — bypass TUN routing",
     "description": "The proxy server transports were using net.DialUDP / tls.DialWithDialer directly, with no socket-level interface binding. Once the TUN engine added its default route, every outbound packet from the daemon's own proxy stream followed it — straight back into bridgeInbound. The new self-detection branch saw \"this is our own packet\" and reflected it through NAT bypass, doubling the work and burning CPU on a feedback loop. After the IP_UNICAST_IF byte-order fix in 1.28.14 the loop stopped reaching infinity, but the daemon still spent a lot of CPU on the bounce. Now both UDP and TLS transports go through protectedDialUDP, which binds the socket to the physical interface (Windows IP_UNICAST_IF / macOS IP_BOUND_IF). Loopback dials skip the binding so tests still pass.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T06:00:50.388702+00:00"
-  },
-  {
-    "id": "12dcaf94-7e32-4e47-b414-162a8f1cd03b",
-    "title": "Show device key prefix with copy button in admin panel",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T06:00:50.388875+00:00"
   }
 ]

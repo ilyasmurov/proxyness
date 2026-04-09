@@ -4,6 +4,7 @@ package transport
 
 import (
 	"context"
+	"log"
 	"net"
 	"strings"
 	"syscall"
@@ -24,23 +25,39 @@ const (
 // daemon/internal/tun/dialer_windows.go for the byte-order trap that
 // burned us in 1.27-1.28.13.
 func protectedDialUDP(network, address string) (net.Conn, error) {
-	// Loopback dials must skip interface binding — IP_UNICAST_IF restricts
-	// the socket to the physical interface, which has no route to 127/8.
-	// Loopback only happens in tests.
+	// Loopback dials must skip interface binding — restricting to a
+	// physical interface kills loopback routing. Only happens in tests.
 	if isLoopbackAddr(address) {
 		dialer := &net.Dialer{Timeout: 10 * time.Second}
 		return dialer.DialContext(context.Background(), network, address)
 	}
-	ifIndex, err := getPhysicalInterfaceIndex()
+
+	// Find the physical interface AND its IPv4 address. We bind the socket
+	// to that IP via Dialer.LocalAddr instead of relying on IP_UNICAST_IF
+	// — turns out the latter is only "advisory" on connected UDP sockets
+	// on some Windows builds, and the kernel can still route via TUN if
+	// the TUN default route is at a higher metric. Binding the source IP
+	// directly forces the kernel's source-address selection and the
+	// routing decision falls in line: with source = physical NIC IP, the
+	// kernel must use the physical interface's route to reach the remote.
+	// IP_UNICAST_IF is still set as belt-and-suspenders.
+	ifIndex, ifIP, err := getPhysicalInterface()
 	if err != nil {
-		// Fall back to a plain dial if interface detection fails — that
-		// matches the pre-TUN behavior and is no worse than what we had.
 		dialer := &net.Dialer{Timeout: 10 * time.Second}
 		return dialer.DialContext(context.Background(), network, address)
 	}
 
+	var localAddr net.Addr
+	switch network {
+	case "udp", "udp4":
+		localAddr = &net.UDPAddr{IP: ifIP}
+	case "tcp", "tcp4":
+		localAddr = &net.TCPAddr{IP: ifIP}
+	}
+
 	dialer := &net.Dialer{
-		Timeout: 10 * time.Second,
+		Timeout:   10 * time.Second,
+		LocalAddr: localAddr,
 		Control: func(_, _ string, c syscall.RawConn) error {
 			return c.Control(func(fd uintptr) {
 				val := uint32(ifIndex) << 24 // htonl(ifIndex) on little-endian
@@ -49,18 +66,23 @@ func protectedDialUDP(network, address string) (net.Conn, error) {
 			})
 		},
 	}
-	return dialer.DialContext(context.Background(), network, address)
+	conn, err := dialer.DialContext(context.Background(), network, address)
+	if err != nil {
+		log.Printf("[transport] protectedDialUDP %s %s failed: %v", network, address, err)
+		return nil, err
+	}
+	log.Printf("[transport] protectedDialUDP %s %s → local=%s remote=%s ifIndex=%d",
+		network, address, conn.LocalAddr(), conn.RemoteAddr(), ifIndex)
+	return conn, nil
 }
 
-// getPhysicalInterfaceIndex enumerates network interfaces and returns the
-// index of the first non-loopback, non-TUN interface with an IPv4 address.
-// Stand-alone copy (intentionally not shared with the tun package) so this
-// transport-layer concern stays self-contained — the perf cost of the
-// per-call enumeration is irrelevant here because Connect runs once.
-func getPhysicalInterfaceIndex() (int, error) {
+// getPhysicalInterface returns the first non-loopback, non-TUN interface
+// with an IPv4 address, along with that address. Used to bind sockets so
+// they bypass any active TUN routing.
+func getPhysicalInterface() (int, net.IP, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	for _, iface := range ifaces {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
@@ -75,11 +97,11 @@ func getPhysicalInterfaceIndex() (int, error) {
 		}
 		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-				return iface.Index, nil
+				return iface.Index, ipnet.IP, nil
 			}
 		}
 	}
-	return 0, syscall.EINVAL
+	return 0, nil, syscall.EINVAL
 }
 
 func isLoopbackAddr(address string) bool {

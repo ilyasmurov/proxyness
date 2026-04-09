@@ -24,14 +24,23 @@ func protectedDialUDP(network, address string) (net.Conn, error) {
 		dialer := &net.Dialer{Timeout: 10 * time.Second}
 		return dialer.DialContext(context.Background(), network, address)
 	}
-	ifIndex, err := getPhysicalInterfaceIndex()
+	ifIndex, ifIP, err := getPhysicalInterface()
 	if err != nil {
 		dialer := &net.Dialer{Timeout: 10 * time.Second}
 		return dialer.DialContext(context.Background(), network, address)
 	}
 
+	var localAddr net.Addr
+	switch network {
+	case "udp", "udp4":
+		localAddr = &net.UDPAddr{IP: ifIP}
+	case "tcp", "tcp4":
+		localAddr = &net.TCPAddr{IP: ifIP}
+	}
+
 	dialer := &net.Dialer{
-		Timeout: 10 * time.Second,
+		Timeout:   10 * time.Second,
+		LocalAddr: localAddr,
 		Control: func(_, _ string, c syscall.RawConn) error {
 			return c.Control(func(fd uintptr) {
 				syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, ipBoundIF, ifIndex)
@@ -53,10 +62,10 @@ func isLoopbackAddr(address string) bool {
 	return ip.IsLoopback()
 }
 
-func getPhysicalInterfaceIndex() (int, error) {
+func getPhysicalInterface() (int, net.IP, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	for _, iface := range ifaces {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
@@ -73,9 +82,9 @@ func getPhysicalInterfaceIndex() (int, error) {
 		}
 		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
-				return iface.Index, nil
+				return iface.Index, ipnet.IP, nil
 			}
 		}
 	}
-	return 0, syscall.EINVAL
+	return 0, nil, syscall.EINVAL
 }
