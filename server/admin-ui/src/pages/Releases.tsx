@@ -18,7 +18,10 @@ interface GHRelease {
   published_at: string;
   body: string;
   assets: Asset[];
+  prerelease: boolean;
 }
+
+type Tab = "stable" | "beta";
 
 function AppleIcon({ className }: { className?: string }) {
   return (
@@ -72,6 +75,7 @@ function timeAgo(date: string): string {
 export function Releases() {
   const [releases, setReleases] = useState<GHRelease[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("stable");
 
   useEffect(() => {
     fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases`)
@@ -83,21 +87,53 @@ export function Releases() {
 
   if (loading) return <p className="text-muted-foreground">Loading...</p>;
 
-  const [latest, ...older] = releases;
+  // GitHub API returns both stable and pre-releases interleaved by date.
+  // Split by the prerelease field so the "Latest" card on the stable tab
+  // never points at a beta and vice versa.
+  const stable = releases.filter((r) => !r.prerelease);
+  const beta = releases.filter((r) => r.prerelease);
+  const visible = tab === "stable" ? stable : beta;
+  const [latest, ...older] = visible;
+
+  const tabButton = (value: Tab, label: string, count: number) => (
+    <button
+      onClick={() => setTab(value)}
+      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+        tab === value
+          ? "bg-secondary text-secondary-foreground"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label}
+      <span className="ml-1.5 text-xs text-muted-foreground">({count})</span>
+    </button>
+  );
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold">Releases</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Releases</h1>
+        <div className="flex items-center gap-1 p-1 rounded-lg border bg-card">
+          {tabButton("stable", "Stable", stable.length)}
+          {tabButton("beta", "Beta", beta.length)}
+        </div>
+      </div>
 
-      {!latest && <p className="text-muted-foreground">No releases found.</p>}
+      {!latest && (
+        <p className="text-muted-foreground">
+          {tab === "beta" ? "No beta releases yet." : "No releases found."}
+        </p>
+      )}
 
       {latest && (
-        <Card className="border-primary/30">
+        <Card className={tab === "beta" ? "border-amber-500/40" : "border-primary/30"}>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
-              <Package className="w-5 h-5 text-primary" />
+              <Package className={`w-5 h-5 ${tab === "beta" ? "text-amber-500" : "text-primary"}`} />
               <CardTitle className="text-xl">{latest.tag_name}</CardTitle>
-              <Badge>Latest</Badge>
+              <Badge variant={tab === "beta" ? "secondary" : "default"}>
+                {tab === "beta" ? "Latest Beta" : "Latest"}
+              </Badge>
               <span className="text-sm text-muted-foreground ml-auto">
                 {timeAgo(latest.published_at)}
               </span>

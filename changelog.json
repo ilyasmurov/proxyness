@@ -1,5 +1,12 @@
 [
   {
+    "id": "0aff2123-e02f-49f2-a836-b34cf61a7fe9",
+    "title": "Admin: Releases page now separates Stable and Beta tags",
+    "description": "GitHub API returns stable and pre-releases interleaved by date. With the beta-first workflow, a freshly tagged vX.Y.Z-beta.1 would sit at the top of the list and be mislabelled \"Latest\" on the admin Releases page. Split into two tabs keyed off the release's `prerelease` field: Stable (default) and Beta, each with its own Latest card + Previous list + count badge. Pre-release Latest card uses an amber border and \"Latest Beta\" label so beta content reads as visibly not-production.",
+    "type": "improvement",
+    "createdAt": "2026-04-09T22:30:07.152048+00:00"
+  },
+  {
     "id": "8f7eb366-aafc-4856-8d4a-23c45b49e23e",
     "title": "Update banner now catches new versions mid-session",
     "description": "Previously the banner checked latest.yml exactly once on mount, so a client sitting in the tray for hours never noticed new releases until it was restarted. Main process now polls latest.yml hourly and refreshes on main-window show/focus (with a 30s throttle so rapid window bounces don't thrash GitHub). When a newer version is found, an IPC event lights up the banner in whatever window is open.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T13:57:37.620799+00:00"
-  },
-  {
-    "id": "2d61de8e-8cbc-4d5f-94da-82e5673a6255",
-    "title": "Tune UDP congestion control for higher throughput (initCwnd 32, minCwnd 16, maxCwnd 2048, beta 0.8, recovery epoch 500ms)",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T12:52:47.719591+00:00"
   }
 ]
