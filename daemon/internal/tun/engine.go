@@ -395,9 +395,21 @@ func (e *Engine) connectAndCreate(req StartRequest) (net.Conn, error) {
 }
 
 // bridgeInbound reads framed IP packets from helper and injects into gVisor stack.
+//
+// Allocations: gVisor's buffer.MakeWithData → NewViewWithData *copies* the
+// payload into its own pooled chunk, so the caller's slice is dead the
+// instant InjectInbound returns. Pre-1.28.9 we did `data := make([]byte,
+// pktLen)` per packet, generating one fresh slice per inbound packet for
+// the GC to reap. On Windows this dominated daemon CPU even at idle —
+// pprof showed ~70% in runtime.gcDrain. Now we reuse a single pktBuf
+// across iterations, growing it on demand. bridgeInbound runs as a single
+// goroutine per engine so no synchronization is needed. RawUDPHandler.Handle
+// must also be safe to call against a slice that gets reused on the next
+// iteration — confirmed: it copies anything it needs to keep.
 func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 	log.Printf("[tun] bridgeInbound started")
 	lenBuf := make([]byte, 2)
+	pktBuf := make([]byte, 2048) // 1500 MTU + headroom; grows if needed
 	var count int64
 	var ipv4Count, ipv6Count int64
 	for {
@@ -410,7 +422,10 @@ func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 			continue
 		}
 
-		data := make([]byte, pktLen)
+		if cap(pktBuf) < pktLen {
+			pktBuf = make([]byte, pktLen)
+		}
+		data := pktBuf[:pktLen]
 		if _, err := io.ReadFull(r, data); err != nil {
 			log.Printf("[tun] bridgeInbound read error (after %d packets): %v", count, err)
 			return

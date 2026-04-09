@@ -1,3 +1,3 @@
 ## fix
-Windows daemon CPU — rate-limit procinfo cache miss refreshes
-The Windows process-by-port lookup was forcing a full GetExtendedTcpTable/GetExtendedUdpTable scan on every cache miss. With browsers cycling ephemeral UDP source ports for DNS and other lookups, this thrashed the kernel scan. v1.28.7 pprof showed ~13% CPU still in refreshUDP. Now miss-driven refreshes are capped at one per 250ms per network — periodic 2s refresh still keeps the cache fresh, but new unknown ports return "unknown app" briefly instead of triggering an unbounded scan storm.
+TUN bridgeInbound — eliminate per-packet slice allocation
+gVisor's buffer.MakeWithData copies the payload into its own pooled chunk, so the caller's slice is dead the instant InjectInbound returns. Pre-fix we made a fresh `[]byte` per inbound packet, generating one allocation per packet for GC to reap. Windows pprof showed ~70% CPU in runtime.gcDrain at idle. Now bridgeInbound reuses a single growing buffer across iterations (single-goroutine, no synchronization needed).

@@ -1,5 +1,12 @@
 [
   {
+    "id": "b4621771-259e-4ad7-97de-d992962784f8",
+    "title": "TUN bridgeInbound — eliminate per-packet slice allocation",
+    "description": "gVisor's buffer.MakeWithData copies the payload into its own pooled chunk, so the caller's slice is dead the instant InjectInbound returns. Pre-fix we made a fresh `[]byte` per inbound packet, generating one allocation per packet for GC to reap. Windows pprof showed ~70% CPU in runtime.gcDrain at idle. Now bridgeInbound reuses a single growing buffer across iterations (single-goroutine, no synchronization needed).",
+    "type": "fix",
+    "createdAt": "2026-04-09T09:08:07.467515+00:00"
+  },
+  {
     "id": "39cb645b-0b1b-48c0-bc6b-05c930d7a926",
     "title": "Windows daemon CPU — rate-limit procinfo cache miss refreshes",
     "description": "The Windows process-by-port lookup was forcing a full GetExtendedTcpTable/GetExtendedUdpTable scan on every cache miss. With browsers cycling ephemeral UDP source ports for DNS and other lookups, this thrashed the kernel scan. v1.28.7 pprof showed ~13% CPU still in refreshUDP. Now miss-driven refreshes are capped at one per 250ms per network — periodic 2s refresh still keeps the cache fresh, but new unknown ports return \"unknown app\" briefly instead of triggering an unbounded scan storm.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T13:32:24.433635+00:00"
-  },
-  {
-    "id": "201ffb59-3429-4126-9e40-8d9d548b008f",
-    "title": "ARQ: rewrite congestion control — replace channel semaphore with mutex+notify",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T13:21:20.028440+00:00"
   }
 ]
