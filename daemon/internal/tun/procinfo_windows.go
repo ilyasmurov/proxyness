@@ -32,7 +32,19 @@ type windowsProcessInfo struct {
 	udpBuf []byte
 }
 
-const tableTTL = 2 * time.Second
+const (
+	// tableTTL is how long a periodic snapshot of the TCP/UDP connection
+	// tables is considered fresh enough for FindProcess to skip refreshing.
+	tableTTL = 2 * time.Second
+
+	// missRefreshCooldown rate-limits forced refreshes triggered by a
+	// FindProcess cache miss. Without this, every new ephemeral UDP source
+	// port (DNS resolvers, browsers cycling sockets) thrashes the iphlpapi
+	// GetExtendedUdpTable scan — pprof of v1.28.7 showed ~13% of one core
+	// burned in refreshUDP from miss-driven force refreshes alone, plus
+	// the GC tail cleaning up the per-call buffer growth.
+	missRefreshCooldown = 250 * time.Millisecond
+)
 
 func newProcessInfo() ProcessInfo {
 	return &windowsProcessInfo{
@@ -70,16 +82,26 @@ func (w *windowsProcessInfo) FindProcess(network string, localPort uint16) (stri
 		return "", fmt.Errorf("unsupported network: %s", network)
 	}
 
-	// Port not in cached table — force refresh and retry once.
-	// Handles connections established between cache refreshes.
+	// Port not in cached table — try a forced refresh, but rate-limit it
+	// so that a flood of unknown ports (DNS, ephemeral UDP sockets) can't
+	// thrash the kernel scan. The refresh is allowed at most once per
+	// missRefreshCooldown per network; outside that window we just return
+	// "" (unknown app) and let the next periodic refresh catch up. Being
+	// briefly stale on a port→app mapping is fine for split tunneling —
+	// at worst the very first packets of a brand-new connection use the
+	// default rule for one cooldown window.
 	if !found {
 		switch network {
 		case "tcp":
-			w.refreshTCP()
-			pid, found = w.tcpPorts[localPort]
+			if time.Since(w.tcpTime) > missRefreshCooldown {
+				w.refreshTCP()
+				pid, found = w.tcpPorts[localPort]
+			}
 		case "udp":
-			w.refreshUDP()
-			pid, found = w.udpPorts[localPort]
+			if time.Since(w.udpTime) > missRefreshCooldown {
+				w.refreshUDP()
+				pid, found = w.udpPorts[localPort]
+			}
 		}
 		if !found {
 			return "", nil

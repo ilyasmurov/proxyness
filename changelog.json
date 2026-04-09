@@ -1,5 +1,12 @@
 [
   {
+    "id": "39cb645b-0b1b-48c0-bc6b-05c930d7a926",
+    "title": "Windows daemon CPU — rate-limit procinfo cache miss refreshes",
+    "description": "The Windows process-by-port lookup was forcing a full GetExtendedTcpTable/GetExtendedUdpTable scan on every cache miss. With browsers cycling ephemeral UDP source ports for DNS and other lookups, this thrashed the kernel scan. v1.28.7 pprof showed ~13% CPU still in refreshUDP. Now miss-driven refreshes are capped at one per 250ms per network — periodic 2s refresh still keeps the cache fresh, but new unknown ports return \"unknown app\" briefly instead of triggering an unbounded scan storm.",
+    "type": "fix",
+    "createdAt": "2026-04-09T08:52:43.069436+00:00"
+  },
+  {
     "id": "3cab9a76-fb91-4383-a568-43157f7f063b",
     "title": "Windows daemon idle CPU burn — cache physical interface index",
     "description": "Windows CachePhysicalInterface was a no-op stub, so every protectedDial was calling net.Interfaces → GetAdaptersAddresses per connection. A pprof capture of an idle TUN-mode daemon showed ~28% CPU in that path plus another ~35% in GC cleaning up the allocations — a busy browser was burning 40-60% of one core on nothing but interface enumeration. Now mirrors the darwin implementation: detect once at engine.Start, cache, clear on Stop.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T13:21:20.028440+00:00"
-  },
-  {
-    "id": "ca649a8e-b9aa-4d1a-8bbc-4fe0097d8fc7",
-    "title": "ARQ: fix slot leak in congestion control — adjustSlots syncs channel after every cwnd/inFlight change",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T12:56:49.572828+00:00"
   }
 ]

@@ -1,3 +1,3 @@
 ## fix
-Windows daemon idle CPU burn — cache physical interface index
-Windows CachePhysicalInterface was a no-op stub, so every protectedDial was calling net.Interfaces → GetAdaptersAddresses per connection. A pprof capture of an idle TUN-mode daemon showed ~28% CPU in that path plus another ~35% in GC cleaning up the allocations — a busy browser was burning 40-60% of one core on nothing but interface enumeration. Now mirrors the darwin implementation: detect once at engine.Start, cache, clear on Stop.
+Windows daemon CPU — rate-limit procinfo cache miss refreshes
+The Windows process-by-port lookup was forcing a full GetExtendedTcpTable/GetExtendedUdpTable scan on every cache miss. With browsers cycling ephemeral UDP source ports for DNS and other lookups, this thrashed the kernel scan. v1.28.7 pprof showed ~13% CPU still in refreshUDP. Now miss-driven refreshes are capped at one per 250ms per network — periodic 2s refresh still keeps the cache fresh, but new unknown ports return "unknown app" briefly instead of triggering an unbounded scan storm.
