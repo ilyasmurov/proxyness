@@ -1,6 +1,6 @@
 {
   "name": "smurov-proxy",
-  "version": "1.28.16",
+  "version": "1.28.17",
   "private": true,
   "main": "dist-electron/main/index.js",
   "scripts": {

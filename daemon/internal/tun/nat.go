@@ -9,10 +9,34 @@ import (
 )
 
 const (
-	natDefaultTimeout  = 60 * time.Second
+	// natDefaultTimeout was 60s but most non-voice UDP flows we see (DNS,
+	// short HTTPS-over-QUIC fallbacks, mDNS) are one-shot — request goes
+	// out, response comes back, that's it. Holding the socket for a full
+	// minute meant browsers doing hundreds of DNS lookups while watching
+	// YouTube ended up with thousands of live NAT entries, each with a
+	// goroutine and a 64KB buffer. Heap profile in 1.28.16 showed 1 GB
+	// resident in NATTable.readLoop alone. 10s is plenty for any
+	// reasonable single request/response and lets the cleanup loop
+	// reclaim memory in a timely fashion.
+	natDefaultTimeout  = 10 * time.Second
 	natVoiceTimeout    = 120 * time.Second
-	natCleanupInterval = 10 * time.Second
+	natCleanupInterval = 5 * time.Second
+
+	// natReadBufSize was 65535 (max UDP datagram). Shrinking to 2048 covers
+	// any realistic MTU + headroom and saves ~63KB per live entry — at
+	// thousands of entries that's the difference between 1 GB resident and
+	// ~30 MB. The pool below recycles these between goroutines so we don't
+	// pay an allocation per readLoop start either.
+	natReadBufSize = 2048
 )
+
+// natBufPool reuses readLoop buffers across NAT entry lifetimes.
+var natBufPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, natReadBufSize)
+		return &buf
+	},
+}
 
 type natKey struct {
 	srcIP   [4]byte
@@ -135,7 +159,9 @@ func (t *NATTable) HandlePacket(srcIP, dstIP net.IP, srcPort, dstPort uint16, pa
 // packets with swapped src/dst, passing them to onReply for injection back
 // into the TUN device.
 func (t *NATTable) readLoop(key natKey, entry *natEntry, srcIP, dstIP net.IP, srcPort, dstPort uint16) {
-	buf := make([]byte, 65535)
+	bufPtr := natBufPool.Get().(*[]byte)
+	buf := *bufPtr
+	defer natBufPool.Put(bufPtr)
 	for {
 		entry.conn.SetReadDeadline(time.Now().Add(entry.timeout))
 		n, err := entry.conn.Read(buf)
