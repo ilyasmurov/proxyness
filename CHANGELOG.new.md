@@ -1,7 +1,3 @@
 ## fix
-Reentrancy guard in client startReconnect
-The previous guard checked the React `reconnecting` state, which is async — when the polling effect and a transport-error effect both fired in the same tick, both saw `reconnecting=false`, both passed, both spawned independent retry loops. Result: multiple parallel /tun/start calls hitting the daemon back-to-back, each triggering "engine already active, restarting" and rebuilding gVisor stack and NAT tables. Now uses a synchronous ref so only one retry loop ever runs.
-
-## improvement
-Goroutine stack trace on engine restart
-Engine.Start now logs a stack trace when it has to stop a still-active engine before starting. Makes runaway client retry loops immediately diagnosable instead of guessing from the daemon log.
+bridgeOutbound treated io.EOF from Buffer.ReadAt as fatal — silenced reverse-direction packets since 1.28.10
+gVisor's Buffer.ReadAt follows the io.ReaderAt convention: it returns io.EOF when the read reaches the end of the buffer, even on a successful FULL read. The 1.28.10 perf rewrite treated any non-nil err as fatal and returned, killing the bridgeOutbound goroutine after the very first outbound packet — silently, with no close log. Helper saw `daemon→TUN=0` forever, apps got no responses, D3 stall detector kept firing. Now we check the byte count instead and only bail on a genuine short read; the close path also gets explicit logging so the next silent exit can't hide.

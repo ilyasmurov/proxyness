@@ -501,9 +501,18 @@ func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.
 		}
 		frame = frame[:2+size]
 		binary.BigEndian.PutUint16(frame[:2], uint16(size))
-		// ReadAt copies straight into our buffer without allocating a temp.
-		if _, err := buf.ReadAt(frame[2:], 0); err != nil {
+		// gVisor's Buffer.ReadAt follows the io.ReaderAt convention: it
+		// returns io.EOF when the read reaches the end of the buffer,
+		// even on a *successful* full read. We only care that we got
+		// every byte we asked for. Treating io.EOF as fatal here was
+		// the 1.28.10 regression — bridgeOutbound silently exited
+		// after the first packet (no "closed" log because we returned
+		// inside the if), helper saw daemon→TUN=0 forever, and apps
+		// got nothing back through the tunnel.
+		n, err := buf.ReadAt(frame[2:], 0)
+		if n != size {
 			pkt.DecRef()
+			log.Printf("[tun] bridgeOutbound short read %d/%d: %v", n, size, err)
 			return
 		}
 		pkt.DecRef()
@@ -512,6 +521,7 @@ func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.
 		_, err1 := conn.Write(frame)
 		e.helperWriteMu.Unlock()
 		if err1 != nil {
+			log.Printf("[tun] bridgeOutbound write error after %d packets: %v", count, err1)
 			return
 		}
 	}

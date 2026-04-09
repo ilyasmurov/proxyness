@@ -1,5 +1,12 @@
 [
   {
+    "id": "6a9d3f54-beab-49c5-a7f9-20047fc5c557",
+    "title": "bridgeOutbound treated io.EOF from Buffer.ReadAt as fatal — silenced reverse-direction packets since 1.28.10",
+    "description": "gVisor's Buffer.ReadAt follows the io.ReaderAt convention: it returns io.EOF when the read reaches the end of the buffer, even on a successful FULL read. The 1.28.10 perf rewrite treated any non-nil err as fatal and returned, killing the bridgeOutbound goroutine after the very first outbound packet — silently, with no close log. Helper saw `daemon→TUN=0` forever, apps got no responses, D3 stall detector kept firing. Now we check the byte count instead and only bail on a genuine short read; the close path also gets explicit logging so the next silent exit can't hide.",
+    "type": "fix",
+    "createdAt": "2026-04-09T09:55:32.009857+00:00"
+  },
+  {
     "id": "d0a1ee0b-94c0-4361-ba8b-4863c330c835",
     "title": "Reentrancy guard in client startReconnect",
     "description": "The previous guard checked the React `reconnecting` state, which is async — when the polling effect and a transport-error effect both fired in the same tick, both saw `reconnecting=false`, both passed, both spawned independent retry loops. Result: multiple parallel /tun/start calls hitting the daemon back-to-back, each triggering \"engine already active, restarting\" and rebuilding gVisor stack and NAT tables. Now uses a synchronous ref so only one retry loop ever runs.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T05:37:01.633701+00:00"
-  },
-  {
-    "id": "d5f59cdb-d4a7-4013-b0c0-ca5f7348e7eb",
-    "title": "UDP: create WriteCh before dial — prevent data loss during stream open",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T05:16:32.283199+00:00"
   }
 ]
