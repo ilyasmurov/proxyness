@@ -67,6 +67,15 @@ func (t *NATTable) Close() {
 // HandlePacket sends the UDP payload to dstIP:dstPort. If no entry exists
 // for this flow, a new socket is created via the dial function and a read
 // goroutine is started.
+//
+// Important: srcIP and dstIP arrive as slice aliases into the caller's
+// packet buffer (ParseIPv4Header returns net.IP slices over pkt[12:16] /
+// pkt[16:20]). Since 1.28.9 bridgeInbound reuses its pktBuf across
+// iterations, those aliases would be silently corrupted on the next
+// inbound packet — breaking the readLoop goroutine that builds reply
+// packets from them. We clone both IPs before spawning the goroutine
+// so readLoop owns its own memory. payload is consumed synchronously
+// by conn.Write before HandlePacket returns, so no clone needed for it.
 func (t *NATTable) HandlePacket(srcIP, dstIP net.IP, srcPort, dstPort uint16, payload []byte) error {
 	key := makeKey(srcIP, dstIP, srcPort, dstPort)
 
@@ -110,8 +119,13 @@ func (t *NATTable) HandlePacket(srcIP, dstIP net.IP, srcPort, dstPort uint16, pa
 	t.entries[key] = entry
 	t.mu.Unlock()
 
+	// Clone IPs before handing to the goroutine — they alias the caller's
+	// packet buffer which gets reused after this call returns.
+	srcIPCopy := append(net.IP(nil), srcIP...)
+	dstIPCopy := append(net.IP(nil), dstIP...)
+
 	// Start read goroutine for responses
-	go t.readLoop(key, entry, srcIP, dstIP, srcPort, dstPort)
+	go t.readLoop(key, entry, srcIPCopy, dstIPCopy, srcPort, dstPort)
 
 	_, err = conn.Write(payload)
 	return err

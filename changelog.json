@@ -1,5 +1,12 @@
 [
   {
+    "id": "d5ead1c4-40a2-485e-9b29-91597ab10bdf",
+    "title": "NAT readLoop holding aliased IP slices into a reused packet buffer",
+    "description": "The 1.28.9 bridgeInbound buffer-reuse perf fix introduced a silent corruption: ParseIPv4Header returns srcIP/dstIP as net.IP slices into the caller's packet buffer, and NAT.HandlePacket was passing those slices directly to a goroutine that outlives the call. After bridgeInbound moved to the next packet, the goroutine's stored IPs became garbage — reply UDP packets (DNS responses, voice) were being built with bogus headers and dropped by Windows. Symptom: browsers fine (sites use SOCKS5, server-side resolve), but Telegram/Discord/anything depending on local DNS broken. Now both IPs are cloned before the readLoop spawns.",
+    "type": "fix",
+    "createdAt": "2026-04-09T09:40:28.650798+00:00"
+  },
+  {
     "id": "13daac44-ff06-4793-aa6d-99b4c9b401aa",
     "title": "TUN bridgeOutbound — eliminate per-packet Flatten() allocation",
     "description": "gVisor's Buffer.Flatten() does an unconditional `make([]byte, 0, size)` internally, so calling it per outbound packet was generating one fresh slice per packet on the GC heap. Mirrors the bridgeInbound fix from 1.28.9: reuse a single growing frame buffer (length prefix + payload) across iterations and copy via ReadAt straight into it. Bonus: also coalesces the two conn.Write calls (length, then data) into a single Write — saves a syscall per packet on Windows.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-04T13:56:16.920664+00:00"
-  },
-  {
-    "id": "1e6ebe9c-0665-4a5b-858a-304ebf9a92fd",
-    "title": "ARQ: remove sendAck from recvLoop path — fix deadlock when UDP send buffer full",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-04T13:41:06.208092+00:00"
   }
 ]
