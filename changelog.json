@@ -1,5 +1,12 @@
 [
   {
+    "id": "5056bcd6-fc19-4c80-a9cb-6f007523f343",
+    "title": "Deploy workflow: [skip-deploy] now matched on subject line only",
+    "description": "Previously the check job did a substring match on the full commit message (subject + body), so explaining the tag in the body — \"this commit is NOT skip-deploy because X\" — would accidentally skip the deploy. Tripped on this once when adding workflow_dispatch and lost a deploy cycle. Now only the first line (subject) is checked, body is free to reference the tag as explanation without side effects.",
+    "type": "fix",
+    "createdAt": "2026-04-09T22:38:28.402959+00:00"
+  },
+  {
     "id": "9d477c39-1e4c-46c8-9554-bc7f5d4b8d77",
     "title": "Deploy workflow: add workflow_dispatch trigger",
     "description": "Lets us manually redeploy a commit that was originally pushed with [skip-deploy] — previously the only way to wake the pipeline was to invent an empty commit or push something else. Now `gh workflow run \"Build and Deploy\"` or the Actions UI \"Run workflow\" button works.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T14:14:57.702094+00:00"
-  },
-  {
-    "id": "d7636821-d016-42d5-b29d-ed8a1f0e39cb",
-    "title": "Aggressive UDP congestion control: initCwnd 128, minCwnd 64, beta 0.9, always slow-start after loss",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T14:06:18.099506+00:00"
   }
 ]
