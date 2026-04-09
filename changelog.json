@@ -1,5 +1,12 @@
 [
   {
+    "id": "9d477c39-1e4c-46c8-9554-bc7f5d4b8d77",
+    "title": "Deploy workflow: add workflow_dispatch trigger",
+    "description": "Lets us manually redeploy a commit that was originally pushed with [skip-deploy] — previously the only way to wake the pipeline was to invent an empty commit or push something else. Now `gh workflow run \"Build and Deploy\"` or the Actions UI \"Run workflow\" button works.",
+    "type": "improvement",
+    "createdAt": "2026-04-09T22:32:24.138504+00:00"
+  },
+  {
     "id": "0aff2123-e02f-49f2-a836-b34cf61a7fe9",
     "title": "Admin: Releases page now separates Stable and Beta tags",
     "description": "GitHub API returns stable and pre-releases interleaved by date. With the beta-first workflow, a freshly tagged vX.Y.Z-beta.1 would sit at the top of the list and be mislabelled \"Latest\" on the admin Releases page. Split into two tabs keyed off the release's `prerelease` field: Stable (default) and Beta, each with its own Latest card + Previous list + count badge. Pre-release Latest card uses an amber border and \"Latest Beta\" label so beta content reads as visibly not-production.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-05T14:06:18.099506+00:00"
-  },
-  {
-    "id": "f3e651f1-9290-4077-bae8-8c079db7f721",
-    "title": "Fix cwnd stuck at minCwnd — reset to slow start when hitting the floor so cwnd can recover",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T13:57:37.620799+00:00"
   }
 ]

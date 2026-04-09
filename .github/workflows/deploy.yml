@@ -3,6 +3,10 @@ name: Build and Deploy
 on:
   push:
     branches: [main]
+  # Manual trigger so a commit pushed with [skip-deploy] (admin UI
+  # tweaks, docs, etc.) can be deployed later without having to invent
+  # an empty commit just to wake the pipeline up.
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
