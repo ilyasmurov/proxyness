@@ -1,5 +1,54 @@
 [
   {
+    "id": "77d0ddbb-3889-49b7-808e-cdd38550a55c",
+    "title": "Mode selector in the header, traffic switch on the main tab",
+    "description": "Full (TUN) / Browser only toggle is now always visible in the title bar, and the All traffic / Selected apps switch lives inline with the Main tab.",
+    "type": "feature",
+    "createdAt": "2026-04-09T15:31:57.124497+00:00"
+  },
+  {
+    "id": "778d43bd-dbac-4a80-9110-ae10a68c38fc",
+    "title": "Landing page rebuilt",
+    "description": "proxy.smurov.com — new hero, six feature cards (port 443, AutoTransport, hybrid TUN+Browser, split tunneling, Kill Switch, hardware-bound), benchmarks vs WireGuard and Outline, three-step onboarding, EN/RU language switcher with localStorage persistence, admin panel link removed, download buttons resolve to the latest GitHub release with proper Apple and Windows SVG logos.",
+    "type": "feature",
+    "createdAt": "2026-04-09T15:31:57.124683+00:00"
+  },
+  {
+    "id": "729642f2-354f-4f81-b099-5a9132f818a6",
+    "title": "Windows startup crash since 1.27 — loader-to-main window handoff",
+    "description": "Create the main window before destroying the loader. The old order destroyed the loader first, which fired window-all-closed in the same tick, and on Windows that handler quit the app before createWindow could finish. macOS was unaffected because window-all-closed is a no-op there.",
+    "type": "fix",
+    "createdAt": "2026-04-09T15:31:57.124690+00:00"
+  },
+  {
+    "id": "b112e68f-6d9c-411b-bec8-884d0a343e18",
+    "title": "Windows daemon idle CPU went from 40-70% to 0-1%",
+    "description": "A multi-week pprof hunt that uncovered nine independent bugs in the Windows packet path. Each fix unblocked the next one. Highlights:\n\n- Physical interface cache was a no-op stub on Windows. Every protectedDial enumerated network adapters via GetAdaptersAddresses, which dominated CPU and GC.\n- procinfo cache forced a full kernel TCP/UDP table scan on every miss, thrashing on browsers cycling ephemeral ports.\n- IP_UNICAST_IF byte order was wrong (`<<16` instead of `<<24` / htonl) — Windows silently ignored the bogus value, \"bypass\" sockets followed the TUN default route, and the daemon's own packets looped back through bridgeInbound.\n- UDP and TLS transports were using net.DialUDP / tls.DialWithDialer directly with no interface binding. Even after the byte-order fix, IP_UNICAST_IF turned out to be only \"advisory\" on connected UDP sockets — fix was binding the socket source IP via Dialer.LocalAddr to the physical interface.\n- bridgeInbound and bridgeOutbound were allocating one fresh slice per packet, generating ~67 GB of garbage in 30 seconds. Reused buffers, dropped GC pressure 30×.\n- bridgeOutbound silently died on the first packet because `Buffer.ReadAt` returns io.EOF on a successful full read (io.ReaderAt convention) and the new implementation treated that as fatal.\n- NAT readLoop held a 64 KB buffer per entry for 60 seconds. Browsers doing hundreds of DNS lookups while watching YouTube ended up with 1 GB resident in NAT alone. Buffer shrunk to 2 KB, pooled via sync.Pool, default TTL dropped to 10s.",
+    "type": "fix",
+    "createdAt": "2026-04-09T15:31:57.124698+00:00"
+  },
+  {
+    "id": "9d4fb8dc-90be-4b74-99a2-b650c231c2e6",
+    "title": "NAT readLoop captured aliased IP slices into a reused packet buffer",
+    "description": "After the bridgeInbound buffer-reuse perf fix, NAT.HandlePacket was passing srcIP/dstIP slices that aliased the caller's buffer straight into a goroutine that outlived the call. After bridgeInbound moved to the next packet, the goroutine's stored IPs became garbage — reply UDP packets (DNS responses, voice) were being built with bogus headers and silently dropped. Browsers stayed working because PAC sites go through SOCKS5 (server-side resolve), but Telegram, Discord, and anything depending on local DNS broke. Both IPs are now cloned before the readLoop spawns.",
+    "type": "fix",
+    "createdAt": "2026-04-09T15:31:57.124704+00:00"
+  },
+  {
+    "id": "46488a6a-d0a1-4e0f-9d03-41c97420dcd3",
+    "title": "Synchronous reentrancy guard in client startReconnect",
+    "description": "The previous guard checked the React `reconnecting` state, which updates async — when the polling effect and a transport-error effect fired in the same tick, both saw `reconnecting=false` and spawned independent retry loops. Result: parallel /tun/start calls hammering the daemon with \"engine already active, restarting\" and rebuilding gVisor stack and NAT tables. Now uses a synchronous ref so only one retry loop runs at a time.",
+    "type": "fix",
+    "createdAt": "2026-04-09T15:31:57.124708+00:00"
+  },
+  {
+    "id": "e8e134ae-1d3d-4a3f-be74-23fcd15402d8",
+    "title": "Diagnostic crash logger and pprof endpoints",
+    "description": "Daemon exposes /debug/pprof/* on its local 127.0.0.1:9090 API for CPU/heap/alloc profiling. Main process has an opt-in crash logger behind `--trace` (or SMUROV_DEBUG=1 on macOS — Windows requireAdministrator drops env vars on the elevated child, so use the flag there) that captures unhandled exceptions, renderer crashes, and per-phase boot traces to ~/Desktop/smurov-crash.log. Engine.Start now dumps a goroutine stack trace if it has to stop a still-active engine, so runaway client retry loops are immediately diagnosable.",
+    "type": "improvement",
+    "createdAt": "2026-04-09T15:31:57.124713+00:00"
+  },
+  {
     "id": "b4c67354-2a66-46a1-8a08-728c06e9c3c5",
     "title": "NAT readLoop memory bloat — 1 GB resident, 60% CPU on idle browsing",
     "description": "Heap profile from 1.28.16 showed 1052 MB (96% of all live memory) held in NATTable.readLoop's per-entry buffers. Each NAT entry spawned a goroutine with `make([]byte, 65535)`, and entries lived for 60s — so a browser doing hundreds of DNS lookups while watching YouTube ended up with thousands of live entries × 64 KB. The matching alloc_space profile showed 62 GB cumulative through the same path, which is why the GC was running so hard. Three changes: (1) shrink the read buffer from 65 535 to 2 048 bytes — covers any realistic MTU + headroom, drops per-entry footprint by 32×, (2) recycle the buffers via sync.Pool so dial bursts don't allocate, (3) reduce default NAT timeout from 60 s to 10 s for non-voice flows so DNS-style one-shot sockets release quickly. Voice flows still get 120 s. Cleanup interval also tightened from 10 s to 5 s.",
@@ -1349,54 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T11:34:12.403133+00:00"
-  },
-  {
-    "id": "115b9914-29da-4078-bfdb-c6aed865ddbe",
-    "title": "Re-ACK on duplicate packets to prevent deadlock when ACK is lost in transit",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T11:18:04.330926+00:00"
-  },
-  {
-    "id": "406c7441-c192-4f32-8acc-940b6d4b4318",
-    "title": "Only signal cwnd loss on fresh packet loss, not re-retransmissions",
-    "description": "Prevents cwnd from repeatedly crashing on same lost packet; maxRetransmits raised to 50 to prevent cumAck stall from dropped packets",
-    "type": "fix",
-    "createdAt": "2026-04-05T10:46:21.794930+00:00"
-  },
-  {
-    "id": "680b4733-bb22-489d-bcea-eb69fd88d564",
-    "title": "Replace slot channel semaphore with AcquireSlot (inFlight < cwnd check under mutex)",
-    "description": "Eliminates slot inflation/starvation race between OnAck and OnLoss",
-    "type": "fix",
-    "createdAt": "2026-04-05T10:17:12.627864+00:00"
-  },
-  {
-    "id": "e8930de9-597f-4062-9dbf-a049f6f05ee0",
-    "title": "Drain excess cwnd slots on loss to prevent unthrottled send bursts",
-    "description": "OnLoss now drains the slot channel to match cwnd - inFlight, preventing sender from bypassing congestion window",
-    "type": "fix",
-    "createdAt": "2026-04-05T09:44:48.452982+00:00"
-  },
-  {
-    "id": "cd78e187-a12f-44ae-adbb-69a388e66b40",
-    "title": "Fix SACK double-counting in ARQ causing upload collapse",
-    "description": "AckCumulative now skips already-SACKed packets; RetransmitTick skips OnLoss on drop-only ticks",
-    "type": "fix",
-    "createdAt": "2026-04-05T09:29:25.447061+00:00"
-  },
-  {
-    "id": "20466a48-70a9-466a-9401-df9d1d185830",
-    "title": "Retransmit with original PktNum to prevent cumAck stall and connection freeze",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T07:52:18.053734+00:00"
-  },
-  {
-    "id": "249bb6f6-5df8-444d-8877-14306cdcf8f5",
-    "title": "Fix download stall: reset CUBIC state at minimum cwnd to prevent burst-collapse cycle",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T06:13:30.832789+00:00"
   }
 ]
