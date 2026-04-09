@@ -55,14 +55,21 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 	}
 	t.devKey = devKey
 
-	raddr, err := net.ResolveUDPAddr("udp", server)
-	if err != nil {
-		return fmt.Errorf("resolve server addr: %w", err)
-	}
-
-	conn, err := net.DialUDP("udp", nil, raddr)
+	// Use the protected dialer so the UDP socket is bound to the physical
+	// interface (Windows IP_UNICAST_IF / macOS IP_BOUND_IF). Without this,
+	// when the TUN engine is active our outbound proxy datagrams hit the
+	// kernel routing table and follow the default route — which is the TUN
+	// device. The daemon ends up reading its own packets out of bridgeInbound,
+	// the self-detection branch reflects them through NAT bypass, and CPU
+	// spikes to ~100% on a feedback loop.
+	rawConn, err := protectedDialUDP("udp", server)
 	if err != nil {
 		return fmt.Errorf("udp dial: %w", err)
+	}
+	conn, ok := rawConn.(*net.UDPConn)
+	if !ok {
+		rawConn.Close()
+		return fmt.Errorf("udp dial: expected *net.UDPConn, got %T", rawConn)
 	}
 	conn.SetReadBuffer(4 * 1024 * 1024)
 	conn.SetWriteBuffer(4 * 1024 * 1024)

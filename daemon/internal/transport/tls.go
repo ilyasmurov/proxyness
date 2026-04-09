@@ -42,13 +42,19 @@ func (t *TLSTransport) Connect(server, key string, machineID [16]byte) error {
 }
 
 func (t *TLSTransport) dial() (net.Conn, error) {
-	conn, err := tls.DialWithDialer(
-		&net.Dialer{Timeout: 10e9},
-		"tcp", t.server,
-		&tls.Config{InsecureSkipVerify: true},
-	)
+	// Use the protected dialer for the underlying TCP socket so it gets
+	// bound to the physical interface (Windows IP_UNICAST_IF / macOS
+	// IP_BOUND_IF). Without this the daemon's own TLS-to-server traffic
+	// follows the TUN default route once the engine is up — same feedback
+	// loop as the UDP transport bug fixed in 1.28.15.
+	rawConn, err := protectedDialUDP("tcp", t.server)
 	if err != nil {
-		return nil, fmt.Errorf("tls dial: %w", err)
+		return nil, fmt.Errorf("tcp dial: %w", err)
+	}
+	conn := tls.Client(rawConn, &tls.Config{InsecureSkipVerify: true, ServerName: ""})
+	if err := conn.Handshake(); err != nil {
+		rawConn.Close()
+		return nil, fmt.Errorf("tls handshake: %w", err)
 	}
 
 	if err := proto.WriteAuth(conn, t.key); err != nil {

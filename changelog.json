@@ -1,5 +1,12 @@
 [
   {
+    "id": "5027b186-f576-4de3-8f95-ae6f28d2e733",
+    "title": "UDP and TLS transports now use protected dial — bypass TUN routing",
+    "description": "The proxy server transports were using net.DialUDP / tls.DialWithDialer directly, with no socket-level interface binding. Once the TUN engine added its default route, every outbound packet from the daemon's own proxy stream followed it — straight back into bridgeInbound. The new self-detection branch saw \"this is our own packet\" and reflected it through NAT bypass, doubling the work and burning CPU on a feedback loop. After the IP_UNICAST_IF byte-order fix in 1.28.14 the loop stopped reaching infinity, but the daemon still spent a lot of CPU on the bounce. Now both UDP and TLS transports go through protectedDialUDP, which binds the socket to the physical interface (Windows IP_UNICAST_IF / macOS IP_BOUND_IF). Loopback dials skip the binding so tests still pass.",
+    "type": "fix",
+    "createdAt": "2026-04-09T10:39:51.217414+00:00"
+  },
+  {
     "id": "880e251d-4f15-4ca6-a07b-a5772d1ebbf1",
     "title": "Windows IP_UNICAST_IF byte order — protectedDial was silently ignored, daemon traffic looped through TUN",
     "description": "Microsoft requires the interface index in network byte order via htonl. The previous code used `uint32(ifIndex) << 16` which gave the wrong value (`0x00030000` for index 3 instead of the correct `0x03000000`). Windows silently ignored the bogus socket option and the \"bypass\" sockets followed the system default route — which in TUN mode is the TUN device. Daemon's own outbound TCP looped back into bridgeInbound. \"All traffic\" mode survived because the main proxy stream is opened once and multiplexed; \"Selected\" mode broke immediately because every isSelf bypass needed a fresh dial. Fix is `<< 24`, equivalent to htonl on little-endian.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-05T06:00:50.388875+00:00"
-  },
-  {
-    "id": "31bdd9bd-9815-481d-93d0-b8befc55e847",
-    "title": "Benchmark: добавлен тест UDP+ARQ v1.23.11",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T05:45:46.963886+00:00"
   }
 ]
