@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld("updater", {
     ipcRenderer.on("update-downloaded", () => cb()),
   onUpdateError: (cb: () => void) =>
     ipcRenderer.on("update-error", () => cb()),
+  // Pushed from main process by the background update poller / show+focus
+  // hooks so the banner doesn't need its own timer.
+  onUpdateAvailable: (cb: (version: string) => void) =>
+    ipcRenderer.on("update-available", (_e, version: string) => cb(version)),
 });
 
 contextBridge.exposeInMainWorld("sysproxy", {

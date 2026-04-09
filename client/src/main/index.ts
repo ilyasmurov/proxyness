@@ -332,6 +332,15 @@ function createWindow() {
   mainWindow.on("show", () => bootTrace("mainWindow show event"));
   mainWindow.on("ready-to-show", () => bootTrace("mainWindow ready-to-show"));
 
+  // Refresh update state when the user returns to the window. The banner
+  // also polls hourly in the main process (see app.whenReady), but users
+  // who open the tray window after being away for hours should see a
+  // fresh banner immediately, not after the next interval tick.
+  // checkForUpdatesAndNotify has its own 30s throttle so overlapping
+  // show/focus bursts and interval ticks don't thrash GitHub.
+  mainWindow.on("show", () => { checkForUpdatesAndNotify(); });
+  mainWindow.on("focus", () => { checkForUpdatesAndNotify(); });
+
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
@@ -460,6 +469,30 @@ async function fetchYml(): Promise<{ version: string; filename: string } | null>
 function sendUpdate(channel: string, ...args: any[]) {
   mainWindow?.webContents.send(channel, ...args);
   updateWindow?.webContents.send(channel, ...args);
+}
+
+// Throttle for background update checks so rapid window show/focus events
+// don't hammer GitHub with redundant requests. The interval-based check
+// runs hourly, the show/focus checks are best-effort — losing a minute of
+// accuracy when they collide doesn't matter.
+let lastUpdateCheckAt = 0;
+const UPDATE_CHECK_MIN_INTERVAL_MS = 30_000;
+
+// Background update check — fetches latest.yml, compares against the
+// installed version, and pushes "update-available" to all windows if a
+// newer release is out. UpdateBanner listens for that event and flips
+// into "update" state, so users in the tray see a fresh version appear
+// without having to restart the client.
+async function checkForUpdatesAndNotify() {
+  const now = Date.now();
+  if (now - lastUpdateCheckAt < UPDATE_CHECK_MIN_INTERVAL_MS) return;
+  lastUpdateCheckAt = now;
+
+  const info = await fetchYml();
+  if (!info) return;
+  if (isNewer(info.version, app.getVersion())) {
+    sendUpdate("update-available", info.version);
+  }
 }
 
 function setupIpc() {
@@ -846,6 +879,13 @@ if (!gotLock) {
     // requests. The loader covers the wait (and shows an error+retry if
     // anything goes wrong) — see runBoot / daemon.ts:waitForDaemonReady.
     await bootMainApp();
+
+    // Background update poller. The banner's own useEffect does a check on
+    // mount, but that's a one-shot — without this, a client sitting in the
+    // tray for hours never notices new releases. 1h cadence is enough for
+    // this workflow (tag → CI → release takes ~10min, users find out within
+    // an hour which is fine for a dev-tools app).
+    setInterval(checkForUpdatesAndNotify, 60 * 60 * 1000);
   });
 }
 

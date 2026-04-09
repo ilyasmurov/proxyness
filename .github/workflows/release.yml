@@ -111,4 +111,20 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" installers/* --repo "${{ github.repository }}" --title "${{ github.ref_name }}"
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Pre-release tags use semver suffix: v1.29.4-beta.1, v1.29.4-rc.2,
+          # v1.29.4-alpha.3. --prerelease keeps them out of releases/latest so
+          # stable clients polling latest.yml never see them; testers install
+          # the .exe manually from the pre-release page. Promoting to stable
+          # is a separate tag (v1.29.4) that doesn't carry the suffix.
+          EXTRA=""
+          case "$TAG" in
+            *-beta.*|*-rc.*|*-alpha.*)
+              EXTRA="--prerelease"
+              ;;
+          esac
+          gh release create "$TAG" installers/* \
+            --repo "${{ github.repository }}" \
+            --title "$TAG" \
+            $EXTRA

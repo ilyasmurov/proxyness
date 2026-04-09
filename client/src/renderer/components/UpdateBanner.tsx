@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 declare global {
   interface Window {
@@ -9,6 +9,7 @@ declare global {
       onUpdateProgress: (cb: (percent: number) => void) => void;
       onUpdateDownloaded: (cb: () => void) => void;
       onUpdateError: (cb: () => void) => void;
+      onUpdateAvailable: (cb: (version: string) => void) => void;
     };
   }
 }
@@ -19,6 +20,12 @@ export function UpdateBanner() {
   const [state, setState] = useState<State>("idle");
   const [version, setVersion] = useState("");
   const [progress, setProgress] = useState(0);
+
+  // Mirror state in a ref so the onUpdateAvailable handler (registered
+  // once in the []-deps effect) can read the latest state without having
+  // to re-register on every transition.
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     if (!window.updater) return;
@@ -34,6 +41,15 @@ export function UpdateBanner() {
     window.updater.onUpdateError(() => {
       setState("error");
       setTimeout(() => setState("idle"), 3000);
+    });
+    // Pushed from main process: background poller / show+focus hooks.
+    // Don't clobber an active download or a ready-to-install state — if
+    // the user already started the flow for this or an older version, let
+    // them finish without the banner flipping underneath them.
+    window.updater.onUpdateAvailable((nextVersion) => {
+      if (stateRef.current === "downloading" || stateRef.current === "ready") return;
+      setVersion(nextVersion);
+      setState("update");
     });
     // Silent auto-check on startup
     window.updater.checkVersion().then((r) => {
