@@ -96,6 +96,20 @@ func getPhysicalInterfaceIndex() (int, error) {
 
 // protectedDial creates a connection that bypasses TUN routing by binding
 // to the physical network interface via IP_UNICAST_IF.
+//
+// Byte-order trap: Microsoft's IP_UNICAST_IF on IPv4 requires the interface
+// index in network byte order, i.e. `htonl(ifIndex)`. For index 3 on
+// little-endian x86 that's the uint32 value `0x03000000`. The previous
+// implementation used `uint32(ifIndex) << 16` which produced `0x00030000`
+// — neither host nor network order, just garbage. Windows ignored the
+// (invalid) socket option silently, so every "bypass" socket happily
+// followed the system default route... which in TUN mode points at the
+// TUN device. Result: the daemon's own outbound TCP connections looped
+// straight back into bridgeInbound. In "All traffic" mode it survived
+// because the main transport stream is opened once and multiplexed; in
+// "Selected" mode every isSelf bypass needed a fresh dial and the loop
+// blew up immediately. Fix: shift by 24, equivalent to htonl(ifIndex)
+// on little-endian.
 func protectedDial(network, address string) (net.Conn, error) {
 	ifIndex, err := getPhysicalInterfaceIndex()
 	if err != nil {
@@ -106,10 +120,7 @@ func protectedDial(network, address string) (net.Conn, error) {
 		Timeout: 10 * time.Second,
 		Control: func(_, _ string, c syscall.RawConn) error {
 			return c.Control(func(fd uintptr) {
-				// IP_UNICAST_IF expects the interface index in network byte order
-				// (big-endian) as a 4-byte value with index in the upper 16 bits.
-				val := uint32(ifIndex) << 16
-				// Use raw setsockopt to ensure correct 4-byte representation
+				val := uint32(ifIndex) << 24 // htonl on little-endian
 				syscall.Setsockopt(syscall.Handle(fd), syscall.IPPROTO_IP, ipUnicastIF,
 					(*byte)(unsafe.Pointer(&val)), int32(unsafe.Sizeof(val)))
 			})

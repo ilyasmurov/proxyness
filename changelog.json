@@ -1,5 +1,12 @@
 [
   {
+    "id": "880e251d-4f15-4ca6-a07b-a5772d1ebbf1",
+    "title": "Windows IP_UNICAST_IF byte order — protectedDial was silently ignored, daemon traffic looped through TUN",
+    "description": "Microsoft requires the interface index in network byte order via htonl. The previous code used `uint32(ifIndex) << 16` which gave the wrong value (`0x00030000` for index 3 instead of the correct `0x03000000`). Windows silently ignored the bogus socket option and the \"bypass\" sockets followed the system default route — which in TUN mode is the TUN device. Daemon's own outbound TCP looped back into bridgeInbound. \"All traffic\" mode survived because the main proxy stream is opened once and multiplexed; \"Selected\" mode broke immediately because every isSelf bypass needed a fresh dial. Fix is `<< 24`, equivalent to htonl on little-endian.",
+    "type": "fix",
+    "createdAt": "2026-04-09T10:24:17.329584+00:00"
+  },
+  {
     "id": "6a9d3f54-beab-49c5-a7f9-20047fc5c557",
     "title": "bridgeOutbound treated io.EOF from Buffer.ReadAt as fatal — silenced reverse-direction packets since 1.28.10",
     "description": "gVisor's Buffer.ReadAt follows the io.ReaderAt convention: it returns io.EOF when the read reaches the end of the buffer, even on a successful FULL read. The 1.28.10 perf rewrite treated any non-nil err as fatal and returned, killing the bridgeOutbound goroutine after the very first outbound packet — silently, with no close log. Helper saw `daemon→TUN=0` forever, apps got no responses, D3 stall detector kept firing. Now we check the byte count instead and only bail on a genuine short read; the close path also gets explicit logging so the next silent exit can't hide.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-05T05:45:46.963886+00:00"
-  },
-  {
-    "id": "1c3031b2-46ce-4f30-be8b-5dc17d673304",
-    "title": "UDP: fix seq collision in sendResult — use NextSeq to prevent data loss",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T05:37:01.633701+00:00"
   }
 ]
