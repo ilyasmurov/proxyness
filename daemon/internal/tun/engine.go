@@ -630,20 +630,30 @@ func (e *Engine) healthLoop() {
 			// dropped all routes), so we also watch the OpenStream
 			// failure counter. Apps retry aggressively, so once the
 			// network is down the counter races past the threshold in
-			// ~1s. When it does, we force-close the transport so the
-			// <-doneCh: branch picks up the reconnect naturally on the
-			// next iteration.
+			// ~1s. When it trips, rebuild the transport directly
+			// rather than relying on Close() → DoneChan → D1 chain —
+			// that chain was broken before 1.29.1 because TLS transport
+			// didn't implement DoneChan, so a TLS-based transport that
+			// D3 closed never signalled D1 and the engine sat in
+			// Reconnecting until D2 exhausted and stopped the engine.
+			// Now we mirror D1's own reconnect path directly.
 			if e.streamOpenFailures.Load() >= streamFailureThreshold {
-				log.Printf("[tun] D3: %d consecutive stream failures, forcing transport close",
+				log.Printf("[tun] D3: %d consecutive stream failures, forcing transport rebuild",
 					e.streamOpenFailures.Load())
 				e.streamOpenFailures.Store(0)
 				e.setReconnecting()
-				e.mu.Lock()
-				if e.transport != nil {
-					e.transport.Close()
+				if e.reconnectTransport() {
+					doneCh = e.transportDone()
+					failures = 0
+					e.setConnected()
+					continue
 				}
+				log.Printf("[tun] D3: reconnect exhausted, stopping engine")
+				e.mu.Lock()
+				e.lastError = "Connection lost, please reconnect"
+				e.stopLocked()
 				e.mu.Unlock()
-				continue
+				return
 			}
 			if err := e.healthCheck(); err != nil {
 				failures++

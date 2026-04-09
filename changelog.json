@@ -1,5 +1,12 @@
 [
   {
+    "id": "c8a3cd0b-f6cd-42dc-9a7b-1e44d33722d4",
+    "title": "TUN engine wedged in Reconnecting after UDP→TLS fallback + D3 force-close",
+    "description": "Triggered by the 1.29.0 server redeploy: client's D1 caught the server session close, reconnected, UDP timed out and AutoTransport fell back to TLS, then D3 fired on accumulated stream failures and force-closed the TLS transport. TLSTransport had no DoneChan method, so AutoTransport.DoneChan returned nil, and the healthLoop's `<-doneCh` branch blocked forever on a nil channel — D1 never got the wake-up it was supposed to. D2 just counts failures without reconnecting, so after 60 seconds (12 × 5s) it exhausted and stopped the engine, leaving the user to press Connect manually. Two fixes: (1) TLSTransport now implements DoneChan + Alive to match UDPTransport so AutoTransport delegation works uniformly; (2) D3 no longer relies on Close-then-DoneChan to trigger D1 — it calls reconnectTransport directly, mirroring D1's own recovery path.",
+    "type": "fix",
+    "createdAt": "2026-04-09T15:46:52.133146+00:00"
+  },
+  {
     "id": "77d0ddbb-3889-49b7-808e-cdd38550a55c",
     "title": "Mode selector in the header, traffic switch on the main tab",
     "description": "Full (TUN) / Browser only toggle is now always visible in the title bar, and the All traffic / Selected apps switch lives inline with the Main tab.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T11:46:12.423534+00:00"
-  },
-  {
-    "id": "bd6b1573-7d80-4c2a-a395-1bc6926dc843",
-    "title": "Add recovery epoch to prevent cascading cwnd collapse from burst packet loss",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T11:34:12.403133+00:00"
   }
 ]
