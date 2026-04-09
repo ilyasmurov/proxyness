@@ -1,5 +1,12 @@
 [
   {
+    "id": "08d35292-4e88-4b0e-b0fa-085fbb289ae8",
+    "title": "Windows: Selected apps mode periodically dies, only All traffic fixes it",
+    "description": "TUN bypass dialer on Windows only set IP_UNICAST_IF without binding the source IP to the physical interface. On some Windows builds IP_UNICAST_IF is advisory for connected UDP sockets and, even for TCP, the kernel can still consult the routing table and route bypass packets back through the TUN device. The result was a catastrophic routing loop: daemon dials bypass → Windows sends the packet out TUN → helper re-reads the same packet → daemon processes it as a new flow → dials bypass again → same packet out TUN again, ad infinitum. A busy Chrome session in Selected apps mode produced ~16000 loopback packets/sec with almost zero response traffic reaching apps (stuck at ~2-3 pkt/sec), which made browsing half-broken and caused the tunnel's stall detector to mis-fire the \"transport dead\" recovery path every few seconds. All traffic mode hid the bug because almost nothing touched the bypass path — Chrome's traffic went through the proxy transport (already patched in ca45bce) instead.\n\nFix is the exact same shape as ca45bce's transport-package patch: Dialer.LocalAddr = physical-NIC IPv4 so the kernel's source-address selection forces the bypass route via the physical gateway instead of TUN. IP_UNICAST_IF stays as belt-and-suspenders. The tun-package dialer was an identical copy of the transport dialer at the time of ca45bce and should have been patched together — missing it was a drive-by omission that only manifested on Windows in Selected apps mode.",
+    "type": "fix",
+    "createdAt": "2026-04-09T22:53:33.462418+00:00"
+  },
+  {
     "id": "5056bcd6-fc19-4c80-a9cb-6f007523f343",
     "title": "Deploy workflow: [skip-deploy] now matched on subject line only",
     "description": "Previously the check job did a substring match on the full commit message (subject + body), so explaining the tag in the body — \"this commit is NOT skip-deploy because X\" — would accidentally skip the deploy. Tripped on this once when adding workflow_dispatch and lost a deploy cycle. Now only the first line (subject) is checked, body is free to reference the tag as explanation without side effects.",
@@ -1391,12 +1398,5 @@
     "description": "Inner TCP handles CC; outer fixed window (1024) just provides ARQ reliability",
     "type": "improvement",
     "createdAt": "2026-04-05T14:29:43.649811+00:00"
-  },
-  {
-    "id": "2f1a487b-2d59-4014-9dd1-5a87a248ce1c",
-    "title": "Cap maxCwnd at 256 to prevent burst flooding, restore CUBIC with slow-start recovery at floor",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T14:14:57.702094+00:00"
   }
 ]
