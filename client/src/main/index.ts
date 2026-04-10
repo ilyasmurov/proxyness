@@ -663,6 +663,9 @@ function setupIpc() {
   ipcMain.on("window-close", () => {
     mainWindow?.hide();
   });
+  ipcMain.on("window-minimize", () => {
+    mainWindow?.minimize();
+  });
   ipcMain.handle("get-logs", () => getLogs());
   ipcMain.handle("clear-logs", () => clearLogs());
 

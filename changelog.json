@@ -1,5 +1,12 @@
 [
   {
+    "id": "107fb6d9-e1dd-41c3-adcd-fde8b3f27d70",
+    "title": "D3 stall threshold increased to 30s to eliminate false positives",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-10T11:01:05.290764+00:00"
+  },
+  {
     "id": "0fd672a3-6af4-41da-ae32-c3c9c42e78da",
     "title": "No duplicate update notifications from auto poller",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "All log.Printf output is captured to DB with auto-detected level (info/warn/error). Admin UI shows filterable, auto-refreshing log viewer.",
     "type": "feature",
     "createdAt": "2026-04-05T19:08:59.340370+00:00"
-  },
-  {
-    "id": "54056297-c85d-486b-87e5-f0b468bba072",
-    "title": "Version bump to 1.23.26",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T18:40:31.893006+00:00"
   }
 ]

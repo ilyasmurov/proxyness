@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("appInfo", {
   getLogs: () => ipcRenderer.invoke("get-logs"),
   clearLogs: () => ipcRenderer.invoke("clear-logs"),
   closeWindow: () => ipcRenderer.send("window-close"),
+  minimizeWindow: () => ipcRenderer.send("window-minimize"),
   openLogs: () => ipcRenderer.send("open-logs"),
   openUpdate: () => ipcRenderer.send("open-update"),
   setTrayStatus: (connected: boolean) => ipcRenderer.send("tray-status", connected),

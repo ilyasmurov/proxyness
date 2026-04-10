@@ -23,10 +23,13 @@ const (
 	healthInterval = 5 * time.Second // was 30s — needs to fire fast enough for D2/D3
 
 	// stallThreshold is how long the meter can show no bytes while
-	// activeHosts > 0 before D3 trips. 5s ≈ two-three TCP retransmits;
-	// shorter causes false positives during ordinary jitter, longer lets
-	// banned-on-direct apps fire several leaked requests.
-	stallThreshold = 5 * time.Second
+	// activeHosts > 0 before D3 trips. D1 catches transport drops, D2
+	// catches server failures — D3 is the last resort for "transport
+	// looks alive but data stopped flowing". 30s is generous enough to
+	// avoid false positives during idle browsing or brief lulls (new
+	// SOCKS5 connects refresh activeHosts without flowing bytes yet)
+	// while still catching genuinely stuck transports within a minute.
+	stallThreshold = 30 * time.Second
 
 	// defaultHostLiveWindow is how long a host stays "live" in
 	// GetActiveHosts after the last byte flowed through its SOCKS5

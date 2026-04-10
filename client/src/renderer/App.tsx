@@ -410,8 +410,25 @@ export function App() {
     setShowSetup(true);
   };
 
+  const titleBtn = (children: React.ReactNode, onClick: () => void) => (
+    <button
+      onClick={onClick}
+      style={{
+        width: 28, height: 28, borderRadius: 6,
+        background: "transparent", border: "none",
+        color: "#555", fontSize: 15, cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "background 0.15s, color 0.15s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#eee"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#555"; }}
+    >
+      {children}
+    </button>
+  );
+
   return (
-    <div style={{ maxWidth: 760, margin: "0 auto", paddingTop: 36 }}>
+    <div style={{ maxWidth: 760, margin: "0 auto", padding: "36px 16px 16px" }}>
       {/* Custom title bar */}
       <div
         style={{
@@ -433,26 +450,14 @@ export function App() {
           )}
         </div>
         {/* @ts-ignore */}
-        <div style={{ display: "flex", gap: 4, WebkitAppRegion: "no-drag" }}>
+        <div style={{ display: "flex", gap: 2, WebkitAppRegion: "no-drag" }}>
           <div ref={settingsRef} style={{ position: "relative" }}>
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              style={{
-                width: 28, height: 28, borderRadius: 6,
-                background: showSettings ? "#1e2a3a" : "transparent", border: "none",
-                color: showSettings ? "#fff" : "#666", fontSize: 15, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#fff"; }}
-              onMouseLeave={(e) => { if (!showSettings) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#666"; } }}
-            >
-              ⚙
-            </button>
+            {titleBtn(<>&#9881;</>, () => setShowSettings(!showSettings))}
             {showSettings && (
               <div style={{
                 position: "absolute", top: 32, right: 0, minWidth: 160,
-                background: "#1a1f2e", border: "1px solid #333", borderRadius: 8,
-                padding: 4, zIndex: 200, boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                background: "#1a1f2e", border: "1px solid #1e2533", borderRadius: 8,
+                padding: 4, zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
               }}>
                 {[
                   { label: "Check for Updates", onClick: () => {
@@ -466,12 +471,13 @@ export function App() {
                     key={item.label}
                     onClick={item.onClick}
                     style={{
-                      display: "block", width: "100%", padding: "6px 10px",
-                      background: "transparent", border: "none", borderRadius: 4,
-                      color: "#ccc", fontSize: 13, cursor: "pointer", textAlign: "left",
+                      display: "block", width: "100%", padding: "7px 12px",
+                      background: "transparent", border: "none", borderRadius: 6,
+                      color: "#bbb", fontSize: 13, cursor: "pointer", textAlign: "left",
+                      transition: "background 0.1s, color 0.1s",
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#2a3040"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#252d3d"; e.currentTarget.style.color = "#eee"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#bbb"; }}
                   >
                     {item.label}
                   </button>
@@ -479,19 +485,8 @@ export function App() {
               </div>
             )}
           </div>
-          <button
-            onClick={() => (window as any).appInfo?.closeWindow()}
-            style={{
-              width: 28, height: 28, borderRadius: 6,
-              background: "transparent", border: "none",
-              color: "#666", fontSize: 16, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#666"; }}
-          >
-            ✕
-          </button>
+          {titleBtn(<span style={{ fontSize: 18, marginTop: 4 }}>&minus;</span>, () => (window as any).appInfo?.minimizeWindow())}
+          {titleBtn(<span style={{ fontSize: 13 }}>&#10005;</span>, () => (window as any).appInfo?.closeWindow())}
         </div>
       </div>
 
