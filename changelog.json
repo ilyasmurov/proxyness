@@ -1,5 +1,19 @@
 [
   {
+    "id": "726f5592-b535-4bc4-ad93-0b62a2a81bad",
+    "title": "Config service + notifications system",
+    "description": "Server-driven notifications, service discovery, and version updates via new smurov-config microservice. Landing page extracted to standalone container.",
+    "type": "feature",
+    "createdAt": "2026-04-10T09:16:56.239085+00:00"
+  },
+  {
+    "id": "7007a137-a7f7-4a2c-9f53-e8b5a7be4b25",
+    "title": "D3 stall detector false positives in Selected Apps mode",
+    "description": "Stale activeHosts map entries caused D3 to kill SOCKS5 connections every ~5 min during idle browsing.",
+    "type": "fix",
+    "createdAt": "2026-04-10T09:16:56.239265+00:00"
+  },
+  {
     "id": "26fc5d43-53ae-4d9a-9a26-9ae7060c63ae",
     "title": "Landing redirect uses HTTP to avoid redirect loop",
     "description": null,
@@ -1384,19 +1398,5 @@
     "description": "Pacing prevents bursts; random UDP drops are not congestion signals. cwnd can now grow to maxCwnd=128 instead of collapsing to 32.",
     "type": "improvement",
     "createdAt": "2026-04-05T16:23:01.688715+00:00"
-  },
-  {
-    "id": "1f8595ee-084f-4a69-937c-80efab0d651f",
-    "title": "Add pacing + SACK-based loss recovery for UDP transport",
-    "description": "Pacing spreads packet sends over time to avoid burst losses. SACK detection retransmits lost packets in ~1 RTT without cwnd reduction. Raised minCwnd 16→32.",
-    "type": "improvement",
-    "createdAt": "2026-04-05T16:16:22.066445+00:00"
-  },
-  {
-    "id": "90004b52-4492-4052-b53d-70ff4fda7fc0",
-    "title": "Lower maxCwnd 512→128, maxRTO 2000→500ms, ssthresh=64 to prevent slow-start burst flooding ISP",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T15:58:52.152586+00:00"
   }
 ]
