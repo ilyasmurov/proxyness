@@ -113,6 +113,15 @@ jobs:
           name: installers
           path: installers
 
+      - name: Clean up existing release for this tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Re-tagging creates duplicate releases. Delete any existing ones
+          # for this tag so download counts start fresh and no drafts linger.
+          gh release delete "$TAG" --repo "${{ github.repository }}" --yes --cleanup-tag=false 2>/dev/null || true
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
