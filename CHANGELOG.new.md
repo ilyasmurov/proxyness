@@ -1,3 +1,3 @@
-## fix
-Config polling TLS cert mismatch
-DEFAULT_CONFIG_URL used IP address but TLS cert is for proxy.smurov.com — notifications never reached clients.
+## feature
+Notification delivery tracking
+Track which devices received notifications, add expires_at, deduplicate by type.

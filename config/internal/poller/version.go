@@ -44,7 +44,7 @@ func Start(d *db.DB, repo string) {
 					fmt.Sprintf("Version %s available", ver),
 					"A new client version has been released.",
 					json.RawMessage(`{"label":"Update","type":"update"}`),
-					false)
+					false, "")
 				if err != nil {
 					log.Printf("[poller] create notification: %v", err)
 				}

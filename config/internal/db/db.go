@@ -23,6 +23,12 @@ type Notification struct {
 	Active    bool            `json:"active"`
 	BetaOnly  bool            `json:"beta_only"`
 	CreatedAt string          `json:"created_at"`
+	ExpiresAt string          `json:"expires_at,omitempty"`
+}
+
+type Delivery struct {
+	DeviceKey   string `json:"device_key"`
+	DeliveredAt string `json:"delivered_at"`
 }
 
 type ServiceConfig struct {
@@ -61,12 +67,23 @@ func migrate(d *sql.DB) error {
 			('proxy_server', '95.181.162.242:443'),
 			('relay_url', ''),
 			('config_url', '');
+		CREATE TABLE IF NOT EXISTS device_seen (
+			device_key    TEXT PRIMARY KEY,
+			first_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+		CREATE TABLE IF NOT EXISTS notification_deliveries (
+			notification_id TEXT NOT NULL,
+			device_key      TEXT NOT NULL,
+			delivered_at    TEXT NOT NULL DEFAULT (datetime('now')),
+			PRIMARY KEY (notification_id, device_key)
+		);
 	`)
 	if err != nil {
 		return err
 	}
 	// Migrate: add beta_only column if missing (existing DBs)
 	d.Exec(`ALTER TABLE notifications ADD COLUMN beta_only INTEGER NOT NULL DEFAULT 0`)
+	d.Exec(`ALTER TABLE notifications ADD COLUMN expires_at TEXT`)
 	return nil
 }
 
@@ -75,7 +92,7 @@ func (d *DB) Close() { d.db.Close() }
 // --- Notifications ---
 
 func (d *DB) ListNotifications() ([]Notification, error) {
-	rows, err := d.db.Query(`SELECT id, type, title, message, action, active, beta_only, created_at FROM notifications ORDER BY created_at DESC`)
+	rows, err := d.db.Query(`SELECT id, type, title, message, action, active, beta_only, created_at, expires_at FROM notifications ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -83,9 +100,9 @@ func (d *DB) ListNotifications() ([]Notification, error) {
 	var out []Notification
 	for rows.Next() {
 		var n Notification
-		var msg, act sql.NullString
+		var msg, act, exp sql.NullString
 		var active, betaOnly int
-		if err := rows.Scan(&n.ID, &n.Type, &n.Title, &msg, &act, &active, &betaOnly, &n.CreatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.Type, &n.Title, &msg, &act, &active, &betaOnly, &n.CreatedAt, &exp); err != nil {
 			return nil, err
 		}
 		n.Message = msg.String
@@ -94,6 +111,7 @@ func (d *DB) ListNotifications() ([]Notification, error) {
 		}
 		n.Active = active == 1
 		n.BetaOnly = betaOnly == 1
+		n.ExpiresAt = exp.String
 		out = append(out, n)
 	}
 	return out, nil
@@ -113,7 +131,7 @@ func (d *DB) ActiveNotifications() ([]Notification, error) {
 	return out, nil
 }
 
-func (d *DB) CreateNotification(typ, title, message string, action json.RawMessage, betaOnly bool) (Notification, error) {
+func (d *DB) CreateNotification(typ, title, message string, action json.RawMessage, betaOnly bool, expiresAt string) (Notification, error) {
 	id := uuid.New().String()
 	now := time.Now().UTC().Format(time.RFC3339)
 	var actStr *string
@@ -125,12 +143,16 @@ func (d *DB) CreateNotification(typ, title, message string, action json.RawMessa
 	if betaOnly {
 		bo = 1
 	}
-	_, err := d.db.Exec(`INSERT INTO notifications (id, type, title, message, action, beta_only, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, typ, title, message, actStr, bo, now)
+	var expPtr *string
+	if expiresAt != "" {
+		expPtr = &expiresAt
+	}
+	_, err := d.db.Exec(`INSERT INTO notifications (id, type, title, message, action, beta_only, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, typ, title, message, actStr, bo, now, expPtr)
 	if err != nil {
 		return Notification{}, err
 	}
-	return Notification{ID: id, Type: typ, Title: title, Message: message, Action: action, Active: true, BetaOnly: betaOnly, CreatedAt: now}, nil
+	return Notification{ID: id, Type: typ, Title: title, Message: message, Action: action, Active: true, BetaOnly: betaOnly, CreatedAt: now, ExpiresAt: expiresAt}, nil
 }
 
 func (d *DB) DeleteNotification(id string) error {
@@ -190,4 +212,89 @@ func (d *DB) GetServiceConfig() (map[string]string, error) {
 func (d *DB) SetServiceConfig(key, value string) error {
 	_, err := d.db.Exec(`INSERT INTO service_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
 	return err
+}
+
+// --- Device Seen & Delivery Tracking ---
+
+func (d *DB) RecordDeviceSeen(deviceKey string) (string, error) {
+	d.db.Exec(`INSERT OR IGNORE INTO device_seen (device_key) VALUES (?)`, deviceKey)
+	var firstSeen string
+	err := d.db.QueryRow(`SELECT first_seen_at FROM device_seen WHERE device_key = ?`, deviceKey).Scan(&firstSeen)
+	return firstSeen, err
+}
+
+func (d *DB) RecordDeliveries(notifIDs []string, deviceKey string) {
+	for _, id := range notifIDs {
+		d.db.Exec(`INSERT OR IGNORE INTO notification_deliveries (notification_id, device_key) VALUES (?, ?)`, id, deviceKey)
+	}
+}
+
+func (d *DB) GetDeliveries(notifID string) ([]Delivery, error) {
+	rows, err := d.db.Query(`SELECT device_key, delivered_at FROM notification_deliveries WHERE notification_id = ? ORDER BY delivered_at`, notifID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Delivery
+	for rows.Next() {
+		var dl Delivery
+		if err := rows.Scan(&dl.DeviceKey, &dl.DeliveredAt); err != nil {
+			return nil, err
+		}
+		out = append(out, dl)
+	}
+	return out, nil
+}
+
+func (d *DB) DeliveryCount(notifID string) int {
+	var count int
+	d.db.QueryRow(`SELECT COUNT(*) FROM notification_deliveries WHERE notification_id = ?`, notifID).Scan(&count)
+	return count
+}
+
+func (d *DB) FilteredNotifications(firstSeenAt string) ([]Notification, error) {
+	rows, err := d.db.Query(`
+		SELECT id, type, title, message, action, active, beta_only, created_at, expires_at
+		FROM notifications
+		WHERE active = 1
+		  AND created_at > ?
+		  AND (expires_at IS NULL OR expires_at > datetime('now'))
+		ORDER BY created_at DESC`,
+		firstSeenAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var all []Notification
+	for rows.Next() {
+		var n Notification
+		var msg, act, exp sql.NullString
+		var active, betaOnly int
+		if err := rows.Scan(&n.ID, &n.Type, &n.Title, &msg, &act, &active, &betaOnly, &n.CreatedAt, &exp); err != nil {
+			return nil, err
+		}
+		n.Message = msg.String
+		if act.Valid {
+			n.Action = json.RawMessage(act.String)
+		}
+		n.Active = active == 1
+		n.BetaOnly = betaOnly == 1
+		n.ExpiresAt = exp.String
+		all = append(all, n)
+	}
+
+	// Deduplicate: for update/maintenance/migration keep only latest (first in DESC order)
+	seen := map[string]bool{}
+	var out []Notification
+	for _, n := range all {
+		if n.Type != "info" {
+			if seen[n.Type] {
+				continue
+			}
+			seen[n.Type] = true
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }

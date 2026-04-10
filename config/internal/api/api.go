@@ -53,6 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/admin/notifications", s.requireAdmin(s.handleCreateNotification))
 	mux.HandleFunc("DELETE /api/admin/notifications/{id}", s.requireAdmin(s.handleDeleteNotification))
 	mux.HandleFunc("PATCH /api/admin/notifications/{id}", s.requireAdmin(s.handleUpdateNotification))
+	mux.HandleFunc("GET /api/admin/notifications/{id}/deliveries", s.requireAdmin(s.handleGetDeliveries))
 	mux.HandleFunc("GET /api/admin/services", s.requireAdmin(s.handleGetServices))
 	mux.HandleFunc("PUT /api/admin/services", s.requireAdmin(s.handleSetServices))
 
@@ -82,19 +83,24 @@ func (s *Server) handleClientConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	firstSeen, err := s.db.RecordDeviceSeen(key)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	cfg, err := s.db.GetServiceConfig()
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	allNotifs, err := s.db.ActiveNotifications()
+	allNotifs, err := s.db.FilteredNotifications(firstSeen)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	// Filter beta_only notifications: only send to beta clients (version contains "beta")
 	clientVersion := r.URL.Query().Get("v")
 	isBeta := strings.Contains(clientVersion, "beta")
 	notifs := make([]db.Notification, 0, len(allNotifs))
@@ -112,6 +118,14 @@ func (s *Server) handleClientConfig(w http.ResponseWriter, r *http.Request) {
 		RelayURL:      cfg["relay_url"],
 		Notifications: notifs,
 	})
+
+	if len(notifs) > 0 {
+		ids := make([]string, len(notifs))
+		for i, n := range notifs {
+			ids[i] = n.ID
+		}
+		go s.db.RecordDeliveries(ids, key)
+	}
 }
 
 func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
@@ -139,23 +153,37 @@ func (s *Server) handleListNotifications(w http.ResponseWriter, r *http.Request)
 	if notifs == nil {
 		notifs = []db.Notification{}
 	}
+
+	type NotifWithCount struct {
+		db.Notification
+		DeliveryCount int `json:"delivery_count"`
+	}
+	out := make([]NotifWithCount, len(notifs))
+	for i, n := range notifs {
+		out[i] = NotifWithCount{Notification: n, DeliveryCount: s.db.DeliveryCount(n.ID)}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(notifs)
+	json.NewEncoder(w).Encode(out)
 }
 
 func (s *Server) handleCreateNotification(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Type     string          `json:"type"`
-		Title    string          `json:"title"`
-		Message  string          `json:"message"`
-		Action   json.RawMessage `json:"action"`
-		BetaOnly bool            `json:"beta_only"`
+		Type      string          `json:"type"`
+		Title     string          `json:"title"`
+		Message   string          `json:"message"`
+		Action    json.RawMessage `json:"action"`
+		BetaOnly  bool            `json:"beta_only"`
+		ExpiresAt string          `json:"expires_at"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	n, err := s.db.CreateNotification(req.Type, req.Title, req.Message, req.Action, req.BetaOnly)
+	if req.ExpiresAt == "" {
+		req.ExpiresAt = time.Now().UTC().Add(7 * 24 * time.Hour).Format(time.RFC3339)
+	}
+	n, err := s.db.CreateNotification(req.Type, req.Title, req.Message, req.Action, req.BetaOnly, req.ExpiresAt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -190,6 +218,20 @@ func (s *Server) handleUpdateNotification(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleGetDeliveries(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	deliveries, err := s.db.GetDeliveries(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if deliveries == nil {
+		deliveries = []db.Delivery{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(deliveries)
 }
 
 func (s *Server) handleGetServices(w http.ResponseWriter, r *http.Request) {
