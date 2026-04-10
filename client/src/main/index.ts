@@ -340,8 +340,7 @@ function createWindow() {
     height: 580,
     resizable: false,
     frame: false,
-    transparent: true,
-    hasShadow: false,
+    transparent: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

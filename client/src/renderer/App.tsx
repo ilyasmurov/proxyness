@@ -4,7 +4,7 @@ import { useStats } from "./hooks/useStats";
 import { StatusBar } from "./components/StatusBar";
 import { ModeSelector, ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
-import { SpeedGraph } from "./components/SpeedGraph";
+
 import { BrowserExtension } from "./components/BrowserExtension";
 import { NotificationBanner } from "./components/NotificationBanner";
 
@@ -522,10 +522,6 @@ export function App() {
             }
           }}
           onTransportChange={handleTransportChange}
-        />
-      )}
-      {isConnected && (
-        <SpeedGraph
           download={stats.download}
           upload={stats.upload}
           history={stats.history}

@@ -18,6 +18,12 @@ const DOUBLED_VIEW_BOX = `${VB_X_MIN} ${VB_Y_MIN} ${VB_WIDTH * 2} ${VB_HEIGHT}`;
 const doubledMap =
   mapInner + `<g transform="translate(${VB_WIDTH},0)">${mapInner}</g>`;
 
+interface RatePoint {
+  t: number;
+  down: number;
+  up: number;
+}
+
 interface Props {
   connected: boolean;
   loading: boolean;
@@ -30,6 +36,9 @@ interface Props {
   onConnect: () => void;
   onDisconnect: () => void;
   onTransportChange?: (mode: string) => void;
+  download?: number;
+  upload?: number;
+  history?: RatePoint[];
 }
 
 const TRANSPORT_MODES: Array<{ key: string; label: string }> = [
@@ -37,6 +46,67 @@ const TRANSPORT_MODES: Array<{ key: string; label: string }> = [
   { key: "udp", label: "UDP" },
   { key: "tls", label: "TLS" },
 ];
+
+// ── Animated text: each character fades in with blur ──
+
+function AnimatedText({
+  text,
+  startDelay,
+  style,
+}: {
+  text: string;
+  startDelay: number;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <span style={{ display: "inline-flex", ...style }}>
+      {text.split("").map((char, i) => (
+        <span
+          key={i}
+          style={{
+            opacity: 0,
+            display: "inline-block",
+            animation: `smurov-letter-in 0.1s ease-out ${startDelay + i * 20}ms forwards`,
+          }}
+        >
+          {char === " " ? "\u00A0" : char}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// ── Speed graph for disconnect button background ──
+
+function formatSpeed(bps: number): string {
+  if (bps < 1024) return `${bps} B/s`;
+  if (bps < 1024 * 1024) return `${(bps / 1024).toFixed(1)} KB/s`;
+  return `${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
+}
+
+function GraphBackground({ history }: { history: RatePoint[] }) {
+  const w = 120, h = 36;
+  if (history.length < 2) return null;
+  const maxVal = Math.max(1, ...history.map((p) => Math.max(p.down, p.up)));
+  const step = w / (history.length - 1);
+  const toPoints = (getter: (p: RatePoint) => number) =>
+    history.map((p, i) => `${i * step},${h - (getter(p) / maxVal) * (h - 4) - 2}`).join(" ");
+
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "60%", width: "100%" }}
+    >
+      <polyline points={toPoints((p) => p.down)} fill="none" stroke="#4ade80" strokeWidth="2" opacity="0.5" />
+      <polyline points={toPoints((p) => p.up)} fill="none" stroke="#60a5fa" strokeWidth="1.5" opacity="0.45" />
+    </svg>
+  );
+}
+
+// ── Main component ──
+
+type VisualState = "disc" | "recon" | "conn";
 
 export function StatusBar({
   connected,
@@ -50,13 +120,33 @@ export function StatusBar({
   onConnect,
   onDisconnect,
   onTransportChange,
+  download = 0,
+  upload = 0,
+  history = [],
 }: Props) {
   const [dismissed, setDismissed] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevError = useRef(error);
   const badgeWrapRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const firstMount = useRef(true);
+  const [animKey, setAnimKey] = useState(0);
 
+  // Determine visual state
+  const busy = loading || !!reconnecting;
+  const visualState: VisualState = connected ? "conn" : busy ? "recon" : "disc";
+  const prevState = useRef<VisualState>(visualState);
+
+  // Bump animKey when visual state changes → re-mount animated content
+  useEffect(() => {
+    if (prevState.current !== visualState) {
+      prevState.current = visualState;
+      setAnimKey((k) => k + 1);
+    }
+  }, [visualState]);
+
+  // Error dismiss timer
   useEffect(() => {
     if (error !== prevError.current) {
       setDismissed(false);
@@ -74,10 +164,7 @@ export function StatusBar({
   useEffect(() => {
     if (!dropdownOpen) return;
     const handler = (e: MouseEvent) => {
-      if (
-        badgeWrapRef.current &&
-        !badgeWrapRef.current.contains(e.target as Node)
-      ) {
+      if (badgeWrapRef.current && !badgeWrapRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
       }
     };
@@ -85,8 +172,12 @@ export function StatusBar({
     return () => document.removeEventListener("mousedown", handler);
   }, [dropdownOpen]);
 
+  // Bar entrance animation on first mount only
+  useEffect(() => {
+    firstMount.current = false;
+  }, []);
+
   const showError = error && !dismissed;
-  const busy = loading || !!reconnecting;
 
   const handleModeSelect = (mode: string) => {
     setDropdownOpen(false);
@@ -95,9 +186,16 @@ export function StatusBar({
     }
   };
 
+  // Animation timing
+  const isEntrance = firstMount.current;
+  const contentBase = isEntrance ? 900 : 0; // after bar expands on first mount
+  let t = contentBase;
+
   return (
     <div style={{ marginBottom: 20 }}>
+      {/* Bar container */}
       <div
+        ref={barRef}
         style={{
           display: "flex",
           alignItems: "center",
@@ -106,182 +204,270 @@ export function StatusBar({
           background: "#16213e",
           borderRadius: 10,
           border: "none",
+          ...(isEntrance
+            ? {
+                transform: "scale(0)",
+                opacity: 0,
+                animation: [
+                  "smurov-bar-dot 0.2s ease-out 0s forwards",
+                  "smurov-bar-vertical 0.25s ease-out 0.2s forwards",
+                  "smurov-bar-expand 0.35s ease-out 0.45s forwards",
+                ].join(", "),
+              }
+            : {}),
         }}
       >
-        {/* Status indicator */}
-        {busy ? (
-          <div
-            style={{
-              width: 14,
-              height: 14,
-              border: "2px solid #2a3040",
-              borderTopColor: "#2196f3",
-              borderRadius: "50%",
-              animation: "smurov-spin 0.8s linear infinite",
-              flexShrink: 0,
-              marginRight: 4,
-            }}
-          />
-        ) : connected ? (
-          <SpinningGlobe />
-        ) : (
-          <div
-            style={{
-              width: 18,
-              height: 18,
-              borderRadius: "50%",
-              border: "3px solid #0f1830",
-              flexShrink: 0,
-              marginRight: 4,
-            }}
-          />
-        )}
+        {/* Animated content — key forces re-mount on state change */}
+        <div key={animKey} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
 
-        {/* Status text */}
-        {reconnecting ? (
-          <span style={{ fontSize: 16, fontWeight: 600 }}>Reconnecting...</span>
-        ) : loading ? (
-          <span style={{ fontSize: 16, fontWeight: 600 }}>Connecting...</span>
-        ) : connected ? (
-          <>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>Connected</span>
-            <span style={{ fontSize: 16, fontWeight: 400, color: "#888" }}>
-              to {server}
-            </span>
-            {transport && (
-              <div ref={badgeWrapRef} style={{ position: "relative" }}>
-                <button
-                  onClick={() => setDropdownOpen((v) => !v)}
+          {/* Icon */}
+          {busy ? (
+            <div
+              style={{
+                width: 14,
+                height: 14,
+                border: "2px solid #2a3040",
+                borderTopColor: "#2196f3",
+                borderRadius: "50%",
+                animation: `smurov-fade-in 0.3s ease-out ${t}ms forwards, smurov-spin 0.8s linear ${t + 300}ms infinite`,
+                opacity: 0,
+                flexShrink: 0,
+                marginRight: 4,
+              }}
+            />
+          ) : connected ? (
+            <div style={{ opacity: 0, animation: `smurov-fade-in 0.3s ease-out ${t}ms forwards` }}>
+              <SpinningGlobe />
+            </div>
+          ) : (
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: "50%",
+                border: "3px solid #0f1830",
+                flexShrink: 0,
+                marginRight: 4,
+                opacity: 0,
+                animation: `smurov-fade-in 0.3s ease-out ${t}ms forwards`,
+              }}
+            />
+          )}
+
+          {/* Status text */}
+          {(() => { t += 200; return null; })()}
+          {reconnecting ? (
+            <AnimatedText
+              text="Reconnecting..."
+              startDelay={t}
+              style={{ fontSize: 16, fontWeight: 600 }}
+            />
+          ) : loading ? (
+            <AnimatedText
+              text="Connecting..."
+              startDelay={t}
+              style={{ fontSize: 16, fontWeight: 600 }}
+            />
+          ) : connected ? (
+            <>
+              <AnimatedText
+                text="Connected"
+                startDelay={t}
+                style={{ fontSize: 16, fontWeight: 600 }}
+              />
+              {(() => { t += "Connected".length * 20; return null; })()}
+              <AnimatedText
+                text={`to ${server}`}
+                startDelay={t}
+                style={{ fontSize: 16, color: "#888" }}
+              />
+              {(() => { t += `to ${server}`.length * 20; return null; })()}
+              {transport && (
+                <div
+                  ref={badgeWrapRef}
                   style={{
-                    fontSize: 11,
-                    padding: "3px 7px 3px 8px",
-                    borderRadius: 4,
-                    background: transport === "udp" ? "#1a3a5c" : "#2a1a3a",
-                    color: "#ccc",
-                    textTransform: "uppercase",
-                    fontWeight: 600,
-                    letterSpacing: 0.5,
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 3,
-                    lineHeight: 1,
+                    position: "relative",
+                    opacity: 0,
+                    animation: `smurov-fade-only 0.3s ease-out ${t}ms forwards`,
                   }}
                 >
-                  {transport}
-                  <span style={{ fontSize: 14, opacity: 0.6, lineHeight: 1 }}>
-                    ▾
-                  </span>
-                </button>
-                {dropdownOpen && (
-                  <div
+                  <button
+                    onClick={() => setDropdownOpen((v) => !v)}
                     style={{
-                      position: "absolute",
-                      top: "calc(100% + 4px)",
-                      left: 0,
-                      minWidth: 120,
-                      background: "#1a1f2e",
-                      border: "1px solid #333",
-                      borderRadius: 6,
-                      padding: 4,
-                      zIndex: 50,
-                      boxShadow: "0 4px 16px rgba(0, 0, 0, 0.5)",
+                      fontSize: 11,
+                      padding: "3px 7px 3px 8px",
+                      borderRadius: 4,
+                      background: transport === "udp" ? "#1a3a5c" : "#2a1a3a",
+                      color: "#ccc",
+                      textTransform: "uppercase",
+                      fontWeight: 600,
+                      letterSpacing: 0.5,
+                      border: "none",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 3,
+                      lineHeight: 1,
                     }}
                   >
-                    {TRANSPORT_MODES.map((m) => {
-                      const selected = transportMode === m.key;
-                      return (
-                        <button
-                          key={m.key}
-                          onClick={() => handleModeSelect(m.key)}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            width: "100%",
-                            textAlign: "left",
-                            padding: "6px 10px",
-                            background: "transparent",
-                            border: "none",
-                            borderRadius: 4,
-                            color: "#ccc",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            textTransform: "uppercase",
-                            letterSpacing: 0.5,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "#2a3040";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "transparent";
-                          }}
-                        >
-                          <span>{m.label}</span>
-                          {selected && (
-                            <span style={{ color: "#4caf50", fontSize: 11 }}>
-                              ✓
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          <span style={{ fontSize: 16, fontWeight: 600 }}>Disconnected</span>
-        )}
-
-        {/* Right-aligned group: uptime + connect/disconnect button */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 20,
-            marginLeft: "auto",
-          }}
-        >
-          {connected && !busy && (
-            <span
-              style={{
-                color: "#aaa",
-                fontSize: 13,
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-              }}
-            >
-              {formatUptime(uptime)}
-            </span>
+                    {transport}
+                    <span style={{ fontSize: 14, opacity: 0.6, lineHeight: 1 }}>▾</span>
+                  </button>
+                  {dropdownOpen && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 4px)",
+                        left: 0,
+                        minWidth: 120,
+                        background: "#1a1f2e",
+                        border: "1px solid #333",
+                        borderRadius: 6,
+                        padding: 4,
+                        zIndex: 50,
+                        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.5)",
+                      }}
+                    >
+                      {TRANSPORT_MODES.map((m) => {
+                        const selected = transportMode === m.key;
+                        return (
+                          <button
+                            key={m.key}
+                            onClick={() => handleModeSelect(m.key)}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "6px 10px",
+                              background: "transparent",
+                              border: "none",
+                              borderRadius: 4,
+                              color: "#ccc",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                              letterSpacing: 0.5,
+                              cursor: "pointer",
+                              fontFamily: "inherit",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "#2a3040";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "transparent";
+                            }}
+                          >
+                            <span>{m.label}</span>
+                            {selected && (
+                              <span style={{ color: "#4caf50", fontSize: 11 }}>✓</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {(() => { t += 50; return null; })()}
+            </>
+          ) : (
+            <AnimatedText
+              text="Disconnected"
+              startDelay={t}
+              style={{ fontSize: 16, fontWeight: 600 }}
+            />
           )}
-          <button
-            onClick={connected ? onDisconnect : onConnect}
-            disabled={loading}
-            style={{
-              padding: "8px 22px",
-              background: busy
-                ? "#2a3040"
-                : connected
-                  ? "#f44336"
-                  : "#4caf50",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: busy ? "wait" : "pointer",
-              opacity: busy ? 0.6 : 1,
-              flexShrink: 0,
-              transition: "background 0.15s ease",
-            }}
-          >
-            {connected ? "Disconnect" : "Connect"}
-          </button>
+
+          {/* Right group */}
+          <div style={{ display: "flex", alignItems: "center", gap: 20, marginLeft: "auto" }}>
+            {connected && !busy && (
+              <>
+                <AnimatedText
+                  text={formatUptime(uptime)}
+                  startDelay={t}
+                  style={{
+                    color: "#aaa",
+                    fontSize: 13,
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  }}
+                />
+                {(() => { t += formatUptime(uptime).length * 20; return null; })()}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minWidth: 75 }}>
+                  <AnimatedText
+                    text={`\u2193 ${formatSpeed(download)}`}
+                    startDelay={t}
+                    style={{
+                      color: "#4ade80",
+                      fontSize: 11,
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      lineHeight: 1.1,
+                    }}
+                  />
+                  <AnimatedText
+                    text={`\u2191 ${formatSpeed(upload)}`}
+                    startDelay={t}
+                    style={{
+                      color: "#60a5fa",
+                      fontSize: 11,
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      lineHeight: 1.1,
+                    }}
+                  />
+                </div>
+                {(() => { t += `\u2193 ${formatSpeed(download)}`.length * 20; return null; })()}
+              </>
+            )}
+
+            {/* Action button */}
+            {connected ? (
+              <button
+                onClick={onDisconnect}
+                style={{
+                  position: "relative",
+                  padding: "8px 22px",
+                  background: "#2a0a0a",
+                  color: "#f44336",
+                  border: "1px solid #f44336",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  overflow: "hidden",
+                  minWidth: 120,
+                  height: 36,
+                  opacity: 0,
+                  animation: `smurov-fade-only 0.3s ease-out ${t}ms forwards`,
+                }}
+              >
+                <GraphBackground history={history} />
+                <span style={{ position: "relative", zIndex: 1 }}>Disconnect</span>
+              </button>
+            ) : (
+              <button
+                onClick={onConnect}
+                disabled={loading}
+                style={{
+                  padding: "8px 22px",
+                  background: busy ? "#2a3040" : "#4caf50",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: busy ? "wait" : "pointer",
+                  opacity: 0,
+                  flexShrink: 0,
+                  animation: `smurov-fade-only 0.3s ease-out ${t + ("Disconnected".length * 20) + 100}ms forwards`,
+                }}
+              >
+                {busy ? (reconnecting ? "Disconnect" : "Connecting...") : "Connect"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -296,9 +482,7 @@ export function StatusBar({
             padding: "0 4px",
           }}
         >
-          <span style={{ color: "#f44336", fontSize: 13, flex: 1 }}>
-            {error}
-          </span>
+          <span style={{ color: "#f44336", fontSize: 13, flex: 1 }}>{error}</span>
           <button
             onClick={() => setDismissed(true)}
             style={{
@@ -319,9 +503,8 @@ export function StatusBar({
   );
 }
 
-// Wireframe Earth: real world map scrolling inside a circular clip with
-// filled continents, an outer green ring, and sphere lighting. This is
-// variant B "filled + ring + shadow".
+// ── Spinning Globe ──
+
 function SpinningGlobe() {
   return (
     <div

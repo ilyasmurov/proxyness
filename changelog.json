@@ -1,5 +1,19 @@
 [
   {
+    "id": "aad71b15-215a-45e6-8ac0-e33584a8228c",
+    "title": "Animated StatusBar with letter-by-letter text, speed graph in Disconnect button",
+    "description": "StatusBar entrance animation (dot→line→bar), letter-by-letter blur-fade for all text, speed fraction between uptime and Disconnect, live graph background in Disconnect button (dark red + red border). Removed standalone SpeedGraph.",
+    "type": "feature",
+    "createdAt": "2026-04-10T12:43:22.752205+00:00"
+  },
+  {
+    "id": "9ca3dd36-ceb2-431a-90d9-a912fe47efe8",
+    "title": "Reverted transparent window, restored native macOS shadow and border",
+    "description": null,
+    "type": "improvement",
+    "createdAt": "2026-04-10T12:43:22.752337+00:00"
+  },
+  {
     "id": "c4feb728-374e-4cd9-8efb-9f566962555a",
     "title": "Unified UI colors, removed borders, async sysproxy + debounced rules",
     "description": "UI: same background + titlebar color, transparent frameless window, scrollable tabs. Perf: non-blocking system proxy, cached installed apps, 100ms debounce on rule changes.",
@@ -1384,19 +1398,5 @@
     "description": "Prevents BWE-pacing feedback loop that throttled upload to 0.1 MB/s",
     "type": "fix",
     "createdAt": "2026-04-05T19:59:09.516341+00:00"
-  },
-  {
-    "id": "8a01aa32-6579-44ef-8b33-d5243344600c",
-    "title": "Fix BWE undercounting acked bytes — count all packets from cumulative ACK, not just one",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T19:51:44.905110+00:00"
-  },
-  {
-    "id": "4147f50a-5e7c-4669-af2b-50f51315fd6d",
-    "title": "Replace CUBIC with BBR-like rate-based congestion control for UDP transport",
-    "description": "cwnd now tracks actual delivery rate instead of reacting to packet loss — eliminates death spiral on lossy ISP paths",
-    "type": "improvement",
-    "createdAt": "2026-04-05T19:39:06.226645+00:00"
   }
 ]
