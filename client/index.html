@@ -12,7 +12,14 @@
         color: #eee;
         min-height: 100vh;
       }
-      #root { padding: 24px; }
+      #root { }
+      /* Prevent body scroll — all scrolling happens inside flex children */
+      html, body, #root { height: 100%; overflow: hidden; }
+      /* Custom scrollbar (thin, dark, macOS-like on all platforms) */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
       @keyframes spin { to { transform: rotate(360deg); } }
       /* Animation used by the StatusBar spinner (unique name to avoid collisions) */
       @keyframes smurov-spin { to { transform: rotate(360deg); } }
