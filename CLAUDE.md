@@ -38,7 +38,7 @@ make clean
 
 ## Architecture
 
-**Go workspace** (`go.work`) with 5 modules: `server`, `daemon`, `helper`, `pkg`, `test`.
+**Go workspace** (`go.work`) with 6 modules: `server`, `daemon`, `helper`, `pkg`, `config`, `test`.
 
 ### Server (`server/`)
 TLS listener on port 443. `ListenerMux` peeks first byte to route:
@@ -95,7 +95,20 @@ Electron 33 + React 19 + TypeScript + Vite. Custom frameless window. Spawns daem
 **Hybrid TUN+SOCKS5 mode**: In TUN mode, also starts SOCKS5 tunnel + enables system proxy. Apps (Telegram, Discord, etc.) go through TUN; browsers use SOCKS5 (avoids QUIC issues).
 
 Main process: `src/main/` (daemon lifecycle + log capture in `daemon.ts`, system proxy in `sysproxy.ts`, installed apps detection in `apps.ts`).
-Renderer: `src/renderer/` (React UI with `App.tsx`, curated app list in `AppRules.tsx`, mode selector in `ModeSelector.tsx`).
+Renderer: `src/renderer/` (React UI with `App.tsx`, curated app list in `AppRules.tsx`, mode selector in `ModeSelector.tsx`, notification banner with dismiss in `NotificationBanner.tsx`).
+
+### Config Service (`config/`)
+Separate Go microservice (port 8443, `network_mode: host`). SQLite DB. Manages client configuration and push notifications.
+
+- `db/` — Notification CRUD, `device_seen` (first-visit tracking), `notification_deliveries` (delivery tracking), `service_config` (key-value store for proxy_server, config_url, relay_url)
+- `api/` — `GET /api/client-config` (public, device key auth via proxy server callback), admin CRUD for notifications + services
+- `poller/` — Polls GitHub releases for latest version, auto-creates update notifications
+
+**Notification lifecycle**: Admin creates notification (with `expires_at`, default 7 days) → config service stores in SQLite → client polls `/api/client-config?key=...&v=...` → service filters by: `active=1`, `created_at > device.first_seen_at`, not expired, beta_only gating → deduplicates per type (update/maintenance/migration: latest only; info: unlimited) → returns filtered list → async records delivery in `notification_deliveries`.
+
+**Delivery tracking**: `device_seen` table records first poll timestamp per device key (INSERT OR IGNORE). `notification_deliveries` records which device received which notification. Admin endpoint `GET /api/admin/notifications/{id}/deliveries` returns delivery list. Admin UI joins with proxy server's user/device data on the frontend to group by user.
+
+Proxy server reverse-proxies config endpoints: `/api/client-config`, `/api/admin/notifications`, `/api/admin/notifications/`, `/api/admin/services`. Config service validates device keys by calling back to proxy's `/api/validate-key`.
 
 ### Integration tests (`test/`)
 Separate Go module with end-to-end tests covering auth and connection flow.
@@ -103,7 +116,8 @@ Separate Go module with end-to-end tests covering auth and connection flow.
 ## Deployment
 
 - **Server**: Docker multi-stage build (React UI → Go binary → Alpine). CI deploys to VPS via `.github/workflows/deploy.yml`. Container runs with `--ulimit nofile=32768:32768`.
-- **Client**: Tag-triggered release builds macOS PKGs + Windows NSIS exe via `.github/workflows/release.yml`.
+- **Client**: Tag-triggered release builds macOS PKGs + Windows NSIS exe via `.github/workflows/release.yml`. CI injects version from git tag into `package.json` before building (`v1.31.0-beta.1` → `1.31.0-beta.1`), so `package.json` always stays at the base version. Beta tags (`*-beta.*`) create pre-releases; stable tags create latest releases.
+- **Config service**: Docker image built manually on VPS (`docker build -f config/Dockerfile`). Volume: `smurov-config-data:/data`. Container: `smurov-config`.
 - **SSL**: `scripts/setup-ssl.sh` manages Let's Encrypt certs for `proxy.smurov.com`.
 - **VPS**: Aeza NL (4 CPU, 8 GB RAM, 1 Gbps, Netherlands).
 
@@ -132,4 +146,7 @@ Client App ─────────┤                                       
 - **Daemon API CORS**: Public API endpoints (`/connect`, `/status`, `/stats`, `/tunnel/*`, etc.) are wrapped in a `withCORS` middleware in `daemon/internal/api/api.go`. This is required for `make dev` — the Vite renderer loads from `http://localhost:5174` and hits the daemon on `127.0.0.1:9090`, which is cross-origin and blocked without CORS headers. Packaged builds load from `file://` (origin `null`) and the wrapper is a no-op there.
 - **Client auto-connect on mount**: `App.tsx` has a mount-only `useEffect` guarded by `autoConnectFired` ref that calls `startReconnect()` when a key is stored. Without this, after a cold client launch the TUN engine starts, but nothing triggers `/connect` → SOCKS5 listener never binds → browsers get "site unavailable". `useDaemon.connect` **throws-via-boolean** (returns `false` on non-ok) so `startReconnect`'s retry loop actually retries on transient failures like 409 from `lockDevice` against a stale server-side lock.
 - **Loader → main window handoff order (Windows)**: In `bootMainApp` we MUST call `createWindow()` BEFORE `destroyLoaderWindow()`, not after. `BrowserWindow.destroy()` on the only live window fires `window-all-closed` synchronously in the same tick; on Windows (non-darwin) the handler calls `app.quit()`, and the subsequent `createWindow()` then runs inside an already-quitting process and its window is torn down immediately. macOS is unaffected because `window-all-closed` is a no-op there. This bug shipped silently from 1.27.0 to 1.28.4 — Windows users saw the loader, then nothing. Overlapping the transition (main window alive before loader dies) keeps the live window count above zero across the handoff.
+- **Config polling URL must use domain, not IP**: `DEFAULT_CONFIG_URL` in `client/src/main/index.ts` MUST be `https://proxy.smurov.com/...`, not the raw IP. The TLS certificate is issued for `proxy.smurov.com` only — `net.fetch` (Chromium) rejects the connection if hostname doesn't match the certificate SAN. This bug silently broke all notification delivery from the feature's introduction until v1.30.2.
+- **Client version injection**: `package.json` always contains the base version (e.g., `1.31.0`). The release workflow injects the full version from the git tag before building. Beta tags (`v1.31.0-beta.1`) get `1.31.0-beta.1` → BETA badge shows via `version.includes("beta")` in `App.tsx`. Never manually add beta suffix to `package.json`.
+- **NotificationBanner dismiss**: Uses a single `dismissed_before` ISO timestamp in localStorage (key: `notification-dismissed-before`). Notifications with `created_at <= dismissed_before` are hidden. One value, never grows. New notifications created after the dismiss timestamp appear normally.
 - **Main-process diagnostic logger (`--trace`)**: `client/src/main/index.ts` has an opt-in crash logger that writes per-phase boot traces, uncaught exceptions, renderer `render-process-gone`/`did-fail-load`/`preload-error`/`console-message` events and app quit-phase events to `~/Desktop/smurov-crash.log`. Enable with `--trace` on the command line (NOT `--debug` — Electron reserves that for its legacy Node inspector) or `SMUROV_DEBUG=1` env var. Windows gotcha: `requireAdministrator` elevation in `electron-builder.json` **drops environment variables on the elevated child**, so `SMUROV_DEBUG=1` never reaches a packaged Windows build — only `--trace` works there because argv survives UAC elevation.
