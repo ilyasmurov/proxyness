@@ -1,5 +1,19 @@
 [
   {
+    "id": "0e79bae1-969e-4abe-a972-122ed6899217",
+    "title": "Restore manual Check for Updates",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-10T10:34:15.890754+00:00"
+  },
+  {
+    "id": "0f7c5cb4-f086-43cd-8bf3-47502f8732c9",
+    "title": "SOCKS5 tunnel recovery after server restart",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-10T10:34:15.890931+00:00"
+  },
+  {
     "id": "4359123f-4176-4869-9f09-b2e6d7d8dc0f",
     "title": "SOCKS5 tunnel recovery after server restart",
     "description": "Machine ID rejected on stale transport now triggers reconnect instead of killing the tunnel.",
@@ -1384,19 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-05T18:19:03.822796+00:00"
-  },
-  {
-    "id": "cf333e44-8272-48e8-a10f-8fe5f6593568",
-    "title": "Detect dead UDP sessions and disconnect within 5 seconds",
-    "description": "Server now echoes keepalive packets. Client detects missing responses and auto-disconnects, fixing internet loss during server updates.",
-    "type": "fix",
-    "createdAt": "2026-04-05T18:18:45.697630+00:00"
-  },
-  {
-    "id": "9d5955ea-fd3d-489a-98d9-dc77c6ba2eb4",
-    "title": "Version bump to 1.23.24",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T18:00:58.155370+00:00"
   }
 ]

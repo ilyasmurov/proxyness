@@ -491,6 +491,16 @@ async function fetchYml(): Promise<{ version: string; filename: string } | null>
   }
 }
 
+function isNewer(latest: string, current: string): boolean {
+  const l = latest.replace(/^v/, "").split(".").map(Number);
+  const c = current.replace(/^v/, "").split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((l[i] || 0) > (c[i] || 0)) return true;
+    if ((l[i] || 0) < (c[i] || 0)) return false;
+  }
+  return false;
+}
+
 function sendUpdate(channel: string, ...args: any[]) {
   mainWindow?.webContents.send(channel, ...args);
   updateWindow?.webContents.send(channel, ...args);
@@ -549,6 +559,20 @@ const shownNotificationIds = new Set<string>();
 
 function setupIpc() {
   ipcMain.handle("get-config", () => cachedConfig);
+
+  // Manual update check (update window + settings menu)
+  ipcMain.handle("check-update-version", async () => {
+    try {
+      const info = await fetchYml();
+      if (!info) return { hasUpdate: false, latestVersion: null, error: true };
+      return {
+        hasUpdate: isNewer(info.version, app.getVersion()),
+        latestVersion: info.version,
+      };
+    } catch {
+      return { hasUpdate: false, latestVersion: null, error: true };
+    }
+  });
 
   // Renderer stores the device key so main process can poll config
   ipcMain.on("store-key", (_e, key: string) => {
