@@ -203,7 +203,7 @@ export const api = {
 
   // Config service (notifications + services)
   listNotifications: (): Promise<Notification[]> => configRequest("/notifications"),
-  createNotification: (data: { type: string; title: string; message?: string; action?: any }): Promise<Notification> =>
+  createNotification: (data: { type: string; title: string; message?: string; action?: any; beta_only?: boolean }): Promise<Notification> =>
     configRequest("/notifications", { method: "POST", body: JSON.stringify(data) }),
   deleteNotification: (id: string) =>
     configRequest(`/notifications/${id}`, { method: "DELETE" }),

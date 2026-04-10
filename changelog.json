@@ -1,5 +1,12 @@
 [
   {
+    "id": "98b3e645-b044-4c4f-98fd-98f909a79d72",
+    "title": "TS type fix for createNotification",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-10T10:21:13.790547+00:00"
+  },
+  {
     "id": "017a8ab7-58c6-4e41-a2a6-34ad9517a9fd",
     "title": "Config service reverse proxy uses Docker bridge gateway",
     "description": "Proxy container in bridge mode couldn't reach config on 127.0.0.1:8443. Now configurable via -config flag, deploy uses 172.17.0.1:8443.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-05T17:16:25.600332+00:00"
-  },
-  {
-    "id": "edf4959b-ab56-44e3-9403-eccff2f5351e",
-    "title": "Cap UDP burst size to prevent ISP buffer overflow",
-    "description": "Uncapped burst of 17 packets at high cwnd overwhelmed ISP buffers causing congestion collapse (40 KB/s). Capped at 8 packets per burst.",
-    "type": "fix",
-    "createdAt": "2026-04-05T17:11:09.177359+00:00"
   }
 ]
