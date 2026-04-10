@@ -507,7 +507,7 @@ function sendUpdate(channel: string, ...args: any[]) {
 }
 
 // Throttle for config polling so rapid window show/focus events don't
-// hammer the server. The interval-based check runs every 30 min.
+// hammer the server. The interval-based check runs every 5 min.
 let lastConfigPollAt = 0;
 const CONFIG_POLL_MIN_INTERVAL_MS = 30_000;
 
@@ -962,7 +962,7 @@ if (!gotLock) {
     }
 
     // Config poller — replaces GitHub update polling. 30min interval.
-    setInterval(pollConfig, 30 * 60 * 1000);
+    setInterval(pollConfig, 5 * 60 * 1000);
   });
 }
 
