@@ -1,5 +1,2 @@
-## fix
-Restore manual Check for Updates
-
-## fix
-SOCKS5 tunnel recovery after server restart
+## feature
+Action button support in admin notifications form

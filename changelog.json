@@ -1,5 +1,12 @@
 [
   {
+    "id": "83c4e7ed-928a-47b0-8b28-31b22a576627",
+    "title": "Action button support in admin notifications form",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-10T10:43:08.929413+00:00"
+  },
+  {
     "id": "0e79bae1-969e-4abe-a972-122ed6899217",
     "title": "Restore manual Check for Updates",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "maxCwnd 1024→256 prevents overshooting channel capacity. cubicBeta 0.8→0.9 reduces cwnd cut per loss from 20% to 10%. Eliminates boom-bust oscillation (842→64).",
     "type": "improvement",
     "createdAt": "2026-04-05T18:40:18.985028+00:00"
-  },
-  {
-    "id": "c2fcc68d-5b98-44ca-89d5-f55721423624",
-    "title": "Version bump to 1.23.25",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T18:19:03.822796+00:00"
   }
 ]

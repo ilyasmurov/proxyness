@@ -26,6 +26,9 @@ export function Notifications() {
   const [newTitle, setNewTitle] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [newBetaOnly, setNewBetaOnly] = useState(false);
+  const [newActionType, setNewActionType] = useState("none");
+  const [newActionLabel, setNewActionLabel] = useState("");
+  const [newActionUrl, setNewActionUrl] = useState("");
 
   const loadNotifs = () => {
     api.listNotifications()
@@ -48,10 +51,16 @@ export function Notifications() {
   const handleCreate = async () => {
     if (!newTitle.trim()) return;
     try {
-      await api.createNotification({ type: newType, title: newTitle.trim(), message: newMessage.trim() || undefined, beta_only: newBetaOnly });
+      const action = newActionType !== "none" && newActionLabel.trim()
+        ? { label: newActionLabel.trim(), type: newActionType, ...(newActionType === "open_url" && newActionUrl.trim() ? { url: newActionUrl.trim() } : {}) }
+        : undefined;
+      await api.createNotification({ type: newType, title: newTitle.trim(), message: newMessage.trim() || undefined, action, beta_only: newBetaOnly });
       setNewTitle("");
       setNewMessage("");
       setNewBetaOnly(false);
+      setNewActionType("none");
+      setNewActionLabel("");
+      setNewActionUrl("");
       loadNotifs();
     } catch (e: any) {
       setError(e.message);
@@ -132,6 +141,38 @@ export function Notifications() {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
               />
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-muted-foreground mb-1 block">Button action</label>
+                  <select
+                    value={newActionType}
+                    onChange={(e) => setNewActionType(e.target.value)}
+                    className="bg-background border border-border rounded-md px-3 py-2 text-sm w-full"
+                  >
+                    <option value="none">No button</option>
+                    <option value="update">Download update</option>
+                    <option value="open_url">Open URL</option>
+                    <option value="reconnect">Reconnect to server</option>
+                  </select>
+                </div>
+                {newActionType !== "none" && (
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1 block">Button label</label>
+                    <Input
+                      placeholder="e.g. Update"
+                      value={newActionLabel}
+                      onChange={(e) => setNewActionLabel(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+              {newActionType === "open_url" && (
+                <Input
+                  placeholder="URL (https://...)"
+                  value={newActionUrl}
+                  onChange={(e) => setNewActionUrl(e.target.value)}
+                />
+              )}
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <input
                   type="checkbox"
@@ -173,6 +214,7 @@ export function Notifications() {
                         <div className="truncate">
                           <span className="font-medium text-sm">{n.title}</span>
                           {n.message && <span className="text-muted-foreground text-xs ml-2">{n.message}</span>}
+                          {n.action && <span className="text-blue-400 text-xs ml-2">[{n.action.type}: {n.action.label}]</span>}
                         </div>
                       </div>
                       <div className="flex gap-2 shrink-0 ml-3">
