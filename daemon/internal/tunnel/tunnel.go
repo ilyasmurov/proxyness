@@ -552,6 +552,17 @@ func (t *Tunnel) handleSOCKSTransport(conn net.Conn, tr transport.Transport, add
 		socks5.SendFailure(conn)
 		log.Printf("[tunnel] open stream failed for %s: %v", target, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
+			// Could be a stale transport after server restart (the old
+			// TLS connection appears alive but the server doesn't recognise
+			// our session). Rebuild the transport first — if the fresh
+			// connection also rejects the machine ID, it's a genuine
+			// device binding conflict and we stop for real.
+			log.Printf("[tunnel] machine id rejected — rebuilding transport")
+			t.setReconnecting()
+			if t.reconnectTransport() {
+				t.setConnected()
+				return // recovered — caller will retry via new SOCKS5 request
+			}
 			t.mu.Lock()
 			t.lastError = "Device is bound to a different machine"
 			t.stopLocked()
