@@ -1,5 +1,12 @@
 [
   {
+    "id": "0fd672a3-6af4-41da-ae32-c3c9c42e78da",
+    "title": "No duplicate update notifications from auto poller",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-10T10:46:21.090825+00:00"
+  },
+  {
     "id": "83c4e7ed-928a-47b0-8b28-31b22a576627",
     "title": "Action button support in admin notifications form",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-05T18:40:31.893006+00:00"
-  },
-  {
-    "id": "caa5ef90-a6d9-4348-aff7-a91db3709dd6",
-    "title": "Stabilize UDP throughput by capping cwnd and reducing loss aggressiveness",
-    "description": "maxCwnd 1024→256 prevents overshooting channel capacity. cubicBeta 0.8→0.9 reduces cwnd cut per loss from 20% to 10%. Eliminates boom-bust oscillation (842→64).",
-    "type": "improvement",
-    "createdAt": "2026-04-05T18:40:18.985028+00:00"
   }
 ]

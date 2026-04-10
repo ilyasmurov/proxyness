@@ -1,2 +1,2 @@
-## feature
-Action button support in admin notifications form
+## fix
+No duplicate update notifications from auto poller

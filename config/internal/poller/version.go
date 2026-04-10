@@ -26,13 +26,28 @@ func Start(d *db.DB, repo string) {
 		if ver != lastVersion {
 			log.Printf("[poller] new version: %s (was %s)", ver, lastVersion)
 			lastVersion = ver
-			_, err := d.CreateNotification("update",
-				fmt.Sprintf("Version %s available", ver),
-				"A new client version has been released.",
-				json.RawMessage(`{"label":"Update","type":"update"}`),
-				false)
-			if err != nil {
-				log.Printf("[poller] create notification: %v", err)
+
+			// Skip if there's already an active "update" notification
+			// (admin may have created one manually with a custom message).
+			active, _ := d.ActiveNotifications()
+			hasUpdate := false
+			for _, n := range active {
+				if n.Type == "update" {
+					hasUpdate = true
+					break
+				}
+			}
+			if hasUpdate {
+				log.Printf("[poller] active update notification already exists, skipping")
+			} else {
+				_, err := d.CreateNotification("update",
+					fmt.Sprintf("Version %s available", ver),
+					"A new client version has been released.",
+					json.RawMessage(`{"label":"Update","type":"update"}`),
+					false)
+				if err != nil {
+					log.Printf("[poller] create notification: %v", err)
+				}
 			}
 		}
 	}
