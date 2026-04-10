@@ -1,5 +1,12 @@
 [
   {
+    "id": "37caa16b-5c39-4bef-9ccf-d13061d7ba29",
+    "title": "Config-driven notifications replace GitHub update polling",
+    "description": "Client now polls /api/client-config from config service for notifications, version updates, and service discovery. NotificationBanner replaces UpdateBanner with server-pushed notifications (update, migration, maintenance, info types).",
+    "type": "feature",
+    "createdAt": "2026-04-10T09:05:43.394732+00:00"
+  },
+  {
     "id": "504fd4af-2edd-4a5a-aaed-5c27621045b0",
     "title": "Config microservice for notifications and service discovery",
     "description": "New smurov-config container with SQLite DB, admin UI, device key auth via proxy, background version poller.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T15:46:42.735319+00:00"
-  },
-  {
-    "id": "f53356ed-e489-4ef0-af55-eab30d206bf8",
-    "title": "Tune UDP CC: raise minCwnd/maxCwnd, softer beta, longer recovery epoch, limit retransmit burst",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T15:34:35.093900+00:00"
   }
 ]

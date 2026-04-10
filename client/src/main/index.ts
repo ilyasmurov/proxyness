@@ -45,6 +45,46 @@ if (DEBUG_ENABLED) {
 }
 
 const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/download";
+const DEFAULT_CONFIG_URL = "https://95.181.162.242/api/client-config";
+
+interface ServerNotification {
+  id: string;
+  type: "update" | "migration" | "maintenance" | "info";
+  title: string;
+  message?: string;
+  action?: { label: string; type: string; url?: string; server?: string };
+  created_at: string;
+}
+
+interface CachedConfig {
+  config_url: string;
+  proxy_server: string;
+  relay_url: string;
+  notifications: ServerNotification[];
+  fetched_at: number;
+}
+
+let cachedConfig: CachedConfig | null = null;
+
+function configCachePath(): string {
+  return path.join(app.getPath("userData"), "config-cache.json");
+}
+
+function readConfigCache(): CachedConfig | null {
+  try {
+    return JSON.parse(fs.readFileSync(configCachePath(), "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeConfigCache(cfg: CachedConfig) {
+  try {
+    fs.writeFileSync(configCachePath(), JSON.stringify(cfg));
+  } catch (err) {
+    console.error("[config] cache write error:", err);
+  }
+}
 
 let mainWindow: BrowserWindow | null = null;
 let logsWindow: BrowserWindow | null = null;
@@ -332,14 +372,9 @@ function createWindow() {
   mainWindow.on("show", () => bootTrace("mainWindow show event"));
   mainWindow.on("ready-to-show", () => bootTrace("mainWindow ready-to-show"));
 
-  // Refresh update state when the user returns to the window. The banner
-  // also polls hourly in the main process (see app.whenReady), but users
-  // who open the tray window after being away for hours should see a
-  // fresh banner immediately, not after the next interval tick.
-  // checkForUpdatesAndNotify has its own 30s throttle so overlapping
-  // show/focus bursts and interval ticks don't thrash GitHub.
-  mainWindow.on("show", () => { checkForUpdatesAndNotify(); });
-  mainWindow.on("focus", () => { checkForUpdatesAndNotify(); });
+  // Refresh config when the user returns to the window.
+  mainWindow.on("show", () => { pollConfig(); });
+  mainWindow.on("focus", () => { pollConfig(); });
 
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -419,16 +454,6 @@ function createTray() {
   });
 }
 
-function isNewer(latest: string, current: string): boolean {
-  const l = latest.split(".").map(Number);
-  const c = current.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((l[i] || 0) > (c[i] || 0)) return true;
-    if ((l[i] || 0) < (c[i] || 0)) return false;
-  }
-  return false;
-}
-
 let installerPath = "";
 
 // Uses Electron's net.fetch (Chromium network stack) instead of the Node.js
@@ -471,42 +496,54 @@ function sendUpdate(channel: string, ...args: any[]) {
   updateWindow?.webContents.send(channel, ...args);
 }
 
-// Throttle for background update checks so rapid window show/focus events
-// don't hammer GitHub with redundant requests. The interval-based check
-// runs hourly, the show/focus checks are best-effort — losing a minute of
-// accuracy when they collide doesn't matter.
-let lastUpdateCheckAt = 0;
-const UPDATE_CHECK_MIN_INTERVAL_MS = 30_000;
+// Throttle for config polling so rapid window show/focus events don't
+// hammer the server. The interval-based check runs every 30 min.
+let lastConfigPollAt = 0;
+const CONFIG_POLL_MIN_INTERVAL_MS = 30_000;
 
-// Background update check — fetches latest.yml, compares against the
-// installed version, and pushes "update-available" to all windows if a
-// newer release is out. UpdateBanner listens for that event and flips
-// into "update" state, so users in the tray see a fresh version appear
-// without having to restart the client.
-async function checkForUpdatesAndNotify() {
+// Background config poller — replaces direct GitHub polling.
+// Fetches /api/client-config from the config service (through proxy),
+// caches to disk, and pushes notifications to all windows.
+async function pollConfig() {
   const now = Date.now();
-  if (now - lastUpdateCheckAt < UPDATE_CHECK_MIN_INTERVAL_MS) return;
-  lastUpdateCheckAt = now;
+  if (now - lastConfigPollAt < CONFIG_POLL_MIN_INTERVAL_MS) return;
+  lastConfigPollAt = now;
 
-  const info = await fetchYml();
-  if (!info) return;
-  if (isNewer(info.version, app.getVersion())) {
-    sendUpdate("update-available", info.version);
+  const configUrl = cachedConfig?.config_url || DEFAULT_CONFIG_URL;
+  // Read the stored key from the renderer's localStorage isn't possible
+  // from main — so we read it from the config cache or skip if no key.
+  // The key is passed via the "store-key" IPC from renderer on connect.
+  if (!storedDeviceKey) return;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await net.fetch(
+      `${configUrl}?key=${encodeURIComponent(storedDeviceKey)}&v=${app.getVersion()}`,
+      { signal: controller.signal, redirect: "follow" },
+    );
+    clearTimeout(timeout);
+    if (!res.ok) return;
+
+    const data = (await res.json()) as CachedConfig;
+    data.fetched_at = now;
+    cachedConfig = data;
+    writeConfigCache(data);
+    sendUpdate("config-updated", data);
+  } catch (err) {
+    console.error("[config] poll failed:", err);
   }
 }
 
+let storedDeviceKey = "";
+
 function setupIpc() {
-  ipcMain.handle("check-update-version", async () => {
-    try {
-      const info = await fetchYml();
-      if (!info) return { hasUpdate: false, latestVersion: null, error: true };
-      return {
-        hasUpdate: isNewer(info.version, app.getVersion()),
-        latestVersion: info.version,
-      };
-    } catch {
-      return { hasUpdate: false, latestVersion: null, error: true };
-    }
+  ipcMain.handle("get-config", () => cachedConfig);
+
+  // Renderer stores the device key so main process can poll config
+  ipcMain.on("store-key", (_e, key: string) => {
+    storedDeviceKey = key;
+    pollConfig(); // immediate first poll when key is available
   });
 
   ipcMain.on("download-update", async () => {
@@ -880,12 +917,11 @@ if (!gotLock) {
     // anything goes wrong) — see runBoot / daemon.ts:waitForDaemonReady.
     await bootMainApp();
 
-    // Background update poller. The banner's own useEffect does a check on
-    // mount, but that's a one-shot — without this, a client sitting in the
-    // tray for hours never notices new releases. 1h cadence is enough for
-    // this workflow (tag → CI → release takes ~10min, users find out within
-    // an hour which is fine for a dev-tools app).
-    setInterval(checkForUpdatesAndNotify, 60 * 60 * 1000);
+    // Load cached config from disk on startup
+    cachedConfig = readConfigCache();
+
+    // Config poller — replaces GitHub update polling. 30min interval.
+    setInterval(pollConfig, 30 * 60 * 1000);
   });
 }
 

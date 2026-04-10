@@ -6,6 +6,7 @@ import { ModeSelector, ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
 import { SpeedGraph } from "./components/SpeedGraph";
 import { BrowserExtension } from "./components/BrowserExtension";
+import { NotificationBanner } from "./components/NotificationBanner";
 
 const SERVER = "95.181.162.242:443";
 const STORAGE_KEY = "smurov-proxy-key";
@@ -46,6 +47,9 @@ export function App() {
 
   useEffect(() => {
     (window as any).appInfo?.getVersion().then((v: string) => setVersion(v));
+    // Send stored key to main process so config poller can start
+    const storedKey = localStorage.getItem(STORAGE_KEY);
+    if (storedKey) (window as any).updater?.storeKey(storedKey);
   }, []);
 
   // Close settings dropdown on outside click
@@ -379,6 +383,8 @@ export function App() {
     localStorage.setItem(STORAGE_KEY, trimmed);
     setKey(trimmed);
     setShowSetup(false);
+    // Tell main process the key so it can poll config
+    (window as any).updater?.storeKey(trimmed);
     if (proxyMode === "tun") {
       tunConnect(SERVER, trimmed);
     } else {
@@ -495,6 +501,7 @@ export function App() {
           <ModeSelector mode={proxyMode} onChange={handleModeChange} />
         )}
       </div>
+      {!showSetup && <NotificationBanner />}
       {!showSetup && (
         <StatusBar
           connected={isConnected}

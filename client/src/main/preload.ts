@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("updater", {
-  checkVersion: () => ipcRenderer.invoke("check-update-version"),
   downloadUpdate: () => ipcRenderer.send("download-update"),
   installUpdate: () => ipcRenderer.send("install-update"),
   onUpdateProgress: (cb: (percent: number) => void) =>
@@ -10,10 +9,11 @@ contextBridge.exposeInMainWorld("updater", {
     ipcRenderer.on("update-downloaded", () => cb()),
   onUpdateError: (cb: () => void) =>
     ipcRenderer.on("update-error", () => cb()),
-  // Pushed from main process by the background update poller / show+focus
-  // hooks so the banner doesn't need its own timer.
-  onUpdateAvailable: (cb: (version: string) => void) =>
-    ipcRenderer.on("update-available", (_e, version: string) => cb(version)),
+  // Config-driven: replaces GitHub-based version polling
+  onConfigUpdated: (cb: (config: any) => void) =>
+    ipcRenderer.on("config-updated", (_e, config) => cb(config)),
+  getConfig: () => ipcRenderer.invoke("get-config"),
+  storeKey: (key: string) => ipcRenderer.send("store-key", key),
 });
 
 contextBridge.exposeInMainWorld("sysproxy", {
