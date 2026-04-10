@@ -198,11 +198,25 @@ Used only when no cached config exists (fresh install).
 
 ## Device Key Auth for Config Endpoint
 
-The `/api/client-config` endpoint requires `?key=<device_key>` — same hex key the client uses to connect to the proxy. Config service validates the key by calling the proxy server's existing `/api/check-key` endpoint (or by sharing the same key list).
+The `/api/client-config` endpoint requires `?key=<device_key>` — same hex key the client uses to connect to the proxy.
 
-Simpler approach for MVP: config service has its own `allowed_keys` list (seeded from the proxy DB, or a shared secret). Or even simpler: no auth at all for the config endpoint — the data it returns is not sensitive (service URLs + public notifications). Auth can be added later if needed.
+**Auth flow:** Config service validates the key by calling the proxy server's internal API on each request:
 
-**Decision: no auth for MVP.** The config endpoint returns public information. Notifications are broadcast to all clients. Service URLs are not secret. If we need per-device targeting later, add key auth then.
+```
+Client → GET /api/client-config?key=abc123&v=1.29.5
+         Config service → GET http://smurov-proxy:443/api/validate-key?key=abc123
+                          Proxy checks DB → 200 OK / 403 Forbidden
+         Config service ← 200 → serve config
+         Config service ← 403 → return 403 to client
+Client ← 200 { config_url, proxy_server, notifications, ... }
+```
+
+- Config service does NOT store device keys — proxy DB is the single source of truth
+- Internal call is over loopback (~1ms), happens once per client poll (every 30 min per device)
+- If proxy is unreachable, config returns 503 — client retries next interval
+- Proxy needs one new endpoint: `GET /api/validate-key?key=X` → 200 if valid device key, 403 otherwise
+
+**Proxy endpoint (`/api/validate-key`):** Looks up the key in the `devices` table. Returns 200 with `{"valid": true}` or 403. No Basic Auth required on this endpoint — it's called internally by the config container over Docker network, not exposed externally.
 
 ## Deployment
 
