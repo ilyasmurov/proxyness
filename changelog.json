@@ -1,5 +1,12 @@
 [
   {
+    "id": "26fc5d43-53ae-4d9a-9a26-9ae7060c63ae",
+    "title": "Landing redirect uses HTTP to avoid redirect loop",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-04-10T09:16:38.591027+00:00"
+  },
+  {
     "id": "37caa16b-5c39-4bef-9ccf-d13061d7ba29",
     "title": "Config-driven notifications replace GitHub update polling",
     "description": "Client now polls /api/client-config from config service for notifications, version updates, and service discovery. NotificationBanner replaces UpdateBanner with server-pushed notifications (update, migration, maintenance, info types).",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T15:58:52.152586+00:00"
-  },
-  {
-    "id": "a5d4b34d-33be-48ee-8241-ca46fe898c70",
-    "title": "Sort retransmit queue by PktNum (oldest first), add RTO to diagnostics",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T15:46:42.735319+00:00"
   }
 ]

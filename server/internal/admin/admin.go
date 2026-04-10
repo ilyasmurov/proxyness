@@ -71,9 +71,9 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	// SPA static files (auth required)
 	mux.Handle("/admin/", h.authHandler(SPAHandler()))
 
-	// Landing page (redirect to standalone landing container)
+	// Landing page (redirect to standalone landing container on port 80)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "https://proxy.smurov.com", http.StatusMovedPermanently)
+		http.Redirect(w, r, "http://proxy.smurov.com", http.StatusMovedPermanently)
 	})
 
 	h.mux = mux
