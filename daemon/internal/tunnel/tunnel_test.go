@@ -281,6 +281,26 @@ func TestStallDetectedTripsWhenStale(t *testing.T) {
 	}
 }
 
+func TestStallDetectedIgnoresStaleMapEntries(t *testing.T) {
+	meter := dstats.NewRateMeter()
+	tn := New(meter)
+
+	// Simulate the false-positive scenario: a host was touched long ago
+	// and never swept from the raw map. Without the sweep fix, raw
+	// len(activeHosts) == 1 and D3 would fire. With the fix,
+	// GetActiveHosts sweeps the stale entry → hostCount 0 → no stall.
+	tn.activeHostsMu.Lock()
+	tn.activeHosts["stale.example.com"] = time.Now().Add(-2 * defaultHostLiveWindow)
+	tn.activeHostsMu.Unlock()
+
+	meter.Add(1, 0)
+	meter.SeedLastByteAtForTest(time.Now().Add(-2 * stallThreshold))
+
+	if tn.stallDetected() {
+		t.Fatalf("stale map entry must not trigger stall detector")
+	}
+}
+
 func TestSetReconnectingClosesActiveConns(t *testing.T) {
 	tn := New(dstats.NewRateMeter())
 	tn.mu.Lock()

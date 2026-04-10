@@ -1,3 +1,7 @@
 ## fix
-Kill stale daemon on startup before spawning a fresh one
-If the Electron main process dies non-gracefully (force quit from Activity Monitor, kernel-level SIGKILL, crash without running before-quit), the child daemon process is orphaned and keeps running with whatever code version it was built from. Users who installed newer versions via PKG without explicitly quitting the old app ended up with a stale daemon from hours or days ago — no perf fixes, no bug fixes. startDaemon now probes 127.0.0.1:9090 before spawning: if something answers, it looks up the PID via lsof (macOS) or netstat (Windows) and SIGKILLs it, waits for the port to release, then starts the fresh binary.
+D3 stall detector false positives in Selected Apps mode
+Stale entries in activeHosts map caused D3 to fire every ~5 min during normal idle browsing, killing 170+ SOCKS5 connections. Now uses GetActiveHosts() sweep instead of raw map length.
+
+## feature
+Beta badge in client header
+Shows amber "BETA" badge next to version when running a beta build.

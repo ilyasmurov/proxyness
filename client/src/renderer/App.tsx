@@ -418,6 +418,13 @@ export function App() {
       >
         <div style={{ fontSize: 12, color: "#555", fontWeight: 600 }}>
           SmurovProxy {version && <span style={{ fontWeight: 400 }}>v{version}</span>}
+          {version && version.includes("beta") && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, color: "#f59e0b",
+              background: "rgba(245,158,11,0.15)", borderRadius: 4,
+              padding: "1px 5px", marginLeft: 6, letterSpacing: 0.5,
+            }}>BETA</span>
+          )}
         </div>
         {/* @ts-ignore */}
         <div style={{ display: "flex", gap: 4, WebkitAppRegion: "no-drag" }}>

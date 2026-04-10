@@ -428,10 +428,14 @@ func (t *Tunnel) healthLoop() {
 // proxy (activeHosts > 0) but no bytes have flowed for stallThreshold.
 // Idle sessions (no active hosts) never trip this.
 func (t *Tunnel) stallDetected() bool {
-	t.activeHostsMu.Lock()
-	hostCount := len(t.activeHosts)
-	t.activeHostsMu.Unlock()
-	if hostCount == 0 {
+	// Use GetActiveHosts (which sweeps stale entries) instead of raw
+	// map length. Without the sweep, hosts linger in the map long after
+	// their hostLiveWindow expires; D3 sees "active hosts + stale meter"
+	// and fires during normal idle browsing (user loaded a page and is
+	// reading it — no bytes flowing, but stale map entries make it look
+	// like active usage). GetActiveHosts deletes entries older than
+	// hostLiveWindow, so truly idle sessions return 0 and never trip D3.
+	if len(t.GetActiveHosts()) == 0 {
 		return false
 	}
 	if t.meter == nil {
