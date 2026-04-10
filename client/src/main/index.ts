@@ -184,7 +184,7 @@ function createLoaderWindow(): Promise<void> {
     maximizable: false,
     fullscreenable: false,
     closable: false,
-    backgroundColor: "#0b0f1a",
+    backgroundColor: "#1a1a2e",
     show: false,
     center: true,
     skipTaskbar: false,
@@ -340,7 +340,8 @@ function createWindow() {
     height: 580,
     resizable: false,
     frame: false,
-    transparent: false,
+    transparent: true,
+    hasShadow: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -680,7 +681,7 @@ function setupIpc() {
       minWidth: 400,
       minHeight: 200,
       title: "SmurovProxy — Logs",
-      backgroundColor: "#0b0f1a",
+      backgroundColor: "#1a1a2e",
       autoHideMenuBar: true,
       webPreferences: {
         nodeIntegration: false,
@@ -710,7 +711,7 @@ function setupIpc() {
       height: 200,
       resizable: false,
       title: "SmurovProxy — Updates",
-      backgroundColor: "#0b0f1a",
+      backgroundColor: "#1a1a2e",
       autoHideMenuBar: true,
       webPreferences: {
         nodeIntegration: false,

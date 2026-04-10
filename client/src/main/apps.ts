@@ -8,14 +8,18 @@ export interface InstalledApp {
   path: string;
 }
 
+let cachedApps: InstalledApp[] | null = null;
+
 export function getInstalledApps(): InstalledApp[] {
+  if (cachedApps) return cachedApps;
   if (process.platform === "darwin") {
-    return getMacApps();
+    cachedApps = getMacApps();
+  } else if (process.platform === "win32") {
+    cachedApps = getWindowsApps();
+  } else {
+    cachedApps = [];
   }
-  if (process.platform === "win32") {
-    return getWindowsApps();
-  }
-  return [];
+  return cachedApps;
 }
 
 // Well-known CLI apps installed outside /Applications

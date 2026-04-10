@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execSync, exec } from "child_process";
 
 const PROXY_HOST = "127.0.0.1";
 const PROXY_PORT = "1080";
@@ -25,26 +25,21 @@ function pacUrl() {
 
 function macEnable() {
   const url = pacUrl();
+  const cmds: string[] = [];
   for (const svc of getNetworkServices()) {
-    try {
-      execSync(`networksetup -setautoproxyurl "${svc}" "${url}"`);
-      execSync(`networksetup -setautoproxystate "${svc}" on`);
-      // Disable plain SOCKS in case it was set before
-      execSync(`networksetup -setsocksfirewallproxystate "${svc}" off`);
-    } catch {
-      // skip services that don't support proxy (e.g. Bluetooth)
-    }
+    cmds.push(`networksetup -setautoproxyurl "${svc}" "${url}"`);
+    cmds.push(`networksetup -setautoproxystate "${svc}" on`);
+    cmds.push(`networksetup -setsocksfirewallproxystate "${svc}" off`);
   }
+  if (cmds.length) exec(cmds.join(" ; "), () => {});
 }
 
 function macDisable() {
+  const cmds: string[] = [];
   for (const svc of getNetworkServices()) {
-    try {
-      execSync(`networksetup -setautoproxystate "${svc}" off`);
-    } catch {
-      // ignore
-    }
+    cmds.push(`networksetup -setautoproxystate "${svc}" off`);
   }
+  if (cmds.length) exec(cmds.join(" ; "), () => {});
 }
 
 const WIN_REFRESH_PROXY = `
@@ -60,34 +55,26 @@ public class WinInet {
 `;
 
 function winRefreshProxy() {
-  try {
-    execSync(`powershell -NoProfile -Command "${WIN_REFRESH_PROXY}"`, { windowsHide: true });
-  } catch {
-    // ignore
-  }
+  exec(`powershell -NoProfile -Command "${WIN_REFRESH_PROXY}"`, { windowsHide: true }, () => {});
 }
 
 function winEnable() {
-  try {
-    const url = pacUrl();
-    const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
-    execSync(`reg add "${regBase}" /v AutoConfigURL /t REG_SZ /d "${url}" /f`);
-    execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
-    winRefreshProxy();
-  } catch {
-    // ignore
-  }
+  const url = pacUrl();
+  const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
+  const cmds = [
+    `reg add "${regBase}" /v AutoConfigURL /t REG_SZ /d "${url}" /f`,
+    `reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`,
+  ];
+  exec(cmds.join(" && "), { windowsHide: true }, () => { winRefreshProxy(); });
 }
 
 function winDisable() {
-  try {
-    const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
-    execSync(`reg delete "${regBase}" /v AutoConfigURL /f`);
-    execSync(`reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`);
-    winRefreshProxy();
-  } catch {
-    // ignore
-  }
+  const regBase = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings`;
+  const cmds = [
+    `reg delete "${regBase}" /v AutoConfigURL /f`,
+    `reg add "${regBase}" /v ProxyEnable /t REG_DWORD /d 0 /f`,
+  ];
+  exec(cmds.join(" && "), { windowsHide: true }, () => { winRefreshProxy(); });
 }
 
 export function enableSystemProxy() {

@@ -428,7 +428,7 @@ export function App() {
   );
 
   return (
-    <div style={{ maxWidth: 760, margin: "0 auto", padding: "36px 16px 16px" }}>
+    <div style={{ maxWidth: 760, margin: "0 auto", padding: "36px 16px 16px", height: "100vh", display: "flex", flexDirection: "column" }}>
       {/* Custom title bar */}
       <div
         style={{
@@ -436,7 +436,7 @@ export function App() {
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "0 12px", // @ts-ignore electron drag region
           WebkitAppRegion: "drag", zIndex: 100,
-          background: "#0b0f1a",
+          background: "transparent",
         }}
       >
         <div style={{ fontSize: 12, color: "#555", fontWeight: 600 }}>
@@ -591,7 +591,7 @@ export function App() {
                         display: "inline-flex",
                         padding: 2,
                         background: "#0f1420",
-                        border: "1px solid #1e2533",
+                        border: "none",
                         borderRadius: 8,
                         opacity: isActive ? 1 : 0.5,
                         filter: isActive ? "none" : "grayscale(1)",
@@ -626,12 +626,14 @@ export function App() {
               );
             })}
           </div>
-          {activeTab === "main" && (
-            <div style={{ marginTop: 16 }}>
-              <AppRules visible={proxyMode === "tun"} mode={trafficMode} onModeChange={setTrafficMode} hideModeSwitch />
-            </div>
-          )}
-          {activeTab === "extension" && <BrowserExtension />}
+          <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+            {activeTab === "main" && (
+              <div style={{ marginTop: 16 }}>
+                <AppRules visible={proxyMode === "tun"} mode={trafficMode} onModeChange={setTrafficMode} hideModeSwitch />
+              </div>
+            )}
+            {activeTab === "extension" && <BrowserExtension />}
+          </div>
         </>
       )}
 

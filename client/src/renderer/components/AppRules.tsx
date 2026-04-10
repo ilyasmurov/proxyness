@@ -386,25 +386,30 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
     applyPac(browsersOn);
   }, [applyPac, browsersOn]);
 
+  const applyRulesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const applyRules = useCallback((m: Mode, enabledIds: Set<string>, resolvedApps: ResolvedApp[], bOn: boolean, noTLSIds: Set<string>) => {
-    if (m === "all") {
-      window.tunProxy?.setRules({ mode: "proxy_all_except", apps: [] });
-      window.sysproxy?.setPacSites({ proxy_all: true });
-      window.sysproxy?.enable();
-    } else {
-      const paths: string[] = [];
-      const noTLSPaths: string[] = [];
-      for (const r of resolvedApps) {
-        if (enabledIds.has(r.app.id)) {
-          paths.push(...r.paths);
-          if (noTLSIds.has(r.app.id)) {
-            noTLSPaths.push(...r.paths);
+    if (applyRulesTimer.current) clearTimeout(applyRulesTimer.current);
+    applyRulesTimer.current = setTimeout(() => {
+      if (m === "all") {
+        window.tunProxy?.setRules({ mode: "proxy_all_except", apps: [] });
+        window.sysproxy?.setPacSites({ proxy_all: true });
+        window.sysproxy?.enable();
+      } else {
+        const paths: string[] = [];
+        const noTLSPaths: string[] = [];
+        for (const r of resolvedApps) {
+          if (enabledIds.has(r.app.id)) {
+            paths.push(...r.paths);
+            if (noTLSIds.has(r.app.id)) {
+              noTLSPaths.push(...r.paths);
+            }
           }
         }
+        window.tunProxy?.setRules({ mode: "proxy_only", apps: paths, no_tls_apps: noTLSPaths });
+        applyPac(bOn);
       }
-      window.tunProxy?.setRules({ mode: "proxy_only", apps: paths, no_tls_apps: noTLSPaths });
-      applyPac(bOn);
-    }
+    }, 100);
   }, [applyPac]);
 
   const handleModeChange = (m: Mode) => {
@@ -497,7 +502,7 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
   if (!visible) return null;
 
   return (
-    <div style={{ marginTop: 16, padding: 12, background: "#111827", borderRadius: 8, border: "1px solid #333" }}>
+    <div style={{ marginTop: 16, padding: 12 }}>
       {!hideModeSwitch && (
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Traffic</div>
       )}

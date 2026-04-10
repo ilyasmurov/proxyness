@@ -17,7 +17,7 @@ export function ModeSelector({ mode, onChange, disabled }: Props) {
         display: "inline-flex",
         padding: 2,
         background: "#0f1420",
-        border: "1px solid #1e2533",
+        border: "none",
         borderRadius: 8,
         opacity: disabled ? 0.5 : 1,
       }}

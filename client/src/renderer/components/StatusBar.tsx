@@ -105,7 +105,7 @@ export function StatusBar({
           padding: "12px 16px",
           background: "#16213e",
           borderRadius: 10,
-          border: "1px solid #222",
+          border: "none",
         }}
       >
         {/* Status indicator */}
@@ -127,14 +127,12 @@ export function StatusBar({
         ) : (
           <div
             style={{
-              width: 11,
-              height: 11,
+              width: 18,
+              height: 18,
               borderRadius: "50%",
-              background: "transparent",
-              border: "1px solid #f44336",
+              border: "3px solid #0f1830",
               flexShrink: 0,
-              marginRight: 5,
-              marginLeft: 2,
+              marginRight: 4,
             }}
           />
         )}

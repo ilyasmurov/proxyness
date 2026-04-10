@@ -1,5 +1,12 @@
 [
   {
+    "id": "c4feb728-374e-4cd9-8efb-9f566962555a",
+    "title": "Unified UI colors, removed borders, async sysproxy + debounced rules",
+    "description": "UI: same background + titlebar color, transparent frameless window, scrollable tabs. Perf: non-blocking system proxy, cached installed apps, 100ms debounce on rule changes.",
+    "type": "improvement",
+    "createdAt": "2026-04-10T11:50:15.767847+00:00"
+  },
+  {
     "id": "107fb6d9-e1dd-41c3-adcd-fde8b3f27d70",
     "title": "D3 stall threshold increased to 30s to eliminate false positives",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "cwnd now tracks actual delivery rate instead of reacting to packet loss — eliminates death spiral on lossy ISP paths",
     "type": "improvement",
     "createdAt": "2026-04-05T19:39:06.226645+00:00"
-  },
-  {
-    "id": "22331e20-f4b5-4128-b7fc-b99dd554a8ab",
-    "title": "Server logs stored in SQLite (7-day retention) with admin panel Logs tab",
-    "description": "All log.Printf output is captured to DB with auto-detected level (info/warn/error). Admin UI shows filterable, auto-refreshing log viewer.",
-    "type": "feature",
-    "createdAt": "2026-04-05T19:08:59.340370+00:00"
   }
 ]
