@@ -1,2 +1,2 @@
-## fix
-TS type fix for createNotification
+## feature
+OS push notifications for server-driven alerts

@@ -530,12 +530,22 @@ async function pollConfig() {
     cachedConfig = data;
     writeConfigCache(data);
     sendUpdate("config-updated", data);
+
+    // OS push notification for new server notifications
+    for (const n of data.notifications || []) {
+      if (shownNotificationIds.has(n.id)) continue;
+      shownNotificationIds.add(n.id);
+      if (Notification.isSupported()) {
+        new Notification({ title: n.title, body: n.message || "", silent: false }).show();
+      }
+    }
   } catch (err) {
     console.error("[config] poll failed:", err);
   }
 }
 
 let storedDeviceKey = "";
+const shownNotificationIds = new Set<string>();
 
 function setupIpc() {
   ipcMain.handle("get-config", () => cachedConfig);
@@ -917,8 +927,12 @@ if (!gotLock) {
     // anything goes wrong) — see runBoot / daemon.ts:waitForDaemonReady.
     await bootMainApp();
 
-    // Load cached config from disk on startup
+    // Load cached config from disk on startup; seed shown IDs so the
+    // first poll doesn't spam OS notifications for old entries.
     cachedConfig = readConfigCache();
+    for (const n of cachedConfig?.notifications || []) {
+      shownNotificationIds.add(n.id);
+    }
 
     // Config poller — replaces GitHub update polling. 30min interval.
     setInterval(pollConfig, 30 * 60 * 1000);

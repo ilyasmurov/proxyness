@@ -1,5 +1,12 @@
 [
   {
+    "id": "772a583e-1937-4ae2-a72c-67163b530db0",
+    "title": "OS push notifications for server-driven alerts",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-10T10:26:00.423746+00:00"
+  },
+  {
     "id": "98b3e645-b044-4c4f-98fd-98f909a79d72",
     "title": "TS type fix for createNotification",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "cwnd grew to 1024 and never decreased, overwhelming ISP buffers. Now reduces 20% per loss event (max once per 500ms) so CUBIC finds equilibrium.",
     "type": "fix",
     "createdAt": "2026-04-05T17:30:21.675493+00:00"
-  },
-  {
-    "id": "cb6e6df2-4dca-48ff-9ac1-d77397681f16",
-    "title": "Version bump to 1.23.22",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T17:16:25.600332+00:00"
   }
 ]
