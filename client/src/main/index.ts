@@ -336,8 +336,8 @@ function setupLoaderIpc() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 840,
-    height: 580,
+    width: 800,
+    height: 520,
     resizable: false,
     frame: false,
     transparent: false,

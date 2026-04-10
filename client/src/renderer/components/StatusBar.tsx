@@ -304,7 +304,7 @@ export function StatusBar({
                       letterSpacing: 0.5,
                       border: "none",
                       cursor: "pointer",
-                      fontFamily: "inherit",
+                      fontFamily: "'Figtree', system-ui, sans-serif",
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 3,
@@ -351,7 +351,7 @@ export function StatusBar({
                               textTransform: "uppercase",
                               letterSpacing: 0.5,
                               cursor: "pointer",
-                              fontFamily: "inherit",
+                              fontFamily: "'Figtree', system-ui, sans-serif",
                             }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.background = "#2a3040";
@@ -391,7 +391,7 @@ export function StatusBar({
                   style={{
                     color: "#aaa",
                     fontSize: 13,
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontFamily: "'Barlow', system-ui, sans-serif",
                   }}
                 />
                 {(() => { t += formatUptime(uptime).length * 20; return null; })()}
@@ -402,7 +402,7 @@ export function StatusBar({
                     style={{
                       color: "#4ade80",
                       fontSize: 11,
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontFamily: "'Barlow', system-ui, sans-serif",
                       lineHeight: 1.1,
                     }}
                   />
@@ -412,7 +412,7 @@ export function StatusBar({
                     style={{
                       color: "#60a5fa",
                       fontSize: 11,
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontFamily: "'Barlow', system-ui, sans-serif",
                       lineHeight: 1.1,
                     }}
                   />

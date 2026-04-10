@@ -2,23 +2,213 @@ import { useState, useEffect, useRef, useCallback, ClipboardEvent } from "react"
 import { useDaemon } from "./hooks/useDaemon";
 import { useStats } from "./hooks/useStats";
 import { StatusBar } from "./components/StatusBar";
-import { ModeSelector, ProxyMode } from "./components/ModeSelector";
+import { type ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
 
 import { BrowserExtension } from "./components/BrowserExtension";
 import { NotificationBanner } from "./components/NotificationBanner";
+import earthBgUrl from "./assets/earth-bg.mp4";
+
+type ViewMode = "all" | "selected" | "browsers";
 
 const SERVER = "95.181.162.242:443";
 const STORAGE_KEY = "smurov-proxy-key";
+
+// ---------------------------------------------------------------------------
+// Settings Page (sidebar nav variant)
+// ---------------------------------------------------------------------------
+type SettingsSection = "general" | "extension" | "account" | "diagnostics";
+
+function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, c, fd, fb, fm }: {
+  version: string;
+  transportMode: string;
+  onTransportChange: (mode: string) => void;
+  onChangeKey: () => void;
+  c: Record<string, string>;
+  fd: string; fb: string; fm: string;
+}) {
+  const [section, setSection] = useState<SettingsSection>("general");
+  const [token, setToken] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    (window as any).appInfo?.getDaemonToken().then((t: string) => setToken(t || ""));
+  }, []);
+
+  const copyToken = () => {
+    navigator.clipboard.writeText(token);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const navItem = (id: SettingsSection, label: string) => (
+    <div
+      key={id}
+      onClick={() => setSection(id)}
+      style={{
+        padding: "7px 16px", fontFamily: fb, fontSize: 12, fontWeight: 500,
+        color: section === id ? c.t1 : c.t3, cursor: "pointer",
+        background: section === id ? c.bg2 : "transparent",
+        transition: "all 0.1s",
+      }}
+      onMouseEnter={(e) => { if (section !== id) e.currentTarget.style.color = c.t2; e.currentTarget.style.background = c.bg2; }}
+      onMouseLeave={(e) => { if (section !== id) { e.currentTarget.style.color = c.t3; e.currentTarget.style.background = "transparent"; } }}
+    >
+      {label}
+    </div>
+  );
+
+  const sBtn = (label: string, onClick: () => void, danger?: boolean) => (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "5px 14px", borderRadius: 5, fontFamily: fd, fontSize: 12,
+        fontWeight: 600, letterSpacing: 0.3, cursor: "pointer",
+        border: `1px solid ${danger ? "oklch(0.62 0.19 25 / 0.2)" : c.b1}`,
+        background: danger ? "oklch(0.14 0.02 25)" : c.bg2,
+        color: danger ? c.rd : c.t2,
+        transition: "all 0.1s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = danger ? "oklch(0.62 0.19 25 / 0.4)" : c.b1; e.currentTarget.style.color = danger ? c.rd : c.t1; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = danger ? "oklch(0.62 0.19 25 / 0.2)" : c.b1; e.currentTarget.style.color = danger ? c.rd : c.t2; }}
+    >
+      {label}
+    </button>
+  );
+
+  const fieldLabel = (text: string) => (
+    <div style={{ fontFamily: fd, fontSize: 10, fontWeight: 600, color: c.t3, letterSpacing: 1.5, textTransform: "uppercase" as const, marginBottom: 6 }}>
+      {text}
+    </div>
+  );
+
+  const divider = <div style={{ height: 1, background: c.b1, margin: "16px 0" }} />;
+
+  return (
+    <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0, animation: "smurov-blur-med 0.35s cubic-bezier(0.25,1,0.5,1) both" }}>
+      {/* Sidebar nav */}
+      <div style={{
+        width: 160, flexShrink: 0, borderRight: `1px solid ${c.b1}`,
+        padding: "16px 0", display: "flex", flexDirection: "column", gap: 1,
+      }}>
+        <div style={{ animation: "smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>{navItem("general", "General")}</div>
+        <div style={{ animation: "smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>{navItem("extension", "Extension")}</div>
+        <div style={{ animation: "smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>{navItem("account", "Account")}</div>
+        <div style={{ animation: "smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>{navItem("diagnostics", "Diagnostics")}</div>
+      </div>
+
+      {/* Panel */}
+      <div key={section} style={{ flex: 1, padding: "20px 24px", overflowY: "auto", animation: "smurov-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) both" }}>
+
+        {section === "general" && (
+          <>
+            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4 }}>General</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5 }}>App version and connection settings.</div>
+
+            {fieldLabel("Version")}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 0 }}>
+              <span style={{ fontFamily: fm, fontSize: 12, color: c.t2, fontVariantNumeric: "tabular-nums" }}>{version || "—"}</span>
+              {sBtn("Check for updates", () => (window as any).appInfo?.openUpdate())}
+            </div>
+
+            {divider}
+
+            {fieldLabel("Transport Protocol")}
+            <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content" }}>
+              {["auto", "udp", "tls"].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => onTransportChange(m)}
+                  style={{
+                    padding: "5px 14px", borderRadius: 4, border: "none",
+                    fontFamily: fd, fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
+                    cursor: "pointer", transition: "all 0.1s",
+                    background: transportMode === m ? c.amb : "transparent",
+                    color: transportMode === m ? c.am : c.t3,
+                  }}
+                >
+                  {m.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {section === "extension" && (
+          <>
+            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4 }}>Browser Extension</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5 }}>
+              Use this token to connect the browser extension to the local daemon.
+            </div>
+
+            {fieldLabel("Daemon Token")}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                flex: 1, padding: "6px 10px", background: c.bg2, border: `1px solid ${c.b1}`,
+                borderRadius: 5, fontFamily: fm, fontSize: 11, color: c.t2,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
+                userSelect: "all" as const, cursor: "text",
+              }}>
+                {token || "(daemon not running)"}
+              </div>
+              <button
+                onClick={copyToken}
+                style={{
+                  padding: "4px 10px", borderRadius: 4, fontFamily: fd, fontSize: 10,
+                  fontWeight: 600, letterSpacing: 0.5, cursor: "pointer",
+                  background: copied ? "oklch(0.16 0.025 150)" : c.bg2,
+                  border: `1px solid ${copied ? "oklch(0.72 0.15 150 / 0.3)" : c.b1}`,
+                  color: copied ? c.gn : c.t2,
+                  transition: "all 0.15s",
+                }}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+
+          </>
+        )}
+
+        {section === "account" && (
+          <>
+            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4 }}>Account</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5 }}>Manage your device connection.</div>
+
+            {fieldLabel("Access Key")}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontFamily: fb, fontSize: 13, color: c.t2, flex: 1 }}>
+                Disconnect and enter a different access key.
+              </span>
+              {sBtn("Change Key", onChangeKey, true)}
+            </div>
+          </>
+        )}
+
+        {section === "diagnostics" && (
+          <>
+            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4 }}>Diagnostics</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5 }}>View daemon and helper output.</div>
+
+            {fieldLabel("Logs")}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontFamily: fb, fontSize: 13, color: c.t2, flex: 1 }}>
+                Open the log viewer window.
+              </span>
+              {sBtn("Open Logs", () => (window as any).appInfo?.openLogs())}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [showSetup, setShowSetup] = useState(!key);
   const [version, setVersion] = useState("");
-  const [showSettings, setShowSettings] = useState(false);
-  const [activeTab, setActiveTab] = useState<"main" | "extension">("main");
+  const [activeTab, setActiveTab] = useState<"main" | "settings">("main");
   const [trafficMode, setTrafficMode] = useState<"all" | "selected">("all");
-  const settingsRef = useRef<HTMLDivElement>(null);
   const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
   const [proxyMode, setProxyMode] = useState<ProxyMode>(
     () => (localStorage.getItem("smurov-proxy-mode") as ProxyMode) || "tun"
@@ -52,17 +242,6 @@ export function App() {
     if (storedKey) (window as any).updater?.storeKey(storedKey);
   }, []);
 
-  // Close settings dropdown on outside click
-  useEffect(() => {
-    if (!showSettings) return;
-    const handler = (e: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
-        setShowSettings(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showSettings]);
 
 
   const maxRetries = 5;
@@ -410,229 +589,415 @@ export function App() {
     setShowSetup(true);
   };
 
+  // Derive the 3-mode view from proxyMode + trafficMode
+  const viewMode: ViewMode =
+    proxyMode === "socks5" ? "browsers" : trafficMode === "selected" ? "selected" : "all";
+
+  const handleViewModeChange = (m: ViewMode) => {
+    if (m === "browsers") {
+      if (proxyMode !== "socks5") handleModeChange("socks5");
+    } else {
+      if (proxyMode !== "tun") handleModeChange("tun");
+      setTrafficMode(m === "selected" ? "selected" : "all");
+    }
+  };
+
+  const fmtSpeed = (b: number) => {
+    if (b < 1024) return `${Math.round(b)} B/s`;
+    if (b < 1048576) return `${(b / 1024).toFixed(1)} KB/s`;
+    return `${(b / 1048576).toFixed(1)} MB/s`;
+  };
+  const fmtUptime = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return [h, m, sec].map((v) => String(v).padStart(2, "0")).join(":");
+  };
+
+  // Color tokens
+  const c = {
+    bg0: "oklch(0.12 0.014 250)",
+    bg1: "oklch(0.155 0.016 250)",
+    bg2: "oklch(0.19 0.018 250)",
+    bgh: "oklch(0.26 0.015 250)",
+    b1: "oklch(0.24 0.013 250)",
+    t1: "oklch(0.93 0.006 250)",
+    t2: "oklch(0.60 0.012 250)",
+    t3: "oklch(0.40 0.01 250)",
+    am: "oklch(0.78 0.155 75)",
+    amd: "oklch(0.55 0.09 75)",
+    amb: "oklch(0.19 0.035 75)",
+    bl: "oklch(0.68 0.12 235)",
+    gn: "oklch(0.72 0.15 150)",
+    rd: "oklch(0.62 0.19 25)",
+    rdb: "oklch(0.17 0.03 25)",
+  };
+  const fd = "'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif";
+  const fb = "'Figtree', system-ui, sans-serif";
+  const fm = "'Barlow', system-ui, sans-serif";
+
   const titleBtn = (children: React.ReactNode, onClick: () => void) => (
     <button
       onClick={onClick}
       style={{
-        width: 28, height: 28, borderRadius: 6,
+        width: 26, height: 26, borderRadius: 5,
         background: "transparent", border: "none",
-        color: "#555", fontSize: 15, cursor: "pointer",
+        color: c.t3, fontSize: 12, cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
-        transition: "background 0.15s, color 0.15s",
+        transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = "#1e2a3a"; e.currentTarget.style.color = "#eee"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#555"; }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = c.bgh; e.currentTarget.style.color = c.t1; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = c.t3; }}
     >
       {children}
     </button>
   );
 
+  const modeTabStyle = (active: boolean): React.CSSProperties => ({
+    padding: "8px 16px",
+    fontFamily: fd, fontSize: 13, fontWeight: active ? 600 : 500,
+    letterSpacing: 0.3,
+    color: active ? c.am : c.t3,
+    cursor: "pointer",
+    borderBottom: `2px solid ${active ? c.am : "transparent"}`,
+    marginBottom: -1,
+    background: "transparent", border: "none",
+    transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
+  });
+
   return (
-    <div style={{ maxWidth: 760, margin: "0 auto", padding: "36px 16px 16px", height: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* Custom title bar */}
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* ===== TITLEBAR ===== */}
       <div
         style={{
           position: "fixed", top: 0, left: 0, right: 0, height: 36,
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 12px", // @ts-ignore electron drag region
-          WebkitAppRegion: "drag", zIndex: 100,
+          padding: "0 12px", zIndex: 100,
           background: "transparent",
+          // @ts-ignore
+          WebkitAppRegion: "drag",
         }}
       >
-        <div style={{ fontSize: 12, color: "#555", fontWeight: 600 }}>
-          SmurovProxy {version && <span style={{ fontWeight: 400 }}>v{version}</span>}
+        <div style={{ fontFamily: fd, fontSize: 11, color: c.t3, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" as const }}>
+          SmurovProxy {version && <span style={{ fontWeight: 400, textTransform: "none" as const, letterSpacing: 0 }}>v{version}</span>}
           {version && version.includes("beta") && (
             <span style={{
-              fontSize: 9, fontWeight: 700, color: "#f59e0b",
-              background: "rgba(245,158,11,0.15)", borderRadius: 4,
-              padding: "1px 5px", marginLeft: 6, letterSpacing: 0.5,
+              fontSize: 9, fontWeight: 700, color: c.am,
+              background: c.amb, borderRadius: 3,
+              padding: "1px 5px", marginLeft: 6, letterSpacing: 1,
             }}>BETA</span>
           )}
         </div>
         {/* @ts-ignore */}
         <div style={{ display: "flex", gap: 2, WebkitAppRegion: "no-drag" }}>
-          <div ref={settingsRef} style={{ position: "relative" }}>
-            {titleBtn(<>&#9881;</>, () => setShowSettings(!showSettings))}
-            {showSettings && (
-              <div style={{
-                position: "absolute", top: 32, right: 0, minWidth: 160,
-                background: "#1a1f2e", border: "1px solid #1e2533", borderRadius: 8,
-                padding: 4, zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-              }}>
-                {[
-                  { label: "Check for Updates", onClick: () => {
-                    setShowSettings(false);
-                    (window as any).appInfo?.openUpdate();
-                  }},
-                  ...(!showSetup ? [{ label: "Change Key", onClick: () => { setShowSettings(false); handleReset(); } }] : []),
-                  { label: "Logs", onClick: () => { setShowSettings(false); (window as any).appInfo?.openLogs(); } },
-                ].map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={item.onClick}
-                    style={{
-                      display: "block", width: "100%", padding: "7px 12px",
-                      background: "transparent", border: "none", borderRadius: 6,
-                      color: "#bbb", fontSize: 13, cursor: "pointer", textAlign: "left",
-                      transition: "background 0.1s, color 0.1s",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#252d3d"; e.currentTarget.style.color = "#eee"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#bbb"; }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {titleBtn(<span style={{ fontSize: 18, marginTop: 4 }}>&minus;</span>, () => (window as any).appInfo?.minimizeWindow())}
-          {titleBtn(<span style={{ fontSize: 13 }}>&#10005;</span>, () => (window as any).appInfo?.closeWindow())}
+          {titleBtn(<span style={{ fontSize: 16, marginTop: 2 }}>&minus;</span>, () => (window as any).appInfo?.minimizeWindow())}
+          {titleBtn(<span style={{ fontSize: 12 }}>&#10005;</span>, () => (window as any).appInfo?.closeWindow())}
         </div>
       </div>
 
-      <div style={{ marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>SmurovProxy</h1>
-        {!showSetup && (
-          <ModeSelector mode={proxyMode} onChange={handleModeChange} />
-        )}
-      </div>
-      {!showSetup && <NotificationBanner />}
+      {/* ===== VIDEO / STATUS + TABS (unified) ===== */}
       {!showSetup && (
-        <StatusBar
-          connected={isConnected}
-          loading={isLoading}
-          reconnecting={reconnecting || daemonReconnecting}
-          server={SERVER.replace(":443", "")}
-          uptime={uptime}
-          transport={activeTransport}
-          transportMode={transportMode}
-          error={currentError}
-          onConnect={() => {
-            if (proxyMode === "tun") {
-              tunConnect(SERVER, key);
-            } else {
-              connect(SERVER, key);
-            }
-          }}
-          onDisconnect={() => {
-            if (proxyMode === "tun") {
-              tunDisconnect();
-            } else {
-              disconnect();
-            }
-          }}
-          onTransportChange={handleTransportChange}
-          download={stats.download}
-          upload={stats.upload}
-          history={stats.history}
-        />
+        <div style={{
+          position: "relative", overflow: "hidden",
+          borderBottom: `1px solid ${c.b1}`, flexShrink: 0,
+          background: c.bg1,
+        }}>
+          {/* Video background — covers both status and tabs */}
+          <video
+            ref={(el) => {
+              if (!el) return;
+              if (isConnected) { el.play().catch(() => {}); } else { el.pause(); }
+            }}
+            autoPlay loop muted playsInline
+            style={{
+              position: "absolute", inset: 0, width: "100%", height: "200%",
+              objectFit: "cover", marginTop: -40,
+              filter: isConnected
+                ? "brightness(0.4) saturate(1.2)"
+                : "brightness(0.3) saturate(0) grayscale(1)",
+              transition: "filter 1s cubic-bezier(0.25,1,0.5,1)",
+            }}
+            src={earthBgUrl}
+          />
+          {/* Gradient overlay */}
+          <div style={{
+            position: "absolute", inset: 0,
+            background: `linear-gradient(to bottom, oklch(0.12 0.014 250 / 0.3), oklch(0.12 0.014 250 / 0.85) 70%, oklch(0.12 0.014 250 / 0.95) 100%)`,
+          }} />
+
+          {/* Status content — Variant C: Big Left + Metrics Right */}
+          <div
+            key={isConnected ? "connected" : (reconnecting || daemonReconnecting) ? "reconnecting" : "disconnected"}
+            style={{
+              position: "relative", zIndex: 5, height: 100,
+              display: "flex", alignItems: "center",
+              padding: "30px 24px 0", gap: 16,
+            }}
+          >
+            {/* Status indicator */}
+            {(reconnecting || daemonReconnecting) ? (
+              <div style={{
+                width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
+                border: `2px solid ${c.am}`, borderTopColor: "transparent",
+                animation: "smurov-spin 0.8s linear infinite",
+              }} />
+            ) : (
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                background: isConnected ? c.am : c.t3,
+                animation: "smurov-blur-dot 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both",
+              }} />
+            )}
+
+            {/* Left: status + server */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{
+                fontFamily: fd, fontSize: 22, fontWeight: 700, letterSpacing: 0.3, lineHeight: 1,
+                color: (reconnecting || daemonReconnecting) ? c.am : isConnected ? c.t1 : c.t3,
+                animation: "smurov-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.25s both",
+              }}>
+                {isConnected ? "Connected" : (reconnecting || daemonReconnecting) ? "Reconnecting" : "Disconnected"}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {isConnected ? (
+                  <>
+                    <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                      {SERVER.replace(":443", "")}
+                    </span>
+                    <span style={{
+                      fontFamily: fd, fontSize: 9, fontWeight: 600, letterSpacing: 1,
+                      textTransform: "uppercase" as const,
+                      color: c.amd, padding: "1px 5px", background: c.amb, borderRadius: 3,
+                      animation: "smurov-blur-badge 0.3s cubic-bezier(0.25,1,0.5,1) 0.4s both",
+                    }}>
+                      {activeTransport || (proxyMode === "socks5" ? "SOCKS5" : "UDP")}
+                    </span>
+                  </>
+                ) : (reconnecting || daemonReconnecting) ? (
+                  <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                    Restoring connection
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                    Ready to connect
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Right: metrics + button */}
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 20 }}>
+              {isConnected && (
+                <>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                    <span style={{ fontFamily: fm, fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: c.gn }}>
+                      ↓ {fmtSpeed(stats.download)}
+                    </span>
+                    <span style={{ fontFamily: fd, fontSize: 8, fontWeight: 500, color: c.t3, letterSpacing: 1, textTransform: "uppercase" as const }}>
+                      Down
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.4s both" }}>
+                    <span style={{ fontFamily: fm, fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: c.bl }}>
+                      ↑ {fmtSpeed(stats.upload)}
+                    </span>
+                    <span style={{ fontFamily: fd, fontSize: 8, fontWeight: 500, color: c.t3, letterSpacing: 1, textTransform: "uppercase" as const }}>
+                      Up
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.45s both" }}>
+                    <span style={{ fontFamily: fm, fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: c.t2 }}>
+                      {fmtUptime(uptime)}
+                    </span>
+                    <span style={{ fontFamily: fd, fontSize: 8, fontWeight: 500, color: c.t3, letterSpacing: 1, textTransform: "uppercase" as const }}>
+                      Uptime
+                    </span>
+                  </div>
+                </>
+              )}
+              <button
+                onClick={() => {
+                  if (isConnected || reconnecting || daemonReconnecting) {
+                    if (proxyMode === "tun") tunDisconnect();
+                    else disconnect();
+                  } else if (key) {
+                    if (proxyMode === "tun") tunConnect(SERVER, key);
+                    else connect(SERVER, key);
+                  }
+                }}
+                disabled={isLoading && !reconnecting && !daemonReconnecting}
+                style={{
+                  fontFamily: fd, fontWeight: 600, letterSpacing: 0.5,
+                  borderRadius: 4, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
+                  animation: `smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) ${isConnected ? "0.5s" : "0.35s"} both`,
+                  ...(isConnected || reconnecting || daemonReconnecting ? {
+                    fontSize: 11, padding: "5px 14px", minWidth: 80,
+                    background: c.rdb,
+                    border: "1px solid oklch(0.62 0.19 25 / 0.15)",
+                    color: c.rd,
+                  } : {
+                    fontSize: 13, padding: "8px 24px", minWidth: 100,
+                    background: c.amb,
+                    border: "1px solid oklch(0.78 0.155 75 / 0.2)",
+                    color: c.am,
+                  }),
+                  opacity: (isLoading && !reconnecting && !daemonReconnecting) ? 0.5 : 1,
+                }}
+              >
+                {(reconnecting || daemonReconnecting) ? "Cancel" : isConnected ? "Disconnect" : isLoading ? (
+                  <div style={{
+                    width: 14, height: 14, borderRadius: "50%",
+                    border: `2px solid oklch(0.78 0.155 75 / 0.3)`,
+                    borderTopColor: c.am,
+                    animation: "smurov-spin 0.7s linear infinite",
+                  }} />
+                ) : "Connect"}
+              </button>
+            </div>
+          </div>
+
+          {/* Mode tabs — inside the video zone */}
+          <div style={{
+            position: "relative", zIndex: 5,
+            display: "flex", alignItems: "center", gap: 0,
+            padding: "0 24px",
+            borderTop: `1px solid oklch(0.24 0.013 250 / 0.5)`,
+          }}>
+          {(["all", "selected", "browsers"] as ViewMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => { handleViewModeChange(m); setActiveTab("main"); }}
+              style={modeTabStyle(activeTab === "main" && viewMode === m)}
+              onMouseEnter={(e) => { if (!(activeTab === "main" && viewMode === m)) e.currentTarget.style.color = c.t2; }}
+              onMouseLeave={(e) => { if (!(activeTab === "main" && viewMode === m)) e.currentTarget.style.color = c.t3; }}
+            >
+              {m === "all" ? "All traffic" : m === "selected" ? "Selected" : "Browsers"}
+            </button>
+          ))}
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={() => setActiveTab("settings")}
+            style={{
+              ...modeTabStyle(activeTab === "settings"),
+              display: "flex", alignItems: "center", gap: 4,
+            }}
+            onMouseEnter={(e) => { if (activeTab !== "settings") e.currentTarget.style.color = c.t2; }}
+            onMouseLeave={(e) => { if (activeTab !== "settings") e.currentTarget.style.color = c.t3; }}
+          >
+            <span style={{ fontSize: 15, lineHeight: 1 }}>&#9881;</span>
+            Settings
+          </button>
+          </div>
+        </div>
       )}
 
+      {/* ===== NOTIFICATION BANNER ===== */}
+      {!showSetup && (
+        <div style={{ padding: "20px 24px 0" }}>
+          <NotificationBanner />
+        </div>
+      )}
+
+      {/* ===== CONTENT ===== */}
       {showSetup ? (
-        <div>
-          <label style={{ display: "block", marginBottom: 16 }}>
-            <span style={{ fontSize: 13, color: "#aaa" }}>Access Key</span>
-            <input
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                background: "#16213e",
-                border: "1px solid #333",
-                borderRadius: 6,
-                color: "#eee",
-                fontSize: 14,
-                marginTop: 4,
-              }}
-              type="password"
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder="Paste your access key"
-              onPaste={handlePaste}
-              onKeyDown={(e) => e.key === "Enter" && connectWithKey(key)}
-            />
-          </label>
-          {isLoading && (
-            <div style={{ color: "#aaa", fontSize: 13, marginTop: 8 }}>
-              Connecting...
+        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          {/* Video background */}
+          <video
+            autoPlay loop muted playsInline
+            style={{
+              position: "absolute", inset: 0, width: "100%", height: "100%",
+              objectFit: "cover",
+              animation: "smurov-blur-bg 0.9s cubic-bezier(0.25,1,0.5,1) both",
+            }}
+            src={earthBgUrl}
+          />
+          {/* Gradient: solid left → transparent right */}
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 1,
+            background: `linear-gradient(to right, oklch(0.12 0.014 250 / 0.92) 45%, oklch(0.12 0.014 250 / 0.3) 100%)`,
+          }} />
+          {/* Form content */}
+          <div style={{
+            position: "relative", zIndex: 5, height: "100%",
+            display: "flex", flexDirection: "column", justifyContent: "center",
+            padding: "0 0 0 64px",
+          }}>
+            <div style={{ fontFamily: fd, fontSize: 42, fontWeight: 300, color: c.t1, letterSpacing: 3, textTransform: "uppercase" as const, lineHeight: 1, marginBottom: 4, animation: "smurov-blur-heavy 0.7s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
+              Smurov<br />Proxy
+            </div>
+            <div style={{ fontFamily: fd, fontSize: 14, fontWeight: 600, color: c.amd, marginBottom: 48, letterSpacing: 4, textTransform: "uppercase" as const, animation: "smurov-blur-med 0.6s cubic-bezier(0.25,1,0.5,1) 0.3s both" }}>
+              Secure system-level proxy<br />for apps and browsers
+            </div>
+            <div style={{ maxWidth: 320 }}>
+              <div style={{ fontFamily: fd, fontSize: 10, fontWeight: 600, color: c.t3, letterSpacing: 1.5, textTransform: "uppercase" as const, marginBottom: 8, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.45s both" }}>
+                Access Key
+              </div>
+              <input
+                style={{
+                  width: "100%", padding: "10px 14px",
+                  background: "oklch(0.155 0.016 250 / 0.7)",
+                  backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
+                  border: `1px solid ${c.b1}`, borderRadius: 5,
+                  color: c.t1, fontFamily: fb, fontSize: 14,
+                  outline: "none", transition: "border-color 0.15s",
+                  animation: "smurov-blur-light 0.5s cubic-bezier(0.25,1,0.5,1) 0.5s both",
+                }}
+                type="password"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder="Paste your access key"
+                onPaste={handlePaste}
+                onKeyDown={(e) => e.key === "Enter" && connectWithKey(key)}
+                onFocus={(e) => { e.currentTarget.style.borderColor = c.am; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = c.b1; }}
+              />
+              <div style={{ fontFamily: fb, fontSize: 11, color: c.t3, marginTop: 10, animation: "smurov-blur-fade 0.4s cubic-bezier(0.25,1,0.5,1) 0.6s both" }}>
+                {isLoading ? "Connecting..." : "Paste the key — connection starts automatically"}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : activeTab === "settings" ? (
+        <SettingsPage
+          version={version}
+          transportMode={transportMode}
+          onTransportChange={handleTransportChange}
+          onChangeKey={handleReset}
+          c={c} fd={fd} fb={fb} fm={fm}
+        />
+      ) : (
+        <div key={viewMode} style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "16px 24px" }}>
+          {viewMode === "all" && (
+            <div style={{ paddingTop: 24 }}>
+              <div style={{ fontFamily: fd, fontSize: 15, fontWeight: 600, color: c.t2, letterSpacing: 0.3, marginBottom: 4, animation: "smurov-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
+                All system traffic routed through proxy
+              </div>
+              <div style={{ fontFamily: fb, fontSize: 13, color: c.t3, lineHeight: 1.6, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
+                Every connection from this device goes through the server.<br />
+                Switch to Selected to choose specific apps and sites.
+              </div>
+            </div>
+          )}
+          {viewMode === "browsers" && (
+            <div style={{ paddingTop: 24 }}>
+              <div style={{ fontFamily: fd, fontSize: 15, fontWeight: 600, color: c.t2, letterSpacing: 0.3, marginBottom: 4, animation: "smurov-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
+                Browser traffic only
+              </div>
+              <div style={{ fontFamily: fb, fontSize: 13, color: c.t3, lineHeight: 1.6, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
+                System SOCKS5 proxy handles browser requests.<br />
+                Applications connect directly — no TUN device, no per-app routing.
+              </div>
+            </div>
+          )}
+          {viewMode === "selected" && (
+            <div style={{ animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) both" }}>
+              <AppRules visible mode="selected" onModeChange={setTrafficMode} hideModeSwitch />
             </div>
           )}
         </div>
-      ) : (
-        <>
-          <div style={{ display: "flex", alignItems: "stretch", gap: 8, marginBottom: 12, borderBottom: "1px solid #1e2533" }}>
-            {(["main", "extension"] as const).map((tab) => {
-              const isActive = activeTab === tab;
-              return (
-                <div
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 40,
-                    padding: 16,
-                    borderBottom: isActive ? "2px solid #3b82f6" : "2px solid transparent",
-                    color: isActive ? "#fff" : "#666",
-                    fontSize: 16,
-                    cursor: "pointer",
-                    fontWeight: isActive ? 600 : 400,
-                    marginBottom: -1,
-                  }}
-                >
-                  <span>{tab === "main" ? "Main" : "Extension"}</span>
-                  {tab === "main" && proxyMode === "tun" && (
-                    <div
-                      onClick={(e) => { if (isActive) e.stopPropagation(); }}
-                      style={{
-                        display: "inline-flex",
-                        padding: 2,
-                        background: "#0f1420",
-                        border: "none",
-                        borderRadius: 8,
-                        opacity: isActive ? 1 : 0.5,
-                        filter: isActive ? "none" : "grayscale(1)",
-                        pointerEvents: isActive ? "auto" : "none",
-                      }}
-                    >
-                      {(["all", "selected"] as const).map((k) => {
-                        const active = trafficMode === k;
-                        return (
-                          <button
-                            key={k}
-                            disabled={!isActive}
-                            onClick={() => setTrafficMode(k)}
-                            style={{
-                              padding: "5px 12px",
-                              background: active ? "#1a3a5c" : "transparent",
-                              border: `1px solid ${active ? "#3b82f6" : "transparent"}`,
-                              borderRadius: 6,
-                              color: active ? "#fff" : "#888",
-                              fontSize: 12,
-                              fontWeight: active ? 600 : 400,
-                              cursor: isActive ? "pointer" : "default",
-                            }}
-                          >
-                            {k === "all" ? "All traffic" : "Selected"}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-            {activeTab === "main" && (
-              <div style={{ marginTop: 16 }}>
-                <AppRules visible={proxyMode === "tun"} mode={trafficMode} onModeChange={setTrafficMode} hideModeSwitch />
-              </div>
-            )}
-            {activeTab === "extension" && <BrowserExtension />}
-          </div>
-        </>
       )}
-
     </div>
   );
 }

@@ -28,7 +28,7 @@ export function BrowserExtension() {
           value={token || "(daemon not running)"}
           style={{
             flex: 1,
-            fontFamily: "monospace",
+            fontFamily: "'Barlow', system-ui, sans-serif",
             fontSize: 12,
             padding: "8px 12px",
             background: "#1a1f2e",

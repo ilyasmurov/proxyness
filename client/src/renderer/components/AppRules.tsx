@@ -248,7 +248,7 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
   const [enabled, setEnabled] = useState<Set<string>>(new Set(KNOWN_APPS.map((a) => a.id)));
 
   // Browser sites — backed by the sites sync module.
-  const { sites: localSites, addSite, removeSite: removeSiteById, toggleSite: toggleSiteById } = useSites();
+  const { sites: localSites, ready: sitesReady, addSite, removeSite: removeSiteById, toggleSite: toggleSiteById } = useSites();
   // All-sites toggle: a local-only mode flag that bypasses per-site picks.
   const [allSitesOn, setAllSitesOn] = useState<boolean>(
     () => localStorage.getItem("smurov-proxy-all-sites-on") !== "false"
@@ -499,12 +499,35 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
     }
   };
 
+  // Auto-add popular/seed sites that aren't in the user's list yet.
+  // Runs once on mount. Sites are added disabled so they show in the grid
+  // but don't affect routing until the user toggles them on.
+  const seedLoaded = useRef(false);
+  useEffect(() => {
+    if (seedLoaded.current || !sitesReady || localSites === undefined) return;
+    seedLoaded.current = true;
+    (async () => {
+      try {
+        const catalog = await (window as any).appInfo?.daemonSearchSites("");
+        if (!Array.isArray(catalog) || catalog.length === 0) return;
+        const existingDomains = new Set(localSites.map((s: LocalSite) => s.domains[0]));
+        for (const entry of catalog) {
+          if (!existingDomains.has(entry.primary_domain)) {
+            try {
+              await addSite(entry.primary_domain, entry.label);
+            } catch {}
+          }
+        }
+      } catch {}
+    })();
+  }, [sitesReady, localSites, addSite]);
+
   if (!visible) return null;
 
   return (
     <div style={{ marginTop: 16, padding: 12 }}>
       {!hideModeSwitch && (
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Traffic</div>
+      <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", letterSpacing: 0.3, marginBottom: 8 }}>Traffic</div>
       )}
 
       {!hideModeSwitch && (
@@ -532,7 +555,34 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
           All traffic goes through proxy
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 20, alignItems: "start" }}>
+          {/* LEFT COLUMN — Applications */}
+          <div style={{ animation: "smurov-blur-row 0.4s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, marginBottom: 10, minHeight: 24,
+            }}>
+              <div style={{
+                fontSize: 11, color: "#888", textTransform: "uppercase" as const,
+                letterSpacing: 1, fontWeight: 600,
+                fontFamily: "'Barlow', system-ui, sans-serif",
+              }}>
+                Applications
+              </div>
+              <span style={{ fontSize: 10, color: "#555", fontFamily: "'Figtree', system-ui, sans-serif" }}>
+                {resolved.filter(({ app }) => enabled.has(app.id)).length} of {resolved.length}
+              </span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {resolved.map(({ app }, i) => (
+                <div key={app.id} style={{ animation: `smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) ${0.1 + i * 0.04}s both` }}>
+                  <AppToggle app={app} isOn={enabled.has(app.id)} noTLS={noTLS.has(app.id)} onToggle={toggleApp} onToggleTLS={toggleNoTLS} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN — Browser Sites */}
+          <div style={{ animation: "smurov-blur-row 0.4s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
           <SitesGrid
             sites={localSites}
             enabledSites={enabledSet}
@@ -543,12 +593,6 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
             onRemoveSite={handleRemoveSite}
             onAddSite={() => setAddSiteModalOpen(true)}
           />
-
-          {/* App toggles */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {resolved.map(({ app }) => (
-              <AppToggle key={app.id} app={app} isOn={enabled.has(app.id)} noTLS={noTLS.has(app.id)} onToggle={toggleApp} onToggleTLS={toggleNoTLS} />
-            ))}
           </div>
         </div>
       )}
@@ -576,63 +620,84 @@ function AppToggle({ app, isOn, noTLS, onToggle, onToggleTLS }: {
 }) {
   return (
     <div
+      onClick={() => onToggle(app.id)}
       style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "6px 8px", borderRadius: 6,
-        background: isOn ? "rgba(59,130,246,0.08)" : "transparent",
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "4px 6px", borderRadius: 4,
+        cursor: "pointer",
+        transition: "background 0.1s",
       }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(0.19 0.018 250)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
     >
-      <div
-        onClick={() => onToggle(app.id)}
-        style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: "pointer" }}
-      >
-        <div style={{
-          width: 28, height: 28, borderRadius: 6,
-          background: isOn ? app.color : "#333",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 12, fontWeight: 700, color: isOn ? "#fff" : "#666",
-          flexShrink: 0,
+      <div style={{
+        width: 22, height: 22, borderRadius: 5,
+        background: isOn ? app.color : "oklch(0.23 0.016 250)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 9, fontWeight: 700,
+        fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+        color: isOn ? "#fff" : "oklch(0.40 0.01 250)",
+        flexShrink: 0,
+        opacity: isOn ? 1 : 0.3,
+        transition: "all 0.2s cubic-bezier(0.25,1,0.5,1)",
+        transform: isOn ? "scale(1)" : "scale(0.85)",
+      }}>
+        {ICON_PATHS[app.id]
+          ? <BrandIcon iconKey={app.id} size={13} color={isOn ? "#fff" : "oklch(0.40 0.01 250)"} />
+          : app.letter}
+      </div>
+      <div style={{
+        fontSize: 12, fontWeight: 500,
+        fontFamily: "'Figtree', system-ui, sans-serif",
+        color: isOn ? "oklch(0.93 0.006 250)" : "oklch(0.40 0.01 250)",
+        flex: 1,
+        transition: "color 0.2s cubic-bezier(0.25,1,0.5,1)",
+      }}>
+        {app.name}
+      </div>
+      {isOn ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 0, animation: "smurov-blur-fade 0.25s cubic-bezier(0.25,1,0.5,1) both" }}>
+          <span style={{
+            fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+            fontSize: 9, fontWeight: 600, letterSpacing: 1,
+            textTransform: "uppercase" as const,
+            color: "oklch(0.68 0.12 235)",
+          }}>
+            Proxy
+          </span>
+          <span style={{
+            fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+            fontSize: 9, color: "oklch(0.30 0.014 250)", margin: "0 3px",
+          }}>/</span>
+          <span
+            onClick={(e) => { e.stopPropagation(); onToggleTLS(app.id); }}
+            title={noTLS ? "Click to enable TLS" : "Click to disable TLS"}
+            style={{
+              fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+              fontSize: 8, fontWeight: 600, letterSpacing: 0.5,
+              color: noTLS ? "oklch(0.78 0.155 75)" : "oklch(0.72 0.15 150)",
+              background: noTLS ? "oklch(0.19 0.035 75)" : "oklch(0.16 0.025 150)",
+              border: `1px solid ${noTLS ? "oklch(0.78 0.155 75 / 0.2)" : "oklch(0.72 0.15 150 / 0.2)"}`,
+              transition: "all 0.2s cubic-bezier(0.25,1,0.5,1)",
+              padding: "1px 5px",
+              borderRadius: 3,
+              cursor: "pointer",
+            }}
+          >
+            {noTLS ? "Raw" : "TLS"}
+          </span>
+        </div>
+      ) : (
+        <span style={{
+          fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+          fontSize: 9, fontWeight: 600, letterSpacing: 1,
+          textTransform: "uppercase" as const,
+          color: "oklch(0.40 0.01 250)",
+          animation: "smurov-blur-fade 0.25s cubic-bezier(0.25,1,0.5,1) both",
         }}>
-          {ICON_PATHS[app.id]
-            ? <BrandIcon iconKey={app.id} size={16} color={isOn ? "#fff" : "#666"} />
-            : app.letter}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, color: isOn ? "#eee" : "#666" }}>{app.name}</div>
-          {isOn && noTLS && (
-            <div style={{ fontSize: 10, color: "#f59e0b" }}>without TLS</div>
-          )}
-        </div>
-      </div>
-      {isOn && (
-        <div
-          onClick={() => onToggleTLS(app.id)}
-          title={noTLS ? "TLS off \u2014 raw connection" : "TLS on \u2014 encrypted"}
-          style={{
-            fontSize: 10, padding: "2px 6px", borderRadius: 4, cursor: "pointer",
-            background: noTLS ? "rgba(245,158,11,0.15)" : "rgba(34,197,94,0.15)",
-            color: noTLS ? "#f59e0b" : "#22c55e",
-            border: `1px solid ${noTLS ? "#f59e0b33" : "#22c55e33"}`,
-            whiteSpace: "nowrap",
-          }}
-        >
-          TLS {noTLS ? "OFF" : "ON"}
-        </div>
+          Direct
+        </span>
       )}
-      <div
-        onClick={() => onToggle(app.id)}
-        style={{
-          width: 36, height: 20, borderRadius: 10,
-          background: isOn ? "#3b82f6" : "#333",
-          position: "relative", transition: "background 0.2s", cursor: "pointer",
-        }}
-      >
-        <div style={{
-          width: 16, height: 16, borderRadius: 8, background: "#fff",
-          position: "absolute", top: 2, left: isOn ? 18 : 2,
-          transition: "left 0.2s",
-        }} />
-      </div>
     </div>
   );
 }
@@ -664,13 +729,14 @@ function SitesGrid({
 
   return (
     <div>
-      {/* Section header: label + active counter on the left, Add button on right */}
+      {/* Section header: label + all/selected toggle + Add button */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 12,
+          gap: 8,
+          marginBottom: 10,
+          minHeight: 24,
         }}
       >
         <div
@@ -680,7 +746,7 @@ function SitesGrid({
             textTransform: "uppercase",
             letterSpacing: 1,
             fontWeight: 600,
-            fontFamily: "ui-monospace, monospace",
+            fontFamily: "'Barlow', system-ui, sans-serif",
             display: "flex",
             alignItems: "center",
             gap: 6,
@@ -697,7 +763,7 @@ function SitesGrid({
                 display: "flex",
                 alignItems: "center",
                 gap: 5,
-                fontFamily: "ui-monospace, monospace",
+                fontFamily: "'Barlow', system-ui, sans-serif",
               }}
             >
               <span
@@ -713,64 +779,127 @@ function SitesGrid({
               {liveSites.size} active
             </span>
           )}
-          <span
-            style={{
-              fontSize: 10,
-              color: "#555",
-              textTransform: "none",
-              letterSpacing: 0,
-            }}
-          >
-            {allSitesOn ? "all sites" : `${enabledCount} enabled`}
-          </span>
         </div>
-        <button
-          onClick={onAddSite}
+        {/* All / Selected toggle */}
+        <div
           style={{
-            padding: "5px 12px 5px 10px",
-            background: "#1a3a5c",
-            border: "1px solid #3b82f6",
-            borderRadius: 5,
-            color: "#fff",
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: "pointer",
-            fontFamily: "inherit",
             display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
+            padding: 2,
+            background: "oklch(0.15 0.014 250)",
+            borderRadius: 5,
+            gap: 1,
           }}
         >
-          <span style={{ fontSize: 15, fontWeight: 700, lineHeight: 1 }}>+</span>
-          Add site
-        </button>
+          {(["all", "selected"] as const).map((opt) => {
+            const isActive = opt === "all" ? allSitesOn : !allSitesOn;
+            return (
+              <button
+                key={opt}
+                onClick={onToggleAll}
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 5,
+                  border: "none",
+                  fontSize: 12,
+                  fontWeight: isActive ? 600 : 500,
+                  fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+                  letterSpacing: 0.3,
+                  color: isActive ? "oklch(0.78 0.155 75)" : "oklch(0.40 0.01 250)",
+                  background: isActive ? "oklch(0.19 0.035 75)" : "transparent",
+                  cursor: "pointer",
+                  transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
+                }}
+              >
+                {opt === "all" ? "All" : "Selected"}
+              </button>
+            );
+          })}
+        </div>
+        <span style={{ fontSize: 10, color: "#555", fontFamily: "'Figtree', system-ui, sans-serif" }}>
+          {allSitesOn ? "" : `${enabledCount} of ${sites.length}`}
+        </span>
+        <div style={{ flex: 1 }} />
+        {!allSitesOn && (
+          <button
+            onClick={onAddSite}
+            style={{
+              padding: "5px 14px",
+              background: "oklch(0.19 0.018 250)",
+              border: "1px solid oklch(0.30 0.014 250)",
+              borderRadius: 5,
+              color: "oklch(0.60 0.012 250)",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+              letterSpacing: 0.5,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
+              lineHeight: 1,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "oklch(0.93 0.006 250)"; e.currentTarget.style.borderColor = "oklch(0.40 0.01 250)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "oklch(0.60 0.012 250)"; e.currentTarget.style.borderColor = "oklch(0.30 0.014 250)"; }}
+          >
+            Add site
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        )}
       </div>
 
-      {/* Grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 10,
-        }}
-      >
-        <AllBrowsersTile
-          enabled={allSitesOn}
-          live={liveSites.size > 0}
-          onClick={onToggleAll}
-        />
-        {sites.map((site) => (
-          <SiteTile
-            key={site.id}
-            site={site}
-            enabled={enabledSites.has(site.id)}
-            live={liveSites.has(site.id)}
-            dimmed={allSitesOn}
-            onClick={() => onToggleSite(site)}
-            onRemove={() => onRemoveSite(site.id)}
-          />
-        ))}
-      </div>
+      {/* Content: all-sites message OR individual site grid */}
+      {allSitesOn ? (
+        <div style={{
+          padding: "20px 16px",
+          borderRadius: 8,
+          background: "oklch(0.155 0.016 250)",
+          border: "1px solid oklch(0.24 0.013 250)",
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          animation: "smurov-blur-fade 0.35s cubic-bezier(0.25,1,0.5,1) both",
+        }}>
+          <div style={{ animation: "smurov-blur-dot 0.4s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="oklch(0.78 0.155 75)" strokeWidth="1.5" style={{ flexShrink: 0, opacity: 0.7 }}>
+              <circle cx="12" cy="12" r="10" />
+              <ellipse cx="12" cy="12" rx="10" ry="4" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <ellipse cx="12" cy="12" rx="4" ry="10" />
+            </svg>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 14, fontWeight: 600, color: "oklch(0.93 0.006 250)", letterSpacing: 0.3, marginBottom: 3, animation: "smurov-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
+              All browser traffic is proxied
+            </div>
+            <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 12, color: "oklch(0.50 0.01 250)", lineHeight: 1.5, animation: "smurov-blur-light 0.35s cubic-bezier(0.25,1,0.5,1) 0.25s both" }}>
+              Every website you open in any browser goes through the proxy server.
+              Switch to Selected to choose specific sites.
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 6,
+          }}
+        >
+          {sites.map((site, i) => (
+            <div key={site.id} style={{ animation: `smurov-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) ${0.08 + i * 0.03}s both` }}>
+              <SiteTile
+                site={site}
+                enabled={enabledSites.has(site.id)}
+                live={liveSites.has(site.id)}
+                dimmed={false}
+                onClick={() => onToggleSite(site)}
+                onRemove={() => onRemoveSite(site.id)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -791,11 +920,11 @@ function AllBrowsersTile({
       style={{
         gridColumn: "span 2",
         position: "relative",
-        padding: 18,
-        borderRadius: 10,
+        padding: 10,
+        borderRadius: 8,
         cursor: "pointer",
         transition: "transform 0.15s ease, background 0.2s, border-color 0.2s, color 0.2s",
-        minHeight: 130,
+        minHeight: 60,
         background: enabled
           ? "linear-gradient(135deg, rgba(76, 175, 80, 0.18), rgba(76, 175, 80, 0.06))"
           : "#0d111c",
@@ -816,13 +945,13 @@ function AllBrowsersTile({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 16,
+          gap: 10,
           width: "100%",
           height: "100%",
         }}
       >
         <div style={{ flexShrink: 0 }}>
-          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3">
             <circle cx="12" cy="12" r="10" />
             <ellipse cx="12" cy="12" rx="10" ry="4" />
             <line x1="2" y1="12" x2="22" y2="12" />
@@ -832,19 +961,22 @@ function AllBrowsersTile({
         <div style={{ flex: 1 }}>
           <div
             style={{
-              fontSize: 17,
+              fontSize: 13,
               fontWeight: 700,
+              fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+              letterSpacing: 0.3,
               color: enabled ? "#eee" : "#666",
-              marginBottom: 4,
+              marginBottom: 2,
             }}
           >
             All browsers
           </div>
           <div
             style={{
-              fontSize: 12,
+              fontSize: 10,
+              fontFamily: "'Figtree', system-ui, sans-serif",
               color: enabled ? "#888" : "#555",
-              lineHeight: 1.4,
+              lineHeight: 1.3,
             }}
           >
             Route every browser site through the proxy
@@ -873,48 +1005,59 @@ function SiteTile({
 }) {
   const primaryDomain = site.domains[0] || "";
   const color = siteColor(primaryDomain);
+  const [removing, setRemoving] = useState(false);
+
+  const handleRemove = () => {
+    if (!onRemove) return;
+    setRemoving(true);
+    setTimeout(() => onRemove(), 300);
+  };
+
   return (
     <div
-      onClick={onClick}
+      onClick={removing ? undefined : onClick}
       style={{
         position: "relative",
-        padding: "16px 10px 14px",
-        borderRadius: 10,
+        padding: "8px 6px 8px",
+        borderRadius: 8,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 6,
-        cursor: "pointer",
-        transition:
-          "transform 0.15s ease, background 0.2s, border-color 0.2s, color 0.2s, filter 0.25s, opacity 0.25s",
-        minHeight: 130,
-        background: enabled ? `${color}14` : "#0d111c",
-        border: enabled ? `1px solid ${color}40` : "1px solid #222",
-        filter: dimmed ? "grayscale(0.8)" : undefined,
-        opacity: dimmed ? 0.35 : 1,
+        gap: 4,
+        cursor: removing ? "default" : "pointer",
+        transition: "all 0.2s cubic-bezier(0.25,1,0.5,1)",
+        minHeight: 64,
+        background: enabled ? `${color}14` : "oklch(0.13 0.012 250)",
+        border: enabled ? `1px solid ${color}40` : "1px solid oklch(0.22 0.012 250)",
+        filter: removing ? "blur(8px) grayscale(1)" : dimmed ? "grayscale(0.8)" : undefined,
+        opacity: removing ? 0 : dimmed ? 0.35 : 1,
+        transform: removing ? "scale(0.8)" : undefined,
+        pointerEvents: removing ? "none" : undefined,
       }}
       onMouseEnter={(e) => {
-        if (!dimmed) e.currentTarget.style.transform = "translateY(-2px)";
+        if (dimmed || removing) return;
+        e.currentTarget.style.borderColor = enabled ? `${color}70` : "oklch(0.35 0.014 250)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
+        if (removing) return;
+        e.currentTarget.style.borderColor = enabled ? `${color}40` : "oklch(0.22 0.012 250)";
       }}
     >
       {enabled && live && !dimmed && <LiveLabel />}
-      {onRemove && (
+      {onRemove && !removing && (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onRemove();
+            handleRemove();
           }}
           title="Remove site"
           style={{
             position: "absolute",
-            top: 6,
-            left: 6,
-            width: 18,
-            height: 18,
-            borderRadius: 4,
+            top: 3,
+            left: 3,
+            width: 14,
+            height: 14,
+            borderRadius: 3,
             background: "transparent",
             border: "none",
             color: "#555",
@@ -943,35 +1086,40 @@ function SiteTile({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          marginBottom: 4,
+          marginBottom: 2,
+          transition: "opacity 0.2s cubic-bezier(0.25,1,0.5,1)",
+          opacity: enabled ? 1 : 0.4,
         }}
       >
         <SiteTileIcon
           domain={primaryDomain}
           name={site.label}
           color={color}
-          size={40}
+          size={24}
           monochrome={!enabled}
         />
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 11,
           fontWeight: 600,
+          fontFamily: "'Figtree', system-ui, sans-serif",
           textAlign: "center",
           lineHeight: 1.2,
           color: enabled ? "#eee" : "#666",
+          transition: "color 0.25s cubic-bezier(0.25,1,0.5,1)",
         }}
       >
         {site.label}
       </div>
       <div
         style={{
-          fontSize: 10,
-          fontFamily: "ui-monospace, monospace",
+          fontSize: 9,
+          fontFamily: "'Barlow', system-ui, sans-serif",
           textAlign: "center",
           opacity: 0.8,
           color: enabled ? "#888" : "#555",
+          transition: "color 0.25s cubic-bezier(0.25,1,0.5,1)",
         }}
       >
         {primaryDomain}
@@ -986,17 +1134,17 @@ function LiveLabel() {
     <div
       style={{
         position: "absolute",
-        top: 8,
-        right: 8,
-        fontSize: 9,
+        top: 3,
+        right: 3,
+        fontSize: 7,
         fontWeight: 700,
         color: "#4caf50",
         background: "rgba(76, 175, 80, 0.12)",
         border: "1px solid rgba(76, 175, 80, 0.4)",
-        padding: "2px 6px",
-        borderRadius: 4,
+        padding: "1px 4px",
+        borderRadius: 3,
         letterSpacing: 0.5,
-        fontFamily: "ui-monospace, monospace",
+        fontFamily: "'Barlow', system-ui, sans-serif",
         animation: "smurov-live-glow 1.5s ease-in-out infinite",
       }}
     >
@@ -1028,15 +1176,22 @@ function AddSiteModal({
   const [results, setResults] = useState<CatalogResult[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [searching, setSearching] = useState(false);
+  const [closing, setClosing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const animClose = () => {
+    setClosing(true);
+    setTimeout(onClose, 180);
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") animClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
+
   }, [onClose]);
 
   // Debounced search
@@ -1102,66 +1257,60 @@ function AddSiteModal({
   return (
     <div
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) animClose();
       }}
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0, 0, 0, 0.65)",
+        background: "rgba(0, 0, 0, 0.5)",
         backdropFilter: "blur(3px)",
+        WebkitBackdropFilter: "blur(3px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 1000,
+        opacity: closing ? 0 : 1,
+        transition: "opacity 0.18s cubic-bezier(0.25,1,0.5,1)",
+        animation: "smurov-backdrop-in 0.25s cubic-bezier(0.25,1,0.5,1)",
       }}
     >
       <div
         style={{
-          width: 480,
-          background: "#16213e",
-          border: "1px solid #333",
-          borderRadius: 12,
-          padding: 24,
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.6)",
+          width: 420,
+          background: "oklch(0.155 0.016 250 / 0.85)",
+          backdropFilter: "blur(7px)",
+          WebkitBackdropFilter: "blur(7px)",
+          border: "1px solid oklch(0.24 0.013 250)",
+          borderRadius: 10,
+          padding: 20,
+          boxShadow: "0 16px 48px rgba(0, 0, 0, 0.4)",
           position: "relative",
+          transform: closing ? "scale(0.95) translateY(8px)" : "scale(1) translateY(0)",
+          opacity: closing ? 0 : 1,
+          transition: "transform 0.18s cubic-bezier(0.25,1,0.5,1), opacity 0.18s cubic-bezier(0.25,1,0.5,1)",
+          animation: "smurov-fade-in 0.25s cubic-bezier(0.25,1,0.5,1)",
         }}
       >
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          style={{
-            position: "absolute",
-            top: 12,
-            right: 12,
-            width: 28,
-            height: 28,
-            borderRadius: 6,
-            background: "transparent",
-            border: "none",
-            color: "#888",
-            fontSize: 18,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            lineHeight: 1,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#2a3040";
-            e.currentTarget.style.color = "#fff";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "#888";
-          }}
-        >
-          ✕
-        </button>
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#eee", marginBottom: 6 }}>
-          Add site
-        </div>
-        <div style={{ fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.5 }}>
-          Search the catalog or enter a domain manually.
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, animation: "smurov-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
+          <div style={{ fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 16, fontWeight: 700, color: "oklch(0.93 0.006 250)", letterSpacing: 0.3 }}>
+            Add site
+          </div>
+          <button
+            onClick={animClose}
+            aria-label="Close"
+            style={{
+              width: 24, height: 24, borderRadius: 4,
+              background: "transparent", border: "none",
+              color: "oklch(0.40 0.01 250)", fontSize: 14,
+              cursor: "pointer", display: "flex",
+              alignItems: "center", justifyContent: "center",
+              transition: "all 0.1s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(0.23 0.016 250)"; e.currentTarget.style.color = "oklch(0.93 0.006 250)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "oklch(0.40 0.01 250)"; }}
+          >
+            ✕
+          </button>
         </div>
         <input
           ref={inputRef}
@@ -1173,15 +1322,17 @@ function AddSiteModal({
           placeholder="Search or enter domain..."
           style={{
             width: "100%",
-            padding: "10px 12px",
-            background: "#0b0f1a",
-            border: "1px solid #333",
-            borderRadius: 6,
-            color: "#eee",
-            fontSize: 14,
+            padding: "8px 12px",
+            background: "oklch(0.12 0.014 250)",
+            border: "1px solid oklch(0.24 0.013 250)",
+            borderRadius: 5,
+            color: "oklch(0.93 0.006 250)",
+            fontSize: 13,
             outline: "none",
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            marginBottom: 14,
+            fontFamily: "'Figtree', system-ui, sans-serif",
+            marginBottom: 12,
+            transition: "border-color 0.12s",
+            animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.12s both",
           }}
         />
 
@@ -1190,15 +1341,14 @@ function AddSiteModal({
           <div style={{ marginBottom: 14 }}>
             <div
               style={{
-                maxHeight: 280,
+                maxHeight: 240,
                 overflowY: "auto",
                 display: "grid",
                 gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 8,
-                padding: 2,
+                gap: 6,
               }}
             >
-              {results.map((site) => {
+              {results.map((site, i) => {
                 const alreadyAdded = existingSiteIds.has(site.id);
                 const isSelected = selected.has(site.id);
                 const color = siteColor(site.primary_domain);
@@ -1208,75 +1358,58 @@ function AddSiteModal({
                     key={site.id}
                     onClick={() => toggleSelect(site.id)}
                     style={{
-                      padding: "12px 8px 10px",
-                      borderRadius: 8,
+                      padding: "8px 6px",
+                      borderRadius: 6,
+                      animation: `smurov-blur-light 0.25s cubic-bezier(0.25,1,0.5,1) ${0.03 + i * 0.03}s both`,
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      gap: 5,
+                      justifyContent: "center",
+                      gap: 4,
+                      minHeight: 72,
                       cursor: alreadyAdded ? "default" : "pointer",
-                      transition: "transform 0.12s ease, background 0.15s, border-color 0.15s",
+                      transition: "all 0.1s",
                       background: isSelected
-                        ? `${color}14`
+                        ? "oklch(0.18 0.028 235)"
                         : alreadyAdded
-                        ? "rgba(76, 175, 80, 0.06)"
-                        : "#0d111c",
+                        ? "oklch(0.14 0.02 150)"
+                        : "oklch(0.12 0.014 250)",
                       border: isSelected
-                        ? `1px solid ${color}80`
+                        ? "1px solid oklch(0.68 0.12 235 / 0.4)"
                         : alreadyAdded
-                        ? "1px solid rgba(76, 175, 80, 0.3)"
-                        : "1px solid #222",
-                      opacity: alreadyAdded ? 0.5 : 1,
+                        ? "1px solid oklch(0.72 0.15 150 / 0.3)"
+                        : "1px solid oklch(0.24 0.013 250)",
+                      opacity: alreadyAdded ? 0.4 : 1,
                       position: "relative",
                     }}
                     onMouseEnter={(e) => {
-                      if (!alreadyAdded) e.currentTarget.style.transform = "translateY(-1px)";
+                      if (!alreadyAdded) { e.currentTarget.style.borderColor = "oklch(0.30 0.014 250)"; e.currentTarget.style.background = "oklch(0.19 0.018 250)"; }
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "none";
+                      if (!alreadyAdded && !isSelected) { e.currentTarget.style.borderColor = "oklch(0.24 0.013 250)"; e.currentTarget.style.background = "oklch(0.12 0.014 250)"; }
                     }}
                   >
                     {alreadyAdded && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 4,
-                          right: 4,
-                          fontSize: 8,
-                          color: "#4caf50",
-                          fontWeight: 700,
-                          letterSpacing: 0.3,
-                        }}
-                      >
+                      <div style={{
+                        position: "absolute", top: 3, right: 4,
+                        fontSize: 7, fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+                        color: "oklch(0.72 0.15 150)", fontWeight: 700, letterSpacing: 0.5,
+                      }}>
                         ADDED
                       </div>
                     )}
-                    <SiteTileIcon
-                      domain={site.primary_domain}
-                      name={site.label}
-                      color={color}
-                      size={32}
-                      monochrome={!active}
-                    />
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        textAlign: "center",
-                        lineHeight: 1.2,
-                        color: active ? "#eee" : "#888",
-                      }}
-                    >
+                    <SiteTileIcon domain={site.primary_domain} name={site.label} color={color} size={24} monochrome={!active} />
+                    <div style={{
+                      fontSize: 10, fontWeight: 600, fontFamily: "'Figtree', system-ui, sans-serif",
+                      textAlign: "center", lineHeight: 1.2,
+                      color: active ? "oklch(0.93 0.006 250)" : "oklch(0.60 0.012 250)",
+                    }}>
                       {site.label}
                     </div>
-                    <div
-                      style={{
-                        fontSize: 9,
-                        fontFamily: "ui-monospace, monospace",
-                        textAlign: "center",
-                        color: active ? "#888" : "#555",
-                      }}
-                    >
+                    <div style={{
+                      fontSize: 8, fontFamily: "'Barlow', system-ui, sans-serif",
+                      textAlign: "center", color: active ? "oklch(0.50 0.01 250)" : "oklch(0.40 0.01 250)",
+                    }}>
                       {site.primary_domain}
                     </div>
                   </div>
@@ -1288,42 +1421,28 @@ function AddSiteModal({
 
         {/* Manual preview — shown when no catalog results and input looks like a domain */}
         {!hasResults && looksLikeDomain && !searching && (
-          <div style={{ marginBottom: 14 }}>
-            <div
-              style={{
-                fontSize: 10,
-                color: "#666",
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                fontFamily: "ui-monospace, monospace",
-                marginBottom: 6,
-              }}
-            >
+          <div style={{ marginBottom: 12 }}>
+            <div style={{
+              fontSize: 9, color: "oklch(0.40 0.01 250)", textTransform: "uppercase" as const,
+              letterSpacing: 1.5, fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+              fontWeight: 600, marginBottom: 6,
+            }}>
               Manual entry
             </div>
-            <div
-              style={{
-                padding: "14px 10px 12px",
-                background: "#0b0f1a",
-                border: "1px solid #333",
-                borderRadius: 10,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 5,
-              }}
-            >
-              <SiteTileIcon
-                domain={cleanDomain}
-                name={labelFromDomain(cleanDomain)}
-                color={siteColor(cleanDomain)}
-                size={36}
-              />
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#eee" }}>
-                {labelFromDomain(cleanDomain)}
-              </div>
-              <div style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: "#888" }}>
-                {cleanDomain}
+            <div style={{
+              padding: "10px 12px", background: "oklch(0.12 0.014 250)",
+              border: "1px solid oklch(0.24 0.013 250)", borderRadius: 6,
+              display: "flex", alignItems: "center", gap: 10,
+              animation: "smurov-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) 0.05s both",
+            }}>
+              <SiteTileIcon domain={cleanDomain} name={labelFromDomain(cleanDomain)} color={siteColor(cleanDomain)} size={24} />
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, fontFamily: "'Figtree', system-ui, sans-serif", color: "oklch(0.93 0.006 250)" }}>
+                  {labelFromDomain(cleanDomain)}
+                </div>
+                <div style={{ fontSize: 9, fontFamily: "'Barlow', system-ui, sans-serif", color: "oklch(0.50 0.01 250)" }}>
+                  {cleanDomain}
+                </div>
               </div>
             </div>
           </div>
@@ -1331,32 +1450,33 @@ function AddSiteModal({
 
         {/* Searching indicator */}
         {searching && (
-          <div style={{ textAlign: "center", padding: "16px 0", marginBottom: 14, color: "#555", fontSize: 12 }}>
+          <div style={{ textAlign: "center", padding: "14px 0", marginBottom: 12, color: "oklch(0.40 0.01 250)", fontSize: 12, fontFamily: "'Figtree', system-ui, sans-serif" }}>
             Searching...
           </div>
         )}
 
         {/* Empty state */}
         {!hasResults && !searching && !looksLikeDomain && (
-          <div style={{ textAlign: "center", padding: "20px 0", marginBottom: 14, color: "#444", fontSize: 12 }}>
+          <div style={{ textAlign: "center", padding: "16px 0", marginBottom: 12, color: "oklch(0.35 0.008 250)", fontSize: 12, fontFamily: "'Figtree', system-ui, sans-serif" }}>
             {cleanDomain ? "No matches — keep typing or enter a full domain" : "Type to search the catalog"}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>
           <button
-            onClick={onClose}
+            onClick={animClose}
             style={{
-              padding: "8px 18px",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              background: "transparent",
-              color: "#888",
-              border: "1px solid #333",
-              fontFamily: "inherit",
+              padding: "6px 16px", borderRadius: 4,
+              fontSize: 12, fontWeight: 600,
+              cursor: "pointer", background: "transparent",
+              color: "oklch(0.60 0.012 250)",
+              border: "1px solid oklch(0.24 0.013 250)",
+              fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+              letterSpacing: 0.3,
+              transition: "all 0.1s",
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "oklch(0.30 0.014 250)"; e.currentTarget.style.color = "oklch(0.93 0.006 250)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "oklch(0.24 0.013 250)"; e.currentTarget.style.color = "oklch(0.60 0.012 250)"; }}
           >
             Cancel
           </button>
@@ -1364,16 +1484,16 @@ function AddSiteModal({
             onClick={submit}
             disabled={!canSubmit}
             style={{
-              padding: "8px 18px",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
+              padding: "6px 16px", borderRadius: 4,
+              fontSize: 12, fontWeight: 600,
               cursor: canSubmit ? "pointer" : "not-allowed",
-              background: canSubmit ? "#3b82f6" : "#2a3040",
-              color: "#fff",
+              background: canSubmit ? "oklch(0.68 0.12 235)" : "oklch(0.23 0.016 250)",
+              color: canSubmit ? "oklch(0.15 0.01 235)" : "oklch(0.40 0.01 250)",
               border: "none",
-              fontFamily: "inherit",
-              opacity: canSubmit ? 1 : 0.6,
+              fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
+              letterSpacing: 0.3,
+              opacity: canSubmit ? 1 : 0.5,
+              transition: "all 0.1s",
             }}
           >
             {selected.size > 0 ? `Add (${selected.size})` : "Add"}
@@ -1388,7 +1508,7 @@ function Code({ children }: { children: React.ReactNode }) {
   return (
     <code
       style={{
-        fontFamily: "ui-monospace, monospace",
+        fontFamily: "'Barlow', system-ui, sans-serif",
         color: "#cbd5e1",
         background: "rgba(0,0,0,0.25)",
         padding: "1px 4px",

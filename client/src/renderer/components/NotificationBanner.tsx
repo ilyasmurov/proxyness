@@ -27,12 +27,29 @@ interface Notification {
 type DownloadState = "idle" | "downloading" | "ready";
 
 const TYPE_PRIORITY: Record<string, number> = { migration: 0, update: 1, maintenance: 2, info: 3 };
-const TYPE_COLORS: Record<string, { bg: string; border: string }> = {
-  migration: { bg: "#2d1b1b", border: "#7f1d1d" },
-  update: { bg: "#1a2744", border: "#2a4a7a" },
-  maintenance: { bg: "#2d2006", border: "#78520a" },
-  info: { bg: "#1a2234", border: "#2a3a5a" },
+const TYPE_COLORS: Record<string, { bg: string; border: string; accent: string; icon: string }> = {
+  migration: { bg: "oklch(0.15 0.025 25)", border: "oklch(0.62 0.19 25 / 0.15)", accent: "oklch(0.62 0.19 25)", icon: "alert" },
+  update: { bg: "oklch(0.15 0.02 235)", border: "oklch(0.68 0.12 235 / 0.15)", accent: "oklch(0.68 0.12 235)", icon: "download" },
+  maintenance: { bg: "oklch(0.15 0.025 75)", border: "oklch(0.78 0.155 75 / 0.15)", accent: "oklch(0.78 0.155 75)", icon: "clock" },
+  info: { bg: "oklch(0.155 0.016 250)", border: "oklch(0.24 0.013 250)", accent: "oklch(0.60 0.012 250)", icon: "info" },
 };
+
+const ICONS: Record<string, string> = {
+  download: "M12 5v14M5 12l7 7 7-7",
+  alert: "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01",
+  clock: "M12 2a10 10 0 100 20 10 10 0 000-20zM12 6v6l4 2",
+  info: "M12 2a10 10 0 100 20 10 10 0 000-20zM12 16v-4M12 8h.01",
+  check: "M20 6L9 17l-5-5",
+};
+
+function NotifIcon({ type, color }: { type: string; color: string }) {
+  const d = ICONS[type] || ICONS.info;
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <path d={d} />
+    </svg>
+  );
+}
 
 export function NotificationBanner() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -81,21 +98,38 @@ export function NotificationBanner() {
   if (!notif && dlState === "idle") return null;
 
   if (dlState === "downloading") {
+    const tc = TYPE_COLORS.update;
     return (
-      <div style={{ padding: "10px 12px", marginBottom: 16, background: "#1a2744", border: "1px solid #2a4a7a", borderRadius: 8, fontSize: 13 }}>
-        <div style={{ marginBottom: 4 }}>Downloading... {progress >= 0 ? `${progress}%` : `${-progress} MB`}</div>
-        <div style={{ height: 4, background: "#333", borderRadius: 2 }}>
-          <div style={{ height: 4, width: `${Math.max(progress, 0)}%`, background: "#3b82f6", borderRadius: 2 }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 6, background: tc.bg, border: `1px solid ${tc.border}` }}>
+        <NotifIcon type="download" color={tc.accent} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 12, fontWeight: 600, color: "oklch(0.93 0.006 250)" }}>
+            Downloading update... {progress >= 0 ? `${progress}%` : `${-progress} MB`}
+          </div>
+          <div style={{ height: 3, background: `${tc.accent}26`, borderRadius: 2, marginTop: 6 }}>
+            <div style={{ height: 3, width: `${Math.max(progress, 0)}%`, background: tc.accent, borderRadius: 2, transition: "width 0.3s" }} />
+          </div>
         </div>
       </div>
     );
   }
 
   if (dlState === "ready") {
+    const tc = TYPE_COLORS.update;
     return (
-      <div style={{ padding: "10px 12px", marginBottom: 16, background: "#0f3d1a", border: "1px solid #166534", borderRadius: 8, fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span>Update ready</span>
-        <button onClick={() => window.updater?.installUpdate()} style={{ padding: "4px 12px", background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 6, background: "oklch(0.14 0.02 150)", border: "1px solid oklch(0.72 0.15 150 / 0.15)" }}>
+        <NotifIcon type="check" color="oklch(0.72 0.15 150)" />
+        <div style={{ flex: 1, fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 12, fontWeight: 600, color: "oklch(0.93 0.006 250)" }}>
+          Update ready to install
+        </div>
+        <button
+          onClick={() => window.updater?.installUpdate()}
+          style={{
+            padding: "4px 12px", borderRadius: 4, cursor: "pointer",
+            fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
+            background: "oklch(0.72 0.15 150 / 0.15)", border: "1px solid oklch(0.72 0.15 150 / 0.25)", color: "oklch(0.72 0.15 150)",
+          }}
+        >
           Restart & Update
         </button>
       </div>
@@ -104,7 +138,7 @@ export function NotificationBanner() {
 
   if (!notif) return null;
 
-  const colors = TYPE_COLORS[notif.type] || TYPE_COLORS.info;
+  const tc = TYPE_COLORS[notif.type] || TYPE_COLORS.info;
 
   const handleAction = () => {
     if (!notif.action) return;
@@ -115,34 +149,61 @@ export function NotificationBanner() {
         break;
       case "open_url":
         if (notif.action.url) {
-          // Use shell.openExternal via the main process
           window.open(notif.action.url, "_blank");
         }
         break;
       case "reconnect":
-        // Future: reconnect to new server address
         break;
     }
   };
 
   return (
-    <div style={{ padding: "10px 12px", marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, fontSize: 13 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, marginBottom: notif.message ? 4 : 0 }}>{notif.title}</div>
-          {notif.message && <div style={{ color: "#94a3b8", fontSize: 12 }}>{notif.message}</div>}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 12, flexShrink: 0 }}>
-          {notif.action && (
-            <button onClick={handleAction} style={{ padding: "4px 12px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
-              {notif.action.label}
-            </button>
-          )}
-          <button onClick={handleDismiss} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16, padding: "0 2px", lineHeight: 1 }}>
-            ×
-          </button>
-        </div>
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "8px 12px", borderRadius: 6,
+      background: tc.bg, border: `1px solid ${tc.border}`,
+      animation: "smurov-blur-fade 0.35s cubic-bezier(0.25,1,0.5,1) both",
+    }}>
+      <div style={{ animation: "smurov-blur-dot 0.3s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
+        <NotifIcon type={tc.icon} color={tc.accent} />
       </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 12, fontWeight: 600, color: "oklch(0.93 0.006 250)", animation: "smurov-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.12s both" }}>
+          {notif.title}
+        </div>
+        {notif.message && (
+          <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 11, color: "oklch(0.40 0.01 250)", marginTop: 1, animation: "smurov-blur-light 0.35s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>
+            {notif.message}
+          </div>
+        )}
+      </div>
+      {notif.action && (
+        <button
+          onClick={handleAction}
+          style={{
+            padding: "4px 12px", borderRadius: 4, cursor: "pointer", flexShrink: 0,
+            fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
+            background: `${tc.accent}26`, border: `1px solid ${tc.accent}40`, color: tc.accent,
+            transition: "all 0.1s", whiteSpace: "nowrap" as const,
+            animation: "smurov-blur-badge 0.3s cubic-bezier(0.25,1,0.5,1) 0.25s both",
+          }}
+        >
+          {notif.action.label}
+        </button>
+      )}
+      <button
+        onClick={handleDismiss}
+        style={{
+          background: "none", border: "none", color: "oklch(0.40 0.01 250)",
+          cursor: "pointer", fontSize: 14, padding: "0 2px", lineHeight: 1, flexShrink: 0,
+          animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.3s both",
+          transition: "color 0.1s",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = "oklch(0.93 0.006 250)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = "oklch(0.40 0.01 250)"; }}
+      >
+        ×
+      </button>
     </div>
   );
 }

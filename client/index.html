@@ -4,22 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SmurovProxy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
+      * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+      input, textarea, [data-selectable] { user-select: text; -webkit-user-select: text; }
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background: #0b0f1a;
-        color: #eee;
+        font-family: 'Figtree', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: oklch(0.12 0.014 250);
+        color: oklch(0.93 0.006 250);
         min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
       }
       #root { }
       /* Prevent body scroll — all scrolling happens inside flex children */
       html, body, #root { height: 100%; overflow: hidden; }
-      /* Custom scrollbar (thin, dark, macOS-like on all platforms) */
-      ::-webkit-scrollbar { width: 6px; }
+      /* Custom scrollbar (thin, dark) */
+      ::-webkit-scrollbar { width: 4px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+      ::-webkit-scrollbar-thumb { background: oklch(0.24 0.013 250); border-radius: 2px; }
+      ::-webkit-scrollbar-thumb:hover { background: oklch(0.30 0.014 250); }
       @keyframes spin { to { transform: rotate(360deg); } }
       /* Animation used by the StatusBar spinner (unique name to avoid collisions) */
       @keyframes smurov-spin { to { transform: rotate(360deg); } }
@@ -66,6 +70,28 @@
       @keyframes smurov-fade-out {
         from { opacity: 1; }
         to   { opacity: 0; }
+      }
+      @keyframes smurov-backdrop-in {
+        from { backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); background: rgba(0,0,0,0); }
+        to   { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); background: rgba(0,0,0,0.5); }
+      }
+      /* Blur resolve animations */
+      @keyframes smurov-blur-bg    { from{opacity:0;filter:blur(20px) brightness(0.1)} to{opacity:1;filter:blur(0) brightness(0.25)} }
+      @keyframes smurov-blur-heavy { from{opacity:0;filter:blur(12px);transform:translateY(8px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
+      @keyframes smurov-blur-med   { from{opacity:0;filter:blur(6px);transform:translateY(5px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
+      @keyframes smurov-blur-light { from{opacity:0;filter:blur(4px);transform:translateY(3px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
+      @keyframes smurov-blur-fade  { from{opacity:0;filter:blur(3px)} to{opacity:1;filter:blur(0)} }
+      @keyframes smurov-blur-dot   { from{opacity:0;transform:scale(0)} to{opacity:1;transform:scale(1)} }
+      @keyframes smurov-blur-badge { from{opacity:0;filter:blur(4px);transform:scale(0.8)} to{opacity:1;filter:blur(0);transform:scale(1)} }
+      @keyframes smurov-blur-row   { from{opacity:0;filter:blur(4px);transform:translateX(-6px)} to{opacity:1;filter:blur(0);transform:translateX(0)} }
+      @keyframes smurov-tab-line   { from{transform:scaleX(0)} to{transform:scaleX(1)} }
+      /* Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
       }
     </style>
   </head>
