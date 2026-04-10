@@ -1,3 +1,3 @@
 ## feature
-Notification delivery tracking
-Track which devices received notifications, add expires_at, deduplicate by type.
+Notification delivery tracking & dismiss
+Track deliveries, expires_at, dedup by type, delivery stats in admin, dismiss button in client.

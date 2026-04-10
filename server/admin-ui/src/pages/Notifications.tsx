@@ -29,6 +29,11 @@ export function Notifications() {
   const [newActionType, setNewActionType] = useState("none");
   const [newActionLabel, setNewActionLabel] = useState("");
   const [newActionUrl, setNewActionUrl] = useState("");
+  const [newExpires, setNewExpires] = useState("7");
+  const [expandedDelivery, setExpandedDelivery] = useState<string | null>(null);
+  const [deliveries, setDeliveries] = useState<Record<string, import("@/lib/api").NotificationDelivery[]>>({});
+  const [users, setUsers] = useState<import("@/lib/api").User[]>([]);
+  const [devicesByUser, setDevicesByUser] = useState<Record<number, import("@/lib/api").Device[]>>({});
 
   const loadNotifs = () => {
     api.listNotifications()
@@ -46,6 +51,14 @@ export function Notifications() {
   useEffect(() => {
     loadNotifs();
     loadServices();
+    api.listUsers().then(async (users) => {
+      setUsers(users);
+      const byUser: Record<number, import("@/lib/api").Device[]> = {};
+      await Promise.all(users.map(async (u) => {
+        byUser[u.id] = await api.listDevices(u.id);
+      }));
+      setDevicesByUser(byUser);
+    });
   }, []);
 
   const handleCreate = async () => {
@@ -54,13 +67,15 @@ export function Notifications() {
       const action = newActionType !== "none" && newActionLabel.trim()
         ? { label: newActionLabel.trim(), type: newActionType, ...(newActionType === "open_url" && newActionUrl.trim() ? { url: newActionUrl.trim() } : {}) }
         : undefined;
-      await api.createNotification({ type: newType, title: newTitle.trim(), message: newMessage.trim() || undefined, action, beta_only: newBetaOnly });
+      const expiresAt = newExpires === "never" ? undefined : new Date(Date.now() + parseInt(newExpires) * 86400000).toISOString();
+      await api.createNotification({ type: newType, title: newTitle.trim(), message: newMessage.trim() || undefined, action, beta_only: newBetaOnly, expires_at: expiresAt });
       setNewTitle("");
       setNewMessage("");
       setNewBetaOnly(false);
       setNewActionType("none");
       setNewActionLabel("");
       setNewActionUrl("");
+      setNewExpires("7");
       loadNotifs();
     } catch (e: any) {
       setError(e.message);
@@ -75,6 +90,18 @@ export function Notifications() {
   const handleDelete = async (id: string) => {
     await api.deleteNotification(id);
     loadNotifs();
+  };
+
+  const toggleDelivery = async (id: string) => {
+    if (expandedDelivery === id) {
+      setExpandedDelivery(null);
+      return;
+    }
+    setExpandedDelivery(id);
+    if (!deliveries[id]) {
+      const data = await api.getDeliveries(id);
+      setDeliveries((prev) => ({ ...prev, [id]: data }));
+    }
   };
 
   const handleSaveServices = async () => {
@@ -173,15 +200,31 @@ export function Notifications() {
                   onChange={(e) => setNewActionUrl(e.target.value)}
                 />
               )}
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={newBetaOnly}
-                  onChange={(e) => setNewBetaOnly(e.target.checked)}
-                  className="rounded"
-                />
-                Beta only
-              </label>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={newBetaOnly}
+                    onChange={(e) => setNewBetaOnly(e.target.checked)}
+                    className="rounded"
+                  />
+                  Beta only
+                </label>
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="text-xs text-muted-foreground">Expires in</span>
+                  <select
+                    value={newExpires}
+                    onChange={(e) => setNewExpires(e.target.value)}
+                    className="bg-background border border-border rounded-md px-2 py-1 text-sm"
+                  >
+                    <option value="1">1 day</option>
+                    <option value="3">3 days</option>
+                    <option value="7">7 days</option>
+                    <option value="30">30 days</option>
+                    <option value="never">Never</option>
+                  </select>
+                </div>
+              </div>
               <Button onClick={handleCreate} disabled={!newTitle.trim()}>
                 Create
               </Button>
@@ -198,41 +241,86 @@ export function Notifications() {
               ) : (
                 <div className="space-y-2">
                   {notifs.map((n) => (
-                    <div key={n.id} className="flex items-center justify-between border border-border rounded-md px-3 py-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <Badge variant="outline" className={typeColors[n.type] || typeColors.info}>
-                          {n.type}
-                        </Badge>
-                        <Badge variant={n.active ? "default" : "secondary"} className="text-xs">
-                          {n.active ? "Active" : "Off"}
-                        </Badge>
-                        {n.beta_only && (
-                          <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">
-                            Beta
+                    <div key={n.id} className="space-y-2">
+                      <div className="flex items-center justify-between border border-border rounded-md px-3 py-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Badge variant="outline" className={typeColors[n.type] || typeColors.info}>
+                            {n.type}
                           </Badge>
-                        )}
-                        <div className="truncate">
-                          <span className="font-medium text-sm">{n.title}</span>
-                          {n.message && <span className="text-muted-foreground text-xs ml-2">{n.message}</span>}
-                          {n.action && <span className="text-blue-400 text-xs ml-2">[{n.action.type}: {n.action.label}]</span>}
+                          <Badge variant={n.active ? "default" : "secondary"} className="text-xs">
+                            {n.active ? "Active" : "Off"}
+                          </Badge>
+                          {n.beta_only && (
+                            <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">
+                              Beta
+                            </Badge>
+                          )}
+                          <button
+                            onClick={() => toggleDelivery(n.id)}
+                            className="text-xs text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 rounded-full px-2 py-0.5 hover:bg-emerald-500/30 transition-colors"
+                          >
+                            Delivered: {n.delivery_count ?? 0}
+                          </button>
+                          <div className="truncate">
+                            <span className="font-medium text-sm">{n.title}</span>
+                            {n.message && <span className="text-muted-foreground text-xs ml-2">{n.message}</span>}
+                            {n.action && <span className="text-blue-400 text-xs ml-2">[{n.action.type}: {n.action.label}]</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0 ml-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggle(n.id, !n.active)}
+                          >
+                            {n.active ? "Disable" : "Enable"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDelete(n.id)}
+                          >
+                            Delete
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-2 shrink-0 ml-3">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleToggle(n.id, !n.active)}
-                        >
-                          {n.active ? "Disable" : "Enable"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDelete(n.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                      {expandedDelivery === n.id && (
+                        <div className="border border-border rounded-md px-3 py-2 text-xs space-y-2">
+                          {!deliveries[n.id] ? (
+                            <span className="text-muted-foreground">Loading...</span>
+                          ) : deliveries[n.id].length === 0 ? (
+                            <span className="text-muted-foreground">No deliveries yet</span>
+                          ) : (
+                            (() => {
+                              const keyToDevice: Record<string, { name: string; userId: number }> = {};
+                              for (const [uid, devs] of Object.entries(devicesByUser)) {
+                                for (const d of devs) {
+                                  keyToDevice[d.key] = { name: d.name, userId: Number(uid) };
+                                }
+                              }
+                              const groups: Record<string, { userName: string; devices: { name: string; deliveredAt: string }[] }> = {};
+                              for (const dl of deliveries[n.id]) {
+                                const dev = keyToDevice[dl.device_key];
+                                const userId = dev?.userId ?? 0;
+                                const userName = users.find((u) => u.id === userId)?.name ?? "Unknown";
+                                if (!groups[userName]) groups[userName] = { userName, devices: [] };
+                                groups[userName].devices.push({ name: dev?.name ?? dl.device_key.slice(0, 8), deliveredAt: dl.delivered_at });
+                              }
+                              return Object.values(groups).map((g) => (
+                                <div key={g.userName}>
+                                  <div className="font-medium text-muted-foreground">{g.userName}</div>
+                                  {g.devices.map((d, i) => (
+                                    <div key={i} className="ml-4 flex justify-between">
+                                      <span>{d.name}</span>
+                                      <span className="text-muted-foreground">{new Date(d.deliveredAt).toLocaleString()}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ));
+                            })()
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

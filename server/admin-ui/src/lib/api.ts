@@ -164,6 +164,13 @@ export interface Notification {
   active: boolean;
   beta_only: boolean;
   created_at: string;
+  expires_at?: string;
+  delivery_count?: number;
+}
+
+export interface NotificationDelivery {
+  device_key: string;
+  delivered_at: string;
 }
 
 export interface ServiceConfigMap {
@@ -203,12 +210,14 @@ export const api = {
 
   // Config service (notifications + services)
   listNotifications: (): Promise<Notification[]> => configRequest("/notifications"),
-  createNotification: (data: { type: string; title: string; message?: string; action?: any; beta_only?: boolean }): Promise<Notification> =>
+  createNotification: (data: { type: string; title: string; message?: string; action?: any; beta_only?: boolean; expires_at?: string }): Promise<Notification> =>
     configRequest("/notifications", { method: "POST", body: JSON.stringify(data) }),
   deleteNotification: (id: string) =>
     configRequest(`/notifications/${id}`, { method: "DELETE" }),
   updateNotification: (id: string, data: { active?: boolean; title?: string; message?: string }) =>
     configRequest(`/notifications/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  getDeliveries: (id: string): Promise<NotificationDelivery[]> =>
+    configRequest(`/notifications/${id}/deliveries`),
   getServices: (): Promise<ServiceConfigMap> => configRequest("/services"),
   setServices: (data: ServiceConfigMap) =>
     configRequest("/services", { method: "PUT", body: JSON.stringify(data) }),
