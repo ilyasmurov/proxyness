@@ -1,9 +1,8 @@
 FROM golang:1.26-alpine AS build
 RUN apk add --no-cache gcc musl-dev
 WORKDIR /app
-COPY go.work go.work.sum ./
-COPY pkg/ pkg/
 COPY config/ config/
+ENV GOWORK=off
 RUN cd config && go build -ldflags="-s -w" -o /smurov-config ./cmd
 
 FROM alpine:3.20
