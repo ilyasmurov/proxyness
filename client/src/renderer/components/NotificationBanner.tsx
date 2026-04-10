@@ -20,6 +20,7 @@ interface Notification {
   type: "update" | "migration" | "maintenance" | "info";
   title: string;
   message?: string;
+  created_at?: string;
   action?: { label: string; type: string; url?: string; server?: string };
 }
 
@@ -37,6 +38,9 @@ export function NotificationBanner() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dlState, setDlState] = useState<DownloadState>("idle");
   const [progress, setProgress] = useState(0);
+  const [dismissedBefore, setDismissedBefore] = useState<string>(
+    () => localStorage.getItem("notification-dismissed-before") || ""
+  );
   const dlStateRef = useRef(dlState);
   dlStateRef.current = dlState;
 
@@ -62,8 +66,16 @@ export function NotificationBanner() {
     window.updater.onUpdateError(() => setDlState("idle"));
   }, []);
 
-  // Pick highest priority notification
-  const sorted = [...notifications].sort((a, b) => (TYPE_PRIORITY[a.type] ?? 9) - (TYPE_PRIORITY[b.type] ?? 9));
+  const handleDismiss = () => {
+    const now = new Date().toISOString();
+    localStorage.setItem("notification-dismissed-before", now);
+    setDismissedBefore(now);
+  };
+
+  // Pick highest priority notification, filtering out dismissed
+  const sorted = [...notifications]
+    .filter((n) => !dismissedBefore || !n.created_at || n.created_at > dismissedBefore)
+    .sort((a, b) => (TYPE_PRIORITY[a.type] ?? 9) - (TYPE_PRIORITY[b.type] ?? 9));
   const notif = sorted[0];
 
   if (!notif && dlState === "idle") return null;
@@ -116,15 +128,20 @@ export function NotificationBanner() {
   return (
     <div style={{ padding: "10px 12px", marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 8, fontSize: 13 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, marginBottom: notif.message ? 4 : 0 }}>{notif.title}</div>
           {notif.message && <div style={{ color: "#94a3b8", fontSize: 12 }}>{notif.message}</div>}
         </div>
-        {notif.action && (
-          <button onClick={handleAction} style={{ padding: "4px 12px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap", marginLeft: 12 }}>
-            {notif.action.label}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 12, flexShrink: 0 }}>
+          {notif.action && (
+            <button onClick={handleAction} style={{ padding: "4px 12px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+              {notif.action.label}
+            </button>
+          )}
+          <button onClick={handleDismiss} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 16, padding: "0 2px", lineHeight: 1 }}>
+            ×
           </button>
-        )}
+        </div>
       </div>
     </div>
   );
