@@ -45,7 +45,7 @@ if (DEBUG_ENABLED) {
 }
 
 const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/download";
-const DEFAULT_CONFIG_URL = "https://95.181.162.242/api/client-config";
+const DEFAULT_CONFIG_URL = "https://proxy.smurov.com/api/client-config";
 
 interface ServerNotification {
   id: string;

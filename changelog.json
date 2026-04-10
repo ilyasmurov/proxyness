@@ -1,5 +1,12 @@
 [
   {
+    "id": "09112838-5654-4f1a-bf34-77f318c0ad78",
+    "title": "Config polling TLS cert mismatch",
+    "description": "DEFAULT_CONFIG_URL used IP address but TLS cert is for proxy.smurov.com — notifications never reached clients.",
+    "type": "fix",
+    "createdAt": "2026-04-10T15:04:22.164796+00:00"
+  },
+  {
     "id": "aad71b15-215a-45e6-8ac0-e33584a8228c",
     "title": "Animated StatusBar with letter-by-letter text, speed graph in Disconnect button",
     "description": "StatusBar entrance animation (dot→line→bar), letter-by-letter blur-fade for all text, speed fraction between uptime and Disconnect, live graph background in Disconnect button (dark red + red border). Removed standalone SpeedGraph.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T20:08:26.647078+00:00"
-  },
-  {
-    "id": "9a3ac2ed-3364-4afd-855a-e209884378f6",
-    "title": "Use cwnd/RTT pacing during startup instead of BWE-based pacing",
-    "description": "Prevents BWE-pacing feedback loop that throttled upload to 0.1 MB/s",
-    "type": "fix",
-    "createdAt": "2026-04-05T19:59:09.516341+00:00"
   }
 ]
