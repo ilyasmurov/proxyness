@@ -140,6 +140,35 @@ export interface SiteDetail {
   users: SiteUserRow[];
 }
 
+const CONFIG_BASE = "/api/admin";
+
+async function configRequest(path: string, options?: RequestInit) {
+  const res = await fetch(CONFIG_BASE + path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message?: string;
+  action?: any;
+  active: boolean;
+  created_at: string;
+}
+
+export interface ServiceConfigMap {
+  [key: string]: string;
+}
+
 export const api = {
   listUsers: (): Promise<User[]> => request("/users"),
   createUser: (name: string): Promise<User> =>
@@ -170,4 +199,16 @@ export const api = {
   deleteSite: (id: number) => request(`/sites/${id}`, { method: "DELETE" }),
   deleteSiteDomain: (id: number, domain: string) =>
     request(`/sites/${id}/domains/${encodeURIComponent(domain)}`, { method: "DELETE" }),
+
+  // Config service (notifications + services)
+  listNotifications: (): Promise<Notification[]> => configRequest("/notifications"),
+  createNotification: (data: { type: string; title: string; message?: string; action?: any }): Promise<Notification> =>
+    configRequest("/notifications", { method: "POST", body: JSON.stringify(data) }),
+  deleteNotification: (id: string) =>
+    configRequest(`/notifications/${id}`, { method: "DELETE" }),
+  updateNotification: (id: string, data: { active?: boolean; title?: string; message?: string }) =>
+    configRequest(`/notifications/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  getServices: (): Promise<ServiceConfigMap> => configRequest("/services"),
+  setServices: (data: ServiceConfigMap) =>
+    configRequest("/services", { method: "PUT", body: JSON.stringify(data) }),
 };

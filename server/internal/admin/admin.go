@@ -60,10 +60,13 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	// Internal: config service validates device keys through this endpoint
 	mux.HandleFunc("GET /api/validate-key", h.handleValidateKey)
 
-	// Reverse proxy: forward /api/client-config to config container
+	// Reverse proxy: forward config service endpoints to config container
 	configTarget, _ := url.Parse("http://127.0.0.1:8443")
 	configProxy := httputil.NewSingleHostReverseProxy(configTarget)
 	mux.Handle("GET /api/client-config", configProxy)
+	mux.Handle("/api/admin/notifications", h.authHandler(configProxy))
+	mux.Handle("/api/admin/notifications/", h.authHandler(configProxy))
+	mux.Handle("/api/admin/services", h.authHandler(configProxy))
 
 	// Download files
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))

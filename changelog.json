@@ -1,5 +1,12 @@
 [
   {
+    "id": "71150166-c22c-4d69-a074-aad64a559d97",
+    "title": "Notifications page in admin panel",
+    "description": "Create, toggle and delete server-driven notifications for all clients. Also shows service config (proxy_server, relay_url, config_url).",
+    "type": "feature",
+    "createdAt": "2026-04-10T09:35:52.267122+00:00"
+  },
+  {
     "id": "726f5592-b535-4bc4-ad93-0b62a2a81bad",
     "title": "Config service + notifications system",
     "description": "Server-driven notifications, service discovery, and version updates via new smurov-config microservice. Landing page extracted to standalone container.",
@@ -1391,12 +1398,5 @@
     "description": "Theoretical throughput cap goes from ~1 MB/s to ~9 MB/s on ISP paths with ~150ms RTT.",
     "type": "improvement",
     "createdAt": "2026-04-05T16:32:14.135537+00:00"
-  },
-  {
-    "id": "f4872586-69e3-40c2-a8c6-a32b6e93e26b",
-    "title": "Remove cwnd reduction on packet loss for lossy ISP paths",
-    "description": "Pacing prevents bursts; random UDP drops are not congestion signals. cwnd can now grow to maxCwnd=128 instead of collapsing to 32.",
-    "type": "improvement",
-    "createdAt": "2026-04-05T16:23:01.688715+00:00"
   }
 ]

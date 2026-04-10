@@ -7,6 +7,7 @@ import { SiteDetail } from "./pages/SiteDetail";
 import { Releases } from "./pages/Releases";
 import { Changelog } from "./pages/Changelog";
 import { Logs } from "./pages/Logs";
+import { Notifications } from "./pages/Notifications";
 
 function Nav() {
   const loc = useLocation();
@@ -26,6 +27,7 @@ function Nav() {
       {link("/admin", "Dashboard")}
       {link("/admin/users", "Users")}
       {link("/admin/sites", "Sites")}
+      {link("/admin/notifications", "Notifications")}
       {link("/admin/releases", "Releases")}
       {link("/admin/changelog", "Changelog")}
       {link("/admin/logs", "Logs")}
@@ -45,6 +47,7 @@ export default function App() {
             <Route path="/admin/users/:id" element={<UserDetail />} />
             <Route path="/admin/sites" element={<Sites />} />
             <Route path="/admin/sites/:id" element={<SiteDetail />} />
+            <Route path="/admin/notifications" element={<Notifications />} />
             <Route path="/admin/releases" element={<Releases />} />
             <Route path="/admin/changelog" element={<Changelog />} />
             <Route path="/admin/logs" element={<Logs />} />
