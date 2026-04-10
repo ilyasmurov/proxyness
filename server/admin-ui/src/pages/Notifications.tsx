@@ -25,6 +25,7 @@ export function Notifications() {
   const [newType, setNewType] = useState("info");
   const [newTitle, setNewTitle] = useState("");
   const [newMessage, setNewMessage] = useState("");
+  const [newBetaOnly, setNewBetaOnly] = useState(false);
 
   const loadNotifs = () => {
     api.listNotifications()
@@ -47,9 +48,10 @@ export function Notifications() {
   const handleCreate = async () => {
     if (!newTitle.trim()) return;
     try {
-      await api.createNotification({ type: newType, title: newTitle.trim(), message: newMessage.trim() || undefined });
+      await api.createNotification({ type: newType, title: newTitle.trim(), message: newMessage.trim() || undefined, beta_only: newBetaOnly });
       setNewTitle("");
       setNewMessage("");
+      setNewBetaOnly(false);
       loadNotifs();
     } catch (e: any) {
       setError(e.message);
@@ -130,6 +132,15 @@ export function Notifications() {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
               />
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={newBetaOnly}
+                  onChange={(e) => setNewBetaOnly(e.target.checked)}
+                  className="rounded"
+                />
+                Beta only
+              </label>
               <Button onClick={handleCreate} disabled={!newTitle.trim()}>
                 Create
               </Button>
@@ -154,6 +165,11 @@ export function Notifications() {
                         <Badge variant={n.active ? "default" : "secondary"} className="text-xs">
                           {n.active ? "Active" : "Off"}
                         </Badge>
+                        {n.beta_only && (
+                          <Badge variant="outline" className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">
+                            Beta
+                          </Badge>
+                        )}
                         <div className="truncate">
                           <span className="font-medium text-sm">{n.title}</span>
                           {n.message && <span className="text-muted-foreground text-xs ml-2">{n.message}</span>}

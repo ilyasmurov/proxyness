@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"smurov-proxy/config/internal/db"
@@ -87,13 +88,21 @@ func (s *Server) handleClientConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notifs, err := s.db.ActiveNotifications()
+	allNotifs, err := s.db.ActiveNotifications()
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	if notifs == nil {
-		notifs = []db.Notification{}
+
+	// Filter beta_only notifications: only send to beta clients (version contains "beta")
+	clientVersion := r.URL.Query().Get("v")
+	isBeta := strings.Contains(clientVersion, "beta")
+	notifs := make([]db.Notification, 0, len(allNotifs))
+	for _, n := range allNotifs {
+		if n.BetaOnly && !isBeta {
+			continue
+		}
+		notifs = append(notifs, n)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -136,16 +145,17 @@ func (s *Server) handleListNotifications(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleCreateNotification(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Type    string          `json:"type"`
-		Title   string          `json:"title"`
-		Message string          `json:"message"`
-		Action  json.RawMessage `json:"action"`
+		Type     string          `json:"type"`
+		Title    string          `json:"title"`
+		Message  string          `json:"message"`
+		Action   json.RawMessage `json:"action"`
+		BetaOnly bool            `json:"beta_only"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	n, err := s.db.CreateNotification(req.Type, req.Title, req.Message, req.Action)
+	n, err := s.db.CreateNotification(req.Type, req.Title, req.Message, req.Action, req.BetaOnly)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

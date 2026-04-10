@@ -29,7 +29,8 @@ func Start(d *db.DB, repo string) {
 			_, err := d.CreateNotification("update",
 				fmt.Sprintf("Version %s available", ver),
 				"A new client version has been released.",
-				json.RawMessage(`{"label":"Update","type":"update"}`))
+				json.RawMessage(`{"label":"Update","type":"update"}`),
+				false)
 			if err != nil {
 				log.Printf("[poller] create notification: %v", err)
 			}

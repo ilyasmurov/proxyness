@@ -21,6 +21,7 @@ type Notification struct {
 	Message   string          `json:"message,omitempty"`
 	Action    json.RawMessage `json:"action,omitempty"`
 	Active    bool            `json:"active"`
+	BetaOnly  bool            `json:"beta_only"`
 	CreatedAt string          `json:"created_at"`
 }
 
@@ -49,6 +50,7 @@ func migrate(d *sql.DB) error {
 			message    TEXT,
 			action     TEXT,
 			active     INTEGER NOT NULL DEFAULT 1,
+			beta_only  INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT NOT NULL DEFAULT (datetime('now'))
 		);
 		CREATE TABLE IF NOT EXISTS service_config (
@@ -60,7 +62,12 @@ func migrate(d *sql.DB) error {
 			('relay_url', ''),
 			('config_url', '');
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	// Migrate: add beta_only column if missing (existing DBs)
+	d.Exec(`ALTER TABLE notifications ADD COLUMN beta_only INTEGER NOT NULL DEFAULT 0`)
+	return nil
 }
 
 func (d *DB) Close() { d.db.Close() }
@@ -68,7 +75,7 @@ func (d *DB) Close() { d.db.Close() }
 // --- Notifications ---
 
 func (d *DB) ListNotifications() ([]Notification, error) {
-	rows, err := d.db.Query(`SELECT id, type, title, message, action, active, created_at FROM notifications ORDER BY created_at DESC`)
+	rows, err := d.db.Query(`SELECT id, type, title, message, action, active, beta_only, created_at FROM notifications ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -77,8 +84,8 @@ func (d *DB) ListNotifications() ([]Notification, error) {
 	for rows.Next() {
 		var n Notification
 		var msg, act sql.NullString
-		var active int
-		if err := rows.Scan(&n.ID, &n.Type, &n.Title, &msg, &act, &active, &n.CreatedAt); err != nil {
+		var active, betaOnly int
+		if err := rows.Scan(&n.ID, &n.Type, &n.Title, &msg, &act, &active, &betaOnly, &n.CreatedAt); err != nil {
 			return nil, err
 		}
 		n.Message = msg.String
@@ -86,6 +93,7 @@ func (d *DB) ListNotifications() ([]Notification, error) {
 			n.Action = json.RawMessage(act.String)
 		}
 		n.Active = active == 1
+		n.BetaOnly = betaOnly == 1
 		out = append(out, n)
 	}
 	return out, nil
@@ -105,7 +113,7 @@ func (d *DB) ActiveNotifications() ([]Notification, error) {
 	return out, nil
 }
 
-func (d *DB) CreateNotification(typ, title, message string, action json.RawMessage) (Notification, error) {
+func (d *DB) CreateNotification(typ, title, message string, action json.RawMessage, betaOnly bool) (Notification, error) {
 	id := uuid.New().String()
 	now := time.Now().UTC().Format(time.RFC3339)
 	var actStr *string
@@ -113,12 +121,16 @@ func (d *DB) CreateNotification(typ, title, message string, action json.RawMessa
 		s := string(action)
 		actStr = &s
 	}
-	_, err := d.db.Exec(`INSERT INTO notifications (id, type, title, message, action, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		id, typ, title, message, actStr, now)
+	bo := 0
+	if betaOnly {
+		bo = 1
+	}
+	_, err := d.db.Exec(`INSERT INTO notifications (id, type, title, message, action, beta_only, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		id, typ, title, message, actStr, bo, now)
 	if err != nil {
 		return Notification{}, err
 	}
-	return Notification{ID: id, Type: typ, Title: title, Message: message, Action: action, Active: true, CreatedAt: now}, nil
+	return Notification{ID: id, Type: typ, Title: title, Message: message, Action: action, Active: true, BetaOnly: betaOnly, CreatedAt: now}, nil
 }
 
 func (d *DB) DeleteNotification(id string) error {

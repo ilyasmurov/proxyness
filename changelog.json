@@ -1,5 +1,12 @@
 [
   {
+    "id": "6100e6d5-eb2d-4a7d-b2f6-6922634df720",
+    "title": "Beta-only notifications",
+    "description": "Notifications can be targeted to beta clients only via checkbox in admin panel. Config service filters by client version.",
+    "type": "feature",
+    "createdAt": "2026-04-10T10:03:42.322573+00:00"
+  },
+  {
     "id": "2a7465f3-0f2e-488e-b62d-1d40390903e8",
     "title": "Config Dockerfile build without go.work",
     "description": null,
@@ -1391,12 +1398,5 @@
     "description": "Sub-ms pacing intervals now batch into bursts instead of sleeping per-packet, fixing throughput cap at ~1.3 MB/s.",
     "type": "improvement",
     "createdAt": "2026-04-05T17:01:04.359679+00:00"
-  },
-  {
-    "id": "85ad3244-fd82-4c8b-af3b-3d6d64fba6d8",
-    "title": "Auto-restart daemon process if it crashes, preventing \"Daemon not running\" errors.",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T16:48:12.526576+00:00"
   }
 ]

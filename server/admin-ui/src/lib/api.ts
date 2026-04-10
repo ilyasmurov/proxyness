@@ -162,6 +162,7 @@ export interface Notification {
   message?: string;
   action?: any;
   active: boolean;
+  beta_only: boolean;
   created_at: string;
 }
 
