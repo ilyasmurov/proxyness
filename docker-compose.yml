@@ -1,13 +1,35 @@
 services:
-  proxy-server:
+  proxy:
     image: ghcr.io/ilyasmurov/smurov-proxy:latest
     container_name: smurov-proxy
     restart: unless-stopped
     ports:
       - "443:443"
+      - "443:443/udp"
+    ulimits:
+      nofile:
+        soft: 32768
+        hard: 32768
     volumes:
       - proxy-data:/data
-    command: ["-key", "${PROXY_KEY}", "-addr", ":443", "-cert", "/data/cert.pem", "-keyfile", "/data/key.pem"]
+    command: ["-addr", ":443", "-db", "/data/data.db", "-cert", "/data/cert.pem", "-keyfile", "/data/key.pem"]
+
+  config:
+    image: ghcr.io/ilyasmurov/smurov-proxy-config:latest
+    container_name: smurov-config
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - config-data:/data
+    command: ["-addr", ":8443", "-db", "/data/config.db", "-admin-user", "${ADMIN_USER}", "-admin-pass", "${ADMIN_PASSWORD}", "-proxy", "https://127.0.0.1:443"]
+
+  landing:
+    image: ghcr.io/ilyasmurov/smurov-proxy-landing:latest
+    container_name: smurov-landing
+    restart: unless-stopped
+    ports:
+      - "80:80"
 
 volumes:
   proxy-data:
+  config-data:

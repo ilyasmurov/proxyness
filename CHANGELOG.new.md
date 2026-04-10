@@ -1,7 +1,11 @@
-## fix
-D3 stall detector false positives in Selected Apps mode
-Stale entries in activeHosts map caused D3 to fire every ~5 min during normal idle browsing, killing 170+ SOCKS5 connections. Now uses GetActiveHosts() sweep instead of raw map length.
+## feature
+Config microservice for notifications and service discovery
+New smurov-config container with SQLite DB, admin UI, device key auth via proxy, background version poller.
 
 ## feature
-Beta badge in client header
-Shows amber "BETA" badge next to version when running a beta build.
+Landing page extracted to standalone nginx container
+Static HTML with client-side GitHub API fetch for download links, replaces server-side Go template.
+
+## feature
+Proxy integration with config service
+New /api/validate-key endpoint + reverse proxy forwarding /api/client-config to config container.

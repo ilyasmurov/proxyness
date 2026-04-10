@@ -1,0 +1,90 @@
+name: Deploy Landing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "landing/**"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-landing
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - id: check
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          SUBJECT=$(printf '%s' "$COMMIT_MSG" | head -n1)
+          if [[ "$SUBJECT" == *"[skip-deploy]"* ]]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Commit subject contains [skip-deploy], skipping deploy"
+          else
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-push:
+    needs: check
+    if: needs.check.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: landing
+          file: landing/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  deploy:
+    needs: [check, build-and-push]
+    if: needs.check.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
+
+            # Pull latest image
+            docker pull ghcr.io/${{ github.repository }}-landing:latest
+
+            # Stop and remove old container
+            docker stop smurov-landing 2>/dev/null || true
+            docker rm smurov-landing 2>/dev/null || true
+
+            # Start new container
+            docker run -d \
+              --name smurov-landing \
+              --restart unless-stopped \
+              -p 80:80 \
+              ghcr.io/${{ github.repository }}-landing:latest

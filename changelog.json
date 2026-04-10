@@ -1,5 +1,26 @@
 [
   {
+    "id": "504fd4af-2edd-4a5a-aaed-5c27621045b0",
+    "title": "Config microservice for notifications and service discovery",
+    "description": "New smurov-config container with SQLite DB, admin UI, device key auth via proxy, background version poller.",
+    "type": "feature",
+    "createdAt": "2026-04-10T09:00:50.004318+00:00"
+  },
+  {
+    "id": "d80ade4c-4d22-4999-8f87-8b56aa49816a",
+    "title": "Landing page extracted to standalone nginx container",
+    "description": "Static HTML with client-side GitHub API fetch for download links, replaces server-side Go template.",
+    "type": "feature",
+    "createdAt": "2026-04-10T09:00:50.004500+00:00"
+  },
+  {
+    "id": "6187563c-bfa7-4dd8-9fe2-ab027550719d",
+    "title": "Proxy integration with config service",
+    "description": "New /api/validate-key endpoint + reverse proxy forwarding /api/client-config to config container.",
+    "type": "feature",
+    "createdAt": "2026-04-10T09:00:50.004508+00:00"
+  },
+  {
     "id": "d619754f-7a03-4ef6-a7b7-aba2e1b6fe76",
     "title": "D3 stall detector false positives in Selected Apps mode",
     "description": "Stale entries in activeHosts map caused D3 to fire every ~5 min during normal idle browsing, killing 170+ SOCKS5 connections. Now uses GetActiveHosts() sweep instead of raw map length.",
@@ -1377,26 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-05T15:34:35.093900+00:00"
-  },
-  {
-    "id": "8263185a-1eae-4c25-af2a-e353776c657d",
-    "title": "Proper CUBIC ssthresh + lower maxCwnd to prevent UDP burst flooding",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T15:19:23.227181+00:00"
-  },
-  {
-    "id": "7de0e13c-fc2f-4131-8e6d-b0b67e18a0a5",
-    "title": "Revert CC to known-good version (initCwnd=128, beta=0.9, always-slow-start)",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T14:57:15.993466+00:00"
-  },
-  {
-    "id": "5e11ebf2-ced2-468f-9414-6c0880580194",
-    "title": "Replace fixed window with simple AIMD congestion control (always slow-start recovery)",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T14:48:40.206349+00:00"
   }
 ]

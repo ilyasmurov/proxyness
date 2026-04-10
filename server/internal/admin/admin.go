@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"strconv"
 	"strings"
@@ -56,14 +57,24 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("POST /api/sync", h.deviceAuth.Wrap(h.handleSync))
 	mux.HandleFunc("GET /api/sites/search", h.deviceAuth.Wrap(h.searchCatalog))
 
+	// Internal: config service validates device keys through this endpoint
+	mux.HandleFunc("GET /api/validate-key", h.handleValidateKey)
+
+	// Reverse proxy: forward /api/client-config to config container
+	configTarget, _ := url.Parse("http://127.0.0.1:8443")
+	configProxy := httputil.NewSingleHostReverseProxy(configTarget)
+	mux.Handle("GET /api/client-config", configProxy)
+
 	// Download files
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
 
 	// SPA static files (auth required)
 	mux.Handle("/admin/", h.authHandler(SPAHandler()))
 
-	// Landing page
-	mux.Handle("GET /{$}", LandingHandler(downloadsDir))
+	// Landing page (redirect to standalone landing container)
+	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://proxy.smurov.com", http.StatusMovedPermanently)
+	})
 
 	h.mux = mux
 	return h
@@ -72,6 +83,24 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 // ServeHTTP implements http.Handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
+}
+
+// handleValidateKey checks if a device key exists in the DB.
+// Called internally by the config container over loopback.
+func (h *Handler) handleValidateKey(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
+	if key == "" {
+		http.Error(w, "missing key", http.StatusBadRequest)
+		return
+	}
+	_, err := h.db.GetDeviceByKey(key)
+	if err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]bool{"valid": false})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"valid": true})
 }
 
 // auth wraps a HandlerFunc with HTTP Basic Auth.
