@@ -137,4 +137,5 @@ jobs:
               -addr ":443" \
               -db /data/data.db \
               -cert /data/cert.pem \
-              -keyfile /data/key.pem
+              -keyfile /data/key.pem \
+              -config "http://172.17.0.1:8443"

@@ -32,6 +32,7 @@ func main() {
 	adminPass := flag.String("admin-password", "", "admin password (or ADMIN_PASSWORD env)")
 	certFile := flag.String("cert", "cert.pem", "TLS certificate file")
 	keyFile := flag.String("keyfile", "key.pem", "TLS private key file")
+	configAddr := flag.String("config", "", "config service address (default http://127.0.0.1:8443)")
 	flag.Parse()
 
 	if *adminUser == "" {
@@ -74,7 +75,7 @@ func main() {
 	}
 	log.Printf("server listening on %s", *addr)
 
-	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, "/data/downloads")
+	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, "/data/downloads", *configAddr)
 
 	// Start UDP listener on same port (different protocol, no conflict)
 	udpConn, err := net.ListenPacket("udp", *addr)

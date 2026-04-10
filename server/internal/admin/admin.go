@@ -25,7 +25,7 @@ type Handler struct {
 }
 
 // NewHandler creates and wires up the admin HTTP handler.
-func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string) *Handler {
+func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir, configAddr string) *Handler {
 	h := &Handler{db: d, tracker: tr, user: user, password: password, downloadsDir: downloadsDir}
 	h.deviceAuth = NewDeviceAuth(d)
 	mux := http.NewServeMux()
@@ -61,7 +61,10 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir string
 	mux.HandleFunc("GET /api/validate-key", h.handleValidateKey)
 
 	// Reverse proxy: forward config service endpoints to config container
-	configTarget, _ := url.Parse("http://127.0.0.1:8443")
+	if configAddr == "" {
+		configAddr = "http://127.0.0.1:8443"
+	}
+	configTarget, _ := url.Parse(configAddr)
 	configProxy := httputil.NewSingleHostReverseProxy(configTarget)
 	mux.Handle("GET /api/client-config", configProxy)
 	mux.Handle("/api/admin/notifications", h.authHandler(configProxy))
