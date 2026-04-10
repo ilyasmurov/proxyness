@@ -64,6 +64,11 @@ jobs:
           cd ../helper
           GOOS=darwin GOARCH=arm64 go build -o ../client/resources/helper-darwin-arm64 ./cmd
 
+      - name: Inject version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd client && npm version "$VERSION" --no-git-tag-version
+
       - name: Build Electron app
         run: |
           cd client
