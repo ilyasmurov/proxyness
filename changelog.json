@@ -1,5 +1,19 @@
 [
   {
+    "id": "e6e91f56-dcbb-4285-8781-2ac4bd4b8f9b",
+    "title": "OS push notifications for server alerts",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-10T10:26:50.162192+00:00"
+  },
+  {
+    "id": "07c4134d-5d12-4fa1-b43c-2c2660e5512c",
+    "title": "Config-driven notifications with beta targeting",
+    "description": null,
+    "type": "feature",
+    "createdAt": "2026-04-10T10:26:50.162336+00:00"
+  },
+  {
     "id": "772a583e-1937-4ae2-a72c-67163b530db0",
     "title": "OS push notifications for server-driven alerts",
     "description": null,
@@ -1384,19 +1398,5 @@
     "description": "minCwnd 32→64, initCwnd 64→128, maxBurst 8→16. Doubles minimum throughput from ~700 KB/s to ~1.4 MB/s at 60ms RTT.",
     "type": "improvement",
     "createdAt": "2026-04-05T18:00:34.757840+00:00"
-  },
-  {
-    "id": "b510994e-fd57-443b-9f2e-4f28b6752142",
-    "title": "Version bump to 1.23.23",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T17:34:48.850486+00:00"
-  },
-  {
-    "id": "d08489c5-958f-4908-abc2-05925d28c95d",
-    "title": "Re-enable CUBIC cwnd reduction on loss to prevent congestion collapse",
-    "description": "cwnd grew to 1024 and never decreased, overwhelming ISP buffers. Now reduces 20% per loss event (max once per 500ms) so CUBIC finds equilibrium.",
-    "type": "fix",
-    "createdAt": "2026-04-05T17:30:21.675493+00:00"
   }
 ]
