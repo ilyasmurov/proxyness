@@ -1,5 +1,12 @@
 [
   {
+    "id": "8f5f3310-da66-4dd9-a039-4562963ad35d",
+    "title": "YouTube briefly reconnects on every TCP blip to the server",
+    "description": "The SOCKS5 tunnel's D2 health check did a fresh TLS dial to :443 every 5s and engaged the kill switch on a single failure — TSPU regularly flakes TCP for ~1s at a time while UDP keeps streaming, so any blip closed every active SOCKS5 relay (YouTube, Chrome, etc.) and showed a \"Reconnecting...\" toast for a hiccup the transport was actually riding through. Now D2 prefers transport.Alive() when a transport is set (same as the TUN engine since 1.29.1), falling back to verifyServer only in the legacy SOCKS5-only path.",
+    "type": "fix",
+    "createdAt": "2026-04-11T13:33:31.571988+00:00"
+  },
+  {
     "id": "9513152d-ccf2-4feb-9c7d-a12397e612af",
     "title": "CI retry on flaky wintun.dll download",
     "description": "www.wintun.net occasionally SSL_ERROR_SYSCALLs and kills the release build. Five retries with short delays now keep a single hiccup from killing the whole pipeline.",
@@ -1391,12 +1398,5 @@
     "description": "Skip app-limited rounds in STARTUP exit check — prevents false exit during browsing",
     "type": "fix",
     "createdAt": "2026-04-05T21:53:14.085480+00:00"
-  },
-  {
-    "id": "914afe8b-c664-4c21-b241-a6467a52e3b8",
-    "title": "Prevent premature STARTUP exit — wait for BWE stability before checking bandwidth plateau",
-    "description": "Fix pacer burstSize truncation causing ~33% underdelivery at sub-ms intervals",
-    "type": "fix",
-    "createdAt": "2026-04-05T21:36:51.951275+00:00"
   }
 ]

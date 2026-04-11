@@ -366,6 +366,7 @@ func (t *Tunnel) healthLoop() {
 			addr := t.serverAddr
 			key := t.key
 			status := t.status
+			tr := t.transport
 			t.mu.Unlock()
 
 			// Skip ticks while not in a "live" state.
@@ -373,10 +374,28 @@ func (t *Tunnel) healthLoop() {
 				continue
 			}
 
-			// D2 — health check.
-			if err := verifyServer(addr, key); err != nil {
+			// D2 — health check. Prefer the active transport's Alive()
+			// signal over a fresh TLS dial when we have one: TSPU regularly
+			// blips TCP to the server for ~1s at a time while the UDP
+			// transport happily keeps streaming, and the old verifyServer
+			// path engaged the kill switch on every blip — closing every
+			// active SOCKS5 relay (YouTube, Chrome, etc.) and showing the
+			// user a "Reconnecting..." toast for a glitch the proxy is
+			// actually riding through. engine.go already took this approach
+			// in healthCheck; the SOCKS5 tunnel was left on the old logic.
+			// Fall back to verifyServer when no transport is set (legacy
+			// SOCKS5-only path).
+			var healthErr error
+			if tr != nil {
+				if a, ok := tr.(interface{ Alive() bool }); ok && !a.Alive() {
+					healthErr = fmt.Errorf("transport dead")
+				}
+			} else {
+				healthErr = verifyServer(addr, key)
+			}
+			if healthErr != nil {
 				failures++
-				log.Printf("[tunnel] D2: health check failed (%d/%d): %v", failures, maxHealthFailures, err)
+				log.Printf("[tunnel] D2: health check failed (%d/%d): %v", failures, maxHealthFailures, healthErr)
 				if failures == 1 {
 					t.setReconnecting()
 				}
