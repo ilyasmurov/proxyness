@@ -28,7 +28,19 @@ jobs:
 
       - name: Download wintun.dll
         run: |
-          curl -L https://www.wintun.net/builds/wintun-0.14.1.zip -o wintun.zip
+          # wintun.net is occasionally flaky with SSL_ERROR_SYSCALL — retry a
+          # few times before failing the release so one hiccup doesn't kill
+          # the whole build.
+          for attempt in 1 2 3 4 5; do
+            if curl -fL --retry 3 --retry-delay 5 --connect-timeout 15 \
+                https://www.wintun.net/builds/wintun-0.14.1.zip -o wintun.zip; then
+              echo "wintun download succeeded on attempt $attempt"
+              break
+            fi
+            echo "wintun download failed on attempt $attempt, retrying..."
+            sleep 10
+          done
+          test -s wintun.zip || { echo "wintun download exhausted all retries"; exit 1; }
           unzip wintun.zip
           cp wintun/bin/amd64/wintun.dll resources/wintun.dll
 

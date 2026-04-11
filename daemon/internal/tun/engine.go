@@ -310,6 +310,16 @@ func (e *Engine) stopLocked() error {
 		return nil
 	}
 
+	// Log a goroutine stack trace so we can diagnose spurious stops. The
+	// bridge-close / "use of closed network connection" errors in user
+	// reports don't have any preceding D1/D2/D3/machine-id log entries,
+	// which means something outside the expected paths is hitting us and
+	// we can't tell who without the trace. Single-frame (`runtime.Stack(..,
+	// false)`) keeps the output compact.
+	buf := make([]byte, 2048)
+	n := runtime.Stack(buf, false)
+	log.Printf("[tun] stopLocked called:\n%s", buf[:n])
+
 	if e.stopHealth != nil {
 		close(e.stopHealth)
 		e.stopHealth = nil

@@ -1,5 +1,19 @@
 [
   {
+    "id": "9513152d-ccf2-4feb-9c7d-a12397e612af",
+    "title": "CI retry on flaky wintun.dll download",
+    "description": "www.wintun.net occasionally SSL_ERROR_SYSCALLs and kills the release build. Five retries with short delays now keep a single hiccup from killing the whole pipeline.",
+    "type": "improvement",
+    "createdAt": "2026-04-11T11:59:32.066381+00:00"
+  },
+  {
+    "id": "98474f70-0348-4c26-a663-04203f24431f",
+    "title": "Diagnostic stack trace on TUN engine stop",
+    "description": "Logs the caller's goroutine trace every time the engine stops. Gives enough info to root-cause spurious stops (bridge-close / \"use of closed network connection\") that don't have any D1/D2/D3/machine-id log preceding them.",
+    "type": "improvement",
+    "createdAt": "2026-04-11T11:59:32.066526+00:00"
+  },
+  {
     "id": "006e7b8b-1128-4b7f-ae42-f065bf0f96fc",
     "title": "Apps stuck in direct mode after 1.32.0 Panorama UI redesign",
     "description": "AppRules only mounted in the Selected tab and pushed empty proxy_only rules on first mount; switching back to All traffic never restored the open-routing rules, leaving Telegram and other apps bypassing the proxy.",
@@ -1384,19 +1398,5 @@
     "description": "Fix pacer burstSize truncation causing ~33% underdelivery at sub-ms intervals",
     "type": "fix",
     "createdAt": "2026-04-05T21:36:51.951275+00:00"
-  },
-  {
-    "id": "206057cd-0e20-4ca0-96c1-e707bef94e2c",
-    "title": "Defer pacing until BWE has enough samples to prevent early throttling",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-05T20:53:38.947845+00:00"
-  },
-  {
-    "id": "df71d8c5-e9f9-49d3-9d0a-d5b5a319a6ed",
-    "title": "Add BBR-like STARTUP phase to congestion control",
-    "description": "High pacing gain (2.885x) doubles sending rate each RTT until pipe is full, then transitions to steady-state 1.25x probing",
-    "type": "improvement",
-    "createdAt": "2026-04-05T20:45:05.410159+00:00"
   }
 ]
