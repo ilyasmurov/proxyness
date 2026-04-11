@@ -96,6 +96,26 @@ func (t *Tracker) computeRates(prev map[int64][2]int64) {
 	t.bufMu.Unlock()
 }
 
+const rateSmoothWindow = 5
+
+func smoothRate(history []pkgstats.RatePoint, window int) (down, up int64) {
+	n := len(history)
+	if n == 0 || window <= 0 {
+		return 0, 0
+	}
+	start := n - window
+	if start < 0 {
+		start = 0
+	}
+	var sumIn, sumOut int64
+	for i := start; i < n; i++ {
+		sumIn += history[i].BytesIn
+		sumOut += history[i].BytesOut
+	}
+	samples := int64(n - start)
+	return sumIn / samples, sumOut / samples
+}
+
 type DeviceRate struct {
 	DeviceID    int                  `json:"device_id"`
 	DeviceName  string               `json:"device_name"`
@@ -157,11 +177,12 @@ func (t *Tracker) Rates() []DeviceRate {
 		}
 		if buf := t.deviceBuffers[id]; buf != nil {
 			dr.History = buf.Slice()
-			if len(dr.History) > 0 {
-				last := dr.History[len(dr.History)-1]
-				dr.Download = last.BytesIn
-				dr.Upload = last.BytesOut
-			}
+			// Smooth the "current rate" across the last few seconds.
+			// Single-second samples legitimately hit zero between packet
+			// bursts (HTTP keep-alive gaps, video chunk pauses), so the
+			// display was flickering to 0 ↓ during active use. History on
+			// the graph is unchanged — only the headline number is smoothed.
+			dr.Download, dr.Upload = smoothRate(dr.History, rateSmoothWindow)
 		}
 		result = append(result, dr)
 	}

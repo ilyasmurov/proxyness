@@ -1,5 +1,12 @@
 [
   {
+    "id": "cfdab67b-1387-4d90-961b-ad8fba793354",
+    "title": "Admin dashboard rate numbers flickered to 0 ↓ during active use",
+    "description": "The tracker sampled traffic in 1-second windows and the dashboard displayed the most recent single-second delta as the headline download/upload number. Bursty traffic (HTTP keep-alive gaps, video chunk pauses) produces legitimate zero-byte seconds between bursts, so the headline number kept dropping to 0 while data was actively flowing. The display now averages the last 5 seconds of history — the history graph itself is unchanged.",
+    "type": "fix",
+    "createdAt": "2026-04-11T15:27:15.833543+00:00"
+  },
+  {
     "id": "dd17ba48-cea6-43cb-9e40-86ec6f133eae",
     "title": "Admin dashboard showed download and upload swapped for UDP transport traffic",
     "description": "Server-side UDP listener passed client→destination bytes as the \"in\" parameter of tracker.AddBytes, which maps to client DOWNLOAD in the dashboard — so every byte uploaded by the browser (YouTube request headers, control frames) was counted as download, and every byte of incoming video stream was counted as upload. The result: dashboards showed \"upload-heavy\" devices while the user was watching video. TCP relay stats were already correct; only the UDP transport path was wrong.",
