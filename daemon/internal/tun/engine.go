@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -550,32 +551,65 @@ func (e *Engine) transportDone() <-chan struct{} {
 	return nil
 }
 
-func (e *Engine) reconnectTransport() bool {
+// errReconnectStopped signals that stopHealth fired during a reconnect
+// attempt — the caller should exit the health loop without calling
+// stopLocked (which is already being called by whoever signalled stop).
+var errReconnectStopped = errors.New("reconnect stopped")
+
+// tryReconnectOnce performs a single transport Connect attempt and, on
+// success, publishes the new transport to e.transport. On failure the
+// fresh transport is closed and the engine's transport field is left as
+// the caller set it (typically nil, after reconnectTransport cleared it).
+func (e *Engine) tryReconnectOnce() error {
 	e.mu.Lock()
 	factory := e.transportFactory
 	serverAddr := e.serverAddr
 	key := e.key
 	mid := e.machineID
+	e.mu.Unlock()
+
+	if factory == nil {
+		return errors.New("no transport factory")
+	}
+
+	tr := factory()
+	if err := tr.Connect(serverAddr, key, mid); err != nil {
+		tr.Close()
+		return err
+	}
+
+	e.mu.Lock()
+	e.transport = tr
+	e.mu.Unlock()
+	log.Printf("[tun] reconnected via %s", tr.Mode())
+	return nil
+}
+
+// reconnectTransport runs the fast retry budget (maxReconnects ×
+// reconnectDelay). Returns nil on success, errReconnectStopped if stop
+// was requested, or the last attempt's error on exhaustion or
+// unrecoverable failure (auth/machine-id rejection).
+func (e *Engine) reconnectTransport() error {
+	e.mu.Lock()
 	if e.transport != nil {
 		e.transport.Close()
 		e.transport = nil
 	}
 	e.mu.Unlock()
 
-	if factory == nil {
-		return false
-	}
-
 	// 20 × 3s ≈ 60s total reconnect window — long enough to ride out a
-	// typical wifi flap, short enough that the user gives up manually
-	// rather than staring at "Reconnecting…" forever.
+	// typical wifi flap, short enough that the user notices manually
+	// rather than staring at "Reconnecting…" forever for a dead server.
+	// Longer outages (laptop sleep, extended WiFi drop) are caught by
+	// the slow-poll wait in the D1/D3 branches of healthLoop.
 	const maxReconnects = 20
 	const reconnectDelay = 3 * time.Second
 
+	var lastErr error
 	for attempt := 1; attempt <= maxReconnects; attempt++ {
 		select {
 		case <-e.stopHealth:
-			return false
+			return errReconnectStopped
 		default:
 		}
 
@@ -584,23 +618,51 @@ func (e *Engine) reconnectTransport() bool {
 		}
 
 		log.Printf("[tun] reconnect attempt %d/%d", attempt, maxReconnects)
-		tr := factory()
-		if err := tr.Connect(serverAddr, key, mid); err != nil {
-			log.Printf("[tun] reconnect attempt %d failed: %v", attempt, err)
-			tr.Close()
-			if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
-				return false
-			}
-			continue
+		err := e.tryReconnectOnce()
+		if err == nil {
+			return nil
 		}
-
-		e.mu.Lock()
-		e.transport = tr
-		e.mu.Unlock()
-		log.Printf("[tun] reconnected via %s", tr.Mode())
-		return true
+		log.Printf("[tun] reconnect attempt %d failed: %v", attempt, err)
+		lastErr = err
+		if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
+			return err
+		}
 	}
-	return false
+	return lastErr
+}
+
+// waitForNetwork slow-polls for recovery after reconnectTransport
+// exhausted with ENETUNREACH. Laptop sleep / extended WiFi drop can last
+// hours, longer than any reasonable fast-retry budget, so this has no
+// timeout — it keeps trying one connect every slowInterval until the OS
+// brings routes back (returns nil), until a non-network error surfaces
+// (returns that error — server is probably really down now, caller
+// should stop), or until stop is requested (returns
+// errReconnectStopped).
+func (e *Engine) waitForNetwork() error {
+	const slowInterval = 15 * time.Second
+	log.Printf("[tun] network unreachable — entering slow-poll wait (every %s)", slowInterval)
+	ticker := time.NewTicker(slowInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-e.stopHealth:
+			return errReconnectStopped
+		case <-ticker.C:
+			err := e.tryReconnectOnce()
+			if err == nil {
+				log.Printf("[tun] network recovered, transport re-established")
+				return nil
+			}
+			if transport.IsNetworkUnreachable(err) {
+				// Still no routes, keep waiting silently.
+				continue
+			}
+			log.Printf("[tun] slow-poll wait: non-network error, giving up: %v", err)
+			return err
+		}
+	}
 }
 
 func (e *Engine) healthLoop() {
@@ -621,11 +683,29 @@ func (e *Engine) healthLoop() {
 			// D1 — transport closed: engage kill switch, then try to reconnect.
 			log.Printf("[tun] D1: transport closed")
 			e.setReconnecting()
-			if e.reconnectTransport() {
+			err := e.reconnectTransport()
+			if err == nil {
 				doneCh = e.transportDone()
 				failures = 0
 				e.setConnected()
 				continue
+			}
+			if errors.Is(err, errReconnectStopped) {
+				return
+			}
+			// Fast retries exhausted. If the root cause is "network is
+			// unreachable" (laptop sleep, WiFi gone) we enter slow-poll
+			// wait instead of killing the engine — otherwise an overnight
+			// sleep leaves the proxy dead until manual reconnect.
+			if transport.IsNetworkUnreachable(err) {
+				if waitErr := e.waitForNetwork(); waitErr == nil {
+					doneCh = e.transportDone()
+					failures = 0
+					e.setConnected()
+					continue
+				} else if errors.Is(waitErr, errReconnectStopped) {
+					return
+				}
 			}
 			log.Printf("[tun] D1: reconnect exhausted, stopping engine")
 			e.mu.Lock()
@@ -652,11 +732,25 @@ func (e *Engine) healthLoop() {
 					e.streamOpenFailures.Load())
 				e.streamOpenFailures.Store(0)
 				e.setReconnecting()
-				if e.reconnectTransport() {
+				err := e.reconnectTransport()
+				if err == nil {
 					doneCh = e.transportDone()
 					failures = 0
 					e.setConnected()
 					continue
+				}
+				if errors.Is(err, errReconnectStopped) {
+					return
+				}
+				if transport.IsNetworkUnreachable(err) {
+					if waitErr := e.waitForNetwork(); waitErr == nil {
+						doneCh = e.transportDone()
+						failures = 0
+						e.setConnected()
+						continue
+					} else if errors.Is(waitErr, errReconnectStopped) {
+						return
+					}
 				}
 				log.Printf("[tun] D3: reconnect exhausted, stopping engine")
 				e.mu.Lock()

@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -348,11 +349,29 @@ func (t *Tunnel) healthLoop() {
 			// D1 — transport closed: engage kill switch, then try to reconnect.
 			log.Printf("[tunnel] D1: transport closed")
 			t.setReconnecting()
-			if t.reconnectTransport() {
+			err := t.reconnectTransport()
+			if err == nil {
 				doneCh = t.transportDone()
 				failures = 0
 				t.setConnected()
 				continue
+			}
+			if errors.Is(err, errReconnectStopped) {
+				return
+			}
+			// Same slow-poll wait as engine.go: ENETUNREACH means the OS
+			// has no route to the server (WiFi drop / laptop sleep), not
+			// that the server is actually down — wait for recovery
+			// instead of killing the tunnel.
+			if transport.IsNetworkUnreachable(err) {
+				if waitErr := t.waitForNetwork(); waitErr == nil {
+					doneCh = t.transportDone()
+					failures = 0
+					t.setConnected()
+					continue
+				} else if errors.Is(waitErr, errReconnectStopped) {
+					return
+				}
 			}
 			log.Printf("[tunnel] D1: reconnect exhausted, disconnecting")
 			t.mu.Lock()
@@ -429,11 +448,25 @@ func (t *Tunnel) healthLoop() {
 			if status == Connected && t.stallDetected() {
 				log.Printf("[tunnel] D3: traffic stall detected")
 				t.setReconnecting()
-				if t.reconnectTransport() {
+				err := t.reconnectTransport()
+				if err == nil {
 					doneCh = t.transportDone()
 					failures = 0
 					t.setConnected()
 					continue
+				}
+				if errors.Is(err, errReconnectStopped) {
+					return
+				}
+				if transport.IsNetworkUnreachable(err) {
+					if waitErr := t.waitForNetwork(); waitErr == nil {
+						doneCh = t.transportDone()
+						failures = 0
+						t.setConnected()
+						continue
+					} else if errors.Is(waitErr, errReconnectStopped) {
+						return
+					}
 				}
 				log.Printf("[tunnel] D3: reconnect exhausted, disconnecting")
 				t.mu.Lock()
@@ -470,26 +503,55 @@ func (t *Tunnel) stallDetected() bool {
 	return time.Since(last) > stallThreshold
 }
 
-func (t *Tunnel) reconnectTransport() bool {
+// errReconnectStopped signals that stopHealth fired during reconnect —
+// the caller should exit the health loop without calling stopLocked
+// (already being called by whoever signalled stop).
+var errReconnectStopped = errors.New("reconnect stopped")
+
+// tryReconnectOnce performs a single transport Connect attempt and
+// publishes the new transport on success. On failure the fresh transport
+// is closed and t.transport is left as the caller set it.
+func (t *Tunnel) tryReconnectOnce() error {
 	t.mu.Lock()
 	factory := t.transportFactory
 	serverAddr := t.serverAddr
 	key := t.key
 	mid := t.machineID
+	t.mu.Unlock()
+
+	if factory == nil {
+		return errors.New("no transport factory")
+	}
+
+	tr := factory()
+	if err := tr.Connect(serverAddr, key, mid); err != nil {
+		tr.Close()
+		return err
+	}
+
+	t.mu.Lock()
+	t.transport = tr
+	t.mu.Unlock()
+	log.Printf("[tunnel] reconnected via %s", tr.Mode())
+	return nil
+}
+
+// reconnectTransport runs the fast retry budget. Returns nil on success,
+// errReconnectStopped on stop, or the last attempt's error on exhaustion
+// / unrecoverable failure (auth or machine-id rejection).
+func (t *Tunnel) reconnectTransport() error {
+	t.mu.Lock()
 	if t.transport != nil {
 		t.transport.Close()
 		t.transport = nil
 	}
 	t.mu.Unlock()
 
-	if factory == nil {
-		return false
-	}
-
+	var lastErr error
 	for attempt := 1; attempt <= maxReconnects; attempt++ {
 		select {
 		case <-t.stopHealth:
-			return false
+			return errReconnectStopped
 		default:
 		}
 
@@ -498,23 +560,46 @@ func (t *Tunnel) reconnectTransport() bool {
 		}
 
 		log.Printf("[tunnel] reconnect attempt %d/%d", attempt, maxReconnects)
-		tr := factory()
-		if err := tr.Connect(serverAddr, key, mid); err != nil {
-			log.Printf("[tunnel] reconnect attempt %d failed: %v", attempt, err)
-			tr.Close()
-			if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
-				return false
-			}
-			continue
+		err := t.tryReconnectOnce()
+		if err == nil {
+			return nil
 		}
-
-		t.mu.Lock()
-		t.transport = tr
-		t.mu.Unlock()
-		log.Printf("[tunnel] reconnected via %s", tr.Mode())
-		return true
+		log.Printf("[tunnel] reconnect attempt %d failed: %v", attempt, err)
+		lastErr = err
+		if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
+			return err
+		}
 	}
-	return false
+	return lastErr
+}
+
+// waitForNetwork slow-polls for recovery after reconnectTransport
+// exhausted with ENETUNREACH. See engine.go waitForNetwork — same
+// rationale: laptop sleep can last hours, and killing the tunnel on the
+// way is exactly the bug this fixes.
+func (t *Tunnel) waitForNetwork() error {
+	const slowInterval = 15 * time.Second
+	log.Printf("[tunnel] network unreachable — entering slow-poll wait (every %s)", slowInterval)
+	ticker := time.NewTicker(slowInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-t.stopHealth:
+			return errReconnectStopped
+		case <-ticker.C:
+			err := t.tryReconnectOnce()
+			if err == nil {
+				log.Printf("[tunnel] network recovered, transport re-established")
+				return nil
+			}
+			if transport.IsNetworkUnreachable(err) {
+				continue
+			}
+			log.Printf("[tunnel] slow-poll wait: non-network error, giving up: %v", err)
+			return err
+		}
+	}
 }
 
 func (t *Tunnel) acceptLoop(ln net.Listener) {
@@ -581,7 +666,7 @@ func (t *Tunnel) handleSOCKSTransport(conn net.Conn, tr transport.Transport, add
 			// device binding conflict and we stop for real.
 			log.Printf("[tunnel] machine id rejected — rebuilding transport")
 			t.setReconnecting()
-			if t.reconnectTransport() {
+			if t.reconnectTransport() == nil {
 				t.setConnected()
 				return // recovered — caller will retry via new SOCKS5 request
 			}

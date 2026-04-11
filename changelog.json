@@ -1,5 +1,12 @@
 [
   {
+    "id": "0544ae71-58ea-4756-8135-ee59f10eeda1",
+    "title": "Proxy stayed dead after laptop sleep / long WiFi drop instead of auto-recovering",
+    "description": "Both the TUN engine and the SOCKS5 tunnel health loops had a hard ~60s reconnect budget (20 attempts × 3s). When the laptop went to sleep or WiFi dropped for longer than that, every reconnect attempt failed with 'network is unreachable' (the OS has no route at all), the budget exhausted, and the engines called stopLocked() permanently. Waking up the laptop after an overnight sleep left the proxy stuck in disconnected state until the user manually reconnected. Now both health loops detect ENETUNREACH specifically and enter a slow-poll wait (15s interval, no timeout) instead of killing the engine — the next time the OS brings routes back, the proxy auto-recovers silently. Different errors (server actually down, auth rejected, etc.) still stop the engine as before.",
+    "type": "fix",
+    "createdAt": "2026-04-11T21:30:36.792656+00:00"
+  },
+  {
     "id": "cfdab67b-1387-4d90-961b-ad8fba793354",
     "title": "Admin dashboard rate numbers flickered to 0 ↓ during active use",
     "description": "The tracker sampled traffic in 1-second windows and the dashboard displayed the most recent single-second delta as the headline download/upload number. Bursty traffic (HTTP keep-alive gaps, video chunk pauses) produces legitimate zero-byte seconds between bursts, so the headline number kept dropping to 0 while data was actively flowing. The display now averages the last 5 seconds of history — the history graph itself is unchanged.",
