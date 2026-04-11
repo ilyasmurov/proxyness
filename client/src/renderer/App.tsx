@@ -599,6 +599,16 @@ export function App() {
     } else {
       if (proxyMode !== "tun") handleModeChange("tun");
       setTrafficMode(m === "selected" ? "selected" : "all");
+      // AppRules only mounts in the Selected view, so when the user picks
+      // "All" the component unmounts without pushing rules. Without this
+      // explicit push the daemon stays on whatever the Selected tab last
+      // sent — usually {proxy_only, [paths]} — and every non-listed app
+      // (including Telegram) keeps getting routed direct.
+      if (m === "all") {
+        (window as any).tunProxy?.setRules({ mode: "proxy_all_except", apps: [] });
+        (window as any).sysproxy?.setPacSites({ proxy_all: true });
+        (window as any).sysproxy?.enable();
+      }
     }
   };
 

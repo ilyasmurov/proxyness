@@ -246,6 +246,14 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
   };
   const [resolved, setResolved] = useState<ResolvedApp[]>([]);
   const [enabled, setEnabled] = useState<Set<string>>(new Set(KNOWN_APPS.map((a) => a.id)));
+  // Initial-sync guard. We must NOT push rules on mount until both the
+  // installed-apps list and the daemon's saved rules have loaded — otherwise
+  // applyRules("selected") runs with resolved=[] and pushes {proxy_only, []},
+  // which drops every app's traffic to direct (proxy=false). Bug shipped in
+  // 1.31.0: AppRules used to live in every view, so visible-but-unloaded was
+  // harmless; in the Panorama redesign it mounts only for the Selected tab,
+  // making the empty-push window user-visible.
+  const [ready, setReady] = useState(false);
 
   // Browser sites — backed by the sites sync module.
   const { sites: localSites, ready: sitesReady, addSite, removeSite: removeSiteById, toggleSite: toggleSiteById } = useSites();
@@ -313,12 +321,23 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
 
   useEffect(() => {
     if (!visible) return;
+    setReady(false);
 
-    window.tunProxy?.getInstalledApps().then((installed) => {
+    // Load installed apps AND daemon rules together, then flip `ready`.
+    // The rules-push effect below waits for this flag to avoid firing with
+    // an empty `resolved` (which produces {proxy_only, []} = direct-for-all).
+    const fallbackRules: { mode: string; apps: string[]; no_tls_apps?: string[] } = {
+      mode: "proxy_all_except",
+      apps: [],
+    };
+    Promise.all([
+      window.tunProxy?.getInstalledApps?.() ?? Promise.resolve([]),
+      window.tunProxy?.getRules?.() ?? Promise.resolve(fallbackRules),
+    ]).then(([installed, rules]) => {
       const results: ResolvedApp[] = [];
       for (const app of KNOWN_APPS) {
         const paths: string[] = [];
-        for (const inst of installed) {
+        for (const inst of installed || []) {
           const lower = (inst.name + " " + inst.path).toLowerCase();
           if (app.keywords.some((kw) => lower.includes(kw))) {
             paths.push(inst.path.toLowerCase());
@@ -329,43 +348,47 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
         }
       }
       setResolved(results);
-    });
 
-    window.tunProxy?.getRules().then((rules) => {
-      if (rules.mode === "proxy_all_except") {
-        setMode("all");
-      } else if (rules.mode === "proxy_only") {
-        setMode("selected");
-        if (rules.apps?.length > 0) {
-          const savedPaths = new Set(rules.apps.map((a) => a.toLowerCase()));
-          const enabledIds = new Set<string>();
-          for (const app of KNOWN_APPS) {
-            for (const sp of savedPaths) {
-              if (app.keywords.some((kw) => sp.includes(kw))) {
-                enabledIds.add(app.id);
-                break;
-              }
-            }
-          }
-          setEnabled(enabledIds);
-        }
-
-        // Restore noTLS from daemon rules
-        if (rules.no_tls_apps?.length) {
-          const noTLSPaths = new Set(rules.no_tls_apps.map((a) => a.toLowerCase()));
-          const noTLSIds = new Set<string>();
-          for (const app of KNOWN_APPS) {
-            for (const sp of noTLSPaths) {
-              if (app.keywords.some((kw) => sp.includes(kw))) {
-                noTLSIds.add(app.id);
-                break;
-              }
-            }
-          }
-          setNoTLS(noTLSIds);
-          saveNoTLS(noTLSIds);
-        }
+      // Only sync mode from daemon when the mode isn't externally controlled.
+      // Otherwise getRules → setMode → onModeChange → parent setTrafficMode
+      // would flip the tab back and race with our rules push.
+      if (rules && modeProp === undefined) {
+        if (rules.mode === "proxy_all_except") setMode("all");
+        else if (rules.mode === "proxy_only") setMode("selected");
       }
+
+      // Restore the enabled set from whatever the daemon already has — this
+      // is how a user's previous selection survives a restart.
+      if (rules?.apps && rules.apps.length > 0) {
+        const savedPaths = new Set(rules.apps.map((a: string) => a.toLowerCase()));
+        const enabledIds = new Set<string>();
+        for (const app of KNOWN_APPS) {
+          for (const sp of savedPaths) {
+            if (app.keywords.some((kw) => sp.includes(kw))) {
+              enabledIds.add(app.id);
+              break;
+            }
+          }
+        }
+        setEnabled(enabledIds);
+      }
+
+      if (rules?.no_tls_apps && rules.no_tls_apps.length > 0) {
+        const noTLSPaths = new Set(rules.no_tls_apps.map((a: string) => a.toLowerCase()));
+        const noTLSIds = new Set<string>();
+        for (const app of KNOWN_APPS) {
+          for (const sp of noTLSPaths) {
+            if (app.keywords.some((kw) => sp.includes(kw))) {
+              noTLSIds.add(app.id);
+              break;
+            }
+          }
+        }
+        setNoTLS(noTLSIds);
+        saveNoTLS(noTLSIds);
+      }
+
+      setReady(true);
     });
   }, [visible]);
 
@@ -418,11 +441,14 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
   };
 
   // React to externally-controlled mode changes (parent switcher).
+  // Waits on `ready` so we don't push {proxy_only, []} before resolved/rules
+  // have loaded. See the initial-sync guard comment where `ready` is declared.
   useEffect(() => {
     if (modeProp === undefined) return;
+    if (!ready) return;
     applyRules(modeProp, enabled, resolved, browsersOn, noTLS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modeProp]);
+  }, [modeProp, ready]);
 
   const toggleApp = (appId: string) => {
     setEnabled((prev) => {
