@@ -25,17 +25,36 @@ const STORAGE_KEY = "smurov-proxy-key";
 // ---------------------------------------------------------------------------
 type SettingsSection = "general" | "extension" | "account" | "diagnostics";
 
-function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, c, fd, fb, fm }: {
+function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, isConnected, c, fd, fb, fm }: {
   version: string;
   transportMode: string;
   onTransportChange: (mode: string) => void;
   onChangeKey: () => void;
+  isConnected: boolean;
   c: Record<string, string>;
   fd: string; fb: string; fm: string;
 }) {
   const [section, setSection] = useState<SettingsSection>("general");
   const [token, setToken] = useState("");
   const [copied, setCopied] = useState(false);
+  // Keyboard nav — ArrowUp/ArrowDown cycle focus + active section
+  // between sidebar nav items. Standard tablist pattern.
+  const NAV_SECTIONS: SettingsSection[] = ["general", "extension", "account", "diagnostics"];
+  const navRefs = useRef<Record<SettingsSection, HTMLButtonElement | null>>({
+    general: null, extension: null, account: null, diagnostics: null,
+  });
+  const handleNavKey = (e: React.KeyboardEvent, id: SettingsSection) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const idx = NAV_SECTIONS.indexOf(id);
+    const nextIdx = e.key === "ArrowDown"
+      ? (idx + 1) % NAV_SECTIONS.length
+      : (idx - 1 + NAV_SECTIONS.length) % NAV_SECTIONS.length;
+    const nextId = NAV_SECTIONS[nextIdx];
+    setSection(nextId);
+    // Focus lands on the newly-selected item after React commits.
+    requestAnimationFrame(() => navRefs.current[nextId]?.focus());
+  };
 
   useEffect(() => {
     (window as any).appInfo?.getDaemonToken().then((t: string) => setToken(t || ""));
@@ -48,20 +67,24 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
   };
 
   const navItem = (id: SettingsSection, label: string) => (
-    <div
+    <button
       key={id}
+      type="button"
+      ref={(el) => { navRefs.current[id] = el; }}
       onClick={() => setSection(id)}
+      onKeyDown={(e) => handleNavKey(e, id)}
       style={{
         padding: "7px 16px", fontFamily: fb, fontSize: 12, fontWeight: 500,
         color: section === id ? c.t1 : c.t3, cursor: "pointer",
         background: section === id ? c.bg2 : "transparent",
+        border: "none", textAlign: "left" as const, width: "100%",
         transition: "all 0.1s",
       }}
       onMouseEnter={(e) => { if (section !== id) e.currentTarget.style.color = c.t2; e.currentTarget.style.background = c.bg2; }}
       onMouseLeave={(e) => { if (section !== id) { e.currentTarget.style.color = c.t3; e.currentTarget.style.background = "transparent"; } }}
     >
       {label}
-    </div>
+    </button>
   );
 
   const sBtn = (label: string, onClick: () => void, danger?: boolean) => (
@@ -82,10 +105,22 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
     </button>
   );
 
-  const fieldLabel = (text: string) => (
-    <div style={{ fontFamily: fd, fontSize: 10, fontWeight: 600, color: c.t3, letterSpacing: 1.5, textTransform: "uppercase" as const, marginBottom: 6 }}>
+  // Animation stagger helper. Keeps inline-style noise readable when
+  // cascading a whole section's children in on section change.
+  // Durations match the ones used elsewhere (hero zone, mode bar).
+  const anim = (kind: "heavy" | "med" | "light" | "fade" | "row", delay: number) => {
+    const dur = kind === "heavy" ? 0.5 : kind === "row" ? 0.3 : 0.4;
+    return `smurov-blur-${kind} ${dur}s cubic-bezier(0.25,1,0.5,1) ${delay}s both`;
+  };
+
+  const fieldLabel = (text: string, delay = 0) => (
+    <div style={{ fontFamily: fd, fontSize: 10, fontWeight: 600, color: c.t3, letterSpacing: 1.5, textTransform: "uppercase" as const, marginBottom: 6, animation: anim("fade", delay) }}>
       {text}
     </div>
+  );
+
+  const animatedDivider = (delay: number) => (
+    <div style={{ height: 1, background: c.b1, margin: "16px 0", animation: anim("fade", delay) }} />
   );
 
   const divider = <div style={{ height: 1, background: c.b1, margin: "16px 0" }} />;
@@ -108,47 +143,55 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
 
         {section === "general" && (
           <>
-            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4 }}>General</div>
-            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5 }}>App version and connection settings.</div>
+            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4, animation: anim("heavy", 0.05) }}>General</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5, animation: anim("light", 0.1) }}>App version and connection settings.</div>
 
-            {fieldLabel("Version")}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 0 }}>
+            {fieldLabel("Version", 0.15)}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 0, animation: anim("row", 0.2) }}>
               <span style={{ fontFamily: fm, fontSize: 12, color: c.t2, fontVariantNumeric: "tabular-nums" }}>{version || "—"}</span>
               {sBtn("Check for updates", () => (window as any).appInfo?.openUpdate())}
             </div>
 
-            {divider}
+            {animatedDivider(0.25)}
 
-            {fieldLabel("Transport Protocol")}
-            <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content" }}>
-              {["auto", "udp", "tls"].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => onTransportChange(m)}
-                  style={{
-                    padding: "5px 14px", borderRadius: 4, border: "none",
-                    fontFamily: fd, fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
-                    cursor: "pointer", transition: "all 0.1s",
-                    background: transportMode === m ? c.amb : "transparent",
-                    color: transportMode === m ? c.am : c.t3,
-                  }}
-                >
-                  {m.toUpperCase()}
-                </button>
-              ))}
+            {fieldLabel("Transport Protocol", 0.3)}
+            <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content", animation: anim("light", 0.35) }}>
+              {["auto", "udp", "tls"].map((m) => {
+                const active = transportMode === m;
+                // Mirror the traffic-mode switch: amber highlight only
+                // when the proxy is connected, muted grey when idle, so
+                // active-but-idle doesn't visually imply a running system.
+                const activeColor = isConnected ? c.am : c.t2;
+                const activeBg = isConnected ? c.amb : c.bg2;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => onTransportChange(m)}
+                    style={{
+                      padding: "5px 14px", borderRadius: 4, border: "none",
+                      fontFamily: fd, fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
+                      cursor: "pointer", transition: "all 0.1s",
+                      background: active ? activeBg : "transparent",
+                      color: active ? activeColor : c.t3,
+                    }}
+                  >
+                    {m.toUpperCase()}
+                  </button>
+                );
+              })}
             </div>
           </>
         )}
 
         {section === "extension" && (
           <>
-            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4 }}>Browser Extension</div>
-            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5 }}>
+            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4, animation: anim("heavy", 0.05) }}>Browser Extension</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5, animation: anim("light", 0.1) }}>
               Use this token to connect the browser extension to the local daemon.
             </div>
 
-            {fieldLabel("Daemon Token")}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {fieldLabel("Daemon Token", 0.15)}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, animation: anim("row", 0.2) }}>
               <div style={{
                 flex: 1, padding: "6px 10px", background: c.bg2, border: `1px solid ${c.b1}`,
                 borderRadius: 5, fontFamily: fm, fontSize: 11, color: c.t2,
@@ -177,11 +220,11 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
 
         {section === "account" && (
           <>
-            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4 }}>Account</div>
-            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5 }}>Manage your device connection.</div>
+            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4, animation: anim("heavy", 0.05) }}>Account</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5, animation: anim("light", 0.1) }}>Manage your device connection.</div>
 
-            {fieldLabel("Access Key")}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {fieldLabel("Access Key", 0.15)}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, animation: anim("row", 0.2) }}>
               <span style={{ fontFamily: fb, fontSize: 13, color: c.t2, flex: 1 }}>
                 Disconnect and enter a different access key.
               </span>
@@ -192,11 +235,11 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
 
         {section === "diagnostics" && (
           <>
-            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4 }}>Diagnostics</div>
-            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5 }}>View daemon and helper output.</div>
+            <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4, animation: anim("heavy", 0.05) }}>Diagnostics</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5, animation: anim("light", 0.1) }}>View daemon and helper output.</div>
 
-            {fieldLabel("Logs")}
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {fieldLabel("Logs", 0.15)}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, animation: anim("row", 0.2) }}>
               <span style={{ fontFamily: fb, fontSize: 13, color: c.t2, flex: 1 }}>
                 Open the log viewer window.
               </span>
@@ -661,13 +704,19 @@ export function App() {
     </button>
   );
 
+  // Active-tab accent follows the connection state: amber when live,
+  // muted medium grey when idle. Idle navigation stays visible but
+  // subdued — same rule as the traffic-mode and transport-protocol
+  // switches, keeping disconnected state visually quiet across the
+  // whole mode row.
+  const modeTabAccent = isConnected ? c.am : c.t2;
   const modeTabStyle = (active: boolean): React.CSSProperties => ({
     padding: "8px 16px",
     fontFamily: fd, fontSize: 13, fontWeight: active ? 600 : 500,
     letterSpacing: 0.3,
-    color: active ? c.am : c.t3,
+    color: active ? modeTabAccent : c.t3,
     cursor: "pointer",
-    borderBottom: `2px solid ${active ? c.am : "transparent"}`,
+    borderBottom: `2px solid ${active ? modeTabAccent : "transparent"}`,
     marginBottom: -1,
     background: "transparent", border: "none",
     transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
@@ -887,6 +936,14 @@ export function App() {
             }}>
               {(["all", "selected"] as TrafficMode[]).map((m) => {
                 const active = trafficMode === m;
+                // When the proxy is connected, light up the active segment
+                // in amber to match the "live" visual language (status
+                // badge, Connect button ready state). When idle, use a
+                // muted mid-grey foreground so the switch stays visible
+                // but doesn't scream — matches mode tabs + transport
+                // selector for a consistent "quiet when off" rule.
+                const activeColor = isConnected ? c.am : c.t2;
+                const activeBg = isConnected ? c.amb : c.bg2;
                 return (
                   <button
                     key={m}
@@ -895,9 +952,9 @@ export function App() {
                       padding: "4px 12px",
                       fontFamily: fd, fontSize: 11, fontWeight: active ? 600 : 500,
                       letterSpacing: 0.3,
-                      color: active ? c.t1 : c.t3,
+                      color: active ? activeColor : c.t3,
                       cursor: "pointer",
-                      background: active ? c.bg2 : "transparent",
+                      background: active ? activeBg : "transparent",
                       border: "none",
                       borderRadius: 4,
                       transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
@@ -1017,6 +1074,7 @@ export function App() {
           transportMode={transportMode}
           onTransportChange={handleTransportChange}
           onChangeKey={handleReset}
+          isConnected={isConnected}
           c={c} fd={fd} fb={fb} fm={fm}
         />
       ) : (
@@ -1034,7 +1092,7 @@ export function App() {
           )}
           {trafficMode === "selected" && (
             <div style={{ animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) both" }}>
-              <AppRules visible mode="selected" onModeChange={setTrafficMode} hideModeSwitch />
+              <AppRules visible mode="selected" onModeChange={setTrafficMode} hideModeSwitch isConnected={isConnected} />
             </div>
           )}
         </div>

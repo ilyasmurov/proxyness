@@ -235,9 +235,10 @@ interface Props {
   mode?: Mode;
   onModeChange?: (m: Mode) => void;
   hideModeSwitch?: boolean;
+  isConnected?: boolean;
 }
 
-export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch }: Props) {
+export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch, isConnected = false }: Props) {
   const [modeState, setModeState] = useState<Mode>("all");
   const mode = modeProp ?? modeState;
   const setMode = (m: Mode) => {
@@ -618,6 +619,7 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
             onToggleSite={handleToggleTile}
             onRemoveSite={handleRemoveSite}
             onAddSite={() => setAddSiteModalOpen(true)}
+            isConnected={isConnected}
           />
           </div>
         </div>
@@ -741,6 +743,7 @@ function SitesGrid({
   onToggleSite,
   onRemoveSite,
   onAddSite,
+  isConnected = false,
 }: {
   sites: LocalSite[];
   enabledSites: Set<number>;
@@ -750,6 +753,7 @@ function SitesGrid({
   onToggleSite: (site: LocalSite) => void;
   onRemoveSite: (siteId: number) => void;
   onAddSite: () => void;
+  isConnected?: boolean;
 }) {
   const enabledCount = sites.filter((s) => enabledSites.has(s.id)).length;
 
@@ -818,6 +822,11 @@ function SitesGrid({
         >
           {(["all", "selected"] as const).map((opt) => {
             const isActive = opt === "all" ? allSitesOn : !allSitesOn;
+            // Amber when the proxy is live, muted grey when idle —
+            // matches the top-level traffic-mode switch + transport
+            // selector + page tabs. "quiet when off" is a global rule.
+            const activeFg = isConnected ? "oklch(0.78 0.155 75)" : "oklch(0.60 0.012 250)";
+            const activeBg = isConnected ? "oklch(0.19 0.035 75)" : "oklch(0.19 0.018 250)";
             return (
               <button
                 key={opt}
@@ -830,8 +839,8 @@ function SitesGrid({
                   fontWeight: isActive ? 600 : 500,
                   fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
                   letterSpacing: 0.3,
-                  color: isActive ? "oklch(0.78 0.155 75)" : "oklch(0.40 0.01 250)",
-                  background: isActive ? "oklch(0.19 0.035 75)" : "transparent",
+                  color: isActive ? activeFg : "oklch(0.40 0.01 250)",
+                  background: isActive ? activeBg : "transparent",
                   cursor: "pointer",
                   transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
                 }}

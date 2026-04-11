@@ -1,5 +1,19 @@
 [
   {
+    "id": "49b12f28-6e66-4add-8fd8-dae71b7706a4",
+    "title": "Settings page gained staggered content animations and Arrow-key navigation in the sidebar",
+    "description": "Each section (General, Extension, Account, Diagnostics) now cascades its content in on section change — title, subtitle, field labels and value rows all animate in with a stagger using the same smurov-blur-* vocabulary the hero zone and mode bar already use. The sidebar nav items are real buttons now (were div+onClick), so Tab reaches them and screen readers announce them properly. Once focused, ArrowDown and ArrowUp cycle between sections with wrap-around, following the standard tablist keyboard pattern.",
+    "type": "improvement",
+    "createdAt": "2026-04-11T22:19:15.729108+00:00"
+  },
+  {
+    "id": "d59990e0-4c77-424c-adfe-9cfa3421993e",
+    "title": "Traffic-mode switch relocated, state switches now dim when the proxy is idle",
+    "description": "The All traffic / Selected switch moved out of the tab row into its own sub-row directly under the Disconnected / Ready to connect status text — the switch state is always visible regardless of which page (Main / Settings) is active. Across the whole UI, state-changing switches (traffic mode, Transport Protocol auto/UDP/TLS, Main ↔ Settings tabs, and the Browser sites All/Selected toggle inside AppRules) now light up in amber only when the proxy is actually connected; when idle they use a muted mid-grey, so active-but-off doesn't falsely read as a running system. Per-app brand-colour tiles were left alone — they communicate per-item state, not mode, and the brand colours are part of their identity.",
+    "type": "improvement",
+    "createdAt": "2026-04-11T22:19:15.729451+00:00"
+  },
+  {
     "id": "b5f985e5-cf64-4809-b3d7-073a4e3314d9",
     "title": "Removed the Browsers-only mode, replaced All/Selected tabs with a segmented switch",
     "description": "The Browsers tab spawned a SOCKS5-only ProxyMode that bypassed the TUN engine entirely — a legacy path from before the hybrid TUN+SOCKS5 mode existed. It's been dead weight since the Panorama redesign shipped; removed. The All traffic / Selected tabs no longer share a tab row with Browsers; they now live in a small segmented switch on the left of the bar. Settings stays on the right where it was. Existing installs that had 'socks5' stored in localStorage are silently migrated to 'tun' on load so nobody gets stranded in an unreachable mode after the upgrade.",
