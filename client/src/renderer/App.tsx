@@ -733,13 +733,15 @@ export function App() {
             background: `linear-gradient(to bottom, oklch(0.12 0.014 250 / 0.3), oklch(0.12 0.014 250 / 0.85) 70%, oklch(0.12 0.014 250 / 0.95) 100%)`,
           }} />
 
-          {/* Status content — Variant C: Big Left + Metrics Right */}
+          {/* Status content — Variant C: Big Left + Metrics Right.
+              Height is natural (no fixed value) so the hero grows to
+              fit the traffic-mode switch sub-row that lives below. */}
           <div
             key={isConnected ? "connected" : (reconnecting || daemonReconnecting) ? "reconnecting" : "disconnected"}
             style={{
-              position: "relative", zIndex: 5, height: 100,
+              position: "relative", zIndex: 5,
               display: "flex", alignItems: "center",
-              padding: "30px 24px 0", gap: 16,
+              padding: "36px 24px 0", gap: 16,
             }}
           >
             {/* Status indicator */}
@@ -866,30 +868,32 @@ export function App() {
             </div>
           </div>
 
-          {/* Mode bar — inside the video zone */}
+          {/* Traffic-mode sub-row — lives in its own container below the
+              status row so the upper row stays vertically centered
+              within its own box. Indented past the status dot so the
+              pill aligns with the "Disconnected / Ready to connect"
+              text above it. Reflects trafficMode regardless of page. */}
           <div style={{
             position: "relative", zIndex: 5,
-            display: "flex", alignItems: "center", gap: 0,
-            padding: "8px 24px",
-            borderTop: `1px solid oklch(0.24 0.013 250 / 0.5)`,
+            padding: "10px 24px 14px 48px",
           }}>
-            {/* Segmented switch: All traffic ↔ Selected */}
             <div style={{
               display: "inline-flex",
               padding: 3,
               borderRadius: 6,
               background: `oklch(0.155 0.016 250 / 0.6)`,
               border: `1px solid ${c.b1}`,
+              animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.5s both",
             }}>
               {(["all", "selected"] as TrafficMode[]).map((m) => {
-                const active = activeTab === "main" && trafficMode === m;
+                const active = trafficMode === m;
                 return (
                   <button
                     key={m}
                     onClick={() => { handleTrafficModeChange(m); setActiveTab("main"); }}
                     style={{
-                      padding: "5px 14px",
-                      fontFamily: fd, fontSize: 12, fontWeight: active ? 600 : 500,
+                      padding: "4px 12px",
+                      fontFamily: fd, fontSize: 11, fontWeight: active ? 600 : 500,
                       letterSpacing: 0.3,
                       color: active ? c.t1 : c.t3,
                       cursor: "pointer",
@@ -906,6 +910,24 @@ export function App() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Page tabs — Main ↔ Settings. Traffic mode lives in the
+              sub-row above; this row is purely for page navigation. */}
+          <div style={{
+            position: "relative", zIndex: 5,
+            display: "flex", alignItems: "center", gap: 0,
+            padding: "0 24px",
+            borderTop: `1px solid oklch(0.24 0.013 250 / 0.5)`,
+          }}>
+            <button
+              onClick={() => setActiveTab("main")}
+              style={modeTabStyle(activeTab === "main")}
+              onMouseEnter={(e) => { if (activeTab !== "main") e.currentTarget.style.color = c.t2; }}
+              onMouseLeave={(e) => { if (activeTab !== "main") e.currentTarget.style.color = c.t3; }}
+            >
+              Main
+            </button>
             <div style={{ flex: 1 }} />
             <button
               onClick={() => setActiveTab("settings")}
