@@ -1,5 +1,12 @@
 [
   {
+    "id": "b5f985e5-cf64-4809-b3d7-073a4e3314d9",
+    "title": "Removed the Browsers-only mode, replaced All/Selected tabs with a segmented switch",
+    "description": "The Browsers tab spawned a SOCKS5-only ProxyMode that bypassed the TUN engine entirely — a legacy path from before the hybrid TUN+SOCKS5 mode existed. It's been dead weight since the Panorama redesign shipped; removed. The All traffic / Selected tabs no longer share a tab row with Browsers; they now live in a small segmented switch on the left of the bar. Settings stays on the right where it was. Existing installs that had 'socks5' stored in localStorage are silently migrated to 'tun' on load so nobody gets stranded in an unreachable mode after the upgrade.",
+    "type": "improvement",
+    "createdAt": "2026-04-11T21:42:37.094939+00:00"
+  },
+  {
     "id": "0544ae71-58ea-4756-8135-ee59f10eeda1",
     "title": "Proxy stayed dead after laptop sleep / long WiFi drop instead of auto-recovering",
     "description": "Both the TUN engine and the SOCKS5 tunnel health loops had a hard ~60s reconnect budget (20 attempts × 3s). When the laptop went to sleep or WiFi dropped for longer than that, every reconnect attempt failed with 'network is unreachable' (the OS has no route at all), the budget exhausted, and the engines called stopLocked() permanently. Waking up the laptop after an overnight sleep left the proxy stuck in disconnected state until the user manually reconnected. Now both health loops detect ENETUNREACH specifically and enter a slow-poll wait (15s interval, no timeout) instead of killing the engine — the next time the OS brings routes back, the proxy auto-recovers silently. Different errors (server actually down, auth rejected, etc.) still stop the engine as before.",

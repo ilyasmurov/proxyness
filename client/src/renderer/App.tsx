@@ -5,11 +5,17 @@ import { StatusBar } from "./components/StatusBar";
 import { type ProxyMode } from "./components/ModeSelector";
 import { AppRules } from "./components/AppRules";
 
-import { BrowserExtension } from "./components/BrowserExtension";
 import { NotificationBanner } from "./components/NotificationBanner";
 import earthBgUrl from "./assets/earth-bg.mp4";
 
-type ViewMode = "all" | "selected" | "browsers";
+type TrafficMode = "all" | "selected";
+
+// Migrate legacy users off the long-dead "browsers-only" ProxyMode.
+// The mode was removed in 1.33.0 along with its tab UI; leaving the old
+// value in localStorage would pin those installs in an unreachable state.
+if (typeof localStorage !== "undefined" && localStorage.getItem("smurov-proxy-mode") === "socks5") {
+  localStorage.setItem("smurov-proxy-mode", "tun");
+}
 
 const SERVER = "95.181.162.242:443";
 const STORAGE_KEY = "smurov-proxy-key";
@@ -589,26 +595,18 @@ export function App() {
     setShowSetup(true);
   };
 
-  // Derive the 3-mode view from proxyMode + trafficMode
-  const viewMode: ViewMode =
-    proxyMode === "socks5" ? "browsers" : trafficMode === "selected" ? "selected" : "all";
-
-  const handleViewModeChange = (m: ViewMode) => {
-    if (m === "browsers") {
-      if (proxyMode !== "socks5") handleModeChange("socks5");
-    } else {
-      if (proxyMode !== "tun") handleModeChange("tun");
-      setTrafficMode(m === "selected" ? "selected" : "all");
-      // AppRules only mounts in the Selected view, so when the user picks
-      // "All" the component unmounts without pushing rules. Without this
-      // explicit push the daemon stays on whatever the Selected tab last
-      // sent — usually {proxy_only, [paths]} — and every non-listed app
-      // (including Telegram) keeps getting routed direct.
-      if (m === "all") {
-        (window as any).tunProxy?.setRules({ mode: "proxy_all_except", apps: [] });
-        (window as any).sysproxy?.setPacSites({ proxy_all: true });
-        (window as any).sysproxy?.enable();
-      }
+  const handleTrafficModeChange = (m: TrafficMode) => {
+    if (proxyMode !== "tun") handleModeChange("tun");
+    setTrafficMode(m);
+    // AppRules only mounts in the Selected view, so when the user picks
+    // "All" the component unmounts without pushing rules. Without this
+    // explicit push the daemon stays on whatever the Selected tab last
+    // sent — usually {proxy_only, [paths]} — and every non-listed app
+    // (including Telegram) keeps getting routed direct.
+    if (m === "all") {
+      (window as any).tunProxy?.setRules({ mode: "proxy_all_except", apps: [] });
+      (window as any).sysproxy?.setPacSites({ proxy_all: true });
+      (window as any).sysproxy?.enable();
     }
   };
 
@@ -868,37 +866,59 @@ export function App() {
             </div>
           </div>
 
-          {/* Mode tabs — inside the video zone */}
+          {/* Mode bar — inside the video zone */}
           <div style={{
             position: "relative", zIndex: 5,
             display: "flex", alignItems: "center", gap: 0,
-            padding: "0 24px",
+            padding: "8px 24px",
             borderTop: `1px solid oklch(0.24 0.013 250 / 0.5)`,
           }}>
-          {(["all", "selected", "browsers"] as ViewMode[]).map((m) => (
+            {/* Segmented switch: All traffic ↔ Selected */}
+            <div style={{
+              display: "inline-flex",
+              padding: 3,
+              borderRadius: 6,
+              background: `oklch(0.155 0.016 250 / 0.6)`,
+              border: `1px solid ${c.b1}`,
+            }}>
+              {(["all", "selected"] as TrafficMode[]).map((m) => {
+                const active = activeTab === "main" && trafficMode === m;
+                return (
+                  <button
+                    key={m}
+                    onClick={() => { handleTrafficModeChange(m); setActiveTab("main"); }}
+                    style={{
+                      padding: "5px 14px",
+                      fontFamily: fd, fontSize: 12, fontWeight: active ? 600 : 500,
+                      letterSpacing: 0.3,
+                      color: active ? c.t1 : c.t3,
+                      cursor: "pointer",
+                      background: active ? c.bg2 : "transparent",
+                      border: "none",
+                      borderRadius: 4,
+                      transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
+                    }}
+                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = c.t2; }}
+                    onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = c.t3; }}
+                  >
+                    {m === "all" ? "All traffic" : "Selected"}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ flex: 1 }} />
             <button
-              key={m}
-              onClick={() => { handleViewModeChange(m); setActiveTab("main"); }}
-              style={modeTabStyle(activeTab === "main" && viewMode === m)}
-              onMouseEnter={(e) => { if (!(activeTab === "main" && viewMode === m)) e.currentTarget.style.color = c.t2; }}
-              onMouseLeave={(e) => { if (!(activeTab === "main" && viewMode === m)) e.currentTarget.style.color = c.t3; }}
+              onClick={() => setActiveTab("settings")}
+              style={{
+                ...modeTabStyle(activeTab === "settings"),
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+              onMouseEnter={(e) => { if (activeTab !== "settings") e.currentTarget.style.color = c.t2; }}
+              onMouseLeave={(e) => { if (activeTab !== "settings") e.currentTarget.style.color = c.t3; }}
             >
-              {m === "all" ? "All traffic" : m === "selected" ? "Selected" : "Browsers"}
+              <span style={{ fontSize: 15, lineHeight: 1 }}>&#9881;</span>
+              Settings
             </button>
-          ))}
-          <div style={{ flex: 1 }} />
-          <button
-            onClick={() => setActiveTab("settings")}
-            style={{
-              ...modeTabStyle(activeTab === "settings"),
-              display: "flex", alignItems: "center", gap: 4,
-            }}
-            onMouseEnter={(e) => { if (activeTab !== "settings") e.currentTarget.style.color = c.t2; }}
-            onMouseLeave={(e) => { if (activeTab !== "settings") e.currentTarget.style.color = c.t3; }}
-          >
-            <span style={{ fontSize: 15, lineHeight: 1 }}>&#9881;</span>
-            Settings
-          </button>
           </div>
         </div>
       )}
@@ -978,8 +998,8 @@ export function App() {
           c={c} fd={fd} fb={fb} fm={fm}
         />
       ) : (
-        <div key={viewMode} style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "16px 24px" }}>
-          {viewMode === "all" && (
+        <div key={trafficMode} style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "16px 24px" }}>
+          {trafficMode === "all" && (
             <div style={{ paddingTop: 24 }}>
               <div style={{ fontFamily: fd, fontSize: 15, fontWeight: 600, color: c.t2, letterSpacing: 0.3, marginBottom: 4, animation: "smurov-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
                 All system traffic routed through proxy
@@ -990,18 +1010,7 @@ export function App() {
               </div>
             </div>
           )}
-          {viewMode === "browsers" && (
-            <div style={{ paddingTop: 24 }}>
-              <div style={{ fontFamily: fd, fontSize: 15, fontWeight: 600, color: c.t2, letterSpacing: 0.3, marginBottom: 4, animation: "smurov-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
-                Browser traffic only
-              </div>
-              <div style={{ fontFamily: fb, fontSize: 13, color: c.t3, lineHeight: 1.6, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
-                System SOCKS5 proxy handles browser requests.<br />
-                Applications connect directly — no TUN device, no per-app routing.
-              </div>
-            </div>
-          )}
-          {viewMode === "selected" && (
+          {trafficMode === "selected" && (
             <div style={{ animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) both" }}>
               <AppRules visible mode="selected" onModeChange={setTrafficMode} hideModeSwitch />
             </div>
