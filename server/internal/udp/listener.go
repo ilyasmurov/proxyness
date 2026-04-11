@@ -443,8 +443,16 @@ func (l *Listener) streamWriter(sess *Session, streamID uint32, st *StreamState)
 			return
 		}
 		st.BytesIn += int64(n)
+		// Tracker semantics (see proxy/tcp.go + stats/tracker.go):
+		//   AddBytes(in, out) — in = client DOWNLOAD, out = client UPLOAD.
+		// These bytes originated on the client and are being written out to
+		// the destination, so they are UPLOAD from the client's perspective.
+		// Passing them as the "in" (first) parameter mislabelled the whole
+		// UDP transport's stats: the admin dashboard showed YouTube streams
+		// as "upload-heavy" because every byte received from the browser and
+		// forwarded to googlevideo.com was being counted as download.
 		if sess.TrackerID != 0 {
-			l.tracker.AddBytes(sess.TrackerID, int64(n), 0)
+			l.tracker.AddBytes(sess.TrackerID, 0, int64(n))
 		}
 	}
 }
@@ -471,8 +479,11 @@ func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) 
 				return
 			}
 			st.BytesOut += int64(n)
+			// See streamWriter comment above. These bytes were read from the
+			// destination and are being relayed back to the client — DOWNLOAD
+			// from the client's perspective, so they go in the "in" slot.
 			if sess.TrackerID != 0 {
-				l.tracker.AddBytes(sess.TrackerID, 0, int64(n))
+				l.tracker.AddBytes(sess.TrackerID, int64(n), 0)
 			}
 
 			seq := sess.NextSeq(streamID)

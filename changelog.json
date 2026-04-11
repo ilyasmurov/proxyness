@@ -1,5 +1,12 @@
 [
   {
+    "id": "dd17ba48-cea6-43cb-9e40-86ec6f133eae",
+    "title": "Admin dashboard showed download and upload swapped for UDP transport traffic",
+    "description": "Server-side UDP listener passed client→destination bytes as the \"in\" parameter of tracker.AddBytes, which maps to client DOWNLOAD in the dashboard — so every byte uploaded by the browser (YouTube request headers, control frames) was counted as download, and every byte of incoming video stream was counted as upload. The result: dashboards showed \"upload-heavy\" devices while the user was watching video. TCP relay stats were already correct; only the UDP transport path was wrong.",
+    "type": "fix",
+    "createdAt": "2026-04-11T15:01:45.622077+00:00"
+  },
+  {
     "id": "8f5f3310-da66-4dd9-a039-4562963ad35d",
     "title": "YouTube briefly reconnects on every TCP blip to the server",
     "description": "The SOCKS5 tunnel's D2 health check did a fresh TLS dial to :443 every 5s and engaged the kill switch on a single failure — TSPU regularly flakes TCP for ~1s at a time while UDP keeps streaming, so any blip closed every active SOCKS5 relay (YouTube, Chrome, etc.) and showed a \"Reconnecting...\" toast for a hiccup the transport was actually riding through. Now D2 prefers transport.Alive() when a transport is set (same as the TUN engine since 1.29.1), falling back to verifyServer only in the legacy SOCKS5-only path.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-05T21:58:14.296964+00:00"
-  },
-  {
-    "id": "bca45937-5df4-4cbf-ad46-70bee61c467e",
-    "title": "Re-enter STARTUP on idle-to-bulk transition — fixes download regression on shared connections",
-    "description": "Skip app-limited rounds in STARTUP exit check — prevents false exit during browsing",
-    "type": "fix",
-    "createdAt": "2026-04-05T21:53:14.085480+00:00"
   }
 ]
