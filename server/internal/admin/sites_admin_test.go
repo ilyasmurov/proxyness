@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 // seedSiteViaOp creates a site via ApplyAddOp and returns the site ID.

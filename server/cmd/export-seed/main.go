@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 // Shape emitted to client/resources/seed_sites.json. Fields match what

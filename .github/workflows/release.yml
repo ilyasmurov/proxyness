@@ -93,7 +93,7 @@ jobs:
         run: |
           cd client/release
           VERSION=$(node -p "require('../package.json').version")
-          PKG="SmurovProxy-${VERSION}-arm64.pkg"
+          PKG="Proxyness-${VERSION}-arm64.pkg"
           SHA=$(shasum -a 512 "$PKG" | awk '{print $1}' | xxd -r -p | base64)
           SIZE=$(stat -f%z "$PKG")
           cat > latest-mac.yml <<YMEOF

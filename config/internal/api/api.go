@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"smurov-proxy/config/internal/db"
+	"proxyness/config/internal/db"
 )
 
 type Server struct {

@@ -4,9 +4,9 @@ import path from "path";
 
 function tokenPath(): string {
   if (process.platform === "win32") {
-    return path.join(process.env.APPDATA || os.homedir(), "SmurovProxy", "daemon-token");
+    return path.join(process.env.APPDATA || os.homedir(), "Proxyness", "daemon-token");
   }
-  return path.join(os.homedir(), ".config", "smurov-proxy", "daemon-token");
+  return path.join(os.homedir(), ".config", "proxyness", "daemon-token");
 }
 
 let cachedToken: string | null = null;

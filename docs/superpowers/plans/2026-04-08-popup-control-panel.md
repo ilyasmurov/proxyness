@@ -21,7 +21,7 @@ These were settled during brainstorming. If any are wrong, fix the assumption an
 
 1. **Daemon owns PAC formation.** After this refactor, daemon — and only daemon — generates the domain list that goes into the PAC file. Renderer pushes only the `proxy_all` flag through the existing `/pac/sites` endpoint; the `sites` field is ignored server-side and dropped from the TS type.
 2. **Mutations require online daemon.** After the refactor, `addSite/toggleSite/removeSite` from the renderer always go through daemon HTTP. If daemon is down, the mutation fails with a clear error toast and the UI rolls back. We sacrifice the existing offline pendingOps queue. Acceptable trade-off because daemon and client spawn together.
-3. **Renderer reads sites from daemon, not catalog server.** New endpoint `GET /sites/my` returns `cache.Snapshot()`. Renderer's `sync()` calls this instead of POST'ing to `https://proxy.smurov.com/api/sync`. This eliminates the read-side race window between renderer's background sync and daemon mutations.
+3. **Renderer reads sites from daemon, not catalog server.** New endpoint `GET /sites/my` returns `cache.Snapshot()`. Renderer's `sync()` calls this instead of POST'ing to `https://proxyness.smurov.com/api/sync`. This eliminates the read-side race window between renderer's background sync and daemon mutations.
 4. **`RebuildPAC` must diff before `CloseAllConns`.** Background `Refresh()` runs every 5 minutes. Without diffing, this would kill all in-flight SOCKS5 connections every tick. The implementation MUST compare new domain list against current `pacSites` and only call `tunnel.CloseAllConns()` when something actually changed.
 5. **Local exclusions JSON store is NOT created.** Earlier draft had this; replaced by reusing existing per-user `enabled` flag through serverside sync. Only one source of truth per user.
 6. **CHANGELOG.new.md needs `git add -f`.** The pre-commit hook deletes it after processing, `.gitignore` blocks it. Always force-add when committing.
@@ -690,9 +690,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"smurov-proxy/daemon/internal/sites"
-	"smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/daemon/internal/tunnel"
+	"proxyness/daemon/internal/sites"
+	"proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/tunnel"
 )
 
 func newTestServerWithMgr(t *testing.T, mgr *sites.Manager) *Server {
@@ -1369,9 +1369,9 @@ import path from "path";
 
 function tokenPath(): string {
   if (process.platform === "win32") {
-    return path.join(process.env.APPDATA || os.homedir(), "SmurovProxy", "daemon-token");
+    return path.join(process.env.APPDATA || os.homedir(), "Proxyness", "daemon-token");
   }
-  return path.join(os.homedir(), ".config", "smurov-proxy", "daemon-token");
+  return path.join(os.homedir(), ".config", "proxyness", "daemon-token");
 }
 
 let cachedToken: string | null = null;
@@ -1818,7 +1818,7 @@ export function initOnce(): Promise<void> {
 
     // One-shot cleanup: pendingOps queue from pre-daemon-mutations versions.
     // We can't replay these reliably, and most users will have an empty queue.
-    localStorage.removeItem("smurov-proxy-pending-ops");
+    localStorage.removeItem("proxyness-pending-ops");
 
     if (!hasLocalSites()) {
       await bootstrapFromBundle();
@@ -2138,7 +2138,7 @@ Find `handleToggleTile` (around line 425):
 const handleToggleTile = (site: LocalSite) => {
   if (allSitesOn) {
     setAllSitesOn(false);
-    localStorage.setItem("smurov-proxy-all-sites-on", "false");
+    localStorage.setItem("proxyness-all-sites-on", "false");
   }
   toggleSiteById(site.id, !site.enabled);
 };
@@ -2150,7 +2150,7 @@ Replace with:
 const handleToggleTile = async (site: LocalSite) => {
   if (allSitesOn) {
     setAllSitesOn(false);
-    localStorage.setItem("smurov-proxy-all-sites-on", "false");
+    localStorage.setItem("proxyness-all-sites-on", "false");
   }
   try {
     await toggleSiteById(site.id, !site.enabled);
@@ -2425,9 +2425,9 @@ async function loadActiveTabState() {
 
 function renderPairing(initialError) {
   root.innerHTML = `
-    <div class="title">Pair with Smurov Proxy</div>
+    <div class="title">Pair with Proxyness</div>
     <div class="subtitle">
-      Open the Smurov Proxy desktop client → Browser Extension tab,
+      Open the Proxyness desktop client → Browser Extension tab,
       copy the token, paste it below.
     </div>
     <input type="text" id="token" placeholder="abc123..." autofocus>
@@ -2462,7 +2462,7 @@ async function tryPair(token) {
 function renderDaemonDown() {
   root.innerHTML = `
     <div class="title">Daemon not running</div>
-    <div class="subtitle">Start the Smurov Proxy desktop client.</div>
+    <div class="subtitle">Start the Proxyness desktop client.</div>
     <div class="footer"><a href="#" id="unpair" class="muted">Unpair</a></div>
   `;
   document.getElementById("unpair").addEventListener("click", clearAndRender);
@@ -2737,7 +2737,7 @@ git commit -m "chore(extension): version bump 0.2.0 [skip-deploy]"
 - [ ] **Step 1: Reload extension in Chrome**
 
 - Open `chrome://extensions`
-- Find Smurov Proxy → click reload icon
+- Find Proxyness → click reload icon
 - Make sure status is "Enabled" with no errors
 
 - [ ] **Step 2: Verify pairing still works (regression-safe)**

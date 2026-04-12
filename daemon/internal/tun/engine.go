@@ -27,10 +27,10 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
-	dstats "smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/daemon/internal/transport"
-	"smurov-proxy/pkg/machineid"
-	"smurov-proxy/pkg/proto"
+	dstats "proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/transport"
+	"proxyness/pkg/machineid"
+	"proxyness/pkg/proto"
 )
 
 type Status string

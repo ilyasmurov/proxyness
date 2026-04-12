@@ -92,8 +92,8 @@ Options:
 
    Deploy:
    ```bash
-   docker cp ./new-binary smurov-proxy:/app/proxy-server.new
-   docker exec smurov-proxy sh -c 'mv /app/proxy-server.new /app/proxy-server && kill -USR2 1'
+   docker cp ./new-binary proxyness:/app/proxy-server.new
+   docker exec proxyness sh -c 'mv /app/proxy-server.new /app/proxy-server && kill -USR2 1'
    ```
 
    Breaks if base image changes (glibc, system packages).

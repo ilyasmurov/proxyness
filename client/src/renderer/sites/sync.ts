@@ -38,7 +38,7 @@ export function initOnce(): Promise<void> {
 
     // One-shot cleanup: pendingOps queue from pre-daemon-mutations versions.
     // We can't replay these reliably, and most users will have an empty queue.
-    localStorage.removeItem("smurov-proxy-pending-ops");
+    localStorage.removeItem("proxyness-pending-ops");
 
     if (!hasLocalSites()) {
       await bootstrapFromBundle();

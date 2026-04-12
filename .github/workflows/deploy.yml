@@ -109,7 +109,7 @@ jobs:
             fi
 
             # Create app directory
-            mkdir -p /opt/smurov-proxy
+            mkdir -p /opt/proxyness
 
             # Login to GitHub Container Registry
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
@@ -120,17 +120,17 @@ jobs:
             # Stop old container — give it 5s to broadcast MsgSessionClose
             # to active UDP clients so they reconnect immediately instead of
             # hanging on the 20s keepalive timeout.
-            docker stop -t 5 smurov-proxy 2>/dev/null || true
-            docker rm smurov-proxy 2>/dev/null || true
+            docker stop -t 5 proxyness 2>/dev/null || true
+            docker rm proxyness 2>/dev/null || true
 
             # Start new container
             docker run -d \
-              --name smurov-proxy \
+              --name proxyness \
               --restart unless-stopped \
               --ulimit nofile=32768:32768 \
               -p 443:443 \
               -p 443:443/udp \
-              -v smurov-proxy-data:/data \
+              -v proxyness-data:/data \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
               -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
               ghcr.io/${{ github.repository }}:latest \

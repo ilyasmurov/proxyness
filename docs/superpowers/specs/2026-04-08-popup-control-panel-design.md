@@ -39,7 +39,7 @@
 `client/src/renderer/sites/sync.ts:107` (`toggleSite`) сейчас:
 1. Обновляет `localSites` в localStorage
 2. Кладёт pending op в queue
-3. На следующем `sync()` отправляет op `enable`/`disable` на `https://proxy.smurov.com/api/sync` через серверный device key
+3. На следующем `sync()` отправляет op `enable`/`disable` на `https://proxyness.smurov.com/api/sync` через серверный device key
 4. Сервер хранит per-user view `my_sites` — у каждого юзера свои `enabled` флаги
 
 `daemon/internal/sites/manager.go` тоже синкается с тем же `/api/sync` — у него свой `SyncClient`, свой `Cache`, и `StartBackgroundRefresh(5*time.Minute)` в `daemon/cmd/main.go:48`. То есть **daemon уже умеет ходить на сервер каталога** и держит свой view of `my_sites`.
@@ -81,7 +81,7 @@ Renderer ↔ daemon ↔ server cache синхронизация:
 
 **Почему `GET /sites/my` через daemon, а не напрямую:**
 
-Если renderer сам бы продолжал hit'ить `https://proxy.smurov.com/api/sync`, могла бы быть гонка: renderer's sync() начинается в T=0, daemon mutation происходит в T=0.5 (server acks), renderer получает stale response в T=2 → renderer's localSites становится pre-mutation snapshot → UI показывает старое состояние. Daemon's PAC при этом корректен; пользователь видит mismatch.
+Если renderer сам бы продолжал hit'ить `https://proxyness.smurov.com/api/sync`, могла бы быть гонка: renderer's sync() начинается в T=0, daemon mutation происходит в T=0.5 (server acks), renderer получает stale response в T=2 → renderer's localSites становится pre-mutation snapshot → UI показывает старое состояние. Daemon's PAC при этом корректен; пользователь видит mismatch.
 
 Pull-from-daemon решает это потому что daemon — single source of truth: после mutation daemon обновил свой cache синхронно, и любой следующий read берёт эти данные. Renderer и daemon никогда не расходятся.
 
@@ -378,16 +378,16 @@ sitesManager.SetOnCacheReplaced(func() {
 - **`async removeSite(siteId): Promise<void>`** аналогично — новый IPC `daemon-remove-site`.
 
 - **`sync()`** — остаётся для refresh read path, но pull'ится не от server'а напрямую, а от daemon. Конкретно: `await window.appInfo.daemonListSites()` → daemon's `GET /sites/my` → `{my_sites: [...]}` → `localSites = body.my_sites.map(remoteToLocal)`. Period 5 минут как сейчас в `useSites.ts:69`. Это значит:
-  - Renderer **больше не использует device key** для sites sync (был `localStorage.getItem("smurov-proxy-key")` в текущем `sync.ts:120`).
-  - Renderer **больше не hit'ит `https://proxy.smurov.com/api/sync`** в read path. Mutation path тоже не hit'ит — mutations через daemon RPC.
+  - Renderer **больше не использует device key** для sites sync (был `localStorage.getItem("proxyness-key")` в текущем `sync.ts:120`).
+  - Renderer **больше не hit'ит `https://proxyness.smurov.com/api/sync`** в read path. Mutation path тоже не hit'ит — mutations через daemon RPC.
   - Server каталог теперь sync'ится **только** с daemon'ом. Renderer — pure consumer of daemon API для sites data.
   - `sync()` сохраняет существующий `subscribe()`/`notify()` pub/sub паттерн чтобы UI re-render'илась при обновлении.
 
-- **Migration: legacy `pendingOps` в localStorage.** У существующих юзеров в localStorage сидит ключ `smurov-proxy-pending-ops` (см. `client/src/renderer/sites/storage.ts:5-7`). После refactor'а у нас нет места куда их применить — daemon mutations синхронные, нельзя retry'ить старые ops через server из-за разных временных меток и потенциально устаревшего state. Один-раз cleanup в `initOnce()` сразу после `loadState`:
+- **Migration: legacy `pendingOps` в localStorage.** У существующих юзеров в localStorage сидит ключ `proxyness-pending-ops` (см. `client/src/renderer/sites/storage.ts:5-7`). После refactor'а у нас нет места куда их применить — daemon mutations синхронные, нельзя retry'ить старые ops через server из-за разных временных меток и потенциально устаревшего state. Один-раз cleanup в `initOnce()` сразу после `loadState`:
   ```ts
   // One-shot cleanup of legacy pendingOps queue from pre-daemon-mutations versions.
   // We can't replay these reliably, and most users will have an empty queue anyway.
-  localStorage.removeItem("smurov-proxy-pending-ops");
+  localStorage.removeItem("proxyness-pending-ops");
   ```
   Если у юзера была неотправленная mutation — она потеряется. Это acceptable: pendingOps в практике пустые большую часть времени (sync interval 5 минут, mutations редкие). Альтернатива — попытаться replay'нуть через daemon на startup — добавляет fragile error path для редкого edge case. Skip.
 
@@ -706,7 +706,7 @@ reload + close попапа делается из popup'а, не из SW.
 - `client/src/main/extension.ts` — добавить `cachedDaemonToken()` функцию с module-level cache. `getDaemonToken()` остаётся для совместимости с существующим IPC `get-daemon-token`, внутри использует `cachedDaemonToken()`.
 - `client/src/main/preload.ts` — экспортировать `daemonSetEnabled`, `daemonAddSite`, `daemonRemoveSite`, `daemonListSites`. Обновить тип `setPacSites: (data: { proxy_all: boolean })` (без поля `sites`).
 - `client/src/renderer/hooks/useDaemon.ts` — обновить window declaration для `setPacSites` до `{proxy_all: boolean}`.
-- `client/src/renderer/sites/sync.ts` — переписать `toggleSite`, `addSite`, `removeSite` как async через `window.appInfo.daemon*`. `sync()` теперь pull'ит через `daemonListSites()` от daemon (не от сервера каталога). Удалить pendingOps queue полностью (`pendingOps`, `toWireOp`, save/load в storage). Удалить `STORAGE_KEY`/`localStorage.getItem("smurov-proxy-key")` use в sync (больше не нужен device key для sites). Добавить one-shot cleanup `localStorage.removeItem("smurov-proxy-pending-ops")` в `initOnce()`.
+- `client/src/renderer/sites/sync.ts` — переписать `toggleSite`, `addSite`, `removeSite` как async через `window.appInfo.daemon*`. `sync()` теперь pull'ит через `daemonListSites()` от daemon (не от сервера каталога). Удалить pendingOps queue полностью (`pendingOps`, `toWireOp`, save/load в storage). Удалить `STORAGE_KEY`/`localStorage.getItem("proxyness-key")` use в sync (больше не нужен device key для sites). Добавить one-shot cleanup `localStorage.removeItem("proxyness-pending-ops")` в `initOnce()`.
 - `client/src/renderer/sites/storage.ts` — удалить `pendingOps` поле из `PersistedState`, удалить save/load для него, удалить `KEY_PENDING` константу.
 - `client/src/renderer/sites/useSites.ts` — `UseSitesReturn` интерфейс: `addSite`, `removeSite`, `toggleSite` теперь возвращают `Promise<...>`. Wrapper'ы вокруг `syncModule.*` async функций.
 - `client/src/renderer/sites/pac.ts` — удалить полностью (нет consumers).

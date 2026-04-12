@@ -80,15 +80,15 @@ jobs:
             docker pull ghcr.io/${{ github.repository }}-config:latest
 
             # Stop and remove old container
-            docker stop smurov-config 2>/dev/null || true
-            docker rm smurov-config 2>/dev/null || true
+            docker stop proxyness-config 2>/dev/null || true
+            docker rm proxyness-config 2>/dev/null || true
 
             # Start new container
             docker run -d \
-              --name smurov-config \
+              --name proxyness-config \
               --restart unless-stopped \
               --network host \
-              -v smurov-config-data:/data \
+              -v proxyness-config-data:/data \
               ghcr.io/${{ github.repository }}-config:latest \
               -addr :8443 \
               -db /data/config.db \

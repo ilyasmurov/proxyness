@@ -415,7 +415,7 @@ async function handleAddSiteAndReload(tab) {
 
   const r = await daemonClient.add(state.host, state.host);
   if (!r.ok) {
-    console.warn("[smurov-proxy] add failed:", r);
+    console.warn("[proxyness] add failed:", r);
     return;
   }
   const siteId = r.data.site_id;
@@ -430,4 +430,4 @@ async function handleAddSiteAndReload(tab) {
   chrome.tabs.reload(tab.id);
 }
 
-console.log("[smurov-proxy] service worker loaded");
+console.log("[proxyness] service worker loaded");

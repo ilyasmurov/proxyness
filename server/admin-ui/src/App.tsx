@@ -23,7 +23,7 @@ function Nav() {
   );
   return (
     <nav className="border-b px-6 py-3 flex items-center gap-4">
-      <span className="font-bold text-lg mr-4">SmurovProxy</span>
+      <span className="font-bold text-lg mr-4">Proxyness</span>
       {link("/admin", "Dashboard")}
       {link("/admin/users", "Users")}
       {link("/admin/sites", "Sites")}

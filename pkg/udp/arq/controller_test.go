@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	pkgudp "smurov-proxy/pkg/udp"
+	pkgudp "proxyness/pkg/udp"
 )
 
 // mockSender captures sent datagrams for inspection.

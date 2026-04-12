@@ -1216,7 +1216,7 @@ import (
 	"sync"
 	"time"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 type ctxKey string
@@ -1374,7 +1374,7 @@ import (
 	"log"
 	"net/http"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 // Wire types for POST /api/sync.
@@ -1614,7 +1614,7 @@ import (
 	"strings"
 	"testing"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 func testHandler(t *testing.T) (*Handler, *db.DB, string) {
@@ -1790,7 +1790,7 @@ import (
 	"fmt"
 	"os"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 // Shape emitted to client/resources/seed_sites.json. Fields match what
@@ -2018,13 +2018,13 @@ import type { LocalSite, PendingOp } from "./types";
 
 // localStorage key namespace. Keep synced with the migration path that
 // deletes legacy keys below.
-const KEY_LOCAL     = "smurov-proxy-local-sites";
-const KEY_PENDING   = "smurov-proxy-pending-ops";
-const KEY_LAST_SYNC = "smurov-proxy-last-sync-at";
+const KEY_LOCAL     = "proxyness-local-sites";
+const KEY_PENDING   = "proxyness-pending-ops";
+const KEY_LAST_SYNC = "proxyness-last-sync-at";
 
 // Legacy keys kept so the migration in sync.ts can find them.
-export const LEGACY_KEY_SITES         = "smurov-proxy-sites";
-export const LEGACY_KEY_ENABLED_SITES = "smurov-proxy-enabled-sites";
+export const LEGACY_KEY_SITES         = "proxyness-sites";
+export const LEGACY_KEY_ENABLED_SITES = "proxyness-enabled-sites";
 
 export interface PersistedState {
   localSites: LocalSite[];
@@ -2156,8 +2156,8 @@ import {
   clearLegacy,
 } from "./storage";
 
-const API_BASE = "https://proxy.smurov.com";
-const STORAGE_KEY = "smurov-proxy-key"; // same key the tunnel uses
+const API_BASE = "https://proxyness.smurov.com";
+const STORAGE_KEY = "proxyness-key"; // same key the tunnel uses
 
 // Module-level state; initialized on first getState() call.
 let localSites: LocalSite[] = [];
@@ -2751,7 +2751,7 @@ with:
 const { sites: localSites, addSite, removeSite, toggleSite } = useSites();
 // All-sites toggle: a local-only mode flag that bypasses per-site picks.
 const [allSitesOn, setAllSitesOn] = useState<boolean>(
-  () => localStorage.getItem("smurov-proxy-all-sites-on") !== "false"
+  () => localStorage.getItem("proxyness-all-sites-on") !== "false"
 );
 ```
 
@@ -2799,7 +2799,7 @@ Replace toggle/add/remove handlers to call `useSites` methods:
 const handleToggleTile = (site: LocalSite) => {
   if (allSitesOn) {
     setAllSitesOn(false);
-    localStorage.setItem("smurov-proxy-all-sites-on", "false");
+    localStorage.setItem("proxyness-all-sites-on", "false");
   }
   toggleSite(site.id, !site.enabled);
 };
@@ -2807,7 +2807,7 @@ const handleToggleTile = (site: LocalSite) => {
 const handleToggleAll = () => {
   const next = !allSitesOn;
   setAllSitesOn(next);
-  localStorage.setItem("smurov-proxy-all-sites-on", String(next));
+  localStorage.setItem("proxyness-all-sites-on", String(next));
 };
 
 const handleAddSite = (domain: string, label: string) => {
@@ -2885,8 +2885,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"smurov-proxy/server/internal/admin"
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/admin"
+	"proxyness/server/internal/db"
 )
 
 func TestSyncIntegrationFullFlow(t *testing.T) {

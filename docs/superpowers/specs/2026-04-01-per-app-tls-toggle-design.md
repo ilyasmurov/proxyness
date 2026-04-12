@@ -53,7 +53,7 @@ State:
 noTLS: Set<string>  // app IDs with TLS disabled
 ```
 
-Persisted in `localStorage` under `"smurov-proxy-no-tls"`.
+Persisted in `localStorage` under `"proxyness-no-tls"`.
 
 When sending rules to daemon, map enabled app IDs with `noTLS` flag to `no_tls_apps` paths:
 

@@ -1,4 +1,4 @@
-module smurov-proxy/helper
+module proxyness/helper
 
 go 1.25.0
 

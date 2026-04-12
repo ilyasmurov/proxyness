@@ -470,7 +470,7 @@ func TestSetReconnectingOnlyFromConnected(t *testing.T) {
 }
 ```
 
-If `stats` isn't imported in the test file, add `dstats "smurov-proxy/daemon/internal/stats"` and use `dstats.NewRateMeter()`.
+If `stats` isn't imported in the test file, add `dstats "proxyness/daemon/internal/stats"` and use `dstats.NewRateMeter()`.
 
 - [ ] **Step 3: Write `TestSetConnectedOnlyFromReconnecting`**
 
@@ -881,7 +881,7 @@ import (
 	"testing"
 	"time"
 
-	dstats "smurov-proxy/daemon/internal/stats"
+	dstats "proxyness/daemon/internal/stats"
 )
 
 func TestEngineSetReconnectingOnlyFromActive(t *testing.T) {

@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	dstats "smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/daemon/internal/sites"
-	"smurov-proxy/daemon/internal/transport"
-	"smurov-proxy/daemon/internal/tun"
-	"smurov-proxy/daemon/internal/tunnel"
-	"smurov-proxy/pkg/machineid"
+	dstats "proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/sites"
+	"proxyness/daemon/internal/transport"
+	"proxyness/daemon/internal/tun"
+	"proxyness/daemon/internal/tunnel"
+	"proxyness/pkg/machineid"
 )
 
 type Server struct {

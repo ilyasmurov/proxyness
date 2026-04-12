@@ -5,8 +5,8 @@
 // chrome.storage.local.
 
 (function () {
-  if (window.__smurovProxyInjected) return;
-  window.__smurovProxyInjected = true;
+  if (window.__proxynessInjected) return;
+  window.__proxynessInjected = true;
 
   // Create the host element and shadow root.
   const host = document.createElement("div");
@@ -212,7 +212,7 @@
       case "down":
         iconEl.className = "icon red";
         labelEl.textContent = "Daemon not running";
-        hintEl.textContent = "Open the Smurov Proxy desktop app";
+        hintEl.textContent = "Open the Proxyness desktop app";
         hintEl.style.display = "block";
         panel.classList.remove("collapsed");
         panel.classList.add("visible");

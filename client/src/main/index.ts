@@ -8,19 +8,19 @@ import { getInstalledApps } from "./apps";
 import { getDaemonToken, cachedDaemonToken } from "./extension";
 
 // Diagnostic crash logger — opt-in, off by default. Enable by launching
-// the app with `--debug` or setting SMUROV_DEBUG=1 in the environment.
+// the app with `--debug` or setting PROXYNESS_DEBUG=1 in the environment.
 // When active, writes unhandled main-process exceptions, renderer crashes
-// and per-phase boot traces to ~/Desktop/smurov-crash.log so we can debug
+// and per-phase boot traces to ~/Desktop/proxyness-crash.log so we can debug
 // startup/runtime failures that leave no trace in Event Viewer or
 // %APPDATA% logs. Kept around permanently so future reports can be
 // triaged by asking the user to relaunch with the flag.
 // Opt-in crash logger. Enable by launching with `--trace` (Electron
 // reserves --debug for its legacy Node inspector, so we can't use that
-// name). SMUROV_DEBUG=1 env var works on macOS but NOT on Windows,
+// name). PROXYNESS_DEBUG=1 env var works on macOS but NOT on Windows,
 // because requireAdministrator elevation drops env vars on the
 // elevated child — so on Windows the only reliable switch is --trace.
-const DEBUG_ENABLED = process.argv.includes("--trace") || process.env.SMUROV_DEBUG === "1";
-const CRASH_LOG = path.join(require("os").homedir(), "Desktop", "smurov-crash.log");
+const DEBUG_ENABLED = process.argv.includes("--trace") || process.env.PROXYNESS_DEBUG === "1";
+const CRASH_LOG = path.join(require("os").homedir(), "Desktop", "proxyness-crash.log");
 function logCrash(tag: string, err: unknown) {
   if (!DEBUG_ENABLED) return;
   try {
@@ -44,8 +44,8 @@ if (DEBUG_ENABLED) {
   bootTrace("process started (debug mode)");
 }
 
-const UPDATE_BASE = "https://github.com/ilyasmurov/smurov-proxy/releases/latest/download";
-const DEFAULT_CONFIG_URL = "https://proxy.smurov.com/api/client-config";
+const UPDATE_BASE = "https://github.com/ilyasmurov/proxyness/releases/latest/download";
+const DEFAULT_CONFIG_URL = "https://proxyness.smurov.com/api/client-config";
 
 interface ServerNotification {
   id: string;
@@ -397,7 +397,6 @@ function trayIconPath(connected: boolean): string {
   const buildDir = app.isPackaged
     ? path.join(process.resourcesPath, "app.asar", "build")
     : path.join(__dirname, "../../build");
-
   if (process.platform === "darwin") {
     return path.join(buildDir, connected ? "trayConnectedTemplate.png" : "trayTemplate.png");
   }
@@ -446,7 +445,7 @@ function setTrayConnected(connected: boolean) {
 
 function createTray() {
   tray = new Tray(loadTrayIcon(false));
-  tray.setToolTip("SmurovProxy");
+  tray.setToolTip("Proxyness");
   updateTrayMenu();
 
   tray.on("double-click", () => {
@@ -458,7 +457,7 @@ let installerPath = "";
 
 // Uses Electron's net.fetch (Chromium network stack) instead of the Node.js
 // built-in fetch so that the request goes through the system proxy / PAC
-// script. SmurovProxy enables a system proxy in TUN mode, so the update
+// script. Proxyness enables a system proxy in TUN mode, so the update
 // check is routed through the VPN — otherwise on Windows the direct fetch
 // to github.com fails because GitHub is blocked at the ISP level in Russia
 // and Node's undici fetch ignores the system proxy.
@@ -679,7 +678,7 @@ function setupIpc() {
       height: 400,
       minWidth: 400,
       minHeight: 200,
-      title: "SmurovProxy — Logs",
+      title: "Proxyness — Logs",
       backgroundColor: "#1a1a2e",
       autoHideMenuBar: true,
       webPreferences: {
@@ -709,7 +708,7 @@ function setupIpc() {
       width: 360,
       height: 200,
       resizable: false,
-      title: "SmurovProxy — Updates",
+      title: "Proxyness — Updates",
       backgroundColor: "#1a1a2e",
       autoHideMenuBar: true,
       webPreferences: {
@@ -815,7 +814,7 @@ function setupIpc() {
           server,
           key,
           helper_addr: process.platform === "darwin"
-            ? "/var/run/smurov-helper.sock"
+            ? "/var/run/proxyness-helper.sock"
             : "127.0.0.1:9091",
         }),
       });

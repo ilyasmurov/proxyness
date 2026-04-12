@@ -1,7 +1,7 @@
 services:
   proxy:
-    image: ghcr.io/ilyasmurov/smurov-proxy:latest
-    container_name: smurov-proxy
+    image: ghcr.io/ilyasmurov/proxyness:latest
+    container_name: proxyness
     restart: unless-stopped
     ports:
       - "443:443"
@@ -15,8 +15,8 @@ services:
     command: ["-addr", ":443", "-db", "/data/data.db", "-cert", "/data/cert.pem", "-keyfile", "/data/key.pem"]
 
   config:
-    image: ghcr.io/ilyasmurov/smurov-proxy-config:latest
-    container_name: smurov-config
+    image: ghcr.io/ilyasmurov/proxyness-config:latest
+    container_name: proxyness-config
     restart: unless-stopped
     network_mode: host
     volumes:
@@ -24,8 +24,8 @@ services:
     command: ["-addr", ":8443", "-db", "/data/config.db", "-admin-user", "${ADMIN_USER}", "-admin-pass", "${ADMIN_PASSWORD}", "-proxy", "https://127.0.0.1:443"]
 
   landing:
-    image: ghcr.io/ilyasmurov/smurov-proxy-landing:latest
-    container_name: smurov-landing
+    image: ghcr.io/ilyasmurov/proxyness-landing:latest
+    container_name: proxyness-landing
     restart: unless-stopped
     ports:
       - "80:80"

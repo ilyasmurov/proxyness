@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"smurov-proxy/pkg/proto"
+	"proxyness/pkg/proto"
 )
 
 // TLSTransport wraps the existing per-connection TLS approach.

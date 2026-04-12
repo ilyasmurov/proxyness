@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/crypto/hkdf"
 
-	"smurov-proxy/pkg/auth"
+	"proxyness/pkg/auth"
 )
 
 // GenerateEphemeralKey generates an X25519 ephemeral keypair.
@@ -34,7 +34,7 @@ func DeriveSessionKey(priv *ecdh.PrivateKey, peerPub []byte) ([]byte, error) {
 		return nil, fmt.Errorf("ecdh: %w", err)
 	}
 
-	hk := hkdf.New(sha256.New, shared, nil, []byte("smurov-proxy-udp-session"))
+	hk := hkdf.New(sha256.New, shared, nil, []byte("proxyness-udp-session"))
 	sessionKey := make([]byte, 32)
 	if _, err := io.ReadFull(hk, sessionKey); err != nil {
 		return nil, err

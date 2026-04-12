@@ -24,7 +24,7 @@ var landingTmpl = template.Must(template.New("landing").Parse(`<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SmurovProxy — Secure TLS proxy</title>
+<title>Proxyness — Secure TLS proxy</title>
 <meta name="description" content="Fast, private, undetectable TLS proxy. System-wide VPN or browser-only mode. macOS and Windows.">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -168,7 +168,7 @@ footer a:hover { color: #9aa3b2; }
         <thead>
           <tr>
             <th data-en="Metric" data-ru="Метрика">Metric</th>
-            <th>SmurovProxy</th>
+            <th>Proxyness</th>
             <th>WireGuard</th>
             <th>Outline</th>
           </tr>
@@ -183,7 +183,7 @@ footer a:hover { color: #9aa3b2; }
         </tbody>
       </table>
     </div>
-    <p class="bench-note" data-en="Outline on Shadowsocks times out on HTTPS under Russian ISPs in 2026. SmurovProxy uses real TLS on 443 — it looks like a web server." data-ru="Outline на Shadowsocks в 2026 году таймаутится на HTTPS у российских провайдеров. SmurovProxy использует настоящий TLS на 443 — выглядит как обычный веб-сервер.">Outline on Shadowsocks times out on HTTPS under Russian ISPs in 2026. SmurovProxy uses real TLS on 443 — it looks like a web server.</p>
+    <p class="bench-note" data-en="Outline on Shadowsocks times out on HTTPS under Russian ISPs in 2026. Proxyness uses real TLS on 443 — it looks like a web server." data-ru="Outline на Shadowsocks в 2026 году таймаутится на HTTPS у российских провайдеров. Proxyness использует настоящий TLS на 443 — выглядит как обычный веб-сервер.">Outline on Shadowsocks times out on HTTPS under Russian ISPs in 2026. Proxyness uses real TLS on 443 — it looks like a web server.</p>
   </div>
 </section>
 
@@ -209,7 +209,7 @@ footer a:hover { color: #9aa3b2; }
 </section>
 
 <footer>
-  <div class="wrap">SmurovProxy</div>
+  <div class="wrap">Proxyness</div>
 </footer>
 
 <script>
@@ -246,7 +246,7 @@ func LandingHandler(downloadsDir string) http.Handler {
 	})
 }
 
-const githubRepo = "ilyasmurov/smurov-proxy"
+const githubRepo = "ilyasmurov/proxyness"
 
 type releaseCache struct {
 	mu      sync.Mutex

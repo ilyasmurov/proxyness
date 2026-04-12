@@ -17,12 +17,12 @@ import (
 	"syscall"
 	"time"
 
-	"smurov-proxy/server/internal/admin"
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/mux"
-	"smurov-proxy/server/internal/proxy"
-	"smurov-proxy/server/internal/stats"
-	serverudp "smurov-proxy/server/internal/udp"
+	"proxyness/server/internal/admin"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/mux"
+	"proxyness/server/internal/proxy"
+	"proxyness/server/internal/stats"
+	serverudp "proxyness/server/internal/udp"
 )
 
 func main() {
@@ -125,7 +125,7 @@ func ensureCert(certFile, keyFile string) error {
 	}
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{Organization: []string{"SmurovProxy"}},
+		Subject:      pkix.Name{Organization: []string{"Proxyness"}},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

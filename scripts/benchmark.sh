@@ -1,5 +1,5 @@
 #!/bin/bash
-# SmurovProxy benchmark — compares VPN path vs direct (physical interface)
+# Proxyness benchmark — compares VPN path vs direct (physical interface)
 # across three destination categories so the numbers actually mean something
 # from a Russian ISP:
 #
@@ -15,7 +15,7 @@
 # Note: macOS ships bash 3.2, so this script avoids bash-4 features
 # (associative arrays, ${!var}, etc.).
 
-echo "=== SmurovProxy Benchmark ==="
+echo "=== Proxyness Benchmark ==="
 echo "Date: $(date '+%Y-%m-%d %H:%M:%S')"
 echo ""
 

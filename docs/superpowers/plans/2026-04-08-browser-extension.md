@@ -4,7 +4,7 @@
 
 **Goal:** Build a Manifest V3 Chrome extension that complements the desktop client with per-tab proxy state UI, automatic domain discovery via `chrome.webRequest`, and ISP-block detection with silent verification through the tunnel.
 
-**Architecture:** Extension talks ONLY to the local daemon at `127.0.0.1:9090`, never to `proxy.smurov.com`. Daemon persists the device key on first Connect, maintains an in-memory `my_sites` cache, exposes a new `/sites/*` API guarded by a per-extension bearer token, and forwards add/discover ops to the existing server `/api/sync` endpoint via a new HTTP client.
+**Architecture:** Extension talks ONLY to the local daemon at `127.0.0.1:9090`, never to `proxyness.smurov.com`. Daemon persists the device key on first Connect, maintains an in-memory `my_sites` cache, exposes a new `/sites/*` API guarded by a per-extension bearer token, and forwards add/discover ops to the existing server `/api/sync` endpoint via a new HTTP client.
 
 **Tech Stack:**
 - Server: Go + SQLite (extend existing `server/internal/admin/sync.go` and `server/internal/db/sites.go`)
@@ -19,7 +19,7 @@
 These were not exhaustively discussed in the spec. If any are wrong, fix the assumption and the affected tasks before starting.
 
 1. **Daemon online-only sync (no offline buffer in daemon).** The daemon's `/sites/add` and `/sites/discover` endpoints fail with 503 if the daemon cannot reach the server right now. The renderer keeps its own offline buffer (existing `client/src/renderer/sites/sync.ts`). Rationale: extension is for active browsing which already needs internet, and adding an offline queue to the daemon duplicates renderer logic.
-2. **Daemon persists device key after first Connect.** Currently `s.key = req.Key` is in-memory only. This plan adds a tiny on-disk persist so the daemon can call `/api/sync` between client restarts and BEFORE the user explicitly connects the tunnel. Key file lives at `~/.config/smurov-proxy/device-key` (Unix) / `%APPDATA%\SmurovProxy\device-key` (Windows), mode `0600`. Same threat model as the existing localStorage key in the renderer.
+2. **Daemon persists device key after first Connect.** Currently `s.key = req.Key` is in-memory only. This plan adds a tiny on-disk persist so the daemon can call `/api/sync` between client restarts and BEFORE the user explicitly connects the tunnel. Key file lives at `~/.config/proxyness/device-key` (Unix) / `%APPDATA%\Proxyness\device-key` (Windows), mode `0600`. Same threat model as the existing localStorage key in the renderer.
 3. **In-memory `my_sites` cache, refreshed every 5 minutes + on writes.** The daemon stores its current view of `my_sites` (the user's enabled sites with their domain lists) in RAM. `/sites/match` queries this cache (no I/O). Refresh on: daemon start (load from server), every 5 min, immediately after a successful add/discover op.
 4. **Extension is not formally tested.** Browser extension test infrastructure (Puppeteer + extension loading) is overkill for v1. Each extension task has a "Manual verification" step instead of automated tests. Server and daemon code IS tested via Go test suite.
 5. **CHANGELOG.new.md needs `git add -f`.** The pre-commit hook deletes the file after processing and `.gitignore` blocks it. Always force-add.
@@ -500,7 +500,7 @@ Modify `daemon/internal/api/api.go`. Add to the `Server` struct:
 ```go
 import (
 	// ... existing imports
-	"smurov-proxy/daemon/internal/sites"
+	"proxyness/daemon/internal/sites"
 )
 
 type Server struct {
@@ -550,10 +550,10 @@ Add `DefaultKeyPath()` to `daemon/internal/sites/key.go`:
 // DefaultKeyPath returns the OS-appropriate path for the persisted device key.
 func DefaultKeyPath() string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("APPDATA"), "SmurovProxy", "device-key")
+		return filepath.Join(os.Getenv("APPDATA"), "Proxyness", "device-key")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "smurov-proxy", "device-key")
+	return filepath.Join(home, ".config", "proxyness", "device-key")
 }
 ```
 
@@ -741,10 +741,10 @@ func (s *TokenStore) Check(provided string) bool {
 // DefaultTokenPath returns the OS-appropriate path for the daemon token.
 func DefaultTokenPath() string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("APPDATA"), "SmurovProxy", "daemon-token")
+		return filepath.Join(os.Getenv("APPDATA"), "Proxyness", "daemon-token")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "smurov-proxy", "daemon-token")
+	return filepath.Join(home, ".config", "proxyness", "daemon-token")
 }
 ```
 
@@ -766,7 +766,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"smurov-proxy/daemon/internal/sites"
+	"proxyness/daemon/internal/sites"
 )
 
 func TestRequireExtensionTokenAllowsValid(t *testing.T) {
@@ -841,7 +841,7 @@ import (
 	"net/http"
 	"strings"
 
-	"smurov-proxy/daemon/internal/sites"
+	"proxyness/daemon/internal/sites"
 )
 
 // requireExtensionToken wraps a handler with a constant-time bearer-token
@@ -1604,7 +1604,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"smurov-proxy/daemon/internal/sites"
+	"proxyness/daemon/internal/sites"
 )
 
 func newTestServerWithSitesAPI(t *testing.T, mgr *sites.Manager, tokenStore *sites.TokenStore) *Server {
@@ -1711,7 +1711,7 @@ Expected: FAIL.
 Modify `daemon/internal/api/api.go`. Add to imports:
 
 ```go
-"smurov-proxy/daemon/internal/sites"
+"proxyness/daemon/internal/sites"
 ```
 
 Add to `Server` struct:
@@ -1868,7 +1868,7 @@ tokenStore := sites.NewTokenStore(sites.DefaultTokenPath())
 if _, err := tokenStore.GetOrCreate(); err != nil {
 	log.Fatalf("daemon token: %v", err)
 }
-sitesManager := sites.NewManager("https://proxy.smurov.com", keyStore)
+sitesManager := sites.NewManager("https://proxyness.smurov.com", keyStore)
 sitesManager.StartBackgroundRefresh(5 * time.Minute)
 apiServer.SetKeyStore(keyStore)
 apiServer.SetSites(sitesManager, tokenStore)
@@ -1881,7 +1881,7 @@ go func() {
 }()
 ```
 
-Add imports if missing: `"smurov-proxy/daemon/internal/sites"`, `"time"`.
+Add imports if missing: `"proxyness/daemon/internal/sites"`, `"time"`.
 
 - [ ] **Step 6: Run tests**
 
@@ -2003,7 +2003,7 @@ func (s *Server) handleSitesTest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]interface{}{"likely_blocked": false})
 		return
 	}
-	httpReq.Header.Set("User-Agent", "SmurovProxy-Discovery/1.0")
+	httpReq.Header.Set("User-Agent", "Proxyness-Discovery/1.0")
 
 	resp, err := s.sitesTestClient.Do(httpReq)
 	if err != nil {
@@ -2091,9 +2091,9 @@ import path from "path";
 
 function tokenPath(): string {
   if (process.platform === "win32") {
-    return path.join(process.env.APPDATA || os.homedir(), "SmurovProxy", "daemon-token");
+    return path.join(process.env.APPDATA || os.homedir(), "Proxyness", "daemon-token");
   }
-  return path.join(os.homedir(), ".config", "smurov-proxy", "daemon-token");
+  return path.join(os.homedir(), ".config", "proxyness", "daemon-token");
 }
 
 export function getDaemonToken(): string {
@@ -2189,7 +2189,7 @@ export function BrowserExtension() {
       </div>
       <p style={{ color: "#666", fontSize: 12, marginTop: 16 }}>
         Токен генерируется автоматически при первом старте демона. Если хочешь
-        отозвать доступ — удали файл <code>~/.config/smurov-proxy/daemon-token</code>
+        отозвать доступ — удали файл <code>~/.config/proxyness/daemon-token</code>
         и перезапусти клиент.
       </p>
     </div>
@@ -2246,9 +2246,9 @@ Create `extension/manifest.json`:
 ```json
 {
   "manifest_version": 3,
-  "name": "Smurov Proxy",
+  "name": "Proxyness",
   "version": "0.1.0",
-  "description": "Per-tab proxy controls and automatic domain discovery for Smurov Proxy.",
+  "description": "Per-tab proxy controls and automatic domain discovery for Proxyness.",
   "permissions": [
     "webRequest",
     "webNavigation",
@@ -2326,12 +2326,12 @@ echo "// Popup — populated in Task 12" > extension/popup/popup.js
 Create `extension/README.md`:
 
 ```markdown
-# Smurov Proxy — Browser Extension
+# Proxyness — Browser Extension
 
-Companion to the Smurov Proxy desktop client. Provides per-tab proxy controls,
+Companion to the Proxyness desktop client. Provides per-tab proxy controls,
 automatic domain discovery, and ISP-block detection.
 
-**Requires the Smurov Proxy desktop client** running on the same machine.
+**Requires the Proxyness desktop client** running on the same machine.
 
 ## Install (development)
 
@@ -2389,7 +2389,7 @@ git commit -m "feat(extension): manifest v3 scaffold [skip-deploy]"
 Create `extension/lib/daemon-client.js`:
 
 ```js
-// Daemon client: token-aware fetch wrapper for the local Smurov daemon API.
+// Daemon client: token-aware fetch wrapper for the local Proxyness daemon API.
 // All extension → daemon HTTP traffic flows through this module.
 
 const DAEMON_BASE = "http://127.0.0.1:9090";
@@ -2502,14 +2502,14 @@ chrome.tabs.onActivated.addListener(async (info) => {
   // Stub: full implementation in Task 14.
 });
 
-console.log("[smurov-proxy] service worker loaded");
+console.log("[proxyness] service worker loaded");
 ```
 
 - [ ] **Step 3: Manual verification**
 
 1. Reload the extension at `chrome://extensions`.
 2. Click "Inspect views: service-worker" — DevTools opens.
-3. Console should show `[smurov-proxy] service worker loaded`.
+3. Console should show `[proxyness] service worker loaded`.
 4. In the DevTools console, run:
    ```js
    chrome.runtime.sendMessage({type: "ping_daemon"}, console.log)
@@ -2611,9 +2611,9 @@ async function clearAndRender() {
 
 function renderPairing(initialError) {
   root.innerHTML = `
-    <div class="title">Pair with Smurov Proxy</div>
+    <div class="title">Pair with Proxyness</div>
     <div class="subtitle">
-      Open the Smurov Proxy desktop client → Browser Extension tab,
+      Open the Proxyness desktop client → Browser Extension tab,
       copy the token, paste it below.
     </div>
     <input type="text" id="token" placeholder="abc123..." autofocus>
@@ -2710,8 +2710,8 @@ Replace `extension/content-script.js`:
 // service worker.
 
 (function () {
-  if (window.__smurovProxyInjected) return;
-  window.__smurovProxyInjected = true;
+  if (window.__proxynessInjected) return;
+  window.__proxynessInjected = true;
 
   // Create the host element and shadow root.
   const host = document.createElement("div");
@@ -2781,7 +2781,7 @@ Replace `extension/content-script.js`:
       case "down":
         iconEl.className = "icon red";
         labelEl.textContent = "Daemon not running";
-        hintEl.textContent = "Open the Smurov Proxy desktop app";
+        hintEl.textContent = "Open the Proxyness desktop app";
         hintEl.style.display = "block";
         panel.classList.remove("collapsed");
         break;
@@ -2994,7 +2994,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // "dismiss_block" arrive in Task 15+.
 });
 
-console.log("[smurov-proxy] service worker loaded");
+console.log("[proxyness] service worker loaded");
 ```
 
 - [ ] **Step 3: Manual verification**
@@ -3084,7 +3084,7 @@ async function handleAddCurrentSite(tab) {
 6. Confirm in the desktop client → Browser Extension tab → that the daemon
    actually called the server. Or check the server DB:
    ```bash
-   ssh root@95.181.162.242 'sqlite3 /var/lib/docker/volumes/smurov-proxy-data/_data/data.db "SELECT * FROM sites WHERE primary_domain=\"example.com\";"'
+   ssh root@95.181.162.242 'sqlite3 /var/lib/docker/volumes/proxyness-data/_data/data.db "SELECT * FROM sites WHERE primary_domain=\"example.com\";"'
    ```
 
 - [ ] **Step 3: Commit**
@@ -3236,7 +3236,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 3. Browse the site, scroll, click links, open articles.
 4. After 5+ seconds, check the server DB:
    ```bash
-   ssh root@95.181.162.242 'sqlite3 /var/lib/docker/volumes/smurov-proxy-data/_data/data.db "SELECT domain FROM site_domains WHERE site_id=(SELECT id FROM sites WHERE primary_domain=\"habr.com\");"'
+   ssh root@95.181.162.242 'sqlite3 /var/lib/docker/volumes/proxyness-data/_data/data.db "SELECT domain FROM site_domains WHERE site_id=(SELECT id FROM sites WHERE primary_domain=\"habr.com\");"'
    ```
    You should see `habr.com` plus several discovered subdomains/CDN hosts
    like `habrastorage.org`, `habr-image.s3.eu-central-1.amazonaws.com`,
@@ -3314,7 +3314,7 @@ This is hard to test deterministically. The setup:
    like `127.0.0.1 some-cdn.example.com` so requests fail with
    `ERR_CONNECTION_REFUSED`.
 2. Load the proxied page, observe the failed sub-resource.
-3. Check daemon logs (`tail -f ~/Library/Logs/SmurovProxy/daemon.log` or
+3. Check daemon logs (`tail -f ~/Library/Logs/Proxyness/daemon.log` or
    wherever logs go) for the `add_domain` op.
 4. Check server DB:
    ```bash
@@ -3431,7 +3431,7 @@ async function handleAddSiteAndReload(tab) {
 
   const r = await daemonClient.add(state.host, state.host);
   if (!r.ok) {
-    console.warn("[smurov-proxy] add failed:", r);
+    console.warn("[proxyness] add failed:", r);
     return;
   }
   const siteId = r.data.site_id;
@@ -3482,12 +3482,12 @@ git commit -m "feat(extension): block detection with silent verification [skip-d
 Replace `extension/README.md`:
 
 ```markdown
-# Smurov Proxy — Browser Extension
+# Proxyness — Browser Extension
 
-Companion to the Smurov Proxy desktop client. Provides per-tab proxy controls,
+Companion to the Proxyness desktop client. Provides per-tab proxy controls,
 automatic domain discovery, and ISP-block detection.
 
-**Requires:** the Smurov Proxy desktop client running on the same machine.
+**Requires:** the Proxyness desktop client running on the same machine.
 
 ## Install (development)
 
@@ -3495,7 +3495,7 @@ automatic domain discovery, and ISP-block detection.
 2. Toggle on "Developer mode" (top right).
 3. Click "Load unpacked" and select this `extension/` folder.
 4. Click the extension icon in the toolbar.
-5. Open the Smurov Proxy desktop client → "Browser Extension" tab.
+5. Open the Proxyness desktop client → "Browser Extension" tab.
 6. Copy the token shown there.
 7. Paste it into the extension popup → click "Pair".
 
@@ -3522,7 +3522,7 @@ working on every tab.
 ## Privacy
 
 The extension reads request URLs (network metadata, not page content) and
-forwards summaries only to your local Smurov Proxy daemon at
+forwards summaries only to your local Proxyness daemon at
 `127.0.0.1:9090`. Nothing is sent directly to any remote server.
 
 ## Architecture

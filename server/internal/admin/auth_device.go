@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 type ctxKey string

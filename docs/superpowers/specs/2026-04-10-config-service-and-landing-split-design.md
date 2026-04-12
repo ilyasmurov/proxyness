@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-10
 **Status**: Draft
-**Scope**: New `smurov-config` microservice for notifications and service discovery, landing page extraction into standalone container, client changes to consume the new config API.
+**Scope**: New `proxyness-config` microservice for notifications and service discovery, landing page extraction into standalone container, client changes to consume the new config API.
 
 ## Context
 
@@ -21,15 +21,15 @@ Today (same VPS):                        Future (split):
 ┌────────────────────────┐           ┌──────────┐  ┌──────────┐  ┌──────────┐
 │ VPS 95.181.162.242     │           │ VPS-1    │  │ VPS-2    │  │ CDN      │
 │                        │           │ proxy    │  │ config   │  │ landing  │
-│ smurov-proxy    :443   │           │ :443     │  │ :443     │  │          │
-│ smurov-config   :8443  │           │          │  │          │  │          │
-│ smurov-landing  :80    │           └──────────┘  └──────────┘  └──────────┘
+│ proxyness    :443   │           │ :443     │  │ :443     │  │          │
+│ proxyness-config   :8443  │           │          │  │          │  │          │
+│ proxyness-landing  :80    │           └──────────┘  └──────────┘  └──────────┘
 └────────────────────────┘
 ```
 
 Three containers on the same VPS now, independently deployable later.
 
-### Container 1: `smurov-config`
+### Container 1: `proxyness-config`
 
 New Go service. Own module (`config/`) in the go.work workspace. Own Dockerfile. Own SQLite DB.
 
@@ -111,22 +111,22 @@ WORKDIR /app
 COPY config/ config/
 COPY pkg/ pkg/
 COPY go.work go.work.sum ./
-RUN cd config && go build -o /smurov-config ./cmd
+RUN cd config && go build -o /proxyness-config ./cmd
 
 FROM alpine:3.20
-COPY --from=build /smurov-config /smurov-config
+COPY --from=build /proxyness-config /proxyness-config
 EXPOSE 8443
-ENTRYPOINT ["/smurov-config"]
+ENTRYPOINT ["/proxyness-config"]
 ```
 
-Run: `docker run -d --name smurov-config -p 8443:8443 -v smurov-config-data:/data smurov-config -addr :8443 -db /data/config.db`
+Run: `docker run -d --name proxyness-config -p 8443:8443 -v proxyness-config-data:/data proxyness-config -addr :8443 -db /data/config.db`
 
-### Container 2: `smurov-landing`
+### Container 2: `proxyness-landing`
 
 Static nginx container serving the landing page files currently embedded in `server/landing/`.
 
 **Responsibilities:**
-- Serve `proxy.smurov.com` landing page (HTML/CSS/JS)
+- Serve `proxyness.smurov.com` landing page (HTML/CSS/JS)
 - Nothing else — no API, no backend logic
 
 **Implementation:**
@@ -136,11 +136,11 @@ Static nginx container serving the landing page files currently embedded in `ser
   FROM nginx:alpine
   COPY landing/ /usr/share/nginx/html/
   ```
-- Run: `docker run -d --name smurov-landing -p 80:80 smurov-landing`
+- Run: `docker run -d --name proxyness-landing -p 80:80 proxyness-landing`
 
 Later: can be moved to Cloudflare Pages, Vercel, or any static hosting. No code changes needed.
 
-### Container 3: `smurov-proxy` (existing, modified)
+### Container 3: `proxyness` (existing, modified)
 
 **Changes:**
 - Remove landing page serving from ListenerMux HTTP path
@@ -204,7 +204,7 @@ The `/api/client-config` endpoint requires `?key=<device_key>` — same hex key 
 
 ```
 Client → GET /api/client-config?key=abc123&v=1.29.5
-         Config service → GET http://smurov-proxy:443/api/validate-key?key=abc123
+         Config service → GET http://proxyness:443/api/validate-key?key=abc123
                           Proxy checks DB → 200 OK / 403 Forbidden
          Config service ← 200 → serve config
          Config service ← 403 → return 403 to client
@@ -230,17 +230,17 @@ Client ← 200 { config_url, proxy_server, notifications, ... }
 ```yaml
 services:
   proxy:
-    image: ghcr.io/ilyasmurov/smurov-proxy:latest
+    image: ghcr.io/ilyasmurov/proxyness:latest
     ports: ["443:443", "443:443/udp"]
     volumes: ["proxy-data:/data"]
     
   config:
-    image: ghcr.io/ilyasmurov/smurov-config:latest
+    image: ghcr.io/ilyasmurov/proxyness-config:latest
     ports: ["8443:8443"]
     volumes: ["config-data:/data"]
     
   landing:
-    image: ghcr.io/ilyasmurov/smurov-landing:latest
+    image: ghcr.io/ilyasmurov/proxyness-landing:latest
     ports: ["80:80"]
 ```
 
@@ -250,7 +250,7 @@ Config service needs HTTPS (client polls it). Options:
 - Use a reverse proxy (nginx/caddy) in front of config that handles TLS
 - For MVP: run on HTTP behind the proxy's existing TLS termination (proxy forwards `/api/client-config` to config container internally)
 
-**Decision for MVP:** Proxy server acts as reverse proxy for config endpoint. Client hits `https://95.181.162.242:443/api/client-config` → proxy recognizes this HTTP path and forwards to `http://smurov-config:8443/api/client-config` internally. This means:
+**Decision for MVP:** Proxy server acts as reverse proxy for config endpoint. Client hits `https://95.181.162.242:443/api/client-config` → proxy recognizes this HTTP path and forwards to `http://proxyness-config:8443/api/client-config` internally. This means:
 - No extra TLS cert needed for config
 - Client doesn't need to know about port 8443
 - When config moves to its own server later, client's cached `config_url` updates to the new HTTPS endpoint
@@ -259,7 +259,7 @@ Config service needs HTTPS (client polls it). Options:
 
 1. **Now:** All three containers on one VPS. Config endpoint proxied through port 443. Landing on port 80.
 2. **Later (config moves):** Deploy config container on new VPS with own domain/cert. Update `config_url` in current config response → clients migrate automatically within 1 hour.
-3. **Later (landing moves):** Point `proxy.smurov.com` DNS to Cloudflare Pages / Vercel / separate server. No client impact.
+3. **Later (landing moves):** Point `proxyness.smurov.com` DNS to Cloudflare Pages / Vercel / separate server. No client impact.
 4. **Later (admin splits):** Migrate to PostgreSQL, extract admin into own container. Separate project.
 
 ## What This Does NOT Include

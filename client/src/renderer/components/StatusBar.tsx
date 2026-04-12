@@ -66,7 +66,7 @@ function AnimatedText({
           style={{
             opacity: 0,
             display: "inline-block",
-            animation: `smurov-letter-in 0.1s ease-out ${startDelay + i * 20}ms forwards`,
+            animation: `pn-letter-in 0.1s ease-out ${startDelay + i * 20}ms forwards`,
           }}
         >
           {char === " " ? "\u00A0" : char}
@@ -209,9 +209,9 @@ export function StatusBar({
                 transform: "scale(0)",
                 opacity: 0,
                 animation: [
-                  "smurov-bar-dot 0.2s ease-out 0s forwards",
-                  "smurov-bar-vertical 0.25s ease-out 0.2s forwards",
-                  "smurov-bar-expand 0.35s ease-out 0.45s forwards",
+                  "pn-bar-dot 0.2s ease-out 0s forwards",
+                  "pn-bar-vertical 0.25s ease-out 0.2s forwards",
+                  "pn-bar-expand 0.35s ease-out 0.45s forwards",
                 ].join(", "),
               }
             : {}),
@@ -229,14 +229,14 @@ export function StatusBar({
                 border: "2px solid #2a3040",
                 borderTopColor: "#2196f3",
                 borderRadius: "50%",
-                animation: `smurov-fade-in 0.3s ease-out ${t}ms forwards, smurov-spin 0.8s linear ${t + 300}ms infinite`,
+                animation: `pn-fade-in 0.3s ease-out ${t}ms forwards, pn-spin 0.8s linear ${t + 300}ms infinite`,
                 opacity: 0,
                 flexShrink: 0,
                 marginRight: 4,
               }}
             />
           ) : connected ? (
-            <div style={{ opacity: 0, animation: `smurov-fade-in 0.3s ease-out ${t}ms forwards` }}>
+            <div style={{ opacity: 0, animation: `pn-fade-in 0.3s ease-out ${t}ms forwards` }}>
               <SpinningGlobe />
             </div>
           ) : (
@@ -249,7 +249,7 @@ export function StatusBar({
                 flexShrink: 0,
                 marginRight: 4,
                 opacity: 0,
-                animation: `smurov-fade-in 0.3s ease-out ${t}ms forwards`,
+                animation: `pn-fade-in 0.3s ease-out ${t}ms forwards`,
               }}
             />
           )}
@@ -288,7 +288,7 @@ export function StatusBar({
                   style={{
                     position: "relative",
                     opacity: 0,
-                    animation: `smurov-fade-only 0.3s ease-out ${t}ms forwards`,
+                    animation: `pn-fade-only 0.3s ease-out ${t}ms forwards`,
                   }}
                 >
                   <button
@@ -440,7 +440,7 @@ export function StatusBar({
                   minWidth: 120,
                   height: 36,
                   opacity: 0,
-                  animation: `smurov-fade-only 0.3s ease-out ${t}ms forwards`,
+                  animation: `pn-fade-only 0.3s ease-out ${t}ms forwards`,
                 }}
               >
                 <GraphBackground history={history} />
@@ -461,7 +461,7 @@ export function StatusBar({
                   cursor: busy ? "wait" : "pointer",
                   opacity: 0,
                   flexShrink: 0,
-                  animation: `smurov-fade-only 0.3s ease-out ${t + ("Disconnected".length * 20) + 100}ms forwards`,
+                  animation: `pn-fade-only 0.3s ease-out ${t + ("Disconnected".length * 20) + 100}ms forwards`,
                 }}
               >
                 {busy ? (reconnecting ? "Disconnect" : "Connecting...") : "Connect"}
@@ -527,7 +527,7 @@ function SpinningGlobe() {
           display: "block",
           width: "200%",
           height: "100%",
-          animation: "smurov-globe-scroll 10s linear infinite",
+          animation: "pn-globe-scroll 10s linear infinite",
           WebkitMaskImage:
             "radial-gradient(ellipse 75% 110% at center, black 55%, transparent 100%)",
           maskImage:

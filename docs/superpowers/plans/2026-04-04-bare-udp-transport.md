@@ -483,7 +483,7 @@ import (
 	"golang.org/x/crypto/hkdf"
 	"io"
 
-	"smurov-proxy/pkg/auth"
+	"proxyness/pkg/auth"
 )
 
 // GenerateEphemeralKey generates an X25519 ephemeral keypair.
@@ -507,7 +507,7 @@ func DeriveSessionKey(priv *ecdh.PrivateKey, peerPub []byte) ([]byte, error) {
 		return nil, fmt.Errorf("ecdh: %w", err)
 	}
 
-	hk := hkdf.New(sha256.New, shared, nil, []byte("smurov-proxy-udp-session"))
+	hk := hkdf.New(sha256.New, shared, nil, []byte("proxyness-udp-session"))
 	sessionKey := make([]byte, 32)
 	if _, err := io.ReadFull(hk, sessionKey); err != nil {
 		return nil, err
@@ -828,8 +828,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"smurov-proxy/pkg/auth"
-	"smurov-proxy/pkg/proto"
+	"proxyness/pkg/auth"
+	"proxyness/pkg/proto"
 )
 
 // TLSTransport wraps the existing per-connection TLS approach.
@@ -1235,10 +1235,10 @@ import (
 	"net"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	pkgudp "smurov-proxy/pkg/udp"
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/pkg/auth"
+	pkgudp "proxyness/pkg/udp"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 // Listener handles incoming UDP packets on port 443.
@@ -1566,7 +1566,7 @@ import (
 	"sync"
 	"time"
 
-	pkgudp "smurov-proxy/pkg/udp"
+	pkgudp "proxyness/pkg/udp"
 )
 
 // UDPTransport implements Transport over a single multiplexed UDP channel.
@@ -2127,7 +2127,7 @@ import (
 	"testing"
 	"time"
 
-	pkgudp "smurov-proxy/pkg/udp"
+	pkgudp "proxyness/pkg/udp"
 )
 
 func TestUDPHandshakeE2E(t *testing.T) {

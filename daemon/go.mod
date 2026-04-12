@@ -1,11 +1,11 @@
-module smurov-proxy/daemon
+module proxyness/daemon
 
 go 1.25.0
 
 require (
 	golang.org/x/sys v0.42.0
 	gvisor.dev/gvisor v0.0.0-20250503011706-39ed1f5ac29c
-	smurov-proxy/pkg v0.0.0
+	proxyness/pkg v0.0.0
 )
 
 require (
@@ -14,4 +14,4 @@ require (
 	golang.org/x/time v0.7.0 // indirect
 )
 
-replace smurov-proxy/pkg => ../pkg
+replace proxyness/pkg => ../pkg

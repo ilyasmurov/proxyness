@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 func setup(t *testing.T) *Handler {

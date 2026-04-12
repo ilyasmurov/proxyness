@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 // Handler holds the admin HTTP mux and its dependencies.
@@ -79,7 +79,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir, confi
 
 	// Landing page (redirect to standalone landing container on port 80)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "http://proxy.smurov.com", http.StatusMovedPermanently)
+		http.Redirect(w, r, "http://proxyness.smurov.com", http.StatusMovedPermanently)
 	})
 
 	h.mux = mux

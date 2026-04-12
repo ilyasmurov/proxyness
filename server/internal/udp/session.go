@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"smurov-proxy/pkg/udp/arq"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/pkg/udp/arq"
+	"proxyness/server/internal/stats"
 )
 
 // Session represents an authenticated UDP client.

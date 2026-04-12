@@ -2,12 +2,12 @@ import type { LocalSite } from "./types";
 
 // localStorage key namespace. Keep synced with the migration path that
 // deletes legacy keys below.
-const KEY_LOCAL     = "smurov-proxy-local-sites";
-const KEY_LAST_SYNC = "smurov-proxy-last-sync-at";
+const KEY_LOCAL     = "proxyness-local-sites";
+const KEY_LAST_SYNC = "proxyness-last-sync-at";
 
 // Legacy keys kept so the migration in sync.ts can find them.
-export const LEGACY_KEY_SITES         = "smurov-proxy-sites";
-export const LEGACY_KEY_ENABLED_SITES = "smurov-proxy-enabled-sites";
+export const LEGACY_KEY_SITES         = "proxyness-sites";
+export const LEGACY_KEY_ENABLED_SITES = "proxyness-enabled-sites";
 
 export interface PersistedState {
   localSites: LocalSite[];

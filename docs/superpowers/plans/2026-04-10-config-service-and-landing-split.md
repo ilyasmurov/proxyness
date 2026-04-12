@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extract notifications + service discovery into a standalone `smurov-config` microservice, split the landing page into its own nginx container, and wire clients to poll the new config API instead of GitHub directly.
+**Goal:** Extract notifications + service discovery into a standalone `proxyness-config` microservice, split the landing page into its own nginx container, and wire clients to poll the new config API instead of GitHub directly.
 
 **Architecture:** Three containers (proxy, config, landing) on the same VPS. Config service has its own SQLite DB for notifications + service URLs. Client polls `/api/client-config` through the proxy (which reverse-proxies to config container). Landing is pure static nginx. Proxy keeps admin panel + relay logic.
 
@@ -67,7 +67,7 @@ client/src/renderer/App.tsx        # Swap UpdateBanner → NotificationBanner
 
 ```bash
 mkdir -p config/cmd config/internal/db config/internal/api config/internal/poller
-cd config && go mod init smurov-proxy/config
+cd config && go mod init proxyness/config
 ```
 
 Add to `go.work`:
@@ -281,9 +281,9 @@ import (
 	"log"
 	"net/http"
 
-	"smurov-proxy/config/internal/api"
-	"smurov-proxy/config/internal/db"
-	"smurov-proxy/config/internal/poller"
+	"proxyness/config/internal/api"
+	"proxyness/config/internal/db"
+	"proxyness/config/internal/poller"
 )
 
 func main() {
@@ -291,8 +291,8 @@ func main() {
 	dbPath := flag.String("db", "config.db", "SQLite database path")
 	adminUser := flag.String("admin-user", "", "admin username")
 	adminPass := flag.String("admin-pass", "", "admin password")
-	proxyAddr := flag.String("proxy", "http://smurov-proxy:443", "proxy server internal address for key validation")
-	githubRepo := flag.String("github-repo", "ilyasmurov/smurov-proxy", "GitHub repo for version check")
+	proxyAddr := flag.String("proxy", "http://proxyness:443", "proxy server internal address for key validation")
+	githubRepo := flag.String("github-repo", "ilyasmurov/proxyness", "GitHub repo for version check")
 	flag.Parse()
 
 	d, err := db.Open(*dbPath)
@@ -376,7 +376,7 @@ import (
 	"net/http"
 	"time"
 
-	"smurov-proxy/config/internal/db"
+	"proxyness/config/internal/db"
 )
 
 type Server struct {
@@ -641,7 +641,7 @@ const adminHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SmurovProxy Config</title>
+<title>Proxyness Config</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,system-ui,sans-serif;background:#0b0f1a;color:#e2e8f0;padding:24px;max-width:800px;margin:0 auto}
@@ -673,7 +673,7 @@ button{padding:6px 14px;border:none;border-radius:4px;font-size:13px;cursor:poin
 </style>
 </head>
 <body>
-<h1>SmurovProxy Config</h1>
+<h1>Proxyness Config</h1>
 <div class="tabs">
   <div class="tab active" onclick="showTab('notifs')">Notifications</div>
   <div class="tab" onclick="showTab('services')">Services</div>
@@ -757,7 +757,7 @@ import (
 	"regexp"
 	"time"
 
-	"smurov-proxy/config/internal/db"
+	"proxyness/config/internal/db"
 )
 
 var versionRe = regexp.MustCompile(`^version:\s*(.+)$`)
@@ -844,13 +844,13 @@ WORKDIR /app
 COPY go.work go.work.sum ./
 COPY pkg/ pkg/
 COPY config/ config/
-RUN cd config && go build -ldflags="-s -w" -o /smurov-config ./cmd
+RUN cd config && go build -ldflags="-s -w" -o /proxyness-config ./cmd
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
-COPY --from=build /smurov-config /smurov-config
+COPY --from=build /proxyness-config /proxyness-config
 EXPOSE 8443
-ENTRYPOINT ["/smurov-config"]
+ENTRYPOINT ["/proxyness-config"]
 ```
 
 - [ ] **Step 2: Write deploy workflow**
@@ -920,13 +920,13 @@ jobs:
           script: |
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
             docker pull ghcr.io/${{ env.IMAGE_NAME }}:latest
-            docker stop smurov-config 2>/dev/null || true
-            docker rm smurov-config 2>/dev/null || true
+            docker stop proxyness-config 2>/dev/null || true
+            docker rm proxyness-config 2>/dev/null || true
             docker run -d \
-              --name smurov-config \
+              --name proxyness-config \
               --restart unless-stopped \
               --network host \
-              -v smurov-config-data:/data \
+              -v proxyness-config-data:/data \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
               -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
               ghcr.io/${{ env.IMAGE_NAME }}:latest \
@@ -966,10 +966,10 @@ mkdir -p landing
 ```
 
 The HTML content from `landing.go` is ~600 lines. Copy it to `landing/index.html`, replacing:
-- `{{.MacURL}}` → `https://github.com/ilyasmurov/smurov-proxy/releases/latest/download/SmurovProxy-1.29.5-arm64.pkg` (or a JS-based latest resolver)
-- `{{.WinURL}}` → `https://github.com/ilyasmurov/smurov-proxy/releases/latest/download/SmurovProxy-Setup-1.29.5.exe`
+- `{{.MacURL}}` → `https://github.com/ilyasmurov/proxyness/releases/latest/download/Proxyness-1.29.5-arm64.pkg` (or a JS-based latest resolver)
+- `{{.WinURL}}` → `https://github.com/ilyasmurov/proxyness/releases/latest/download/Proxyness-Setup-1.29.5.exe`
 
-Better approach: add a small JS snippet that fetches `https://api.github.com/repos/ilyasmurov/smurov-proxy/releases/latest` and populates download links dynamically (same as landing.go does server-side, but client-side).
+Better approach: add a small JS snippet that fetches `https://api.github.com/repos/ilyasmurov/proxyness/releases/latest` and populates download links dynamically (same as landing.go does server-side, but client-side).
 
 - [ ] **Step 2: Write nginx config**
 
@@ -1011,7 +1011,7 @@ In `server/internal/admin/admin.go`, remove the landing route:
 // Replace with redirect or 404:
 mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
     if r.URL.Path == "/" {
-        http.Redirect(w, r, "https://proxy.smurov.com", http.StatusMovedPermanently)
+        http.Redirect(w, r, "https://proxyness.smurov.com", http.StatusMovedPermanently)
         return
     }
     http.NotFound(w, r)
@@ -1410,8 +1410,8 @@ git commit -m "feat(client): NotificationBanner replaces UpdateBanner [skip-depl
 ```yaml
 services:
   proxy:
-    image: ghcr.io/ilyasmurov/smurov-proxy:latest
-    container_name: smurov-proxy
+    image: ghcr.io/ilyasmurov/proxyness:latest
+    container_name: proxyness
     restart: unless-stopped
     ports:
       - "443:443"
@@ -1428,8 +1428,8 @@ services:
     command: ["-addr", ":443", "-db", "/data/data.db", "-cert", "/data/cert.pem", "-keyfile", "/data/key.pem"]
 
   config:
-    image: ghcr.io/ilyasmurov/smurov-proxy-config:latest
-    container_name: smurov-config
+    image: ghcr.io/ilyasmurov/proxyness-config:latest
+    container_name: proxyness-config
     restart: unless-stopped
     network_mode: host
     volumes:
@@ -1437,8 +1437,8 @@ services:
     command: ["-addr", ":8443", "-db", "/data/config.db", "-admin-user", "${ADMIN_USER}", "-admin-pass", "${ADMIN_PASSWORD}", "-proxy", "https://127.0.0.1:443"]
 
   landing:
-    image: ghcr.io/ilyasmurov/smurov-proxy-landing:latest
-    container_name: smurov-landing
+    image: ghcr.io/ilyasmurov/proxyness-landing:latest
+    container_name: proxyness-landing
     restart: unless-stopped
     ports:
       - "80:80"

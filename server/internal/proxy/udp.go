@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"smurov-proxy/pkg/proto"
-	"smurov-proxy/server/internal/db"
+	"proxyness/pkg/proto"
+	"proxyness/server/internal/db"
 )
 
 const udpTimeout = 60 * time.Second

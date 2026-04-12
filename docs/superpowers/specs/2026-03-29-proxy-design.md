@@ -1,4 +1,4 @@
-# SmurovProxy: TLS-туннель с кастомным протоколом
+# Proxyness: TLS-туннель с кастомным протоколом
 
 ## Контекст
 
@@ -153,7 +153,7 @@ proxy/
 - Системный трей: иконка (красная/зелёная), меню с connect/disconnect/quit
 - Сворачивание в трей при закрытии окна
 - Main process запускает Go демон как child process
-- Настройки сохраняются в electron-store (`~/.smurov-proxy/config.json`)
+- Настройки сохраняются в electron-store (`~/.proxyness/config.json`)
 
 ## Конфигурация
 
@@ -169,7 +169,7 @@ proxy/
 ```
 
 ### Electron клиент
-Настройки вводятся в GUI и сохраняются в `~/.smurov-proxy/config.json`:
+Настройки вводятся в GUI и сохраняются в `~/.proxyness/config.json`:
 ```json
 {
   "server": "vps-ip:443",

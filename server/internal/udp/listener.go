@@ -8,11 +8,11 @@ import (
 	"net"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	pkgudp "smurov-proxy/pkg/udp"
-	"smurov-proxy/pkg/udp/arq"
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/pkg/auth"
+	pkgudp "proxyness/pkg/udp"
+	"proxyness/pkg/udp/arq"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 const (

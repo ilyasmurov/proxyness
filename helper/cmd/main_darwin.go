@@ -15,7 +15,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const socketPath = "/var/run/smurov-helper.sock"
+const socketPath = "/var/run/proxyness-helper.sock"
 
 var tunDevice tun.Device
 var tunName string

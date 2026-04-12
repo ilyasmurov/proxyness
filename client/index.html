@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SmurovProxy</title>
+    <title>Proxyness</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -26,65 +26,71 @@
       ::-webkit-scrollbar-thumb:hover { background: oklch(0.30 0.014 250); }
       @keyframes spin { to { transform: rotate(360deg); } }
       /* Animation used by the StatusBar spinner (unique name to avoid collisions) */
-      @keyframes smurov-spin { to { transform: rotate(360deg); } }
+      @keyframes pn-spin { to { transform: rotate(360deg); } }
       /* Globe continent scroll: half of the doubled SVG width for seamless loop */
-      @keyframes smurov-globe-scroll {
+      @keyframes pn-globe-scroll {
         from { transform: translateX(0); }
         to   { transform: translateX(-50%); }
       }
       /* Used by the LIVE / active-count indicators in the sites grid */
-      @keyframes smurov-pulse {
+      @keyframes pn-pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.3; }
       }
-      @keyframes smurov-live-glow {
+      @keyframes pn-live-glow {
         0%, 100% { box-shadow: 0 0 3px rgba(76,175,80,0.5); }
         50%      { box-shadow: 0 0 8px rgba(76,175,80,0.9); }
       }
       /* StatusBar entrance: dot → vertical → horizontal */
-      @keyframes smurov-bar-dot {
+      @keyframes pn-bar-dot {
         0%   { transform: scale(0); opacity: 0; border-radius: 50%; width: 1px; height: 1px; padding: 0; }
         100% { transform: scale(1); opacity: 1; border-radius: 50%; width: 1px; height: 1px; padding: 0; }
       }
-      @keyframes smurov-bar-vertical {
+      @keyframes pn-bar-vertical {
         0%   { width: 1px; height: 1px; border-radius: 50%; padding: 0; }
         100% { width: 1px; height: 48px; border-radius: 10px; padding: 0; }
       }
-      @keyframes smurov-bar-expand {
+      @keyframes pn-bar-expand {
         0%   { width: 1px; height: 48px; padding: 0; }
         100% { width: 100%; height: 48px; padding: 12px 16px; }
       }
       /* Letter-by-letter blur fade */
-      @keyframes smurov-letter-in {
+      @keyframes pn-letter-in {
         from { opacity: 0; filter: blur(4px); transform: translateY(4px); }
         to   { opacity: 1; filter: blur(0); transform: translateY(0); }
       }
-      @keyframes smurov-fade-in {
+      @keyframes pn-fade-in {
         from { opacity: 0; transform: scale(0.8); }
         to   { opacity: 1; transform: scale(1); }
       }
-      @keyframes smurov-fade-only {
+      @keyframes pn-fade-only {
         from { opacity: 0; }
         to   { opacity: 1; }
       }
-      @keyframes smurov-fade-out {
+      @keyframes pn-fade-out {
         from { opacity: 1; }
         to   { opacity: 0; }
       }
-      @keyframes smurov-backdrop-in {
+      @keyframes pn-backdrop-in {
         from { backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); background: rgba(0,0,0,0); }
         to   { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); background: rgba(0,0,0,0.5); }
       }
       /* Blur resolve animations */
-      @keyframes smurov-blur-bg    { from{opacity:0;filter:blur(20px) brightness(0.1)} to{opacity:1;filter:blur(0) brightness(0.25)} }
-      @keyframes smurov-blur-heavy { from{opacity:0;filter:blur(12px);transform:translateY(8px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
-      @keyframes smurov-blur-med   { from{opacity:0;filter:blur(6px);transform:translateY(5px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
-      @keyframes smurov-blur-light { from{opacity:0;filter:blur(4px);transform:translateY(3px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
-      @keyframes smurov-blur-fade  { from{opacity:0;filter:blur(3px)} to{opacity:1;filter:blur(0)} }
-      @keyframes smurov-blur-dot   { from{opacity:0;transform:scale(0)} to{opacity:1;transform:scale(1)} }
-      @keyframes smurov-blur-badge { from{opacity:0;filter:blur(4px);transform:scale(0.8)} to{opacity:1;filter:blur(0);transform:scale(1)} }
-      @keyframes smurov-blur-row   { from{opacity:0;filter:blur(4px);transform:translateX(-6px)} to{opacity:1;filter:blur(0);transform:translateX(0)} }
-      @keyframes smurov-tab-line   { from{transform:scaleX(0)} to{transform:scaleX(1)} }
+      @keyframes pn-blur-bg    { from{opacity:0;filter:blur(20px) brightness(0.1)} to{opacity:1;filter:blur(0) brightness(0.25)} }
+      @keyframes pn-blur-heavy { from{opacity:0;filter:blur(12px);transform:translateY(8px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
+      @keyframes pn-blur-med   { from{opacity:0;filter:blur(6px);transform:translateY(5px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
+      @keyframes pn-blur-light { from{opacity:0;filter:blur(4px);transform:translateY(3px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
+      @keyframes pn-blur-fade  { from{opacity:0;filter:blur(3px)} to{opacity:1;filter:blur(0)} }
+      @keyframes pn-blur-dot   { from{opacity:0;transform:scale(0)} to{opacity:1;transform:scale(1)} }
+      @keyframes pn-blur-badge { from{opacity:0;filter:blur(4px);transform:scale(0.8)} to{opacity:1;filter:blur(0);transform:scale(1)} }
+      @keyframes pn-blur-row   { from{opacity:0;filter:blur(4px);transform:translateX(-6px)} to{opacity:1;filter:blur(0);transform:translateX(0)} }
+      @keyframes pn-tab-line   { from{transform:scaleX(0)} to{transform:scaleX(1)} }
+      /* Ghost eye blink: open most of the time, quick blink every ~2s */
+      @keyframes pn-blink {
+        0%, 38% { transform: scaleY(1); }
+        40%     { transform: scaleY(0.08); }
+        44%, 100% { transform: scaleY(1); }
+      }
       /* Reduced motion */
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after {

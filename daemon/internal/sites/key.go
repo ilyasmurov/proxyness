@@ -65,8 +65,8 @@ func (s *KeyStore) Save(key string) error {
 // DefaultKeyPath returns the OS-appropriate path for the persisted device key.
 func DefaultKeyPath() string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("APPDATA"), "SmurovProxy", "device-key")
+		return filepath.Join(os.Getenv("APPDATA"), "Proxyness", "device-key")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "smurov-proxy", "device-key")
+	return filepath.Join(home, ".config", "proxyness", "device-key")
 }

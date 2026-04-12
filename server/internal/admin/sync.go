@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 // Wire types for POST /api/sync.

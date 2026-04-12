@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"smurov-proxy/config/internal/db"
+	"proxyness/config/internal/db"
 )
 
 func Start(d *db.DB, repo string) {

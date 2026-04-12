@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	dstats "smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/pkg/auth"
-	"smurov-proxy/pkg/proto"
+	dstats "proxyness/daemon/internal/stats"
+	"proxyness/pkg/auth"
+	"proxyness/pkg/proto"
 )
 
 const testKey = "aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd"

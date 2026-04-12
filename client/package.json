@@ -1,6 +1,6 @@
 {
-  "name": "smurov-proxy",
-  "version": "1.31.0",
+  "name": "proxyness",
+  "version": "1.34.0",
   "private": true,
   "main": "dist-electron/main/index.js",
   "scripts": {
@@ -19,6 +19,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0",
+    "sharp": "^0.34.5",
     "typescript": "^5.6.0",
     "vite": "^6.0.0",
     "vite-plugin-electron": "^0.28.0",

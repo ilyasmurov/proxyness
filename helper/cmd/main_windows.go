@@ -29,7 +29,7 @@ func createTUN(serverAddr string) Response {
 		return Response{TUNName: tunName, Error: "TUN already exists"}
 	}
 
-	dev, err := tun.CreateTUN("SmurovProxy", 1500)
+	dev, err := tun.CreateTUN("Proxyness", 1500)
 	if err != nil {
 		return Response{Error: fmt.Sprintf("create tun: %v", err)}
 	}
@@ -267,7 +267,7 @@ func getPhysicalInterfaceIndex() int {
 			continue
 		}
 		lower := strings.ToLower(iface.Name)
-		if strings.Contains(lower, "smurovproxy") || strings.Contains(lower, "wintun") || strings.Contains(lower, "loopback") {
+		if strings.Contains(lower, "proxyness") || strings.Contains(lower, "wintun") || strings.Contains(lower, "loopback") {
 			continue
 		}
 		addrs, err := iface.Addrs()

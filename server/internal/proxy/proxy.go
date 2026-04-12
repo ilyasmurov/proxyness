@@ -8,10 +8,10 @@ import (
 	"net"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	"smurov-proxy/pkg/proto"
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/pkg/auth"
+	"proxyness/pkg/proto"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 type Handler struct {

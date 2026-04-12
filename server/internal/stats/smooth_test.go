@@ -3,7 +3,7 @@ package stats
 import (
 	"testing"
 
-	pkgstats "smurov-proxy/pkg/stats"
+	pkgstats "proxyness/pkg/stats"
 )
 
 func TestSmoothRate(t *testing.T) {

@@ -88,7 +88,7 @@ func getPhysicalInterface() (int, net.IP, error) {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		if strings.Contains(strings.ToLower(iface.Name), "smurovproxy") {
+		if strings.Contains(strings.ToLower(iface.Name), "proxyness") {
 			continue
 		}
 		addrs, err := iface.Addrs()

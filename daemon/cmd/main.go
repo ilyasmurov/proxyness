@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"golang.org/x/net/proxy"
-	"smurov-proxy/daemon/internal/api"
-	dstats "smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/daemon/internal/sites"
-	"smurov-proxy/daemon/internal/tun"
-	"smurov-proxy/daemon/internal/tunnel"
+	"proxyness/daemon/internal/api"
+	dstats "proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/sites"
+	"proxyness/daemon/internal/tun"
+	"proxyness/daemon/internal/tunnel"
 )
 
 func main() {
@@ -44,7 +44,7 @@ func main() {
 	if _, err := tokenStore.GetOrCreate(); err != nil {
 		log.Fatalf("daemon token: %v", err)
 	}
-	sitesManager := sites.NewManager("https://proxy.smurov.com", keyStore)
+	sitesManager := sites.NewManager("https://proxyness.smurov.com", keyStore)
 	sitesManager.StartBackgroundRefresh(5 * time.Minute)
 	srv.SetSites(sitesManager, tokenStore)
 	// Wire RebuildPAC into the cache-replace callback so that any change

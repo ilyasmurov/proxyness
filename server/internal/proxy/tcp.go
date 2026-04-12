@@ -6,8 +6,8 @@ import (
 	"net"
 	"time"
 
-	"smurov-proxy/pkg/proto"
-	"smurov-proxy/server/internal/db"
+	"proxyness/pkg/proto"
+	"proxyness/server/internal/db"
 )
 
 func (h *Handler) handleTCP(conn net.Conn, device *db.Device, isTLS bool) {

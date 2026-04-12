@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 func openTestDB(t *testing.T) *db.DB {

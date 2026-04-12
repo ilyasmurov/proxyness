@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	pkgudp "smurov-proxy/pkg/udp"
+	pkgudp "proxyness/pkg/udp"
 )
 
 // TestUDPHandshakeLocal tests the full UDP handshake flow between a mock

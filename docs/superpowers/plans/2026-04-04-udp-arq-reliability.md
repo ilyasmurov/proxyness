@@ -1800,7 +1800,7 @@ import (
 	"testing"
 	"time"
 
-	pkgudp "smurov-proxy/pkg/udp"
+	pkgudp "proxyness/pkg/udp"
 )
 
 // mockSender captures sent datagrams for inspection.
@@ -2019,7 +2019,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	pkgudp "smurov-proxy/pkg/udp"
+	pkgudp "proxyness/pkg/udp"
 )
 
 const (
@@ -2327,8 +2327,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	pkgudp "smurov-proxy/pkg/udp"
-	"smurov-proxy/pkg/udp/arq"
+	pkgudp "proxyness/pkg/udp"
+	"proxyness/pkg/udp/arq"
 )
 
 const (
@@ -2819,7 +2819,7 @@ import (
 	"sync"
 	"time"
 
-	"smurov-proxy/pkg/udp/arq"
+	"proxyness/pkg/udp/arq"
 )
 
 // Session represents an authenticated UDP client.
@@ -2991,11 +2991,11 @@ import (
 	"net"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	pkgudp "smurov-proxy/pkg/udp"
-	"smurov-proxy/pkg/udp/arq"
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/pkg/auth"
+	pkgudp "proxyness/pkg/udp"
+	"proxyness/pkg/udp/arq"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 const (

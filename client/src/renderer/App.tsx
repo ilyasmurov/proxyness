@@ -10,15 +10,40 @@ import earthBgUrl from "./assets/earth-bg.mp4";
 
 type TrafficMode = "all" | "selected";
 
+// Migrate localStorage keys from the old "smurov-proxy-*" namespace to "proxyness-*".
+// Runs once on first launch after the rename — copies old value if new key is absent,
+// then deletes the old key so this is a no-op on subsequent launches.
+if (typeof localStorage !== "undefined") {
+  const renames: [string, string][] = [
+    ["smurov-proxy-key",           "proxyness-key"],
+    ["smurov-proxy-mode",          "proxyness-mode"],
+    ["smurov-proxy-no-tls",        "proxyness-no-tls"],
+    ["smurov-proxy-all-sites-on",  "proxyness-all-sites-on"],
+    ["smurov-proxy-browsers-on",   "proxyness-browsers-on"],
+    ["smurov-proxy-local-sites",   "proxyness-local-sites"],
+    ["smurov-proxy-last-sync-at",  "proxyness-last-sync-at"],
+    ["smurov-proxy-sites",         "proxyness-sites"],
+    ["smurov-proxy-enabled-sites", "proxyness-enabled-sites"],
+    ["smurov-proxy-pending-ops",   "proxyness-pending-ops"],
+  ];
+  for (const [oldK, newK] of renames) {
+    const v = localStorage.getItem(oldK);
+    if (v !== null && localStorage.getItem(newK) === null) {
+      localStorage.setItem(newK, v);
+    }
+    if (v !== null) localStorage.removeItem(oldK);
+  }
+}
+
 // Migrate legacy users off the long-dead "browsers-only" ProxyMode.
 // The mode was removed in 1.33.0 along with its tab UI; leaving the old
 // value in localStorage would pin those installs in an unreachable state.
-if (typeof localStorage !== "undefined" && localStorage.getItem("smurov-proxy-mode") === "socks5") {
-  localStorage.setItem("smurov-proxy-mode", "tun");
+if (typeof localStorage !== "undefined" && localStorage.getItem("proxyness-mode") === "socks5") {
+  localStorage.setItem("proxyness-mode", "tun");
 }
 
 const SERVER = "95.181.162.242:443";
-const STORAGE_KEY = "smurov-proxy-key";
+const STORAGE_KEY = "proxyness-key";
 
 // ---------------------------------------------------------------------------
 // Settings Page (sidebar nav variant)
@@ -110,7 +135,7 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
   // Durations match the ones used elsewhere (hero zone, mode bar).
   const anim = (kind: "heavy" | "med" | "light" | "fade" | "row", delay: number) => {
     const dur = kind === "heavy" ? 0.5 : kind === "row" ? 0.3 : 0.4;
-    return `smurov-blur-${kind} ${dur}s cubic-bezier(0.25,1,0.5,1) ${delay}s both`;
+    return `pn-blur-${kind} ${dur}s cubic-bezier(0.25,1,0.5,1) ${delay}s both`;
   };
 
   const fieldLabel = (text: string, delay = 0) => (
@@ -126,20 +151,20 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
   const divider = <div style={{ height: 1, background: c.b1, margin: "16px 0" }} />;
 
   return (
-    <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0, animation: "smurov-blur-med 0.35s cubic-bezier(0.25,1,0.5,1) both" }}>
+    <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0, animation: "pn-blur-med 0.35s cubic-bezier(0.25,1,0.5,1) both" }}>
       {/* Sidebar nav */}
       <div style={{
         width: 160, flexShrink: 0, borderRight: `1px solid ${c.b1}`,
         padding: "16px 0", display: "flex", flexDirection: "column", gap: 1,
       }}>
-        <div style={{ animation: "smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>{navItem("general", "General")}</div>
-        <div style={{ animation: "smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>{navItem("extension", "Extension")}</div>
-        <div style={{ animation: "smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>{navItem("account", "Account")}</div>
-        <div style={{ animation: "smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>{navItem("diagnostics", "Diagnostics")}</div>
+        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>{navItem("general", "General")}</div>
+        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>{navItem("extension", "Extension")}</div>
+        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>{navItem("account", "Account")}</div>
+        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>{navItem("diagnostics", "Diagnostics")}</div>
       </div>
 
       {/* Panel */}
-      <div key={section} style={{ flex: 1, padding: "20px 24px", overflowY: "auto", animation: "smurov-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) both" }}>
+      <div key={section} style={{ flex: 1, padding: "20px 24px", overflowY: "auto", animation: "pn-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) both" }}>
 
         {section === "general" && (
           <>
@@ -260,7 +285,7 @@ export function App() {
   const [trafficMode, setTrafficMode] = useState<"all" | "selected">("all");
   const { status: socksStatus, error: socksError, loading: socksLoading, connect, disconnect } = useDaemon();
   const [proxyMode, setProxyMode] = useState<ProxyMode>(
-    () => (localStorage.getItem("smurov-proxy-mode") as ProxyMode) || "tun"
+    () => (localStorage.getItem("proxyness-mode") as ProxyMode) || "tun"
   );
 
   // Transport state
@@ -428,7 +453,7 @@ export function App() {
       else await disconnect();
     }
     setProxyMode(m);
-    localStorage.setItem("smurov-proxy-mode", m);
+    localStorage.setItem("proxyness-mode", m);
     if (wasConnected && key) {
       if (m === "tun") await tunConnect(SERVER, key);
       else await connect(SERVER, key);
@@ -548,9 +573,9 @@ export function App() {
     if (prev === current) return;
     const notify = (window as any).appInfo?.showNotification;
     if (!notify) return;
-    if (current === "connected") notify("SmurovProxy", "Connected");
-    else if (current === "reconnecting") notify("SmurovProxy", "Reconnecting...");
-    else if (current === "disconnected") notify("SmurovProxy", "Disconnected");
+    if (current === "connected") notify("Proxyness", "Connected");
+    else if (current === "reconnecting") notify("Proxyness", "Reconnecting...");
+    else if (current === "disconnected") notify("Proxyness", "Disconnected");
   }, [isConnected, daemonReconnecting, reconnecting]);
 
   // On system wake, the daemon's UDP session is silently dead (server forgot
@@ -736,7 +761,7 @@ export function App() {
         }}
       >
         <div style={{ fontFamily: fd, fontSize: 11, color: c.t3, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" as const }}>
-          SmurovProxy {version && <span style={{ fontWeight: 400, textTransform: "none" as const, letterSpacing: 0 }}>v{version}</span>}
+          Proxyness {version && <span style={{ fontWeight: 400, textTransform: "none" as const, letterSpacing: 0 }}>v{version}</span>}
           {version && version.includes("beta") && (
             <span style={{
               fontSize: 9, fontWeight: 700, color: c.am,
@@ -793,51 +818,68 @@ export function App() {
               padding: "36px 24px 0", gap: 16,
             }}
           >
-            {/* Status indicator */}
-            {(reconnecting || daemonReconnecting) ? (
-              <div style={{
-                width: 14, height: 14, borderRadius: "50%", flexShrink: 0,
-                border: `2px solid ${c.am}`, borderTopColor: "transparent",
-                animation: "smurov-spin 0.8s linear infinite",
-              }} />
-            ) : (
-              <div style={{
-                width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                background: isConnected ? c.am : c.t3,
-                animation: "smurov-blur-dot 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both",
-              }} />
-            )}
+            {/* Ghost status icon — eye open/closed/blinking */}
+            <svg width="28" height="34" viewBox="0 0 28 34" fill="none" style={{ flexShrink: 0, animation: "pn-blur-dot 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>
+              {/* Body */}
+              <path
+                d="M14 1 C8 1 3 6.5 3 14 L3 27 L5.8 24.5 L8.6 27 L11.3 24.5 L14 27 L16.7 24.5 L19.4 27 L22.2 24.5 L25 27 L25 14 C25 6.5 20 1 14 1Z"
+                fill={isConnected ? "oklch(0.26 0.02 250)" : "oklch(0.20 0.015 250)"}
+              />
+              {/* Body highlight */}
+              <path
+                d="M14 1 C18 1 22 3.5 23.5 8 L23.5 12 C21 10.5 18 9.5 14 9.5 C10 9.5 7 10.5 4.5 12 L4.5 8 C6 3.5 10 1 14 1Z"
+                fill={isConnected ? "oklch(0.32 0.018 250)" : "oklch(0.24 0.014 250)"}
+              />
+              {(reconnecting || daemonReconnecting) ? (
+                /* Blinking eye — reconnecting */
+                <g style={{ transformOrigin: "14px 15px", animation: "pn-blink 1.8s ease-in-out infinite" }}>
+                  <ellipse cx="14" cy="15" rx="5.5" ry="5.5" fill={c.am} />
+                  <ellipse cx="15" cy="15.5" rx="2.2" ry="3" fill="oklch(0.14 0.02 250)" />
+                  <circle cx="12.5" cy="13.2" r="1.1" fill="oklch(0.92 0.08 75)" />
+                </g>
+              ) : isConnected ? (
+                /* Open eye — connected */
+                <>
+                  <ellipse cx="14" cy="15" rx="5.5" ry="5.5" fill={c.am} />
+                  <ellipse cx="15" cy="15.5" rx="2.2" ry="3" fill="oklch(0.14 0.02 250)" />
+                  <circle cx="12.5" cy="13.2" r="1.1" fill="oklch(0.92 0.08 75)" />
+                </>
+              ) : (
+                /* Closed eye — disconnected */
+                <path d="M8.5 15.5 Q14 18 19.5 15.5" stroke="oklch(0.38 0.010 250)" strokeWidth="2" fill="none" strokeLinecap="round" />
+              )}
+            </svg>
 
             {/* Left: status + server */}
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <span style={{
                 fontFamily: fd, fontSize: 22, fontWeight: 700, letterSpacing: 0.3, lineHeight: 1,
                 color: (reconnecting || daemonReconnecting) ? c.am : isConnected ? c.t1 : c.t3,
-                animation: "smurov-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.25s both",
+                animation: "pn-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.25s both",
               }}>
                 {isConnected ? "Connected" : (reconnecting || daemonReconnecting) ? "Reconnecting" : "Disconnected"}
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {isConnected ? (
                   <>
-                    <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                    <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
                       {SERVER.replace(":443", "")}
                     </span>
                     <span style={{
                       fontFamily: fd, fontSize: 9, fontWeight: 600, letterSpacing: 1,
                       textTransform: "uppercase" as const,
                       color: c.amd, padding: "1px 5px", background: c.amb, borderRadius: 3,
-                      animation: "smurov-blur-badge 0.3s cubic-bezier(0.25,1,0.5,1) 0.4s both",
+                      animation: "pn-blur-badge 0.3s cubic-bezier(0.25,1,0.5,1) 0.4s both",
                     }}>
                       {activeTransport || (proxyMode === "socks5" ? "SOCKS5" : "UDP")}
                     </span>
                   </>
                 ) : (reconnecting || daemonReconnecting) ? (
-                  <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                  <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
                     Restoring connection
                   </span>
                 ) : (
-                  <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                  <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
                     Ready to connect
                   </span>
                 )}
@@ -848,7 +890,7 @@ export function App() {
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 20 }}>
               {isConnected && (
                 <>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "pn-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
                     <span style={{ fontFamily: fm, fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: c.gn }}>
                       ↓ {fmtSpeed(stats.download)}
                     </span>
@@ -856,7 +898,7 @@ export function App() {
                       Down
                     </span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.4s both" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "pn-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.4s both" }}>
                     <span style={{ fontFamily: fm, fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: c.bl }}>
                       ↑ {fmtSpeed(stats.upload)}
                     </span>
@@ -864,7 +906,7 @@ export function App() {
                       Up
                     </span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.45s both" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1, textAlign: "right" as const, animation: "pn-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.45s both" }}>
                     <span style={{ fontFamily: fm, fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums", color: c.t2 }}>
                       {fmtUptime(uptime)}
                     </span>
@@ -890,7 +932,7 @@ export function App() {
                   borderRadius: 4, cursor: "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
-                  animation: `smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) ${isConnected ? "0.5s" : "0.35s"} both`,
+                  animation: `pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) ${isConnected ? "0.5s" : "0.35s"} both`,
                   ...(isConnected || reconnecting || daemonReconnecting ? {
                     fontSize: 11, padding: "5px 14px", minWidth: 80,
                     background: c.rdb,
@@ -910,7 +952,7 @@ export function App() {
                     width: 14, height: 14, borderRadius: "50%",
                     border: `2px solid oklch(0.78 0.155 75 / 0.3)`,
                     borderTopColor: c.am,
-                    animation: "smurov-spin 0.7s linear infinite",
+                    animation: "pn-spin 0.7s linear infinite",
                   }} />
                 ) : "Connect"}
               </button>
@@ -924,7 +966,7 @@ export function App() {
               text above it. Reflects trafficMode regardless of page. */}
           <div style={{
             position: "relative", zIndex: 5,
-            padding: "10px 24px 14px 48px",
+            padding: "10px 24px 14px 68px",
           }}>
             <div style={{
               display: "inline-flex",
@@ -932,7 +974,7 @@ export function App() {
               borderRadius: 6,
               background: `oklch(0.155 0.016 250 / 0.6)`,
               border: `1px solid ${c.b1}`,
-              animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.5s both",
+              animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.5s both",
             }}>
               {(["all", "selected"] as TrafficMode[]).map((m) => {
                 const active = trafficMode === m;
@@ -1018,7 +1060,7 @@ export function App() {
             style={{
               position: "absolute", inset: 0, width: "100%", height: "100%",
               objectFit: "cover",
-              animation: "smurov-blur-bg 0.9s cubic-bezier(0.25,1,0.5,1) both",
+              animation: "pn-blur-bg 0.9s cubic-bezier(0.25,1,0.5,1) both",
             }}
             src={earthBgUrl}
           />
@@ -1033,14 +1075,14 @@ export function App() {
             display: "flex", flexDirection: "column", justifyContent: "center",
             padding: "0 0 0 64px",
           }}>
-            <div style={{ fontFamily: fd, fontSize: 42, fontWeight: 300, color: c.t1, letterSpacing: 3, textTransform: "uppercase" as const, lineHeight: 1, marginBottom: 4, animation: "smurov-blur-heavy 0.7s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
-              Smurov<br />Proxy
+            <div style={{ fontFamily: fd, fontSize: 42, fontWeight: 300, color: c.t1, letterSpacing: 3, textTransform: "uppercase" as const, lineHeight: 1, marginBottom: 4, animation: "pn-blur-heavy 0.7s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
+              Proxyness
             </div>
-            <div style={{ fontFamily: fd, fontSize: 14, fontWeight: 600, color: c.amd, marginBottom: 48, letterSpacing: 4, textTransform: "uppercase" as const, animation: "smurov-blur-med 0.6s cubic-bezier(0.25,1,0.5,1) 0.3s both" }}>
+            <div style={{ fontFamily: fd, fontSize: 14, fontWeight: 600, color: c.amd, marginBottom: 48, letterSpacing: 4, textTransform: "uppercase" as const, animation: "pn-blur-med 0.6s cubic-bezier(0.25,1,0.5,1) 0.3s both" }}>
               Secure system-level proxy<br />for apps and browsers
             </div>
             <div style={{ maxWidth: 320 }}>
-              <div style={{ fontFamily: fd, fontSize: 10, fontWeight: 600, color: c.t3, letterSpacing: 1.5, textTransform: "uppercase" as const, marginBottom: 8, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.45s both" }}>
+              <div style={{ fontFamily: fd, fontSize: 10, fontWeight: 600, color: c.t3, letterSpacing: 1.5, textTransform: "uppercase" as const, marginBottom: 8, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.45s both" }}>
                 Access Key
               </div>
               <input
@@ -1051,7 +1093,7 @@ export function App() {
                   border: `1px solid ${c.b1}`, borderRadius: 5,
                   color: c.t1, fontFamily: fb, fontSize: 14,
                   outline: "none", transition: "border-color 0.15s",
-                  animation: "smurov-blur-light 0.5s cubic-bezier(0.25,1,0.5,1) 0.5s both",
+                  animation: "pn-blur-light 0.5s cubic-bezier(0.25,1,0.5,1) 0.5s both",
                 }}
                 type="password"
                 value={key}
@@ -1062,7 +1104,7 @@ export function App() {
                 onFocus={(e) => { e.currentTarget.style.borderColor = c.am; }}
                 onBlur={(e) => { e.currentTarget.style.borderColor = c.b1; }}
               />
-              <div style={{ fontFamily: fb, fontSize: 11, color: c.t3, marginTop: 10, animation: "smurov-blur-fade 0.4s cubic-bezier(0.25,1,0.5,1) 0.6s both" }}>
+              <div style={{ fontFamily: fb, fontSize: 11, color: c.t3, marginTop: 10, animation: "pn-blur-fade 0.4s cubic-bezier(0.25,1,0.5,1) 0.6s both" }}>
                 {isLoading ? "Connecting..." : "Paste the key — connection starts automatically"}
               </div>
             </div>
@@ -1081,17 +1123,17 @@ export function App() {
         <div key={trafficMode} style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "16px 24px" }}>
           {trafficMode === "all" && (
             <div style={{ paddingTop: 24 }}>
-              <div style={{ fontFamily: fd, fontSize: 15, fontWeight: 600, color: c.t2, letterSpacing: 0.3, marginBottom: 4, animation: "smurov-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
+              <div style={{ fontFamily: fd, fontSize: 15, fontWeight: 600, color: c.t2, letterSpacing: 0.3, marginBottom: 4, animation: "pn-blur-heavy 0.5s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
                 All system traffic routed through proxy
               </div>
-              <div style={{ fontFamily: fb, fontSize: 13, color: c.t3, lineHeight: 1.6, animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
+              <div style={{ fontFamily: fb, fontSize: 13, color: c.t3, lineHeight: 1.6, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
                 Every connection from this device goes through the server.<br />
                 Switch to Selected to choose specific apps and sites.
               </div>
             </div>
           )}
           {trafficMode === "selected" && (
-            <div style={{ animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) both" }}>
+            <div style={{ animation: "pn-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) both" }}>
               <AppRules visible mode="selected" onModeChange={setTrafficMode} hideModeSwitch isConnected={isConnected} />
             </div>
           )}

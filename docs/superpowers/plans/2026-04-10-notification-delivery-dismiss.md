@@ -724,13 +724,13 @@ git commit -m "feat(client): dismiss button on notification banner [skip-deploy]
 The config service has its own Dockerfile. Build and push:
 
 ```bash
-cd config && docker build -t ghcr.io/ilyasmurov/smurov-proxy-config:latest . && docker push ghcr.io/ilyasmurov/smurov-proxy-config:latest
+cd config && docker build -t ghcr.io/ilyasmurov/proxyness-config:latest . && docker push ghcr.io/ilyasmurov/proxyness-config:latest
 ```
 
 - [ ] **Step 2: Restart config container on VPS**
 
 ```bash
-ssh root@95.181.162.242 "docker pull ghcr.io/ilyasmurov/smurov-proxy-config:latest && docker-compose up -d config"
+ssh root@95.181.162.242 "docker pull ghcr.io/ilyasmurov/proxyness-config:latest && docker-compose up -d config"
 ```
 
 - [ ] **Step 3: Verify migration ran**
@@ -738,7 +738,7 @@ ssh root@95.181.162.242 "docker pull ghcr.io/ilyasmurov/smurov-proxy-config:late
 Test that new tables exist by calling the admin endpoint:
 
 ```bash
-curl -sk -u admin:PASSWORD 'https://proxy.smurov.com/api/admin/notifications' | python3 -m json.tool
+curl -sk -u admin:PASSWORD 'https://proxyness.smurov.com/api/admin/notifications' | python3 -m json.tool
 ```
 
 Expected: notifications list now includes `expires_at` and `delivery_count` fields.
@@ -746,7 +746,7 @@ Expected: notifications list now includes `expires_at` and `delivery_count` fiel
 - [ ] **Step 4: Create a test notification with expires_at**
 
 ```bash
-curl -sk -u admin:PASSWORD -X POST 'https://proxy.smurov.com/api/admin/notifications' \
+curl -sk -u admin:PASSWORD -X POST 'https://proxyness.smurov.com/api/admin/notifications' \
   -H 'Content-Type: application/json' \
   -d '{"type":"info","title":"Test delivery tracking","message":"Testing"}'
 ```

@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-30-traffic-graphs-design.md`
 
-**Go module paths:** `smurov-proxy/pkg`, `smurov-proxy/daemon`, `smurov-proxy/server`
+**Go module paths:** `proxyness/pkg`, `proxyness/daemon`, `proxyness/server`
 
 ---
 
@@ -265,7 +265,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	pkgstats "smurov-proxy/pkg/stats"
+	pkgstats "proxyness/pkg/stats"
 )
 
 type RateMeter struct {
@@ -451,7 +451,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	pkgstats "smurov-proxy/pkg/stats"
+	pkgstats "proxyness/pkg/stats"
 )
 ```
 
@@ -673,7 +673,7 @@ In `daemon/internal/tunnel/tunnel.go`:
 
 Add import:
 ```go
-import dstats "smurov-proxy/daemon/internal/stats"
+import dstats "proxyness/daemon/internal/stats"
 ```
 
 Add field to `Tunnel` struct:
@@ -711,7 +711,7 @@ In `daemon/internal/tun/engine.go`:
 
 Add import:
 ```go
-import dstats "smurov-proxy/daemon/internal/stats"
+import dstats "proxyness/daemon/internal/stats"
 ```
 
 Add field to `Engine` struct:
@@ -761,7 +761,7 @@ In `daemon/internal/api/api.go`:
 
 Add import:
 ```go
-import dstats "smurov-proxy/daemon/internal/stats"
+import dstats "proxyness/daemon/internal/stats"
 ```
 
 Add field to `Server` struct:
@@ -807,7 +807,7 @@ In `daemon/cmd/main.go`:
 
 Add import:
 ```go
-import dstats "smurov-proxy/daemon/internal/stats"
+import dstats "proxyness/daemon/internal/stats"
 ```
 
 Create meter and pass to all components:

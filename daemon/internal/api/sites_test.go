@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	dstats "smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/daemon/internal/sites"
-	"smurov-proxy/daemon/internal/tun"
-	"smurov-proxy/daemon/internal/tunnel"
+	dstats "proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/sites"
+	"proxyness/daemon/internal/tun"
+	"proxyness/daemon/internal/tunnel"
 )
 
 func newTestServerWithSitesAPI(t *testing.T, mgr *sites.Manager, tokenStore *sites.TokenStore) *Server {

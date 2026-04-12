@@ -217,7 +217,7 @@ func (s *Server) handleSitesTest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]interface{}{"likely_blocked": false})
 		return
 	}
-	httpReq.Header.Set("User-Agent", "SmurovProxy-Discovery/1.0")
+	httpReq.Header.Set("User-Agent", "Proxyness-Discovery/1.0")
 
 	resp, err := s.sitesTestClient.Do(httpReq)
 	if err != nil {

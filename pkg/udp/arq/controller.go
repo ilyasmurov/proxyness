@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	pkgudp "smurov-proxy/pkg/udp"
+	pkgudp "proxyness/pkg/udp"
 )
 
 const (

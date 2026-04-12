@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	dstats "smurov-proxy/daemon/internal/stats"
+	dstats "proxyness/daemon/internal/stats"
 )
 
 func TestEngineSetReconnectingOnlyFromActive(t *testing.T) {

@@ -1,10 +1,10 @@
-module smurov-proxy/server
+module proxyness/server
 
 go 1.25.0
 
 require (
 	modernc.org/sqlite v1.48.0
-	smurov-proxy/pkg v0.0.0-00010101000000-000000000000
+	proxyness/pkg v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -19,4 +19,4 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 )
 
-replace smurov-proxy/pkg => ../pkg
+replace proxyness/pkg => ../pkg

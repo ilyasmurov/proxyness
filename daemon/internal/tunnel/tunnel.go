@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"smurov-proxy/daemon/internal/socks5"
-	dstats "smurov-proxy/daemon/internal/stats"
-	"smurov-proxy/daemon/internal/transport"
-	"smurov-proxy/pkg/machineid"
-	"smurov-proxy/pkg/proto"
+	"proxyness/daemon/internal/socks5"
+	dstats "proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/transport"
+	"proxyness/pkg/machineid"
+	"proxyness/pkg/proto"
 )
 
 const (

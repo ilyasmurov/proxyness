@@ -490,7 +490,7 @@ git commit -m "feat: daemon supports raw TCP proxy when TLS disabled per app"
 In `AppRules.tsx`, add storage key constant (after line 81):
 
 ```typescript
-const STORAGE_KEY_NO_TLS = "smurov-proxy-no-tls";
+const STORAGE_KEY_NO_TLS = "proxyness-no-tls";
 ```
 
 Add loader/saver functions (after `saveEnabledSites`, line 108):

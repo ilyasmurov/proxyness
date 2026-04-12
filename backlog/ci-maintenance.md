@@ -26,7 +26,7 @@ Or, as a temporary escape hatch, set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` o
 
 **What:** `actions/setup-go@v5` tries to cache Go modules and fails with:
 
-> Restore cache failed: Dependencies file is not found in /home/runner/work/smurov-proxy/smurov-proxy. Supported file pattern: go.sum
+> Restore cache failed: Dependencies file is not found in /home/runner/work/proxyness/proxyness. Supported file pattern: go.sum
 
 **Why it happens:** The repo is a Go workspace (`go.work` at the root) with per-module `go.sum` files under `daemon/go.sum`, `server/go.sum`, `pkg/go.sum`, etc. `setup-go` looks for a single `go.sum` at the working directory by default and finds nothing.
 

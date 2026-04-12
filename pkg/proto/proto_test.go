@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"smurov-proxy/pkg/auth"
+	"proxyness/pkg/auth"
 )
 
 func TestWriteReadAuth_Valid(t *testing.T) {

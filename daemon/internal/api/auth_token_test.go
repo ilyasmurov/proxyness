@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"smurov-proxy/daemon/internal/sites"
+	"proxyness/daemon/internal/sites"
 )
 
 func TestRequireExtensionTokenAllowsValid(t *testing.T) {

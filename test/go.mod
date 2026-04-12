@@ -1,5 +1,5 @@
-module smurov-proxy/test
+module proxyness/test
 
 go 1.22
 
-require smurov-proxy/pkg v0.0.0
+require proxyness/pkg v0.0.0

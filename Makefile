@@ -21,7 +21,7 @@ build-helper:
 # Build daemon for current platform and copy into installed app
 install-daemon:
 	cd daemon && go build -o ../client/resources/daemon-darwin-arm64 ./cmd
-	sudo cp client/resources/daemon-darwin-arm64 /Applications/SmurovProxy.app/Contents/Resources/resources/daemon-darwin-arm64
+	sudo cp client/resources/daemon-darwin-arm64 /Applications/Proxyness.app/Contents/Resources/resources/daemon-darwin-arm64
 
 # Electron GUI
 build-client: build-daemon build-helper

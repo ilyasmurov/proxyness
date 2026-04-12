@@ -1,6 +1,6 @@
 {
-  "appId": "com.smurov.proxy",
-  "productName": "SmurovProxy",
+  "appId": "com.proxyness.app",
+  "productName": "Proxyness",
   "directories": {
     "output": "release"
   },
@@ -19,7 +19,7 @@
   "publish": {
     "provider": "github",
     "owner": "ilyasmurov",
-    "repo": "smurov-proxy"
+    "repo": "proxyness"
   },
   "mac": {
     "target": ["pkg"],
@@ -39,7 +39,7 @@
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": true,
-    "uninstallDisplayName": "SmurovProxy",
+    "uninstallDisplayName": "Proxyness",
     "artifactName": "${productName}-Setup-${version}.${ext}"
   }
 }

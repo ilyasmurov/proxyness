@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatBytes } from "@/lib/format";
 import { Download, Package } from "lucide-react";
 
-const GITHUB_REPO = "ilyasmurov/smurov-proxy";
+const GITHUB_REPO = "ilyasmurov/proxyness";
 
 interface Asset {
   name: string;

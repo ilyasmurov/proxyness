@@ -80,8 +80,8 @@ func (s *TokenStore) Check(provided string) bool {
 // DefaultTokenPath returns the OS-appropriate path for the daemon token.
 func DefaultTokenPath() string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("APPDATA"), "SmurovProxy", "daemon-token")
+		return filepath.Join(os.Getenv("APPDATA"), "Proxyness", "daemon-token")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "smurov-proxy", "daemon-token")
+	return filepath.Join(home, ".config", "proxyness", "daemon-token")
 }

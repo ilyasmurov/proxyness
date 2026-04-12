@@ -322,10 +322,10 @@ import (
 	"net"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	"smurov-proxy/pkg/proto"
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/pkg/auth"
+	"proxyness/pkg/proto"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 type Handler struct {
@@ -396,8 +396,8 @@ import (
 	"net"
 	"time"
 
-	"smurov-proxy/pkg/proto"
-	"smurov-proxy/server/internal/db"
+	"proxyness/pkg/proto"
+	"proxyness/server/internal/db"
 )
 
 func (h *Handler) handleTCP(conn net.Conn, device *db.Device) {
@@ -441,8 +441,8 @@ import (
 	"sync"
 	"time"
 
-	"smurov-proxy/pkg/proto"
-	"smurov-proxy/server/internal/db"
+	"proxyness/pkg/proto"
+	"proxyness/server/internal/db"
 )
 
 const udpTimeout = 60 * time.Second
@@ -546,7 +546,7 @@ Replace the `handleProxy` function and update the mux creation:
 
 ```go
 // Add import:
-import "smurov-proxy/server/internal/proxy"
+import "proxyness/server/internal/proxy"
 
 // In main(), replace:
 //   m := mux.NewListenerMux(ln,
@@ -563,7 +563,7 @@ import "smurov-proxy/server/internal/proxy"
 // Delete the entire handleProxy function from main.go
 ```
 
-Also remove unused imports from main.go that were only used by handleProxy: `"io"`, `"smurov-proxy/pkg/auth"`, `"smurov-proxy/pkg/proto"`, `"smurov-proxy/server/internal/stats"`.
+Also remove unused imports from main.go that were only used by handleProxy: `"io"`, `"proxyness/pkg/auth"`, `"proxyness/pkg/proto"`, `"proxyness/server/internal/stats"`.
 
 - [ ] **Step 5: Update daemon tunnel to send message type byte**
 
@@ -612,7 +612,7 @@ git commit -m "feat(server): extract proxy handlers, add UDP relay support"
 Create `helper/go.mod`:
 
 ```
-module smurov-proxy/helper
+module proxyness/helper
 
 go 1.22
 
@@ -740,7 +740,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const socketPath = "/var/run/smurov-helper.sock"
+const socketPath = "/var/run/proxyness-helper.sock"
 
 var tunDevice tun.Device
 var tunName string
@@ -867,7 +867,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-const pipeName = `\\.\pipe\smurov-helper`
+const pipeName = `\\.\pipe\proxyness-helper`
 
 var tunDevice tun.Device
 var tunName string
@@ -884,7 +884,7 @@ func createTUN() Response {
 		return Response{TUNName: tunName, Error: "TUN already exists"}
 	}
 
-	dev, err := tun.CreateTUN("SmurovProxy", 1500)
+	dev, err := tun.CreateTUN("Proxyness", 1500)
 	if err != nil {
 		return Response{Error: fmt.Sprintf("create tun: %v", err)}
 	}
@@ -1593,7 +1593,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
 
-	"smurov-proxy/pkg/proto"
+	"proxyness/pkg/proto"
 )
 
 type Status string
@@ -1961,7 +1961,7 @@ git commit -m "feat(tun): TUN engine with TCP/UDP intercept, proxy/bypass routin
 
 Modify `daemon/internal/api/api.go` — add TUN engine to Server struct and new handlers:
 
-Add import: `"smurov-proxy/daemon/internal/tun"`
+Add import: `"proxyness/daemon/internal/tun"`
 
 Update `Server` struct:
 
@@ -2063,9 +2063,9 @@ import (
 	"log"
 	"net/http"
 
-	"smurov-proxy/daemon/internal/api"
-	"smurov-proxy/daemon/internal/tun"
-	"smurov-proxy/daemon/internal/tunnel"
+	"proxyness/daemon/internal/api"
+	"proxyness/daemon/internal/tun"
+	"proxyness/daemon/internal/tunnel"
 )
 
 func main() {
@@ -2144,7 +2144,7 @@ In `client/src/main/index.ts`, inside `setupAutoUpdater()` (or after it), add:
         server,
         key,
         helper_addr: process.platform === "darwin"
-          ? "/var/run/smurov-helper.sock"
+          ? "/var/run/proxyness-helper.sock"
           : "127.0.0.1:9091",
       }),
     }).catch(() => {});
@@ -2427,7 +2427,7 @@ Add state for mode:
 
 ```tsx
 const [proxyMode, setProxyMode] = useState<ProxyMode>(
-  () => (localStorage.getItem("smurov-proxy-mode") as ProxyMode) || "tun"
+  () => (localStorage.getItem("proxyness-mode") as ProxyMode) || "tun"
 );
 ```
 
@@ -2436,7 +2436,7 @@ Add mode persistence handler:
 ```tsx
 const handleModeChange = (m: ProxyMode) => {
   setProxyMode(m);
-  localStorage.setItem("smurov-proxy-mode", m);
+  localStorage.setItem("proxyness-mode", m);
 };
 ```
 

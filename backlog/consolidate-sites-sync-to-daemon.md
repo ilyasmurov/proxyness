@@ -17,7 +17,7 @@
 **How (sketch — детали при реальном планировании):**
 
 1. **Daemon становится единственный sync-client.** Все операции (`add`, `remove`, `enable`, `disable`, `add_domain`) идут через daemon HTTP API → daemon синкается с сервером → daemon обновляет свой cache + persist на диск.
-2. **Daemon персистит cache на диск** — например `~/.config/smurov-proxy/sites-cache.json`. Это даёт renderer'у offline view: при старте daemon грузит cache с диска, и сразу отвечает на API запросы даже до первого server sync.
+2. **Daemon персистит cache на диск** — например `~/.config/proxyness/sites-cache.json`. Это даёт renderer'у offline view: при старте daemon грузит cache с диска, и сразу отвечает на API запросы даже до первого server sync.
 3. **Daemon API расширяется:**
    - `GET /sites` — список всех sites (с enabled flag)
    - `POST /sites/add` (уже есть)

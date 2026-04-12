@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	"smurov-proxy/pkg/proto"
+	"proxyness/pkg/auth"
+	"proxyness/pkg/proto"
 )
 
 // startTLSServer starts a proxy server on a random port for testing.

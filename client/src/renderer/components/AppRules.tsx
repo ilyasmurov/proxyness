@@ -209,7 +209,7 @@ function SiteTileIcon({
   );
 }
 
-const STORAGE_KEY_NO_TLS = "smurov-proxy-no-tls";
+const STORAGE_KEY_NO_TLS = "proxyness-no-tls";
 
 function loadNoTLS(): Set<string> {
   const saved = localStorage.getItem(STORAGE_KEY_NO_TLS);
@@ -260,10 +260,10 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
   const { sites: localSites, ready: sitesReady, addSite, removeSite: removeSiteById, toggleSite: toggleSiteById } = useSites();
   // All-sites toggle: a local-only mode flag that bypasses per-site picks.
   const [allSitesOn, setAllSitesOn] = useState<boolean>(
-    () => localStorage.getItem("smurov-proxy-all-sites-on") !== "false"
+    () => localStorage.getItem("proxyness-all-sites-on") !== "false"
   );
   const [noTLS, setNoTLS] = useState<Set<string>>(loadNoTLS);
-  const [browsersOn] = useState(() => localStorage.getItem("smurov-proxy-browsers-on") !== "false");
+  const [browsersOn] = useState(() => localStorage.getItem("proxyness-browsers-on") !== "false");
   const [addSiteModalOpen, setAddSiteModalOpen] = useState(false);
   // Set of hosts with active SOCKS5 connections, refreshed from the daemon.
   // Each element is a raw hostname as seen by the tunnel (e.g. "m.youtube.com").
@@ -476,7 +476,7 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
     if (allSitesOn) {
       // Clicking a tile while "all" is on: switch to per-site mode.
       setAllSitesOn(false);
-      localStorage.setItem("smurov-proxy-all-sites-on", "false");
+      localStorage.setItem("proxyness-all-sites-on", "false");
     }
     try {
       await toggleSiteById(site.id, !site.enabled);
@@ -488,7 +488,7 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
   const handleToggleAll = () => {
     const next = !allSitesOn;
     setAllSitesOn(next);
-    localStorage.setItem("smurov-proxy-all-sites-on", String(next));
+    localStorage.setItem("proxyness-all-sites-on", String(next));
   };
 
   // addSiteByDomain normalizes the input and adds the site to the list if
@@ -584,7 +584,7 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 20, alignItems: "start" }}>
           {/* LEFT COLUMN — Applications */}
-          <div style={{ animation: "smurov-blur-row 0.4s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
+          <div style={{ animation: "pn-blur-row 0.4s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 8, marginBottom: 10, minHeight: 24,
             }}>
@@ -601,7 +601,7 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {resolved.map(({ app }, i) => (
-                <div key={app.id} style={{ animation: `smurov-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) ${0.1 + i * 0.04}s both` }}>
+                <div key={app.id} style={{ animation: `pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) ${0.1 + i * 0.04}s both` }}>
                   <AppToggle app={app} isOn={enabled.has(app.id)} noTLS={noTLS.has(app.id)} onToggle={toggleApp} onToggleTLS={toggleNoTLS} />
                 </div>
               ))}
@@ -609,7 +609,7 @@ export function AppRules({ visible, mode: modeProp, onModeChange, hideModeSwitch
           </div>
 
           {/* RIGHT COLUMN — Browser Sites */}
-          <div style={{ animation: "smurov-blur-row 0.4s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
+          <div style={{ animation: "pn-blur-row 0.4s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
           <SitesGrid
             sites={localSites}
             enabledSites={enabledSet}
@@ -684,7 +684,7 @@ function AppToggle({ app, isOn, noTLS, onToggle, onToggleTLS }: {
         {app.name}
       </div>
       {isOn ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 0, animation: "smurov-blur-fade 0.25s cubic-bezier(0.25,1,0.5,1) both" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, animation: "pn-blur-fade 0.25s cubic-bezier(0.25,1,0.5,1) both" }}>
           <span style={{
             fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif",
             fontSize: 9, fontWeight: 600, letterSpacing: 1,
@@ -721,7 +721,7 @@ function AppToggle({ app, isOn, noTLS, onToggle, onToggleTLS }: {
           fontSize: 9, fontWeight: 600, letterSpacing: 1,
           textTransform: "uppercase" as const,
           color: "oklch(0.40 0.01 250)",
-          animation: "smurov-blur-fade 0.25s cubic-bezier(0.25,1,0.5,1) both",
+          animation: "pn-blur-fade 0.25s cubic-bezier(0.25,1,0.5,1) both",
         }}>
           Direct
         </span>
@@ -803,7 +803,7 @@ function SitesGrid({
                   borderRadius: "50%",
                   background: "#4caf50",
                   boxShadow: "0 0 4px rgba(76,175,80,0.8)",
-                  animation: "smurov-pulse 1.5s ease-in-out infinite",
+                  animation: "pn-pulse 1.5s ease-in-out infinite",
                 }}
               />
               {liveSites.size} active
@@ -893,9 +893,9 @@ function SitesGrid({
           display: "flex",
           alignItems: "center",
           gap: 16,
-          animation: "smurov-blur-fade 0.35s cubic-bezier(0.25,1,0.5,1) both",
+          animation: "pn-blur-fade 0.35s cubic-bezier(0.25,1,0.5,1) both",
         }}>
-          <div style={{ animation: "smurov-blur-dot 0.4s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
+          <div style={{ animation: "pn-blur-dot 0.4s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="oklch(0.78 0.155 75)" strokeWidth="1.5" style={{ flexShrink: 0, opacity: 0.7 }}>
               <circle cx="12" cy="12" r="10" />
               <ellipse cx="12" cy="12" rx="10" ry="4" />
@@ -904,10 +904,10 @@ function SitesGrid({
             </svg>
           </div>
           <div>
-            <div style={{ fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 14, fontWeight: 600, color: "oklch(0.93 0.006 250)", letterSpacing: 0.3, marginBottom: 3, animation: "smurov-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
+            <div style={{ fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 14, fontWeight: 600, color: "oklch(0.93 0.006 250)", letterSpacing: 0.3, marginBottom: 3, animation: "pn-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>
               All browser traffic is proxied
             </div>
-            <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 12, color: "oklch(0.50 0.01 250)", lineHeight: 1.5, animation: "smurov-blur-light 0.35s cubic-bezier(0.25,1,0.5,1) 0.25s both" }}>
+            <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 12, color: "oklch(0.50 0.01 250)", lineHeight: 1.5, animation: "pn-blur-light 0.35s cubic-bezier(0.25,1,0.5,1) 0.25s both" }}>
               Every website you open in any browser goes through the proxy server.
               Switch to Selected to choose specific sites.
             </div>
@@ -922,7 +922,7 @@ function SitesGrid({
           }}
         >
           {sites.map((site, i) => (
-            <div key={site.id} style={{ animation: `smurov-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) ${0.08 + i * 0.03}s both` }}>
+            <div key={site.id} style={{ animation: `pn-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) ${0.08 + i * 0.03}s both` }}>
               <SiteTile
                 site={site}
                 enabled={enabledSites.has(site.id)}
@@ -1180,7 +1180,7 @@ function LiveLabel() {
         borderRadius: 3,
         letterSpacing: 0.5,
         fontFamily: "'Barlow', system-ui, sans-serif",
-        animation: "smurov-live-glow 1.5s ease-in-out infinite",
+        animation: "pn-live-glow 1.5s ease-in-out infinite",
       }}
     >
       ● LIVE
@@ -1306,7 +1306,7 @@ function AddSiteModal({
         zIndex: 1000,
         opacity: closing ? 0 : 1,
         transition: "opacity 0.18s cubic-bezier(0.25,1,0.5,1)",
-        animation: "smurov-backdrop-in 0.25s cubic-bezier(0.25,1,0.5,1)",
+        animation: "pn-backdrop-in 0.25s cubic-bezier(0.25,1,0.5,1)",
       }}
     >
       <div
@@ -1323,10 +1323,10 @@ function AddSiteModal({
           transform: closing ? "scale(0.95) translateY(8px)" : "scale(1) translateY(0)",
           opacity: closing ? 0 : 1,
           transition: "transform 0.18s cubic-bezier(0.25,1,0.5,1), opacity 0.18s cubic-bezier(0.25,1,0.5,1)",
-          animation: "smurov-fade-in 0.25s cubic-bezier(0.25,1,0.5,1)",
+          animation: "pn-fade-in 0.25s cubic-bezier(0.25,1,0.5,1)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, animation: "smurov-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, animation: "pn-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>
           <div style={{ fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 16, fontWeight: 700, color: "oklch(0.93 0.006 250)", letterSpacing: 0.3 }}>
             Add site
           </div>
@@ -1367,7 +1367,7 @@ function AddSiteModal({
             fontFamily: "'Figtree', system-ui, sans-serif",
             marginBottom: 12,
             transition: "border-color 0.12s",
-            animation: "smurov-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.12s both",
+            animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.12s both",
           }}
         />
 
@@ -1395,7 +1395,7 @@ function AddSiteModal({
                     style={{
                       padding: "8px 6px",
                       borderRadius: 6,
-                      animation: `smurov-blur-light 0.25s cubic-bezier(0.25,1,0.5,1) ${0.03 + i * 0.03}s both`,
+                      animation: `pn-blur-light 0.25s cubic-bezier(0.25,1,0.5,1) ${0.03 + i * 0.03}s both`,
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
@@ -1468,7 +1468,7 @@ function AddSiteModal({
               padding: "10px 12px", background: "oklch(0.12 0.014 250)",
               border: "1px solid oklch(0.24 0.013 250)", borderRadius: 6,
               display: "flex", alignItems: "center", gap: 10,
-              animation: "smurov-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) 0.05s both",
+              animation: "pn-blur-light 0.3s cubic-bezier(0.25,1,0.5,1) 0.05s both",
             }}>
               <SiteTileIcon domain={cleanDomain} name={labelFromDomain(cleanDomain)} color={siteColor(cleanDomain)} size={24} />
               <div>
@@ -1497,7 +1497,7 @@ function AddSiteModal({
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", animation: "pn-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>
           <button
             onClick={animClose}
             style={{

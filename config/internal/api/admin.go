@@ -21,7 +21,7 @@ const adminHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SmurovProxy Config</title>
+<title>Proxyness Config</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,system-ui,sans-serif;background:#0b0f1a;color:#e2e8f0;padding:24px;max-width:800px;margin:0 auto}
@@ -53,7 +53,7 @@ button{padding:6px 14px;border:none;border-radius:4px;font-size:13px;cursor:poin
 </style>
 </head>
 <body>
-<h1>SmurovProxy Config</h1>
+<h1>Proxyness Config</h1>
 <div class="tabs">
   <div class="tab active" onclick="showTab('notifs')">Notifications</div>
   <div class="tab" onclick="showTab('services')">Services</div>

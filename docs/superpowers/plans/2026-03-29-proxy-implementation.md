@@ -1,4 +1,4 @@
-# SmurovProxy Implementation Plan
+# Proxyness Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -81,7 +81,7 @@ proxy/
 ```bash
 cd /Users/ilyasmurov/projects/smurov/proxy
 mkdir -p pkg/auth
-cd pkg && go mod init smurov-proxy/pkg
+cd pkg && go mod init proxyness/pkg
 cd .. && go work init ./pkg
 ```
 
@@ -304,7 +304,7 @@ import (
 	"net"
 	"testing"
 
-	"smurov-proxy/pkg/auth"
+	"proxyness/pkg/auth"
 )
 
 func TestWriteReadAuth_Valid(t *testing.T) {
@@ -458,7 +458,7 @@ import (
 	"io"
 	"net"
 
-	"smurov-proxy/pkg/auth"
+	"proxyness/pkg/auth"
 )
 
 const (
@@ -621,7 +621,7 @@ git commit -m "feat: add custom protocol package (auth, connect, relay)"
 
 ```bash
 mkdir -p server/cmd
-cd server && go mod init smurov-proxy/server
+cd server && go mod init proxyness/server
 ```
 
 - [ ] **Step 2: Add server to workspace and add dependency**
@@ -636,7 +636,7 @@ go work use ./server
 Add dependency in `server/go.mod`:
 
 ```bash
-cd server && go mod edit -require smurov-proxy/pkg@v0.0.0
+cd server && go mod edit -require proxyness/pkg@v0.0.0
 cd .. && go work sync
 ```
 
@@ -663,7 +663,7 @@ import (
 	"os"
 	"time"
 
-	"smurov-proxy/pkg/proto"
+	"proxyness/pkg/proto"
 )
 
 func main() {
@@ -752,7 +752,7 @@ func ensureCert(certFile, keyFile string) error {
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{Organization: []string{"SmurovProxy"}},
+		Subject:      pkix.Name{Organization: []string{"Proxyness"}},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -816,9 +816,9 @@ git commit -m "feat: add proxy server with TLS and self-signed cert generation"
 
 ```bash
 mkdir -p daemon/cmd daemon/internal/socks5 daemon/internal/tunnel daemon/internal/api
-cd daemon && go mod init smurov-proxy/daemon
+cd daemon && go mod init proxyness/daemon
 cd /Users/ilyasmurov/projects/smurov/proxy && go work use ./daemon
-cd daemon && go mod edit -require smurov-proxy/pkg@v0.0.0
+cd daemon && go mod edit -require proxyness/pkg@v0.0.0
 cd .. && go work sync
 ```
 
@@ -1188,8 +1188,8 @@ import (
 	"sync"
 	"time"
 
-	"smurov-proxy/daemon/internal/socks5"
-	"smurov-proxy/pkg/proto"
+	"proxyness/daemon/internal/socks5"
+	"proxyness/pkg/proto"
 )
 
 type Status string
@@ -1355,7 +1355,7 @@ import (
 	"strings"
 	"testing"
 
-	"smurov-proxy/daemon/internal/tunnel"
+	"proxyness/daemon/internal/tunnel"
 )
 
 func TestHealthEndpoint(t *testing.T) {
@@ -1477,7 +1477,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"smurov-proxy/daemon/internal/tunnel"
+	"proxyness/daemon/internal/tunnel"
 )
 
 type Server struct {
@@ -1575,8 +1575,8 @@ import (
 	"log"
 	"net/http"
 
-	"smurov-proxy/daemon/internal/api"
-	"smurov-proxy/daemon/internal/tunnel"
+	"proxyness/daemon/internal/api"
+	"proxyness/daemon/internal/tunnel"
 )
 
 func main() {
@@ -1634,9 +1634,9 @@ git commit -m "feat: add daemon entry point with CLI flags"
 
 ```bash
 mkdir -p test
-cd test && go mod init smurov-proxy/test
+cd test && go mod init proxyness/test
 cd /Users/ilyasmurov/projects/smurov/proxy && go work use ./test
-cd test && go mod edit -require smurov-proxy/pkg@v0.0.0
+cd test && go mod edit -require proxyness/pkg@v0.0.0
 cd .. && go work sync
 ```
 
@@ -1663,8 +1663,8 @@ import (
 	"testing"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	"smurov-proxy/pkg/proto"
+	"proxyness/pkg/auth"
+	"proxyness/pkg/proto"
 )
 
 // startTLSServer starts a proxy server on a random port for testing.
@@ -1860,7 +1860,7 @@ Create `client/package.json`:
 
 ```json
 {
-  "name": "smurov-proxy",
+  "name": "proxyness",
   "version": "1.0.0",
   "private": true,
   "main": "dist-electron/main/index.js",
@@ -1959,8 +1959,8 @@ Create `client/electron-builder.json`:
 
 ```json
 {
-  "appId": "com.smurov.proxy",
-  "productName": "SmurovProxy",
+  "appId": "com.proxyness.app",
+  "productName": "Proxyness",
   "directories": {
     "output": "release"
   },
@@ -1996,7 +1996,7 @@ Create `client/index.html`:
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SmurovProxy</title>
+    <title>Proxyness</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body {
@@ -2028,7 +2028,7 @@ Create placeholder `client/src/renderer/App.tsx`:
 
 ```tsx
 export function App() {
-  return <div>SmurovProxy</div>;
+  return <div>Proxyness</div>;
 }
 ```
 
@@ -2306,7 +2306,7 @@ import { StatusBar } from "./components/StatusBar";
 import { Settings } from "./components/Settings";
 import { ConnectionButton } from "./components/ConnectionButton";
 
-const STORAGE_KEY = "smurov-proxy-settings";
+const STORAGE_KEY = "proxyness-settings";
 
 function loadSettings() {
   try {
@@ -2336,7 +2336,7 @@ export function App() {
   return (
     <div style={{ maxWidth: 360, margin: "0 auto" }}>
       <h1 style={{ fontSize: 20, marginBottom: 20, fontWeight: 700 }}>
-        SmurovProxy
+        Proxyness
       </h1>
       <StatusBar status={status.status} uptime={status.uptime} error={error} />
       <Settings
@@ -2477,7 +2477,7 @@ function createTray() {
   // Create a simple 16x16 tray icon
   const icon = nativeImage.createEmpty();
   tray = new Tray(icon);
-  tray.setToolTip("SmurovProxy");
+  tray.setToolTip("Proxyness");
 
   const contextMenu = Menu.buildFromTemplate([
     {

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"smurov-proxy/daemon/internal/sites"
+	"proxyness/daemon/internal/sites"
 )
 
 // requireExtensionToken wraps a handler with a constant-time bearer-token

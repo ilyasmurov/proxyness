@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	pkgstats "smurov-proxy/pkg/stats"
+	pkgstats "proxyness/pkg/stats"
 )
 
 type ConnInfo struct {

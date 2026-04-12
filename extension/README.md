@@ -1,9 +1,9 @@
-# Smurov Proxy — Browser Extension
+# Proxyness — Browser Extension
 
-Companion to the Smurov Proxy desktop client. Provides per-tab proxy controls,
+Companion to the Proxyness desktop client. Provides per-tab proxy controls,
 automatic domain discovery, and ISP-block detection.
 
-**Requires:** the Smurov Proxy desktop client running on the same machine.
+**Requires:** the Proxyness desktop client running on the same machine.
 
 ## Install (development)
 
@@ -11,7 +11,7 @@ automatic domain discovery, and ISP-block detection.
 2. Toggle on "Developer mode" (top right).
 3. Click "Load unpacked" and select this `extension/` folder.
 4. Click the extension icon in the toolbar.
-5. Open the Smurov Proxy desktop client → "Browser Extension" tab.
+5. Open the Proxyness desktop client → "Browser Extension" tab.
 6. Copy the token shown there.
 7. Paste it into the extension popup → click "Pair".
 
@@ -38,7 +38,7 @@ working on every tab.
 ## Privacy
 
 The extension reads request URLs (network metadata, not page content) and
-forwards summaries only to your local Smurov Proxy daemon at
+forwards summaries only to your local Proxyness daemon at
 `127.0.0.1:9090`. Nothing is sent directly to any remote server.
 
 ## Architecture

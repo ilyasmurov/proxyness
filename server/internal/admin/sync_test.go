@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 func newTestSyncHandler(t *testing.T) (*Handler, string) {

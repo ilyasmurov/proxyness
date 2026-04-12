@@ -263,7 +263,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"smurov-proxy/pkg/auth"
+	"proxyness/pkg/auth"
 )
 
 type DB struct {
@@ -992,8 +992,8 @@ import (
 	"strings"
 	"testing"
 
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 func setup(t *testing.T) *Handler {
@@ -1118,8 +1118,8 @@ import (
 	"strconv"
 	"strings"
 
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/stats"
 )
 
 type Handler struct {
@@ -1629,12 +1629,12 @@ import (
 	"os"
 	"time"
 
-	"smurov-proxy/pkg/auth"
-	"smurov-proxy/pkg/proto"
-	"smurov-proxy/server/internal/admin"
-	"smurov-proxy/server/internal/db"
-	"smurov-proxy/server/internal/mux"
-	"smurov-proxy/server/internal/stats"
+	"proxyness/pkg/auth"
+	"proxyness/pkg/proto"
+	"proxyness/server/internal/admin"
+	"proxyness/server/internal/db"
+	"proxyness/server/internal/mux"
+	"proxyness/server/internal/stats"
 )
 
 func main() {
@@ -1767,7 +1767,7 @@ func ensureCert(certFile, keyFile string) error {
 	}
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{Organization: []string{"SmurovProxy"}},
+		Subject:      pkix.Name{Organization: []string{"Proxyness"}},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(10 * 365 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -2020,7 +2020,7 @@ function Nav() {
   );
   return (
     <nav className="border-b px-6 py-3 flex items-center gap-4">
-      <span className="font-bold text-lg mr-4">SmurovProxy</span>
+      <span className="font-bold text-lg mr-4">Proxyness</span>
       {link("/admin", "Dashboard")}
       {link("/admin/users", "Users")}
     </nav>
@@ -2482,7 +2482,7 @@ RUN mkdir -p server/internal/admin/static
 COPY --from=ui-builder /ui/dist/ server/internal/admin/static/
 
 # Use replace directive instead of workspace
-RUN cd server && go mod edit -replace smurov-proxy/pkg=../pkg
+RUN cd server && go mod edit -replace proxyness/pkg=../pkg
 WORKDIR /build/server
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /server ./cmd
 
@@ -2514,14 +2514,14 @@ Update `.github/workflows/deploy.yml` deploy step — replace the `docker run` c
 
             docker pull ghcr.io/${{ github.repository }}:latest
 
-            docker stop smurov-proxy 2>/dev/null || true
-            docker rm smurov-proxy 2>/dev/null || true
+            docker stop proxyness 2>/dev/null || true
+            docker rm proxyness 2>/dev/null || true
 
             docker run -d \
-              --name smurov-proxy \
+              --name proxyness \
               --restart unless-stopped \
               -p 443:443 \
-              -v smurov-proxy-data:/data \
+              -v proxyness-data:/data \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
               -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
               ghcr.io/${{ github.repository }}:latest \

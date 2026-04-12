@@ -25,7 +25,7 @@ Move the currently-hardcoded browser sites list out of the client React code int
 
 ### Security and Auth
 
-The Electron client talks directly to `https://proxy.smurov.com/api/sync` via `net.fetch`. It sends its existing access key in `Authorization: Bearer <key>`. The server adds a middleware that:
+The Electron client talks directly to `https://proxyness.smurov.com/api/sync` via `net.fetch`. It sends its existing access key in `Authorization: Bearer <key>`. The server adds a middleware that:
 
 - Looks up the key in the existing `devices` table, pulling the associated `user_id`.
 - Rejects requests with an invalid or missing key with `401`.
@@ -157,9 +157,9 @@ No `rename`, no `reorder`, no per-user `custom_label` in v1. These require a new
 **Storage module.** New file `client/src/renderer/sites/sync.ts`:
 
 - Persists three keys in `localStorage`:
-  - `smurov-proxy-local-sites` — `Array<LocalSite>` where each `LocalSite` is `{id: number, slug, label, domains: string[], ips: string[], enabled: boolean, updatedAt: number, pending?: boolean}`. Negative ids (`-1`, `-2`, ...) are unconfirmed new entries waiting for the server to assign a real id.
-  - `smurov-proxy-pending-ops` — the queue flushed on next sync.
-  - `smurov-proxy-last-sync-at` — unix timestamp.
+  - `proxyness-local-sites` — `Array<LocalSite>` where each `LocalSite` is `{id: number, slug, label, domains: string[], ips: string[], enabled: boolean, updatedAt: number, pending?: boolean}`. Negative ids (`-1`, `-2`, ...) are unconfirmed new entries waiting for the server to assign a real id.
+  - `proxyness-pending-ops` — the queue flushed on next sync.
+  - `proxyness-last-sync-at` — unix timestamp.
 - Exports functions:
   - `loadState(): {localSites, pendingOps, lastSyncAt}` — read-only snapshot on mount.
   - `addSite(primaryDomain, label)` — append to both `localSites` (with a fresh negative id) and `pendingOps`. Returns the new `LocalSite` synchronously so the UI can show it immediately.
@@ -193,11 +193,11 @@ No `rename`, no `reorder`, no per-user `custom_label` in v1. These require a new
 
 The client ships a bundled seed file at `client/resources/seed_sites.json`. This file is generated during `make build-client` by `go run ./server/cmd/export-seed > client/resources/seed_sites.json` so there is exactly one source of truth — the Go seed slice.
 
-On first launch, if `smurov-proxy-local-sites` is absent in localStorage, the sync module loads the bundled JSON and uses it as the initial `localSites` (with positive ids matching the seed's own ids — same ids as the server uses). The first successful `sync()` will return the authoritative snapshot and replace the bootstrap data cleanly.
+On first launch, if `proxyness-local-sites` is absent in localStorage, the sync module loads the bundled JSON and uses it as the initial `localSites` (with positive ids matching the seed's own ids — same ids as the server uses). The first successful `sync()` will return the authoritative snapshot and replace the bootstrap data cleanly.
 
 **Legacy localStorage migration.**
 
-On first launch of the new version, the sync module checks for the old keys `smurov-proxy-sites` and `smurov-proxy-enabled-sites`. If present:
+On first launch of the new version, the sync module checks for the old keys `proxyness-sites` and `proxyness-enabled-sites`. If present:
 
 1. Parse the old custom sites list.
 2. For each custom site, push an `{op: "add", local_id, site: {primary_domain, label}, at: now}` into `pendingOps`. Built-in sites that were enabled don't need explicit ops — they're already represented by the bootstrap seed; the user's enabled/disabled state for them becomes the default (enabled).

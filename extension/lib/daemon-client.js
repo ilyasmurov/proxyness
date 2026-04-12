@@ -1,4 +1,4 @@
-// Daemon client: token-aware fetch wrapper for the local Smurov daemon API.
+// Daemon client: token-aware fetch wrapper for the local Proxyness daemon API.
 // All extension → daemon HTTP traffic flows through this module.
 
 const DAEMON_BASE = "http://127.0.0.1:9090";

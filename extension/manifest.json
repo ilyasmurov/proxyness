@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Smurov Proxy",
+  "name": "Proxyness",
   "version": "0.3.0",
-  "description": "Per-tab proxy controls and automatic domain discovery for Smurov Proxy.",
+  "description": "Per-tab proxy controls and automatic domain discovery for Proxyness.",
   "permissions": [
     "webRequest",
     "webNavigation",

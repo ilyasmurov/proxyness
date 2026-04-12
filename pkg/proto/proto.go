@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	"smurov-proxy/pkg/auth"
+	"proxyness/pkg/auth"
 )
 
 const (

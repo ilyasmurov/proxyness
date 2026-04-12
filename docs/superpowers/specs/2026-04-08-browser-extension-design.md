@@ -9,7 +9,7 @@ domain discovery via `chrome.webRequest`, and ISP-block detection with silent
 verification through the tunnel.
 
 The extension talks **exclusively to the local daemon** at `127.0.0.1:9090`,
-never directly to `proxy.smurov.com`. The daemon already holds the device key
+never directly to `proxyness.smurov.com`. The daemon already holds the device key
 and the sync state, so the extension stays a thin UI layer. As a side effect,
 installing the extension implicitly markets the desktop client: an extension-
 only user hits a "daemon not running" state and is pointed to the client
@@ -103,14 +103,14 @@ exactly when they hurt.
            │ TLS / sync
            ▼
 ┌─────────────────────────────┐
-│ Server @ proxy.smurov.com   │
+│ Server @ proxyness.smurov.com   │
 │ - existing /api/sync        │
 │ - new add_domain op         │
 └─────────────────────────────┘
 ```
 
 The extension never sees the device key, never makes direct calls to
-`proxy.smurov.com`. All persistence and server I/O flows through the daemon.
+`proxyness.smurov.com`. All persistence and server I/O flows through the daemon.
 
 ### Daemon API Surface (new)
 
@@ -166,8 +166,8 @@ does (talk to localhost from JS) is also what an attacker can do.
 On first start (and whenever the token file is missing), the daemon generates
 a 32-byte cryptographically-random token, hex-encodes it, and persists it:
 
-- **Unix:** `~/.config/smurov-proxy/daemon-token` with mode `0600`
-- **Windows:** `%APPDATA%\SmurovProxy\daemon-token` with the user's ACL only
+- **Unix:** `~/.config/proxyness/daemon-token` with mode `0600`
+- **Windows:** `%APPDATA%\Proxyness\daemon-token` with the user's ACL only
 
 The token has no expiry. The user can manually rotate it (delete the file,
 restart the daemon) which invalidates all paired extensions.
@@ -191,7 +191,7 @@ itself is the gate.
 
 1. User installs the extension and clicks the toolbar icon for the first time.
 2. Extension popup checks `chrome.storage.local` for a stored token. None
-   found → renders the pairing screen: "Open Smurov Proxy desktop app →
+   found → renders the pairing screen: "Open Proxyness desktop app →
    Browser Extension tab → copy the token here: `[_______________]`."
 3. User opens the desktop client, navigates to a new **Browser Extension**
    tab. The tab shows the token with a Copy button, plus pairing status.
@@ -218,7 +218,7 @@ because:
 
 - Native messaging requires shipping a separate native host binary AND
   registering a manifest file at OS-specific paths (~/Library/...
-  /Chrome/NativeMessagingHosts/com.smurov.proxy.json on Mac, similar on
+  /Chrome/NativeMessagingHosts/com.proxyness.app.json on Mac, similar on
   Win), which is extra build/install plumbing for both the desktop client
   installer AND the extension.
 - The user only pairs once per browser. Friction is one-time and small.
@@ -384,9 +384,9 @@ successful token paste.
 2. Service worker tries to fetch `127.0.0.1:9090/sites/match?host=...` →
    connection refused.
 3. Service worker stores "daemon down" in cache, sends to content script.
-4. Panel renders a single-purpose message: "Smurov Proxy daemon is not
+4. Panel renders a single-purpose message: "Proxyness daemon is not
    running. **[Open desktop client]** or **[Download]**".
-5. The "Download" link goes to `https://proxy.smurov.com` with platform-
+5. The "Download" link goes to `https://proxyness.smurov.com` with platform-
    specific PKG/exe. This is the implicit advertising loop.
 6. Service worker retries the daemon every 30 seconds; once it comes up,
    the panel transitions back to its normal state.
@@ -451,7 +451,7 @@ manifest tweaks for V3 differences). Safari is explicitly out of scope.
 
 2. **`<all_urls>` permission warning at install.** Chrome shows a scary
    warning. Mitigation: store description explicitly says "reads URLs only,
-   never page content; sends summaries only to your local Smurov Proxy
+   never page content; sends summaries only to your local Proxyness
    daemon". Add a one-paragraph privacy explainer in the popup that opens
    the first time the extension is loaded.
 
@@ -461,7 +461,7 @@ manifest tweaks for V3 differences). Safari is explicitly out of scope.
    1KB (just bootstraps and waits for service worker messages).
 
 4. **Token leak via filesystem.** The daemon's token file
-   (`~/.config/smurov-proxy/daemon-token`) is the gate to the new
+   (`~/.config/proxyness/daemon-token`) is the gate to the new
    `/sites/*` endpoints. Mode `0600` protects it from other Unix users on
    the same machine, but malware running as the same user can read it.
    That's the same threat surface as the device key file the desktop

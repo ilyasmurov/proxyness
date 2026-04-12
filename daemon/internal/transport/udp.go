@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	pkgudp "smurov-proxy/pkg/udp"
-	"smurov-proxy/pkg/udp/arq"
+	pkgudp "proxyness/pkg/udp"
+	"proxyness/pkg/udp/arq"
 )
 
 const (

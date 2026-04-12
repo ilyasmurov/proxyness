@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"smurov-proxy/server/internal/db"
+	"proxyness/server/internal/db"
 )
 
 func TestSyncIntegrationAddDomainOp(t *testing.T) {

@@ -79,12 +79,12 @@ jobs:
             docker pull ghcr.io/${{ github.repository }}-landing:latest
 
             # Stop and remove old container
-            docker stop smurov-landing 2>/dev/null || true
-            docker rm smurov-landing 2>/dev/null || true
+            docker stop proxyness-landing 2>/dev/null || true
+            docker rm proxyness-landing 2>/dev/null || true
 
             # Start new container
             docker run -d \
-              --name smurov-landing \
+              --name proxyness-landing \
               --restart unless-stopped \
               -p 80:80 \
               ghcr.io/${{ github.repository }}-landing:latest

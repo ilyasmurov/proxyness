@@ -63,17 +63,17 @@ Separate binary that runs with elevated privileges. Does two things only:
 
 ### macOS
 
-- Binary: `smurov-helper`, installed to `/Library/PrivilegedHelperTools/`.
-- Registered as launchd service (`com.smurov.proxy.helper.plist`).
+- Binary: `proxyness-helper`, installed to `/Library/PrivilegedHelperTools/`.
+- Registered as launchd service (`com.proxyness.app.helper.plist`).
 - One-time password prompt via `SMAppService`.
-- IPC: Unix socket `/var/run/smurov-helper.sock`.
+- IPC: Unix socket `/var/run/proxyness-helper.sock`.
 - TUN device: macOS native `utun` (via `syscall`).
 
 ### Windows
 
-- Installed as Windows Service (`SmurovProxyHelper`).
+- Installed as Windows Service (`ProxynessHelper`).
 - Registered during NSIS installation (UAC prompt already happens).
-- IPC: Named pipe `\\.\pipe\smurov-helper`.
+- IPC: Named pipe `\\.\pipe\proxyness-helper`.
 - TUN device: `wintun.dll` (WireGuard library, ~400KB, bundled in extraResources).
 
 ## 3. Daemon — TUN Engine
@@ -146,7 +146,7 @@ New target: `build-helper` — builds helper binary for macOS (arm64/amd64) and 
 ### electron-builder changes
 
 - `extraResources`: add `helper-*` binary and `wintun.dll` (Windows only).
-- NSIS script: register/unregister `SmurovProxyHelper` Windows Service on install/uninstall.
+- NSIS script: register/unregister `ProxynessHelper` Windows Service on install/uninstall.
 - macOS: postinstall script installs helper to `/Library/PrivilegedHelperTools/` and loads launchd plist.
 
 ### CI (release.yml)

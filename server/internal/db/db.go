@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"smurov-proxy/pkg/auth"
+	"proxyness/pkg/auth"
 
 	_ "modernc.org/sqlite"
 )

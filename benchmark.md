@@ -1,4 +1,4 @@
-# VPN Benchmark: WireGuard/Amnezia vs SmurovProxy vs Outline
+# VPN Benchmark: WireGuard/Amnezia vs Proxyness vs Outline
 
 > Тест 1–3: 2026-04-04 (Timeweb VPS). Тест 4: 2026-04-04 (Aeza VPS, v1.22.0)
 
@@ -39,7 +39,7 @@
 
 ---
 
-## Test 2: SmurovProxy (server 95.181.162.242)
+## Test 2: Proxyness (server 95.181.162.242)
 
 **External IP:** 95.181.162.242
 
@@ -121,7 +121,7 @@
 
 ## Comparison
 
-| Metric              | WireGuard/Amnezia | SmurovProxy       | Outline          |
+| Metric              | WireGuard/Amnezia | Proxyness       | Outline          |
 |---------------------|-------------------|--------------------|------------------|
 | Ping 8.8.8.8        | 102 ms            | 61 ms              | N/A (bypassed)   |
 | Ping 1.1.1.1        | 148 ms            | 100% loss          | N/A (bypassed)   |
@@ -134,15 +134,15 @@
 
 ### Notes
 - **Outline** практически неработоспособен — HTTPS тайм-аутится, скорость ~12 KB/s
-- **SmurovProxy** значительно быстрее по DNS (~3x) — резолвинг идёт локально, не через туннель
+- **Proxyness** значительно быстрее по DNS (~3x) — резолвинг идёт локально, не через туннель
 - **WireGuard** выигрывает по TTFB (~2-3x) — работает на сетевом уровне (L3), нет доп. TLS-хопа
 - **WireGuard** быстрее по скорости скачивания (~1.7x) — меньше overhead
-- SmurovProxy и Outline не проксируют ICMP
-- WireGuard/Amnezia на старом VPS (82.97.246.65), SmurovProxy на Timeweb NL (95.181.162.242), Outline на том же Timeweb
+- Proxyness и Outline не проксируют ICMP
+- WireGuard/Amnezia на старом VPS (82.97.246.65), Proxyness на Timeweb NL (95.181.162.242), Outline на том же Timeweb
 
 ---
 
-## Test 4: SmurovProxy v1.22.0 (server 95.181.162.242, Aeza NL)
+## Test 4: Proxyness v1.22.0 (server 95.181.162.242, Aeza NL)
 
 **External IP:** 95.181.162.242
 
@@ -179,9 +179,9 @@
 
 ---
 
-## Comparison (SmurovProxy v1.22.0 vs old)
+## Comparison (Proxyness v1.22.0 vs old)
 
-| Metric              | SmurovProxy (old)   | SmurovProxy v1.22.0 | Change           |
+| Metric              | Proxyness (old)   | Proxyness v1.22.0 | Change           |
 |---------------------|---------------------|----------------------|------------------|
 | Ping 8.8.8.8        | 61.3 ms             | 64.6 ms              | ~same            |
 | DNS avg             | 68 ms               | 63 ms                | -7% faster       |
@@ -194,7 +194,7 @@
 
 ---
 
-## Test 5: SmurovProxy UDP transport (server 95.181.162.242, Aeza NL)
+## Test 5: Proxyness UDP transport (server 95.181.162.242, Aeza NL)
 
 > 2026-04-04. UDP transport (XChaCha20-Poly1305, ECDH handshake, multiplexed streams).
 
@@ -244,7 +244,7 @@
 
 ---
 
-## Test 5b: SmurovProxy TLS transport (same session)
+## Test 5b: Proxyness TLS transport (same session)
 
 ### HTTPS Latency (connect / TTFB / total)
 | URL                  | Connect  | TTFB     | Total    |
@@ -263,7 +263,7 @@
 
 ---
 
-## Test 6: SmurovProxy UDP+ARQ transport v1.23.11 (server 95.181.162.242, Aeza NL)
+## Test 6: Proxyness UDP+ARQ transport v1.23.11 (server 95.181.162.242, Aeza NL)
 
 > 2026-04-05. UDP transport with ARQ reliability layer (CUBIC congestion control, retransmission, reordering).
 
@@ -308,7 +308,7 @@
 
 ## Full Comparison
 
-| Metric              | WireGuard | Outline   | SmurovProxy TLS  | SmurovProxy UDP (no ARQ) | SmurovProxy UDP+ARQ |
+| Metric              | WireGuard | Outline   | Proxyness TLS  | Proxyness UDP (no ARQ) | Proxyness UDP+ARQ |
 |---------------------|-----------|-----------|-------------------|--------------------------|---------------------|
 | Ping 8.8.8.8        | 102 ms    | N/A       | 63 ms             | 63 ms                    | 61 ms               |
 | DNS avg             | 189 ms    | 219 ms    | 66 ms             | 66 ms                    | 64 ms               |
@@ -330,7 +330,7 @@
 
 ---
 
-## Test 7: SmurovProxy UDP+ARQ after BBR/pacing fixes (server 95.181.162.242, Aeza NL)
+## Test 7: Proxyness UDP+ARQ after BBR/pacing fixes (server 95.181.162.242, Aeza NL)
 
 > 2026-04-06. After 5 congestion control fixes: BWE byte counting, BBR STARTUP phase, pacing defer until BWE stable.
 
@@ -371,7 +371,7 @@
 
 ---
 
-## Test 8: SmurovProxy UDP+ARQ — STARTUP re-entry + app-limited fix (server 95.181.162.242, Aeza NL)
+## Test 8: Proxyness UDP+ARQ — STARTUP re-entry + app-limited fix (server 95.181.162.242, Aeza NL)
 
 > 2026-04-06. Fixes: prevent premature STARTUP exit (wait for BWE stability, skip app-limited rounds), re-enter STARTUP on idle→bulk transition, fix pacer burstSize truncation.
 
@@ -416,11 +416,11 @@
 
 ---
 
-## Test 9: SmurovProxy v1.24.0 UDP vs WireGuard (2026-04-06)
+## Test 9: Proxyness v1.24.0 UDP vs WireGuard (2026-04-06)
 
-> Side-by-side comparison on same machine, same time. SmurovProxy: Aeza NL (95.181.162.242). WireGuard/Amnezia: Timeweb (82.97.246.65).
+> Side-by-side comparison on same machine, same time. Proxyness: Aeza NL (95.181.162.242). WireGuard/Amnezia: Timeweb (82.97.246.65).
 
-### SmurovProxy UDP v1.24.0
+### Proxyness UDP v1.24.0
 
 **External IP:** 95.181.162.242
 
@@ -492,27 +492,27 @@
 
 ### Head-to-head
 
-| Metric              | SmurovProxy UDP | WireGuard | Winner        |
+| Metric              | Proxyness UDP | WireGuard | Winner        |
 |---------------------|-----------------|-----------|---------------|
-| Ping 8.8.8.8        | **61 ms**       | 100 ms    | SmurovProxy   |
-| DNS avg             | **63 ms**       | 104 ms    | SmurovProxy   |
+| Ping 8.8.8.8        | **61 ms**       | 100 ms    | Proxyness   |
+| DNS avg             | **63 ms**       | 104 ms    | Proxyness   |
 | TTFB google.com     | 0.94 s          | **0.66 s**| WireGuard     |
-| TTFB github.com     | **0.38 s**      | 0.49 s    | SmurovProxy   |
-| TTFB telegram.org   | **0.43 s**      | 0.70 s    | SmurovProxy   |
-| Download            | **5.0 MB/s**    | 2.6 MB/s  | SmurovProxy   |
+| TTFB github.com     | **0.38 s**      | 0.49 s    | Proxyness   |
+| TTFB telegram.org   | **0.43 s**      | 0.70 s    | Proxyness   |
+| Download            | **5.0 MB/s**    | 2.6 MB/s  | Proxyness   |
 | Upload              | 4.6 MB/s        | **6.3 MB/s**| WireGuard   |
 
 ### Выводы
-- **Download**: SmurovProxy **1.9x быстрее** (5.0 vs 2.6 MB/s)
+- **Download**: Proxyness **1.9x быстрее** (5.0 vs 2.6 MB/s)
 - **Upload**: WireGuard **1.4x быстрее** (6.3 vs 4.6 MB/s)
-- **Ping**: SmurovProxy **39% быстрее** (61 vs 100 ms) — разные VPS, но Aeza route лучше
-- **DNS**: SmurovProxy **1.7x быстрее** — резолвинг локальный
-- **TTFB**: SmurovProxy быстрее на github/telegram, WireGuard быстрее на google — примерный паритет
+- **Ping**: Proxyness **39% быстрее** (61 vs 100 ms) — разные VPS, но Aeza route лучше
+- **DNS**: Proxyness **1.7x быстрее** — резолвинг локальный
+- **TTFB**: Proxyness быстрее на github/telegram, WireGuard быстрее на google — примерный паритет
 - **Важно**: серверы разные (Aeza NL vs Timeweb), не полностью чистое сравнение
 
 ---
 
-## Test 10: SmurovProxy UDP vs TLS — same server (2026-04-06)
+## Test 10: Proxyness UDP vs TLS — same server (2026-04-06)
 
 > Back-to-back comparison on same machine, same server (Aeza NL 95.181.162.242). v1.24.0.
 

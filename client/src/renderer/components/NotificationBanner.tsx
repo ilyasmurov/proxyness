@@ -162,17 +162,17 @@ export function NotificationBanner() {
       display: "flex", alignItems: "center", gap: 10,
       padding: "8px 12px", borderRadius: 6,
       background: tc.bg, border: `1px solid ${tc.border}`,
-      animation: "smurov-blur-fade 0.35s cubic-bezier(0.25,1,0.5,1) both",
+      animation: "pn-blur-fade 0.35s cubic-bezier(0.25,1,0.5,1) both",
     }}>
-      <div style={{ animation: "smurov-blur-dot 0.3s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
+      <div style={{ animation: "pn-blur-dot 0.3s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>
         <NotifIcon type={tc.icon} color={tc.accent} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 12, fontWeight: 600, color: "oklch(0.93 0.006 250)", animation: "smurov-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.12s both" }}>
+        <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 12, fontWeight: 600, color: "oklch(0.93 0.006 250)", animation: "pn-blur-heavy 0.4s cubic-bezier(0.25,1,0.5,1) 0.12s both" }}>
           {notif.title}
         </div>
         {notif.message && (
-          <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 11, color: "oklch(0.40 0.01 250)", marginTop: 1, animation: "smurov-blur-light 0.35s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>
+          <div style={{ fontFamily: "'Figtree', system-ui, sans-serif", fontSize: 11, color: "oklch(0.40 0.01 250)", marginTop: 1, animation: "pn-blur-light 0.35s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>
             {notif.message}
           </div>
         )}
@@ -185,7 +185,7 @@ export function NotificationBanner() {
             fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
             background: `${tc.accent}26`, border: `1px solid ${tc.accent}40`, color: tc.accent,
             transition: "all 0.1s", whiteSpace: "nowrap" as const,
-            animation: "smurov-blur-badge 0.3s cubic-bezier(0.25,1,0.5,1) 0.25s both",
+            animation: "pn-blur-badge 0.3s cubic-bezier(0.25,1,0.5,1) 0.25s both",
           }}
         >
           {notif.action.label}
@@ -196,7 +196,7 @@ export function NotificationBanner() {
         style={{
           background: "none", border: "none", color: "oklch(0.40 0.01 250)",
           cursor: "pointer", fontSize: 14, padding: "0 2px", lineHeight: 1, flexShrink: 0,
-          animation: "smurov-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.3s both",
+          animation: "pn-blur-fade 0.3s cubic-bezier(0.25,1,0.5,1) 0.3s both",
           transition: "color 0.1s",
         }}
         onMouseEnter={(e) => { e.currentTarget.style.color = "oklch(0.93 0.006 250)"; }}

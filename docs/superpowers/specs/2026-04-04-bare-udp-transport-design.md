@@ -2,7 +2,7 @@
 
 ## Overview
 
-Add UDP-based transport to SmurovProxy alongside existing TLS/TCP. UDP is the primary transport for lower latency and higher throughput; TLS/TCP remains as fallback for networks that block UDP. The protocol disguises itself as QUIC traffic on port 443 to resist DPI detection by RKN.
+Add UDP-based transport to Proxyness alongside existing TLS/TCP. UDP is the primary transport for lower latency and higher throughput; TLS/TCP remains as fallback for networks that block UDP. The protocol disguises itself as QUIC traffic on port 443 to resist DPI detection by RKN.
 
 ## Goals
 

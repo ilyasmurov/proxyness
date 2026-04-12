@@ -94,9 +94,9 @@ async function loadActiveTabState() {
 
 function renderPairing(initialError) {
   root.innerHTML = `
-    <div class="title">Pair with Smurov Proxy</div>
+    <div class="title">Pair with Proxyness</div>
     <div class="subtitle">
-      Open the Smurov Proxy desktop client → Browser Extension tab,
+      Open the Proxyness desktop client → Browser Extension tab,
       copy the token, paste it below.
     </div>
     <input type="text" id="token" placeholder="abc123..." autofocus>
@@ -131,7 +131,7 @@ async function tryPair(token) {
 function renderDaemonDown() {
   root.innerHTML = `
     <div class="title">Daemon not running</div>
-    <div class="subtitle">Start the Smurov Proxy desktop client.</div>
+    <div class="subtitle">Start the Proxyness desktop client.</div>
     <div class="footer"><a href="#" id="unpair" class="muted">Unpair</a></div>
   `;
   document.getElementById("unpair").addEventListener("click", clearAndRender);
