@@ -16,71 +16,102 @@
 
   shadow.innerHTML = `
     <style>
+      @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap');
       :host { all: initial; }
-      .panel {
+      .fp {
         position: fixed; bottom: 16px; right: 16px;
-        background: #0b0f1a; color: #e8eaf0;
-        border: 1px solid #2a3042; border-radius: 8px;
-        padding: 10px 28px 10px 14px;
-        font-family: -apple-system, system-ui, sans-serif;
-        font-size: 13px; line-height: 1.4;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-        max-width: 300px;
+        font-family: 'Figtree', system-ui, sans-serif;
+        font-size: 12px; color: oklch(0.93 0.006 250);
+        background: oklch(0.12 0.014 250);
+        border: 1px solid oklch(0.24 0.013 250);
+        border-radius: 8px;
+        box-shadow: 0 6px 24px oklch(0 0 0 / 0.45);
+        width: max-content; max-width: 300px;
+        display: flex;
+        overflow: hidden;
         opacity: 0;
         transition: opacity 0.2s;
         cursor: grab;
         user-select: none;
       }
-      .panel.visible { opacity: 1; }
-      .panel.collapsed { padding: 8px 28px 8px 12px; }
-      .panel.dragging { cursor: grabbing; transition: none; }
-      .row { display: flex; align-items: center; gap: 8px; }
-      .icon { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
-      .icon.green { background: #22c55e; }
-      .icon.gray  { background: #6b7280; }
-      .icon.red   { background: #ef4444; }
-      .icon.yellow { background: #eab308; }
-      .label { font-weight: 500; }
-      .actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-      button {
-        background: #3b82f6; color: #fff; border: none;
-        padding: 6px 10px; border-radius: 4px; cursor: pointer;
-        font-size: 12px; font-weight: 500;
-        font-family: inherit;
+      @keyframes fp-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      .fp.visible { opacity: 1; animation: fp-enter 0.25s ease-out; }
+      .fp.dragging { cursor: grabbing; transition: none; }
+      .fp-accent {
+        width: 3px; flex-shrink: 0;
+        transition: background 0.2s;
       }
-      button:hover { background: #2563eb; }
-      button.dismiss { background: #374151; }
-      button.dismiss:hover { background: #4b5563; }
-      .hint { color: #9ca3af; font-size: 11px; margin-top: 6px; }
-      .count { color: #eab308; font-size: 11px; margin-top: 4px; font-weight: 500; }
-      .close {
-        position: absolute;
-        top: 4px; right: 4px;
-        background: transparent;
-        color: #6b7280;
-        border: none;
-        cursor: pointer;
-        font-size: 16px;
-        line-height: 1;
-        padding: 2px 6px;
-        font-weight: 400;
+      .fp-accent.gn { background: oklch(0.72 0.15 150); }
+      .fp-accent.gr { background: oklch(0.42 0.01 250); }
+      .fp-accent.am { background: oklch(0.78 0.155 75); }
+      .fp-accent.rd { background: oklch(0.62 0.19 25); }
+      .fp-content {
+        padding: 9px 12px; flex: 1; min-width: 0;
       }
-      .close:hover { background: transparent; color: #e8eaf0; }
+      .fp-row {
+        display: flex; align-items: center; gap: 7px;
+      }
+      .fp-ghost {
+        width: 14px; height: 14px;
+        flex-shrink: 0; opacity: 0.4;
+      }
+      .fp-label {
+        font-weight: 500; font-size: 12px;
+        flex: 1; min-width: 0;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .fp-label .host { font-weight: 600; }
+      .fp-label .st { color: oklch(0.60 0.012 250); margin-left: 3px; }
+      .fp-close {
+        width: 16px; height: 16px;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 3px; border: none;
+        background: transparent; color: oklch(0.42 0.01 250);
+        font-size: 13px; cursor: pointer;
+        flex-shrink: 0; line-height: 1;
+        padding: 0;
+      }
+      .fp-close:hover { color: oklch(0.60 0.012 250); background: oklch(0.19 0.018 250); }
+      .fp-hint {
+        font-size: 10px; color: oklch(0.60 0.012 250);
+        margin-top: 4px; padding-left: 21px; line-height: 1.4;
+      }
+      .fp-count {
+        font-size: 10px; font-weight: 600;
+        color: oklch(0.78 0.155 75);
+        margin-top: 2px; padding-left: 21px;
+      }
+      .fp-actions {
+        display: flex; gap: 5px;
+        margin-top: 6px; padding-left: 21px;
+      }
+      .fp-btn {
+        padding: 4px 9px; border-radius: 4px; border: none;
+        font-family: 'Figtree', system-ui, sans-serif;
+        font-size: 10px; font-weight: 600; cursor: pointer;
+      }
+      .fp-btn.primary { background: oklch(0.78 0.155 75); color: oklch(0.18 0.03 75); }
+      .fp-btn.primary:hover { background: oklch(0.82 0.14 75); }
+      .fp-btn.ghost { background: oklch(0.19 0.018 250); color: oklch(0.60 0.012 250); }
+      .fp-btn.ghost:hover { background: oklch(0.23 0.016 250); color: oklch(0.93 0.006 250); }
     </style>
-    <div class="panel collapsed" id="panel">
-      <button class="close" id="close" title="Hide panel">×</button>
-      <div class="row">
-        <div class="icon gray" id="icon"></div>
-        <div class="label" id="label">…</div>
+    <div class="fp" id="panel">
+      <div class="fp-accent" id="accent"></div>
+      <div class="fp-content">
+        <div class="fp-row">
+          <svg class="fp-ghost" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+          <div class="fp-label" id="label">…</div>
+          <button class="fp-close" id="close" title="Hide panel">&times;</button>
+        </div>
+        <div id="hint" class="fp-hint" style="display:none;"></div>
+        <div id="count" class="fp-count" style="display:none;"></div>
+        <div id="actions" class="fp-actions" style="display:none;"></div>
       </div>
-      <div id="hint" class="hint" style="display:none;"></div>
-      <div id="count" class="count" style="display:none;"></div>
-      <div id="actions" class="actions" style="display:none;"></div>
     </div>
   `;
 
   const panel = shadow.getElementById("panel");
-  const iconEl = shadow.getElementById("icon");
+  const accentEl = shadow.getElementById("accent");
   const labelEl = shadow.getElementById("label");
   const actionsEl = shadow.getElementById("actions");
   const hintEl = shadow.getElementById("hint");
@@ -200,41 +231,41 @@
     }
 
     // Reset dynamic bits before each render.
+    accentEl.className = "fp-accent";
     actionsEl.innerHTML = "";
     actionsEl.style.display = "none";
     hintEl.style.display = "none";
     hintEl.textContent = "";
     countEl.style.display = "none";
     countEl.textContent = "";
-    panel.classList.add("collapsed");
 
     switch (s.state) {
       case "down":
-        iconEl.className = "icon red";
-        labelEl.textContent = "Daemon not running";
-        hintEl.textContent = "Open the Proxyness desktop app";
+        accentEl.className = "fp-accent rd";
+        labelEl.innerHTML = '<span class="st">App not running</span>';
+        hintEl.textContent = "Start the Proxyness desktop app";
         hintEl.style.display = "block";
-        panel.classList.remove("collapsed");
         panel.classList.add("visible");
         break;
 
       case "proxied":
-        iconEl.className = "icon green";
-        labelEl.textContent = `✓ ${s.host} proxied`;
+        accentEl.className = "fp-accent gn";
+        labelEl.innerHTML = `<span class="host">${s.host}</span> <span class="st">proxied</span>`;
         panel.classList.add("visible");
         break;
 
       case "discovering":
-        iconEl.className = "icon yellow";
-        labelEl.textContent = `${s.host} · discovering domains`;
-        hintEl.textContent = "Browse the site and start videos — I'll pick up the CDNs and dynamic hosts you need.";
+        accentEl.className = "fp-accent am";
+        labelEl.innerHTML = `<span class="host">${s.host}</span> <span class="st">scanning</span>`;
+        hintEl.textContent = "Browse around — I'll pick up CDN hosts";
         hintEl.style.display = "block";
         if (typeof s.discoveredCount === "number" && s.discoveredCount > 0) {
           const n = s.discoveredCount;
-          countEl.textContent = `Added ${n} new domain${n === 1 ? "" : "s"}`;
+          countEl.textContent = `+${n} domain${n === 1 ? "" : "s"} added`;
           countEl.style.display = "block";
           const reloadBtn = document.createElement("button");
-          reloadBtn.textContent = "Reload page";
+          reloadBtn.className = "fp-btn primary";
+          reloadBtn.textContent = "Reload";
           reloadBtn.addEventListener("click", (e) => {
             e.stopPropagation();
             location.reload();
@@ -245,22 +276,22 @@
         // any domains have been picked up — the user may want to dismiss
         // the panel on a site where discovery isn't going to find anything.
         const finishBtn = document.createElement("button");
-        finishBtn.className = "dismiss";
-        finishBtn.textContent = "Finish scanning";
+        finishBtn.className = "fp-btn ghost";
+        finishBtn.textContent = "Finish";
         finishBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           chrome.runtime.sendMessage({ type: "finish_discovery" });
         });
         actionsEl.appendChild(finishBtn);
         actionsEl.style.display = "flex";
-        panel.classList.remove("collapsed");
         panel.classList.add("visible");
         break;
 
       case "add": {
-        iconEl.className = "icon gray";
-        labelEl.textContent = `${s.host} not in proxy`;
+        accentEl.className = "fp-accent gr";
+        labelEl.innerHTML = `<span class="host">${s.host}</span> <span class="st">not proxied</span>`;
         const addBtn = document.createElement("button");
+        addBtn.className = "fp-btn primary";
         addBtn.textContent = "Add to proxy";
         addBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -268,15 +299,15 @@
         });
         actionsEl.appendChild(addBtn);
         actionsEl.style.display = "flex";
-        panel.classList.remove("collapsed");
         panel.classList.add("visible");
         break;
       }
 
       case "catalog_disabled": {
-        iconEl.className = "icon gray";
-        labelEl.textContent = `${s.host} off`;
+        accentEl.className = "fp-accent gr";
+        labelEl.innerHTML = `<span class="host">${s.host}</span> <span class="st">disabled</span>`;
         const enableBtn = document.createElement("button");
+        enableBtn.className = "fp-btn primary";
         enableBtn.textContent = "Enable";
         enableBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -289,15 +320,15 @@
         });
         actionsEl.appendChild(enableBtn);
         actionsEl.style.display = "flex";
-        panel.classList.remove("collapsed");
         panel.classList.add("visible");
         break;
       }
 
       case "blocked": {
-        iconEl.className = "icon red";
-        labelEl.textContent = `${s.host} blocked`;
+        accentEl.className = "fp-accent rd";
+        labelEl.innerHTML = `<span class="host">${s.host}</span> <span class="st">blocked</span>`;
         const fixBtn = document.createElement("button");
+        fixBtn.className = "fp-btn primary";
         fixBtn.textContent = "Add to proxy";
         fixBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -305,7 +336,7 @@
         });
         actionsEl.appendChild(fixBtn);
         const dismissBtn = document.createElement("button");
-        dismissBtn.className = "dismiss";
+        dismissBtn.className = "fp-btn ghost";
         dismissBtn.textContent = "Dismiss";
         dismissBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -314,7 +345,6 @@
         });
         actionsEl.appendChild(dismissBtn);
         actionsEl.style.display = "flex";
-        panel.classList.remove("collapsed");
         panel.classList.add("visible");
         break;
       }
