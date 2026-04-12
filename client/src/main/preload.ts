@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld("appInfo", {
     ipcRenderer.send("show-notification", { title, body }),
   getSeedSites: () => ipcRenderer.invoke("get-seed-sites"),
   getDaemonToken: () => ipcRenderer.invoke("get-daemon-token"),
+  getHelperStatus: () => ipcRenderer.invoke("get-helper-status"),
+  restartDaemon: () => ipcRenderer.invoke("restart-daemon"),
+  restartHelper: () => ipcRenderer.invoke("restart-helper"),
   daemonSetEnabled: (siteId: number, enabled: boolean) =>
     ipcRenderer.invoke("daemon-set-enabled", siteId, enabled),
   daemonAddSite: (primaryDomain: string, label: string) =>

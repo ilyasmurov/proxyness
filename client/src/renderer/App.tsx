@@ -50,11 +50,12 @@ const STORAGE_KEY = "proxyness-key";
 // ---------------------------------------------------------------------------
 type SettingsSection = "general" | "extension" | "account" | "diagnostics";
 
-function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, isConnected, c, fd, fb, fm }: {
+function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, onHelperError, isConnected, c, fd, fb, fm }: {
   version: string;
   transportMode: string;
   onTransportChange: (mode: string) => void;
   onChangeKey: () => void;
+  onHelperError?: (err: string) => void;
   isConnected: boolean;
   c: Record<string, string>;
   fd: string; fb: string; fm: string;
@@ -261,7 +262,7 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
         {section === "diagnostics" && (
           <>
             <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4, animation: anim("heavy", 0.05) }}>Diagnostics</div>
-            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5, animation: anim("light", 0.1) }}>View daemon and helper output.</div>
+            <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5, animation: anim("light", 0.1) }}>View logs and manage background processes.</div>
 
             {fieldLabel("Logs", 0.15)}
             <div style={{ display: "flex", alignItems: "center", gap: 12, animation: anim("row", 0.2) }}>
@@ -269,6 +270,26 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
                 Open the log viewer window.
               </span>
               {sBtn("Open Logs", () => (window as any).appInfo?.openLogs())}
+            </div>
+
+            {fieldLabel("Daemon", 0.3)}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, animation: anim("row", 0.35) }}>
+              <span style={{ fontFamily: fb, fontSize: 13, color: c.t2, flex: 1 }}>
+                Local SOCKS5 + TUN proxy engine.
+              </span>
+              {sBtn("Restart", () => (window as any).appInfo?.restartDaemon())}
+            </div>
+
+            {fieldLabel("Helper", 0.45)}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, animation: anim("row", 0.5) }}>
+              <span style={{ fontFamily: fb, fontSize: 13, color: c.t2, flex: 1 }}>
+                Privileged TUN device manager.
+              </span>
+              {sBtn("Restart", async () => {
+                const s = await (window as any).appInfo?.restartHelper();
+                if (s && !s.ok) onHelperError?.(s.error);
+                else onHelperError?.("");
+              })}
             </div>
           </>
         )}
@@ -280,6 +301,15 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
 export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [showSetup, setShowSetup] = useState(!key);
+  const [keyError, setKeyError] = useState("");
+  const [keyValidating, setKeyValidating] = useState(false);
+  const [helperError, setHelperError] = useState("");
+
+  // Fatal errors that mean the key/device can't connect — kick to setup
+  const isKeyRejected = (err: string) =>
+    err.includes("bound to a different machine") ||
+    err.includes("machine id rejected") ||
+    err.includes("invalid key");
   const [version, setVersion] = useState("");
   const [activeTab, setActiveTab] = useState<"main" | "settings">("main");
   const [trafficMode, setTrafficMode] = useState<"all" | "selected">("all");
@@ -311,6 +341,9 @@ export function App() {
 
   useEffect(() => {
     (window as any).appInfo?.getVersion().then((v: string) => setVersion(v));
+    (window as any).appInfo?.getHelperStatus?.().then((s: { ok: boolean; error: string }) => {
+      if (!s.ok) setHelperError(s.error);
+    });
     // Send stored key to main process so config poller can start
     const storedKey = localStorage.getItem(STORAGE_KEY);
     if (storedKey) (window as any).updater?.storeKey(storedKey);
@@ -394,9 +427,11 @@ export function App() {
           // Only fire client-side startReconnect on a HARD disconnect, not
           // while the daemon is still trying to reconnect on its own.
           if (wasConnected.current && !active && next !== "reconnecting" && s.error) {
-            if (s.error.includes("bound to a different machine")) {
+            if (isKeyRejected(s.error)) {
+              (window as any).sysproxy?.disable();
               localStorage.removeItem(STORAGE_KEY);
               setKey("");
+              setKeyError(s.error);
               setShowSetup(true);
             } else {
               startReconnect();
@@ -420,9 +455,11 @@ export function App() {
   useEffect(() => {
     if (proxyMode !== "socks5") return;
     if (socksError && !reconnecting && key) {
-      if (socksError.includes("bound to a different machine")) {
+      if (isKeyRejected(socksError)) {
+        (window as any).sysproxy?.disable();
         localStorage.removeItem(STORAGE_KEY);
         setKey("");
+        setKeyError(socksError);
         setShowSetup(true);
       } else {
         startReconnect();
@@ -494,7 +531,17 @@ export function App() {
       // Start TUN for apps
       const result = await (window as any).tunProxy?.start(server, k);
       if (result && !result.ok) {
-        setTunError(result.error || "Failed to connect");
+        const err = result.error || "Failed to connect";
+        if (isKeyRejected(err)) {
+          (window as any).sysproxy?.disable();
+          disconnect();
+          localStorage.removeItem(STORAGE_KEY);
+          setKey("");
+          setKeyError(err);
+          setShowSetup(true);
+          return;
+        }
+        setTunError(err);
       } else {
         setTunStatus("active");
       }
@@ -630,13 +677,29 @@ export function App() {
   }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect]);
 
 
-  const connectWithKey = (k: string) => {
+  const connectWithKey = async (k: string) => {
     const trimmed = k.trim();
     if (!trimmed) return;
+    setKeyError("");
+    setKeyValidating(true);
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:9090/validate-key?server=${encodeURIComponent(SERVER)}&key=${encodeURIComponent(trimmed)}`
+      );
+      const body = await res.json();
+      if (!body.valid) {
+        setKeyError("Invalid key");
+        return;
+      }
+    } catch {
+      setKeyError("Server unreachable");
+      return;
+    } finally {
+      setKeyValidating(false);
+    }
     localStorage.setItem(STORAGE_KEY, trimmed);
     setKey(trimmed);
     setShowSetup(false);
-    // Tell main process the key so it can poll config
     (window as any).updater?.storeKey(trimmed);
     if (proxyMode === "tun") {
       tunConnect(SERVER, trimmed);
@@ -878,6 +941,14 @@ export function App() {
                   <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
                     Restoring connection
                   </span>
+                ) : helperError ? (
+                  <span style={{ fontFamily: fb, fontSize: 12, color: "oklch(0.65 0.2 25)", animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                    Helper failed: {helperError}
+                  </span>
+                ) : currentError ? (
+                  <span style={{ fontFamily: fb, fontSize: 12, color: "oklch(0.65 0.2 25)", animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
+                    {currentError}
+                  </span>
                 ) : (
                   <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
                     Ready to connect
@@ -926,7 +997,7 @@ export function App() {
                     else connect(SERVER, key);
                   }
                 }}
-                disabled={isLoading && !reconnecting && !daemonReconnecting}
+                disabled={(isLoading && !reconnecting && !daemonReconnecting) || (!isConnected && !!helperError)}
                 style={{
                   fontFamily: fd, fontWeight: 600, letterSpacing: 0.5,
                   borderRadius: 4, cursor: "pointer",
@@ -938,6 +1009,12 @@ export function App() {
                     background: c.rdb,
                     border: "1px solid oklch(0.62 0.19 25 / 0.15)",
                     color: c.rd,
+                  } : !isConnected && helperError ? {
+                    fontSize: 13, padding: "8px 24px", minWidth: 100,
+                    background: c.bg2,
+                    border: `1px solid ${c.b1}`,
+                    color: c.t3,
+                    cursor: "not-allowed",
                   } : {
                     fontSize: 13, padding: "8px 24px", minWidth: 100,
                     background: c.amb,
@@ -1090,22 +1167,22 @@ export function App() {
                   width: "100%", padding: "10px 14px",
                   background: "oklch(0.155 0.016 250 / 0.7)",
                   backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
-                  border: `1px solid ${c.b1}`, borderRadius: 5,
+                  border: `1px solid ${keyError ? "oklch(0.65 0.2 25)" : c.b1}`, borderRadius: 5,
                   color: c.t1, fontFamily: fb, fontSize: 14,
                   outline: "none", transition: "border-color 0.15s",
                   animation: "pn-blur-light 0.5s cubic-bezier(0.25,1,0.5,1) 0.5s both",
                 }}
                 type="password"
                 value={key}
-                onChange={(e) => setKey(e.target.value)}
+                onChange={(e) => { setKey(e.target.value); setKeyError(""); }}
                 placeholder="Paste your access key"
                 onPaste={handlePaste}
-                onKeyDown={(e) => e.key === "Enter" && connectWithKey(key)}
-                onFocus={(e) => { e.currentTarget.style.borderColor = c.am; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = c.b1; }}
+                onKeyDown={(e) => e.key === "Enter" && !keyValidating && connectWithKey(key)}
+                onFocus={(e) => { e.currentTarget.style.borderColor = keyError ? "oklch(0.65 0.2 25)" : c.am; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = keyError ? "oklch(0.65 0.2 25)" : c.b1; }}
               />
-              <div style={{ fontFamily: fb, fontSize: 11, color: c.t3, marginTop: 10, animation: "pn-blur-fade 0.4s cubic-bezier(0.25,1,0.5,1) 0.6s both" }}>
-                {isLoading ? "Connecting..." : "Paste the key — connection starts automatically"}
+              <div style={{ fontFamily: fb, fontSize: 11, color: keyError ? "oklch(0.65 0.2 25)" : c.t3, marginTop: 10, animation: "pn-blur-fade 0.4s cubic-bezier(0.25,1,0.5,1) 0.6s both" }}>
+                {keyValidating ? "Checking key..." : keyError || "Paste your access key and press Enter"}
               </div>
             </div>
           </div>
@@ -1116,6 +1193,7 @@ export function App() {
           transportMode={transportMode}
           onTransportChange={handleTransportChange}
           onChangeKey={handleReset}
+          onHelperError={setHelperError}
           isConnected={isConnected}
           c={c} fd={fd} fb={fb} fm={fm}
         />

@@ -2,7 +2,7 @@ import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, powerMonit
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
-import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs, waitForDaemonReady } from "./daemon";
+import { startDaemon, stopDaemon, startHelper, stopHelper, getLogs, clearLogs, waitForDaemonReady, waitForHelperReady, getHelperStatus } from "./daemon";
 import { enableSystemProxy, disableSystemProxy } from "./sysproxy";
 import { getInstalledApps } from "./apps";
 import { getDaemonToken, cachedDaemonToken } from "./extension";
@@ -263,6 +263,16 @@ async function runBoot(): Promise<boolean> {
     sendLoaderStatus("helper", "Starting helper...");
   }
   startHelper();
+  // Give the helper 500ms to settle — if it exits immediately (e.g. socket
+  // bind conflict with a launchd-managed instance), we catch it here and
+  // surface the error to the renderer instead of letting the user discover
+  // it only after pressing Connect.
+  const hs = await waitForHelperReady();
+  if (!hs.ok) {
+    sendLoaderStatus("helper-error", hs.error);
+    // Don't block boot — daemon is fine, the user just can't use TUN until
+    // the helper issue is resolved. The renderer will check helper status.
+  }
   sendLoaderStatus("ready", "Ready");
   return true;
 }
@@ -658,6 +668,20 @@ function setupIpc() {
   });
 
   ipcMain.handle("get-version", () => app.getVersion());
+  ipcMain.handle("get-helper-status", () => getHelperStatus());
+
+  ipcMain.handle("restart-daemon", async () => {
+    stopDaemon();
+    startDaemon();
+    const ok = await waitForDaemonReady();
+    return { ok };
+  });
+
+  ipcMain.handle("restart-helper", async () => {
+    stopHelper();
+    startHelper();
+    return waitForHelperReady();
+  });
 
   ipcMain.on("window-close", () => {
     mainWindow?.hide();

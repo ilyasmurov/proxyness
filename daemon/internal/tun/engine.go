@@ -65,7 +65,7 @@ type Engine struct {
 	stopHealth       chan struct{}
 
 	connsMu sync.Mutex
-	conns   map[uint64]net.Conn
+	conns   map[uint64]trackedConn
 	connSeq uint64
 
 	// streamOpenFailures counts consecutive OpenStream errors from the
@@ -91,7 +91,7 @@ func NewEngine(meter *dstats.RateMeter) *Engine {
 		rules:    NewRules(),
 		selfPath: selfPath,
 		meter:    meter,
-		conns:    make(map[uint64]net.Conn),
+		conns:    make(map[uint64]trackedConn),
 	}
 }
 
@@ -167,22 +167,59 @@ func (e *Engine) setConnected() {
 	log.Printf("[tun] → active (recovered)")
 }
 
-// UpdateRules applies new rules and closes all active connections so apps
-// reconnect with the updated routing policy.
+type trackedConn struct {
+	conn    net.Conn
+	appPath string // empty for DNS/unresolved connections
+}
+
+// UpdateRules applies new rules and closes only connections whose routing
+// policy actually changed (e.g. an app was toggled on/off). Connections
+// belonging to unchanged apps stay alive.
 func (e *Engine) UpdateRules(data []byte) error {
+	// Snapshot current ShouldProxy results before applying new rules.
+	e.connsMu.Lock()
+	type verdict struct {
+		tc       trackedConn
+		oldProxy bool
+	}
+	snap := make(map[uint64]verdict, len(e.conns))
+	for id, tc := range e.conns {
+		old := true
+		if tc.appPath != "" {
+			old = e.rules.ShouldProxy(tc.appPath)
+		}
+		snap[id] = verdict{tc, old}
+	}
+	e.connsMu.Unlock()
+
 	if err := e.rules.FromJSON(data); err != nil {
 		return err
 	}
-	e.closeAllConns()
+
+	// Close only connections whose routing changed.
+	var closed int
+	for _, v := range snap {
+		if v.tc.appPath == "" {
+			continue // DNS or unknown — no app to re-evaluate
+		}
+		newProxy := e.rules.ShouldProxy(v.tc.appPath)
+		if newProxy != v.oldProxy {
+			v.tc.conn.Close()
+			closed++
+		}
+	}
+	if closed > 0 {
+		log.Printf("[tun] closed %d connections after rules update (kept %d)", closed, len(snap)-closed)
+	}
 	return nil
 }
 
-func (e *Engine) trackConn(c net.Conn) uint64 {
+func (e *Engine) trackConn(c net.Conn, appPath string) uint64 {
 	e.connsMu.Lock()
 	defer e.connsMu.Unlock()
 	e.connSeq++
 	id := e.connSeq
-	e.conns[id] = c
+	e.conns[id] = trackedConn{conn: c, appPath: appPath}
 	return id
 }
 
@@ -194,16 +231,18 @@ func (e *Engine) untrackConn(id uint64) {
 
 func (e *Engine) closeAllConns() {
 	e.connsMu.Lock()
-	snapshot := make(map[uint64]net.Conn, len(e.conns))
-	for k, v := range e.conns {
-		snapshot[k] = v
+	snapshot := make([]net.Conn, 0, len(e.conns))
+	for _, tc := range e.conns {
+		snapshot = append(snapshot, tc.conn)
 	}
 	e.connsMu.Unlock()
 
 	for _, c := range snapshot {
 		c.Close()
 	}
-	log.Printf("[tun] closed %d connections after rules update", len(snapshot))
+	if len(snapshot) > 0 {
+		log.Printf("[tun] closed %d connections", len(snapshot))
+	}
 }
 
 type StartRequest struct {
@@ -836,7 +875,7 @@ func (e *Engine) handleTCP(r *tcp.ForwarderRequest) {
 	r.Complete(false)
 
 	conn := gonet.NewTCPConn(&wq, ep)
-	connID := e.trackConn(conn)
+	connID := e.trackConn(conn, appPath)
 	defer func() {
 		e.untrackConn(connID)
 		conn.Close()
@@ -972,7 +1011,7 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 			return
 		}
 		conn := gonet.NewUDPConn(&wq, ep)
-		connID := e.trackConn(conn)
+		connID := e.trackConn(conn, "")
 		go func() {
 			defer e.untrackConn(connID)
 			e.bypassUDP(conn, dstAddr, dstPort)
@@ -1001,7 +1040,7 @@ func (e *Engine) handleUDP(r *udp.ForwarderRequest) {
 	}
 
 	conn := gonet.NewUDPConn(&wq, ep)
-	connID := e.trackConn(conn)
+	connID := e.trackConn(conn, appPath)
 
 	if shouldProxy {
 		go func() {

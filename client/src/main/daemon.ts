@@ -1,5 +1,6 @@
 import { ChildProcess, spawn, execFileSync } from "child_process";
 import path from "path";
+import { createConnection } from "node:net";
 import { app } from "electron";
 
 let daemonProcess: ChildProcess | null = null;
@@ -212,6 +213,54 @@ export function stopDaemon(): void {
 }
 
 let helperProcess: ChildProcess | null = null;
+let helperStatus: { ok: boolean; error: string } = { ok: true, error: "" };
+
+export async function getHelperStatus(): Promise<{ ok: boolean; error: string }> {
+  if (process.platform === "darwin" && app.isPackaged) {
+    return { ok: true, error: "" };
+  }
+  if (!helperStatus.ok && await probeHelperSocket()) {
+    helperStatus = { ok: true, error: "" };
+  }
+  return { ...helperStatus };
+}
+
+// Wait for the helper to settle after spawn. If it exits quickly (e.g.
+// socket bind failure), the exit handler fires within milliseconds —
+// 500ms is plenty to catch that without slowing boot on the happy path.
+// If our spawned helper dies but the socket is reachable (another instance
+// running via sudo or launchd), report ok.
+export async function waitForHelperReady(timeoutMs: number = 500): Promise<{ ok: boolean; error: string }> {
+  if (process.platform === "darwin" && app.isPackaged) {
+    return { ok: true, error: "" };
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!helperProcess) {
+      if (!helperStatus.ok && await probeHelperSocket()) {
+        addLog("helper", "spawned helper exited but another instance is running — ok");
+        helperStatus = { ok: true, error: "" };
+      }
+      return helperStatus;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return helperProcess ? { ok: true, error: "" } : helperStatus;
+}
+
+const HELPER_SOCKET = "/var/run/proxyness-helper.sock";
+
+function probeHelperSocket(): Promise<boolean> {
+  if (process.platform !== "darwin") return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const c = createConnection(HELPER_SOCKET, () => {
+      c.destroy();
+      resolve(true);
+    });
+    c.on("error", () => resolve(false));
+    c.setTimeout(300, () => { c.destroy(); resolve(false); });
+  });
+}
 
 function getHelperPath(): string {
   const resourcesPath = app.isPackaged
@@ -233,7 +282,50 @@ export function startHelper(): void {
   // On macOS, helper is managed by launchd (installed via PKG postinstall)
   if (process.platform === "darwin" && app.isPackaged) return;
 
+  helperStatus = { ok: true, error: "" };
+  let helperOutput = "";
+
   const helperPath = getHelperPath();
+
+  // Dev mode on macOS: helper needs root for TUN device creation, route
+  // management, and binding to /var/run. Use osascript to prompt for admin
+  // password — runs the helper as root in the background.
+  if (process.platform === "darwin" && !app.isPackaged) {
+    const logFile = "/tmp/proxyness-helper.log";
+    const script = `do shell script "` +
+      `'${helperPath}' > '${logFile}' 2>&1 & echo $!" ` +
+      `with administrator privileges`;
+    try {
+      const proc = spawn("osascript", ["-e", script], { stdio: "pipe" });
+      let pidOutput = "";
+      proc.stdout?.on("data", (d: Buffer) => { pidOutput += d.toString(); });
+      proc.on("exit", (code) => {
+        if (code !== 0) {
+          addLog("helper", "admin password dialog cancelled or failed");
+          helperStatus = { ok: false, error: "Admin password required" };
+          return;
+        }
+        const pid = parseInt(pidOutput.trim(), 10);
+        addLog("helper", `started with sudo (pid ${pid}), logs → ${logFile}`);
+        // Poll the log file briefly to catch early failures
+        setTimeout(() => {
+          try {
+            const log = require("fs").readFileSync(logFile, "utf-8");
+            if (log) addLog("helper", log.trim());
+            if (log.includes("bind:") || log.includes("listen:")) {
+              const m = log.match(/listen:.*?(bind:.*)/);
+              helperStatus = { ok: false, error: m ? m[1] : "bind failed" };
+            }
+          } catch {}
+        }, 500);
+      });
+    } catch {
+      addLog("helper", "osascript spawn failed");
+      helperStatus = { ok: false, error: "Failed to request admin privileges" };
+    }
+    return;
+  }
+
   try {
     helperProcess = spawn(helperPath, [], {
       stdio: "pipe",
@@ -242,23 +334,36 @@ export function startHelper(): void {
 
     helperProcess.on("error", (err) => {
       addLog("helper", `failed to start: ${err.message}`);
+      helperStatus = { ok: false, error: err.message };
       helperProcess = null;
     });
 
     helperProcess.stdout?.on("data", (data: Buffer) => {
-      addLog("helper", data.toString());
+      const text = data.toString();
+      addLog("helper", text);
+      helperOutput += text;
     });
 
     helperProcess.stderr?.on("data", (data: Buffer) => {
-      addLog("helper", data.toString());
+      const text = data.toString();
+      addLog("helper", text);
+      helperOutput += text;
     });
 
     helperProcess.on("exit", (code) => {
       addLog("helper", `exited with code ${code}`);
+      if (code !== 0) {
+        const bindErr = helperOutput.match(/listen:.*?(bind:.*)/);
+        helperStatus = {
+          ok: false,
+          error: bindErr ? bindErr[1] : `Helper exited with code ${code}`,
+        };
+      }
       helperProcess = null;
     });
   } catch {
     addLog("helper", "spawn failed");
+    helperStatus = { ok: false, error: "Helper binary not found" };
     helperProcess = null;
   }
 }
@@ -267,5 +372,19 @@ export function stopHelper(): void {
   if (helperProcess) {
     helperProcess.kill("SIGKILL");
     helperProcess = null;
+  }
+  // Dev mode: helper runs as root via osascript — kill by finding the process
+  if (process.platform === "darwin" && !app.isPackaged) {
+    try {
+      const pids = execFileSync("/usr/sbin/lsof", ["-ti", "unix:" + HELPER_SOCKET], {
+        encoding: "utf-8",
+      }).trim();
+      for (const pid of pids.split("\n").filter(Boolean)) {
+        process.kill(parseInt(pid, 10), "SIGKILL");
+        addLog("helper", `killed sudo helper pid=${pid}`);
+      }
+    } catch {
+      // No process found — fine
+    }
   }
 }

@@ -99,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /connect", s.handleConnect)
 	mux.HandleFunc("POST /disconnect", s.handleDisconnect)
+	mux.HandleFunc("GET /validate-key", s.handleValidateKey)
 	mux.HandleFunc("GET /status", s.handleStatus)
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /proxy.pac", s.handlePAC)
@@ -247,6 +248,26 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) handleValidateKey(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.Query().Get("key")
+	server := r.URL.Query().Get("server")
+	if key == "" || server == "" {
+		http.Error(w, "missing key or server", http.StatusBadRequest)
+		return
+	}
+	resp, err := serverHTTPClient().Get("https://" + server + "/api/validate-key?key=" + key)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("server unreachable: %v", err), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	var body json.RawMessage
+	json.NewDecoder(resp.Body).Decode(&body)
+	w.Write(body)
 }
 
 func serverHTTPClient() *http.Client {
