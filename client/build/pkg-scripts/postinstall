@@ -1,6 +1,6 @@
 #!/bin/bash
 
-APP_PATH="/Applications/SmurovProxy.app"
+APP_PATH="/Applications/Proxyness.app"
 HELPER_DIR="/Library/PrivilegedHelperTools"
 HELPER_BIN="$HELPER_DIR/smurov-helper"
 PLIST_PATH="/Library/LaunchDaemons/com.smurov.proxy.helper.plist"
@@ -16,6 +16,9 @@ HELPER_SRC=$(find "$APP_PATH/Contents/Resources/resources" -name "helper-darwin-
 if [ -n "$HELPER_SRC" ]; then
     # Unload previous version if running
     launchctl bootout system/com.smurov.proxy.helper 2>/dev/null || true
+
+    # Clean up stale sockets (old name from pre-rebrand + current)
+    rm -f /var/run/smurov-helper.sock /var/run/proxyness-helper.sock
 
     cp "$HELPER_SRC" "$HELPER_BIN"
     chmod 755 "$HELPER_BIN"
