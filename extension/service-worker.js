@@ -430,4 +430,48 @@ async function handleAddSiteAndReload(tab) {
   chrome.tabs.reload(tab.id);
 }
 
+// ---------- icon state ----------
+
+const ICON_OFF = {
+  16: "icons/icon-16.png",
+  32: "icons/icon-32.png",
+  48: "icons/icon-48.png",
+  128: "icons/icon-128.png",
+};
+const ICON_ON = {
+  16: "icons/icon-on-16.png",
+  32: "icons/icon-on-32.png",
+  48: "icons/icon-on-48.png",
+  128: "icons/icon-on-128.png",
+};
+
+let lastIconConnected = false;
+
+function setIconConnected(connected) {
+  if (connected === lastIconConnected) return;
+  lastIconConnected = connected;
+  chrome.action.setIcon({ path: connected ? ICON_ON : ICON_OFF });
+}
+
+async function pollDaemonStatus() {
+  try {
+    const resp = await fetch("http://127.0.0.1:9090/status");
+    if (resp.ok) {
+      const data = await resp.json();
+      setIconConnected(data.status === "connected");
+    } else {
+      setIconConnected(false);
+    }
+  } catch {
+    setIconConnected(false);
+  }
+}
+
+// Poll every 3 seconds. Service worker wakes on alarms even after idle.
+chrome.alarms.create("poll-status", { periodInMinutes: 0.05 }); // ~3s
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "poll-status") pollDaemonStatus();
+});
+pollDaemonStatus();
+
 console.log("[proxyness] service worker loaded");

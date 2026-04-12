@@ -269,7 +269,7 @@ async function runBoot(): Promise<boolean> {
   // it only after pressing Connect.
   const hs = await waitForHelperReady();
   if (!hs.ok) {
-    sendLoaderStatus("helper-error", hs.error);
+    sendLoaderStatus("error", `Helper: ${hs.error}`);
     // Don't block boot — daemon is fine, the user just can't use TUN until
     // the helper issue is resolved. The renderer will check helper status.
   }
