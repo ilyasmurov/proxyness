@@ -53,6 +53,7 @@ type Engine struct {
 	helperConn   net.Conn
 	endpoint     *channel.Endpoint
 	bridgeCancel context.CancelFunc
+	bridgeDone   chan struct{} // signalled by bridge goroutines on exit; healthLoop D4 watches it
 	selfPath      string // daemon's own path — always bypassed to prevent loops
 	rawUDP        *RawUDPHandler
 	helperWriteMu sync.Mutex
@@ -323,8 +324,9 @@ func (e *Engine) Start(req StartRequest) error {
 	// Start bridge: helper IPC ↔ gVisor channel endpoint
 	ctx, cancel := context.WithCancel(context.Background())
 	e.bridgeCancel = cancel
-	go e.bridgeInbound(helperConn, ep)
-	go e.bridgeOutbound(ctx, helperConn, ep)
+	e.bridgeDone = make(chan struct{}, 2)
+	go e.bridgeInbound(helperConn, ep, e.bridgeDone)
+	go e.bridgeOutbound(ctx, helperConn, ep, e.bridgeDone)
 
 	e.status = StatusActive
 	e.startTime = time.Now()
@@ -370,6 +372,7 @@ func (e *Engine) stopLocked() error {
 		e.bridgeCancel()
 		e.bridgeCancel = nil
 	}
+	e.bridgeDone = nil
 
 	if e.rawUDP != nil && e.rawUDP.nat != nil {
 		e.rawUDP.nat.Close()
@@ -464,7 +467,8 @@ func (e *Engine) connectAndCreate(req StartRequest) (net.Conn, error) {
 // goroutine per engine so no synchronization is needed. RawUDPHandler.Handle
 // must also be safe to call against a slice that gets reused on the next
 // iteration — confirmed: it copies anything it needs to keep.
-func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
+func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint, done chan<- struct{}) {
+	defer func() { done <- struct{}{} }()
 	log.Printf("[tun] bridgeInbound started")
 	lenBuf := make([]byte, 2)
 	pktBuf := make([]byte, 2048) // 1500 MTU + headroom; grows if needed
@@ -529,7 +533,8 @@ func (e *Engine) bridgeInbound(r io.Reader, ep *channel.Endpoint) {
 // across iterations and copy via ReadAt straight into it. Single goroutine
 // per engine — no synchronization needed for the buffer itself; the helper
 // write is still serialized via helperWriteMu against bridgeInbound.
-func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.Endpoint) {
+func (e *Engine) bridgeOutbound(ctx context.Context, conn net.Conn, ep *channel.Endpoint, done chan<- struct{}) {
+	defer func() { done <- struct{}{} }()
 	log.Printf("[tun] bridgeOutbound started")
 	frame := make([]byte, 2+2048) // 2-byte length prefix + 1500 MTU + headroom
 	var count int64
@@ -712,10 +717,24 @@ func (e *Engine) healthLoop() {
 	defer ticker.Stop()
 
 	doneCh := e.transportDone()
+	bridgeDone := e.bridgeDone
 	failures := 0
 	for {
 		select {
 		case <-e.stopHealth:
+			return
+
+		case <-bridgeDone:
+			// D4 — TUN bridge lost: helper process died or TUN device
+			// was destroyed. The bridge goroutines are the only path
+			// between the TUN device and gVisor; without them packets
+			// can't flow regardless of transport health. Stop the
+			// engine so the client sees the error and auto-reconnects.
+			log.Printf("[tun] D4: TUN bridge lost (helper disconnected)")
+			e.mu.Lock()
+			e.lastError = "TUN bridge lost, please reconnect"
+			e.stopLocked()
+			e.mu.Unlock()
 			return
 
 		case <-doneCh:

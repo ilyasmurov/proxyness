@@ -69,7 +69,7 @@ func TestEngineSetReconnectingClosesAllConns(t *testing.T) {
 
 	a, b := net.Pipe()
 	defer b.Close()
-	e.trackConn(a)
+	e.trackConn(a, "test")
 
 	e.setReconnecting()
 
