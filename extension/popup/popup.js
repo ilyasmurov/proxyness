@@ -1,5 +1,15 @@
 const root = document.getElementById("root");
 
+// ----- SVG constants -----
+
+const SVG_GHOST_OPEN = `<svg class="p-head-logo" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.60 0.01 250)"/><ellipse cx="50" cy="48" rx="16" ry="14" fill="oklch(0.68 0.12 75)"/><ellipse cx="50" cy="48" rx="8" ry="7" fill="oklch(0.25 0.02 75)"/></svg>`;
+const SVG_GHOST_CLOSED = `<svg class="p-head-logo" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.40 0.01 250)"/><ellipse cx="50" cy="48" rx="16" ry="12" fill="oklch(0.25 0.014 250)"/></svg>`;
+const SVG_ICON_PLUS = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>`;
+const SVG_ICON_EYE_SLASH = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 8c2.5-4 5-5 7-5s4.5 1 7 5c-2.5 4-5 5-7 5s-4.5-1-7-5z"/><line x1="2" y1="14" x2="14" y2="2"/></svg>`;
+const SVG_ICON_EYE = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 8c2.5-4 5-5 7-5s4.5 1 7 5c-2.5 4-5 5-7 5s-4.5-1-7-5z"/><circle cx="8" cy="8" r="2"/></svg>`;
+const SVG_ICON_X = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>`;
+const SVG_DOWN_EXCL = `<svg viewBox="0 0 20 20" fill="none" stroke="oklch(0.62 0.19 25)" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="7"/><path d="M10 6.5v4"/><circle cx="10" cy="14" r="0.5" fill="oklch(0.62 0.19 25)" stroke="none"/></svg>`;
+
 // ----- helpers -----
 
 function sendToSW(msg) {
@@ -94,31 +104,34 @@ async function loadActiveTabState() {
 
 function renderPairing(initialError) {
   root.innerHTML = `
-    <div class="title">Pair with Proxyness</div>
-    <div class="subtitle">
-      Open the Proxyness desktop client → Browser Extension tab,
-      copy the token, paste it below.
+    <div class="p">
+      <div class="p-head">
+        ${SVG_GHOST_CLOSED}
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot off"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-pair-title">Connect to desktop app</div>
+        <div class="p-pair-sub">Open the Proxyness app, go to Settings &rarr; Extension, and copy the pairing token.</div>
+        <input class="p-input" type="text" id="token" placeholder="Paste token here..." autofocus>
+        <button class="p-btn primary" id="pair">Pair</button>
+        <div id="msg" class="p-error">${initialError ? escapeHtml(initialError) : ''}</div>
+      </div>
     </div>
-    <input type="text" id="token" placeholder="abc123..." autofocus>
-    <button id="pair">Pair</button>
-    <div id="msg" class="${initialError ? 'error' : ''}">${initialError || ''}</div>
   `;
   document.getElementById("pair").addEventListener("click", async () => {
     const token = document.getElementById("token").value.trim();
     const msg = document.getElementById("msg");
     if (token.length !== 64) {
       msg.textContent = "Token should be 64 hex characters.";
-      msg.className = "error";
       return;
     }
-    msg.textContent = "Pairing…";
-    msg.className = "";
+    msg.textContent = "Pairing\u2026";
     const ok = await tryPair(token);
     if (ok) {
       render();
     } else {
-      msg.textContent = "Pairing failed. Is the daemon running? Token correct?";
-      msg.className = "error";
+      msg.textContent = "Pairing failed. Is the desktop app running?";
     }
   });
 }
@@ -130,9 +143,25 @@ async function tryPair(token) {
 
 function renderDaemonDown() {
   root.innerHTML = `
-    <div class="title">Daemon not running</div>
-    <div class="subtitle">Start the Proxyness desktop client.</div>
-    <div class="footer"><a href="#" id="unpair" class="muted">Unpair</a></div>
+    <div class="p">
+      <div class="p-head">
+        ${SVG_GHOST_CLOSED}
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot err"></span>
+      </div>
+      <div class="p-body" style="text-align:center; padding:24px 16px;">
+        <div class="p-down-icon">${SVG_DOWN_EXCL}</div>
+        <div class="p-down-title">App not running</div>
+        <div class="p-down-sub">Start the Proxyness desktop app to use the extension.</div>
+      </div>
+      <div class="p-foot">
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#" id="unpair">
+          ${SVG_ICON_X}
+          Unpair
+        </a>
+      </div>
+    </div>
   `;
   document.getElementById("unpair").addEventListener("click", clearAndRender);
 }
@@ -142,17 +171,33 @@ function renderDaemonDown() {
 // URL. Lets the user paste a domain manually and proxy it.
 function renderManualEntry(state, prefill, opts = {}) {
   const tabId = state?.tabId;
-  const panelToggleText = opts.panelVisible ? "Hide panel" : "Show panel";
+  const panelToggleLabel = opts.panelVisible ? "Hide panel" : "Show panel";
+  const panelToggleSvg = opts.panelVisible ? SVG_ICON_EYE_SLASH : SVG_ICON_EYE;
   root.innerHTML = `
-    <div class="title">Add a site to proxy</div>
-    <div class="subtitle">Paste a domain to add it to your proxy list.</div>
-    <input type="text" id="manual-host" placeholder="kinovod.pro" value="${escapeHtml(prefill || "")}" autofocus>
-    <button id="manual-add" class="action">Proxy this site</button>
-    <div id="msg" class="error"></div>
-    <div class="footer">
-      <a href="#" id="panel-toggle" class="muted">${panelToggleText}</a>
-      &nbsp;·&nbsp;
-      <a href="#" id="unpair" class="muted">Unpair</a>
+    <div class="p">
+      <div class="p-head">
+        ${SVG_GHOST_OPEN}
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot on"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-pair-title">Add a site</div>
+        <div class="p-pair-sub">Enter a domain to route through proxy.</div>
+        <input class="p-input" type="text" id="manual-host" placeholder="example.com" value="${escapeHtml(prefill || "")}" autofocus>
+        <button class="p-btn primary" id="manual-add">Proxy this site</button>
+        <div id="msg" class="p-error"></div>
+      </div>
+      <div class="p-foot">
+        <a class="p-foot-btn" href="#" id="panel-toggle">
+          ${panelToggleSvg}
+          ${panelToggleLabel}
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#" id="unpair">
+          ${SVG_ICON_X}
+          Unpair
+        </a>
+      </div>
     </div>
   `;
   const input = document.getElementById("manual-host");
@@ -185,14 +230,19 @@ function renderManualEntry(state, prefill, opts = {}) {
 
 function renderControlPanel(state, opts = {}) {
   // state: { state, host, site_id?, tabId }
-  let statusLine = "";
+  let tagClass = "";
+  let tagLabel = "";
   let buttonText = "";
+  let buttonClass = "";
   let buttonHandler = null;
-  const panelToggleText = opts.panelVisible ? "Hide panel" : "Show panel";
+  const panelToggleLabel = opts.panelVisible ? "Hide panel" : "Show panel";
+  const panelToggleSvg = opts.panelVisible ? SVG_ICON_EYE_SLASH : SVG_ICON_EYE;
 
   if (state.state === "not_in_catalog") {
-    statusLine = "Not proxied";
+    tagClass = "not-proxied";
+    tagLabel = "Not proxied";
     buttonText = "Proxy this site";
+    buttonClass = "primary";
     buttonHandler = async () => {
       // Give the desktop client's sites-cache poller (500ms) + macOS PAC
       // URL propagation a brief moment before we reload the tab. Without
@@ -201,7 +251,7 @@ function renderControlPanel(state, opts = {}) {
       // staring at a spinner until Chrome eventually re-reads the fresh
       // PAC on its own schedule.
       const actionBtn = document.getElementById("action");
-      actionBtn.textContent = "Setting up proxy…";
+      actionBtn.textContent = "Setting up proxy\u2026";
       actionBtn.disabled = true;
       const resp = await sendToSW({ type: "popup_add_site", host: state.host, tabId: state.tabId });
       if (resp?.ok) {
@@ -219,8 +269,10 @@ function renderControlPanel(state, opts = {}) {
       }
     };
   } else if (state.state === "proxied") {
-    statusLine = "✓ Proxied";
-    buttonText = "Disable proxying";
+    tagClass = "proxied";
+    tagLabel = "Proxied";
+    buttonText = "Disable proxy";
+    buttonClass = "secondary";
     buttonHandler = async () => {
       const resp = await sendToSW({
         type: "popup_set_enabled",
@@ -242,8 +294,10 @@ function renderControlPanel(state, opts = {}) {
       }
     };
   } else if (state.state === "catalog_disabled") {
-    statusLine = "Off (locally disabled)";
-    buttonText = "Enable proxying";
+    tagClass = "disabled";
+    tagLabel = "Disabled";
+    buttonText = "Enable proxy";
+    buttonClass = "primary";
     buttonHandler = async () => {
       const resp = await sendToSW({
         type: "popup_set_enabled",
@@ -262,16 +316,33 @@ function renderControlPanel(state, opts = {}) {
   }
 
   root.innerHTML = `
-    <div class="host">${escapeHtml(state.host || "")}</div>
-    <div class="status">${statusLine}</div>
-    <button id="action" class="action">${buttonText}</button>
-    <div id="msg" class="error"></div>
-    <div class="footer">
-      <a href="#" id="manual" class="muted">+ Add another site</a>
-      &nbsp;·&nbsp;
-      <a href="#" id="panel-toggle" class="muted">${panelToggleText}</a>
-      &nbsp;·&nbsp;
-      <a href="#" id="unpair" class="muted">Unpair</a>
+    <div class="p">
+      <div class="p-head">
+        ${SVG_GHOST_OPEN}
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot on"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-domain">${escapeHtml(state.host || "")}</div>
+        <div class="p-tag ${tagClass}"><span class="dot"></span> ${tagLabel}</div>
+        <button class="p-btn ${buttonClass}" id="action">${buttonText}</button>
+        <div id="msg" class="p-error"></div>
+      </div>
+      <div class="p-foot">
+        <a class="p-foot-btn" href="#" id="manual">
+          ${SVG_ICON_PLUS}
+          Add site
+        </a>
+        <a class="p-foot-btn" href="#" id="panel-toggle">
+          ${panelToggleSvg}
+          ${panelToggleLabel}
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#" id="unpair">
+          ${SVG_ICON_X}
+          Unpair
+        </a>
+      </div>
     </div>
   `;
   document.getElementById("action").addEventListener("click", buttonHandler);
