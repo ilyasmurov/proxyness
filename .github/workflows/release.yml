@@ -79,7 +79,7 @@ jobs:
       - name: Inject version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          cd client && npm version "$VERSION" --no-git-tag-version
+          cd client && npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Build Electron app
         run: |
