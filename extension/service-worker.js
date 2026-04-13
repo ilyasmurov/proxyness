@@ -467,8 +467,10 @@ async function pollDaemonStatus() {
   }
 }
 
-// Poll every 3 seconds. Service worker wakes on alarms even after idle.
-chrome.alarms.create("poll-status", { periodInMinutes: 0.05 }); // ~3s
+// Poll every 5 seconds while the service worker is alive.
+setInterval(pollDaemonStatus, 5000);
+// Alarm wakes the service worker after it goes idle (min 30s in Chrome).
+chrome.alarms.create("poll-status", { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "poll-status") pollDaemonStatus();
 });

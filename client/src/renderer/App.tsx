@@ -804,9 +804,10 @@ export function App() {
     letterSpacing: 0.3,
     color: active ? modeTabAccent : c.t3,
     cursor: "pointer",
+    background: "transparent",
+    border: "none",
     borderBottom: `2px solid ${active ? modeTabAccent : "transparent"}`,
     marginBottom: -1,
-    background: "transparent", border: "none",
     transition: "all 0.12s cubic-bezier(0.25,1,0.5,1)",
   });
 
