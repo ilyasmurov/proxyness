@@ -1,11 +1,8 @@
-name: Build and Deploy
+name: Deploy Server
 
 on:
   push:
-    branches: [main]
-  # Manual trigger so a commit pushed with [skip-deploy] (admin UI
-  # tweaks, docs, etc.) can be deployed later without having to invent
-  # an empty commit just to wake the pipeline up.
+    tags: ["server-*"]
   workflow_dispatch:
 
 env:
@@ -13,40 +10,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Skip the whole deploy pipeline when the commit message contains
-  # [skip-deploy]. Use this for docs/changelog/backlog changes that don't
-  # need to restart the production server.
-  #
-  # The commit message is passed via env var (not direct interpolation) so
-  # multi-line messages and shell metacharacters can't break the bash parser
-  # or be used for command injection.
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      should_deploy: ${{ steps.check.outputs.should_deploy }}
-    steps:
-      - id: check
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-        run: |
-          # Match [skip-deploy] only on the subject line. Earlier this was a
-          # substring match across the whole commit message, which meant
-          # explaining the tag in the body ("this commit is NOT [skip-deploy]
-          # because X") would accidentally skip the deploy — we stepped on
-          # that rake exactly once and lost a restart. Subject-line-only is
-          # the intended behaviour; if you really want to skip from a merge
-          # commit whose subject is auto-generated, put [skip-deploy] first.
-          SUBJECT=$(printf '%s' "$COMMIT_MSG" | head -n1)
-          if [[ "$SUBJECT" == *"[skip-deploy]"* ]]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Commit subject contains [skip-deploy], skipping deploy"
-          else
-            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-          fi
-
   test:
-    needs: check
-    if: needs.check.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,8 +26,7 @@ jobs:
           cd ../test && go test -v -timeout 30s
 
   build-and-push:
-    needs: [check, test]
-    if: needs.check.outputs.should_deploy == 'true'
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -86,11 +49,10 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
 
   deploy:
-    needs: [check, build-and-push]
-    if: needs.check.outputs.should_deploy == 'true'
+    needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:

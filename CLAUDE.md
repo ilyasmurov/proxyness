@@ -128,9 +128,21 @@ Separate Go module with end-to-end tests covering auth and connection flow.
 
 ## Deployment
 
-- **Server**: Docker multi-stage build (React UI → Go binary → Alpine). CI deploys to VPS via `.github/workflows/deploy.yml`. Container runs with `--ulimit nofile=32768:32768`.
-- **Client**: Tag-triggered release builds macOS PKGs + Windows NSIS exe via `.github/workflows/release.yml`. CI injects version from git tag into `package.json` before building (`v1.31.0-beta.1` → `1.31.0-beta.1`), so `package.json` always stays at the base version. Beta tags (`*-beta.*`) create pre-releases; stable tags create latest releases.
-- **Config service**: Docker image built manually on VPS (`docker build -f config/Dockerfile`). Volume: `proxyness-config-data:/data`. Container: `proxyness-config`.
+All deploys are tag-triggered. Push to main does NOT deploy anything. Tag conventions:
+
+| Tag pattern | Workflow | What deploys |
+|-------------|----------|-------------|
+| `server-*` (e.g. `server-20260413`) | `deploy.yml` | Server + admin panel (Docker → VPS) |
+| `landing-*` (e.g. `landing-20260413`) | `deploy-landing.yml` | Landing page (Docker → VPS nginx) |
+| `config-*` (e.g. `config-20260413`) | `deploy-config.yml` | Config service (Docker → VPS) |
+| `v*` (e.g. `v1.36.0`) | `release.yml` | Client apps (macOS PKG + Windows exe → GitHub Release) |
+| `v*-beta.*` (e.g. `v1.36.0-beta.1`) | `release.yml` | Client apps (pre-release) |
+
+All workflows also support `workflow_dispatch` for manual trigger from GitHub UI.
+
+- **Server**: Docker multi-stage build (React UI → Go binary → Alpine). Container runs with `--ulimit nofile=32768:32768`.
+- **Client**: CI injects version from git tag into `package.json` before building (`v1.31.0-beta.1` → `1.31.0-beta.1`), so `package.json` always stays at the base version. Beta tags create pre-releases; stable tags create latest releases.
+- **Config service**: Volume: `proxyness-config-data:/data`. Container: `proxyness-config`.
 - **SSL**: `scripts/setup-ssl.sh` manages Let's Encrypt certs for `proxyness.smurov.com`.
 - **VPS**: Aeza NL (4 CPU, 8 GB RAM, 1 Gbps, Netherlands).
 

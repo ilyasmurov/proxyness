@@ -2,9 +2,7 @@ name: Deploy Landing
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "landing/**"
+    tags: ["landing-*"]
   workflow_dispatch:
 
 env:
@@ -12,26 +10,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}-landing
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      should_deploy: ${{ steps.check.outputs.should_deploy }}
-    steps:
-      - id: check
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}
-        run: |
-          SUBJECT=$(printf '%s' "$COMMIT_MSG" | head -n1)
-          if [[ "$SUBJECT" == *"[skip-deploy]"* ]]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Commit subject contains [skip-deploy], skipping deploy"
-          else
-            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-          fi
-
   build-and-push:
-    needs: check
-    if: needs.check.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,11 +34,10 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
 
   deploy:
-    needs: [check, build-and-push]
-    if: needs.check.outputs.should_deploy == 'true'
+    needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
