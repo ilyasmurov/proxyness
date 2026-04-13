@@ -130,13 +130,13 @@ Separate Go module with end-to-end tests covering auth and connection flow.
 
 All deploys are tag-triggered. Push to main does NOT deploy anything. Tag conventions:
 
-| Tag pattern | Workflow | What deploys |
-|-------------|----------|-------------|
-| `server-*` (e.g. `server-20260413`) | `deploy.yml` | Server + admin panel (Docker → VPS) |
-| `landing-*` (e.g. `landing-20260413`) | `deploy-landing.yml` | Landing page (Docker → VPS nginx) |
-| `config-*` (e.g. `config-20260413`) | `deploy-config.yml` | Config service (Docker → VPS) |
-| `v*` (e.g. `v1.36.0`) | `release.yml` | Client apps (macOS PKG + Windows exe → GitHub Release) |
-| `v*-beta.*` (e.g. `v1.36.0-beta.1`) | `release.yml` | Client apps (pre-release) |
+| Component | Tag pattern | Example | Workflow | Version file |
+|-----------|-------------|---------|----------|-------------|
+| Server + admin | `server-*` | `server-1.0.0` | `deploy.yml` | `server/VERSION` |
+| Landing page | `landing-*` | `landing-1.0.0` | `deploy-landing.yml` | `landing/VERSION` |
+| Config service | `config-*` | `config-1.0.0` | `deploy-config.yml` | `config/VERSION` |
+| Client apps | `v*` | `v1.36.0` | `release.yml` | `client/package.json` |
+| Client (pre-release) | `v*-beta.*` | `v1.36.0-beta.1` | `release.yml` | `client/package.json` |
 
 All workflows also support `workflow_dispatch` for manual trigger from GitHub UI.
 
