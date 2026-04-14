@@ -192,11 +192,40 @@ func TestCongestionProbeRTTEntersAndPinsCwnd(t *testing.T) {
 	}
 }
 
-func TestCongestionProbeRTTExitsAfterDuration(t *testing.T) {
+func TestCongestionProbeRTTExitsAfterDrainedDuration(t *testing.T) {
 	cc := NewCongestionControl()
 	bwe := cc.BWE()
 
-	// Seed BW / STEADY / in ProbeRTT
+	// Seed BW / STEADY / in ProbeRTT with drain completed long enough ago.
+	snap := bwe.TakeSnapshot()
+	time.Sleep(5 * time.Millisecond)
+	bwe.RecordDelivered(5 * 1024 * 1024)
+	bwe.SampleRate(snap, 60*time.Millisecond)
+	cc.mu.Lock()
+	cc.inStartup = false
+	cc.inProbeRTT = true
+	cc.probeRTTStart = time.Now().Add(-500 * time.Millisecond)
+	cc.probeRTTDrainedAt = time.Now().Add(-probeRTTDuration - 10*time.Millisecond)
+	cc.inFlight = 2 // already drained
+	cc.mu.Unlock()
+
+	cc.OnAck(1)
+
+	if cc.InProbeRTT() {
+		t.Fatal("expected ProbeRTT to exit after drained duration elapsed")
+	}
+	if cc.Window() <= probeRTTCwnd {
+		t.Fatalf("expected cwnd to grow back after ProbeRTT exit, got %d", cc.Window())
+	}
+}
+
+func TestCongestionProbeRTTWaitsForDrain(t *testing.T) {
+	cc := NewCongestionControl()
+	bwe := cc.BWE()
+
+	// BW set up so naturally cwnd would be big; enter ProbeRTT with a
+	// large still-in-flight count. Even though probeRTTStart is old, exit
+	// should NOT fire because inFlight hasn't reached probeRTTCwnd.
 	snap := bwe.TakeSnapshot()
 	time.Sleep(5 * time.Millisecond)
 	bwe.RecordDelivered(5 * 1024 * 1024)
@@ -205,15 +234,39 @@ func TestCongestionProbeRTTExitsAfterDuration(t *testing.T) {
 	cc.inStartup = false
 	cc.inProbeRTT = true
 	cc.probeRTTStart = time.Now().Add(-probeRTTDuration - 10*time.Millisecond)
+	cc.probeRTTDrainedAt = time.Time{} // never drained
+	cc.inFlight = 100                  // way above probeRTTCwnd
+	cc.mu.Unlock()
+
+	cc.OnAck(1)
+
+	if !cc.InProbeRTT() {
+		t.Fatal("ProbeRTT should still be active — inFlight never reached drain target")
+	}
+}
+
+func TestCongestionProbeRTTHardTimeout(t *testing.T) {
+	cc := NewCongestionControl()
+	bwe := cc.BWE()
+
+	// Same setup as the wait-for-drain test, but probeRTTStart is older
+	// than probeRTTMaxWait — must force exit to avoid starving the flow.
+	snap := bwe.TakeSnapshot()
+	time.Sleep(5 * time.Millisecond)
+	bwe.RecordDelivered(5 * 1024 * 1024)
+	bwe.SampleRate(snap, 60*time.Millisecond)
+	cc.mu.Lock()
+	cc.inStartup = false
+	cc.inProbeRTT = true
+	cc.probeRTTStart = time.Now().Add(-probeRTTMaxWait - 100*time.Millisecond)
+	cc.probeRTTDrainedAt = time.Time{}
+	cc.inFlight = 100
 	cc.mu.Unlock()
 
 	cc.OnAck(1)
 
 	if cc.InProbeRTT() {
-		t.Fatal("expected ProbeRTT to exit after duration elapsed")
-	}
-	if cc.Window() <= probeRTTCwnd {
-		t.Fatalf("expected cwnd to grow back after ProbeRTT exit, got %d", cc.Window())
+		t.Fatal("ProbeRTT should have timed out via probeRTTMaxWait")
 	}
 }
 

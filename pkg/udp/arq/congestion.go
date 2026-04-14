@@ -62,6 +62,11 @@ const (
 	probeRTTInterval = 10 * time.Second
 	probeRTTDuration = 200 * time.Millisecond
 	probeRTTCwnd     = 4
+
+	// probeRTTMaxWait is the absolute ceiling on how long we stay in the
+	// ProbeRTT phase even if inFlight never finishes draining. Without this,
+	// a stuck consumer could pin the sender at cwnd=4 indefinitely.
+	probeRTTMaxWait = 2 * time.Second
 )
 
 // CongestionControl implements a BBR-like rate-based congestion control.
@@ -98,13 +103,18 @@ type CongestionControl struct {
 
 	// ProbeRTT phase tracking. probeRTTNext is the absolute time at which
 	// the next ProbeRTT is due; lastProbeRTTEnd is when the current/last
-	// ProbeRTT window closed (used only for stats). Initialized in
-	// NewCongestionControl so the first probe fires probeRTTInterval from
-	// connection start, not immediately.
-	inProbeRTT      bool
-	probeRTTStart   time.Time
-	lastProbeRTTEnd time.Time
-	probeRTTNext    time.Time
+	// ProbeRTT window closed (used only for stats). probeRTTDrainedAt
+	// is zero until inFlight first falls to ≤ probeRTTCwnd during the
+	// current ProbeRTT — the probeRTTDuration timer is measured from that
+	// moment, not from entry. This matters: when we enter ProbeRTT with a
+	// cwnd of 512, draining to 4 over a 120ms RTT already eats ~270ms at
+	// the observed delivery rate, so counting duration from entry would
+	// exit before the queue has actually drained.
+	inProbeRTT       bool
+	probeRTTStart    time.Time
+	probeRTTDrainedAt time.Time
+	lastProbeRTTEnd  time.Time
+	probeRTTNext     time.Time
 }
 
 // NewCongestionControl creates a new rate-based CongestionControl.
@@ -340,15 +350,32 @@ func (cc *CongestionControl) OnLoss() {
 
 // checkProbeRTT enters ProbeRTT when probeRTTInterval has elapsed since the
 // last probe (or since connection start), and exits after probeRTTDuration
-// of drained in-flight. During ProbeRTT cwnd is pinned to probeRTTCwnd so
-// the bottleneck queue drains and a fresh minRTT can be sampled.
+// of DRAINED in-flight. During ProbeRTT cwnd is pinned to probeRTTCwnd so
+// the bottleneck queue drains and a fresh minRTT can be sampled. The
+// duration timer starts only once inFlight has actually fallen to
+// probeRTTCwnd — on a big cwnd that drain can take multiple RTTs, and
+// counting from entry would exit before any queue has drained.
+//
+// Hard upper bound (probeRTTMaxWait) guards against the case where the
+// consumer is so slow that inFlight never drops below probeRTTCwnd
+// inside a reasonable window — without the bound we'd be stuck in
+// ProbeRTT forever, starving the download.
 //
 // Must be called with mu held.
 func (cc *CongestionControl) checkProbeRTT() {
 	now := time.Now()
 	if cc.inProbeRTT {
-		if now.Sub(cc.probeRTTStart) >= probeRTTDuration {
+		// Record first moment inFlight reaches the drain target.
+		if cc.probeRTTDrainedAt.IsZero() && cc.inFlight <= probeRTTCwnd {
+			cc.probeRTTDrainedAt = now
+		}
+		drained := !cc.probeRTTDrainedAt.IsZero() &&
+			now.Sub(cc.probeRTTDrainedAt) >= probeRTTDuration
+		// Absolute ceiling so we don't get stuck if the queue never drains.
+		timedOut := now.Sub(cc.probeRTTStart) >= probeRTTMaxWait
+		if drained || timedOut {
 			cc.inProbeRTT = false
+			cc.probeRTTDrainedAt = time.Time{}
 			cc.lastProbeRTTEnd = now
 			// Schedule the next probe a full interval from now so back-to-back
 			// ProbeRTTs can't happen if OnAck is called in rapid succession.
@@ -359,6 +386,7 @@ func (cc *CongestionControl) checkProbeRTT() {
 	if now.After(cc.probeRTTNext) {
 		cc.inProbeRTT = true
 		cc.probeRTTStart = now
+		cc.probeRTTDrainedAt = time.Time{}
 	}
 }
 
