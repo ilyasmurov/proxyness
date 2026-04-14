@@ -163,18 +163,25 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 		if !ok {
 			return
 		}
-		// Blocking send. The previous `default:` silently dropped bytes
-		// when recvCh was full — but the ACK had already been recorded
-		// in HandleData, so the server believed delivery succeeded. That
-		// turned a slow consumer (e.g. macOS TCP back-pressure) into
-		// silent stream corruption. Now we back-pressure the whole
-		// recvLoop instead: if the consumer can't keep up, ACKs stop
-		// flowing, sender-side cwnd shrinks, and throughput honestly
-		// tracks the slowest downstream stage.
+		// Drop-on-full with an explicit done escape for teardown races.
+		//
+		// A blocking variant (tried in 1.36.3) stalled recvLoop whenever
+		// recvCh was full, which starved ackLoop of new ackState updates,
+		// which made the server's RTO retransmit timer fire for packets
+		// already queued in our kernel UDP buffer — turning a mild
+		// consumer slowdown into a cascading retransmit storm that cut
+		// end-to-end throughput by 10× on a 50MB download.
+		//
+		// Dropping here does silently lose bytes if the consumer is
+		// genuinely overwhelmed, but in practice the 1024-entry recvCh
+		// (~1.3 MB) absorbs normal bursts, and the stalled-recvLoop
+		// failure mode is dramatically worse. Separate done channel
+		// keeps us from panicking on a close-recvCh teardown race.
 		payload := append([]byte(nil), data...)
 		select {
 		case s.recvCh <- payload:
 		case <-s.done:
+		default:
 		}
 	})
 
