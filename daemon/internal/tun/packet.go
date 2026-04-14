@@ -45,20 +45,30 @@ func ParseUDPHeader(udp []byte) (srcPort, dstPort uint16, payload []byte, err er
 	return srcPort, dstPort, payload, nil
 }
 
-// BuildUDPPacket constructs a complete IPv4+UDP packet with checksums.
-func BuildUDPPacket(srcIP, dstIP net.IP, srcPort, dstPort uint16, payload []byte) []byte {
+// BuildUDPPacketInto writes a complete IPv4+UDP packet with checksums into
+// dst and returns the total packet length. dst must have at least
+// 28+len(payload) bytes of capacity. Zero allocations — lets the hot NAT
+// readLoop reuse a single per-goroutine buffer across every reply packet
+// instead of allocating a fresh ~1500-byte slice per datagram (the cause
+// of 60%+ CPU spent in GC pre-1.36.2).
+func BuildUDPPacketInto(dst []byte, srcIP, dstIP net.IP, srcPort, dstPort uint16, payload []byte) int {
 	src4 := srcIP.To4()
 	dst4 := dstIP.To4()
 
 	udpLen := 8 + len(payload)
 	totalLen := 20 + udpLen
-	pkt := make([]byte, totalLen)
+	pkt := dst[:totalLen]
 
-	// IPv4 header (20 bytes)
+	// IPv4 header (20 bytes) — zero the header bytes we don't explicitly
+	// set below since dst may be a reused buffer with stale contents.
 	pkt[0] = 0x45 // version=4, IHL=5
+	pkt[1] = 0
 	binary.BigEndian.PutUint16(pkt[2:4], uint16(totalLen))
-	pkt[8] = 64 // TTL
-	pkt[9] = 17 // protocol = UDP
+	pkt[4], pkt[5] = 0, 0 // ID
+	pkt[6], pkt[7] = 0, 0 // flags + fragment offset
+	pkt[8] = 64           // TTL
+	pkt[9] = 17           // protocol = UDP
+	pkt[10], pkt[11] = 0, 0 // checksum (recomputed below)
 	copy(pkt[12:16], src4)
 	copy(pkt[16:20], dst4)
 	binary.BigEndian.PutUint16(pkt[10:12], ipChecksum(pkt[:20]))
@@ -68,10 +78,20 @@ func BuildUDPPacket(srcIP, dstIP net.IP, srcPort, dstPort uint16, payload []byte
 	binary.BigEndian.PutUint16(udp[0:2], srcPort)
 	binary.BigEndian.PutUint16(udp[2:4], dstPort)
 	binary.BigEndian.PutUint16(udp[4:6], uint16(udpLen))
+	udp[6], udp[7] = 0, 0 // checksum (recomputed below)
 	copy(udp[8:], payload)
 	binary.BigEndian.PutUint16(udp[6:8], udpChecksum(src4, dst4, udp[:udpLen]))
 
-	return pkt
+	return totalLen
+}
+
+// BuildUDPPacket is a convenience wrapper over BuildUDPPacketInto that
+// allocates a fresh buffer. Used by tests; hot paths should call
+// BuildUDPPacketInto with a pooled or goroutine-local buffer.
+func BuildUDPPacket(srcIP, dstIP net.IP, srcPort, dstPort uint16, payload []byte) []byte {
+	pkt := make([]byte, 28+len(payload))
+	n := BuildUDPPacketInto(pkt, srcIP, dstIP, srcPort, dstPort, payload)
+	return pkt[:n]
 }
 
 func ipChecksum(hdr []byte) uint16 {

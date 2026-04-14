@@ -291,17 +291,18 @@ func (e *Engine) Start(req StartRequest) error {
 	e.helperAddr = req.HelperAddr
 	e.procInfo = newProcessInfo()
 
-	nat := NewNATTable(func(pkt []byte) {
-		lenBuf := make([]byte, 2)
-		binary.BigEndian.PutUint16(lenBuf, uint16(len(pkt)))
+	// buf = [2-byte BE length | IPv4+UDP packet], prebuilt by the NAT
+	// readLoop in a pooled buffer. One Write avoids the per-packet lenBuf
+	// allocation and the second syscall the pre-1.36.2 path cost. buf is
+	// only valid until this callback returns — do not retain it.
+	nat := NewNATTable(func(buf []byte) {
 		e.helperWriteMu.Lock()
 		defer e.helperWriteMu.Unlock()
 		e.mu.Lock()
 		conn := e.helperConn
 		e.mu.Unlock()
 		if conn != nil {
-			conn.Write(lenBuf)
-			conn.Write(pkt)
+			conn.Write(buf)
 		}
 	})
 	e.rawUDP = &RawUDPHandler{

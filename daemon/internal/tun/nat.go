@@ -1,6 +1,7 @@
 package tun
 
 import (
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
@@ -38,6 +39,19 @@ var natBufPool = sync.Pool{
 	},
 }
 
+// natOutBufPool reuses the length-prefixed reply buffer across readLoop
+// goroutines. Layout: 2-byte big-endian length prefix + IPv4 header (20) +
+// UDP header (8) + payload. The readLoop owns its buffer for its lifetime,
+// onReply consumes it synchronously, and it goes back to the pool on
+// goroutine exit. Before 1.36.2 BuildUDPPacket allocated this buffer
+// freshly per packet — heap profile showed it as 93% of daemon allocations.
+var natOutBufPool = sync.Pool{
+	New: func() any {
+		buf := make([]byte, 2+28+natReadBufSize)
+		return &buf
+	},
+}
+
 type natKey struct {
 	srcIP   [4]byte
 	dstIP   [4]byte
@@ -54,18 +68,23 @@ type natEntry struct {
 // NATTable maps inbound UDP flows to outbound Go sockets.
 // When a bypass UDP packet arrives, it either reuses an existing socket
 // or creates a new one via protectedDial. A read goroutine per entry
-// receives responses and calls onReply with a raw IP+UDP response packet.
+// receives responses and calls onReply with a length-prefixed IP+UDP
+// response packet ready to be written to the helper in a single syscall.
 type NATTable struct {
 	mu      sync.RWMutex
 	entries map[natKey]*natEntry
-	onReply func(pkt []byte) // callback to write response IP+UDP packet back to TUN
+	// onReply receives a [2-byte BE length | IPv4+UDP packet] buffer. The
+	// buffer is borrowed from a pool and is only valid until the callback
+	// returns — callers must consume it synchronously (no goroutine capture).
+	onReply func(buf []byte)
 	dial    func(network, address string) (net.Conn, error)
 	stop    chan struct{}
 }
 
 // NewNATTable creates a NAT table and starts the cleanup goroutine.
 // Uses protectedDial to create UDP sockets that bypass TUN routing.
-func NewNATTable(onReply func(pkt []byte)) *NATTable {
+// See NATTable.onReply for the buffer contract.
+func NewNATTable(onReply func(buf []byte)) *NATTable {
 	t := &NATTable{
 		entries: make(map[natKey]*natEntry),
 		onReply: onReply,
@@ -155,13 +174,27 @@ func (t *NATTable) HandlePacket(srcIP, dstIP net.IP, srcPort, dstPort uint16, pa
 	return err
 }
 
-// readLoop reads responses from the remote socket and builds IP+UDP response
-// packets with swapped src/dst, passing them to onReply for injection back
-// into the TUN device.
+// readLoop reads responses from the remote socket and builds length-prefixed
+// IP+UDP response packets (swapped src/dst) directly into a pooled output
+// buffer, passing them to onReply for injection back into the TUN device.
+//
+// Two buffers, both borrowed from pools for the goroutine's lifetime:
+//   - buf: the raw read buffer the socket fills
+//   - outBuf: [2-byte length prefix | IPv4 header | UDP header | payload]
+//
+// Pre-1.36.2 this path allocated a fresh packet slice per response via
+// BuildUDPPacket plus a 2-byte lenBuf in engine.onReply — ~1500 bytes of
+// garbage per datagram. Under sustained DNS/VoIP load the daemon spent
+// 60%+ of CPU in GC marking/sweeping.
 func (t *NATTable) readLoop(key natKey, entry *natEntry, srcIP, dstIP net.IP, srcPort, dstPort uint16) {
 	bufPtr := natBufPool.Get().(*[]byte)
 	buf := *bufPtr
 	defer natBufPool.Put(bufPtr)
+
+	outBufPtr := natOutBufPool.Get().(*[]byte)
+	outBuf := *outBufPtr
+	defer natOutBufPool.Put(outBufPtr)
+
 	for {
 		entry.conn.SetReadDeadline(time.Now().Add(entry.timeout))
 		n, err := entry.conn.Read(buf)
@@ -170,9 +203,12 @@ func (t *NATTable) readLoop(key natKey, entry *natEntry, srcIP, dstIP net.IP, sr
 			return
 		}
 
-		// Build response packet: swap src/dst so it arrives at the original sender
-		pkt := BuildUDPPacket(dstIP, srcIP, dstPort, srcPort, buf[:n])
-		t.onReply(pkt)
+		// Swap src/dst so the packet arrives at the original sender. Write
+		// the packet starting at outBuf[2:], leaving room for the length
+		// prefix written below.
+		pktLen := BuildUDPPacketInto(outBuf[2:], dstIP, srcIP, dstPort, srcPort, buf[:n])
+		binary.BigEndian.PutUint16(outBuf[:2], uint16(pktLen))
+		t.onReply(outBuf[:2+pktLen])
 	}
 }
 
