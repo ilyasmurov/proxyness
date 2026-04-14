@@ -336,7 +336,15 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 	t.mu.Lock()
 	t.nextID++
 	id := t.nextID
-	recvCh := make(chan []byte, 1024)
+	// 4096 × ~1340 bytes ≈ 5.4 MB of per-stream ingress buffer. At observed
+	// wire rates of 5+ MB/s on saturated downloads the previous 1024-entry
+	// buffer (~1.3 MB) filled within ~250ms of consumer stall, after which
+	// the deliverCb default-drop kicked in and the user-visible goodput
+	// capped at the drain rate rather than the wire rate. A deeper queue
+	// absorbs bursts without dropping; per-stream memory is bounded by
+	// transport MaxStreams (256) × 5.4 MB = 1.4 GB worst case, but in
+	// practice only active download streams hold the full buffer.
+	recvCh := make(chan []byte, 4096)
 	s := &udpStream{
 		t:      t,
 		id:     id,
