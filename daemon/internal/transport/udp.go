@@ -160,11 +160,21 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 		t.mu.Lock()
 		s, ok := t.streams[streamID]
 		t.mu.Unlock()
-		if ok {
-			select {
-			case s.recvCh <- append([]byte(nil), data...):
-			default:
-			}
+		if !ok {
+			return
+		}
+		// Blocking send. The previous `default:` silently dropped bytes
+		// when recvCh was full — but the ACK had already been recorded
+		// in HandleData, so the server believed delivery succeeded. That
+		// turned a slow consumer (e.g. macOS TCP back-pressure) into
+		// silent stream corruption. Now we back-pressure the whole
+		// recvLoop instead: if the consumer can't keep up, ACKs stop
+		// flowing, sender-side cwnd shrinks, and throughput honestly
+		// tracks the slowest downstream stage.
+		payload := append([]byte(nil), data...)
+		select {
+		case s.recvCh <- payload:
+		case <-s.done:
 		}
 	})
 
@@ -323,6 +333,7 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 		t:      t,
 		id:     id,
 		recvCh: recvCh,
+		done:   make(chan struct{}),
 	}
 	t.streams[id] = s
 	t.mu.Unlock()
@@ -349,17 +360,13 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 		return nil, fmt.Errorf("send stream open: %w", err)
 	}
 
-	// For TCP streams wait for a single-byte result on the receive channel
+	// For TCP streams wait for a single-byte result on the receive channel.
+	// recvCh is no longer closed on teardown (see udpStream.done) so we
+	// select on s.done instead to catch transport/stream close during the
+	// connect wait.
 	if streamType == pkgudp.StreamTypeTCP {
 		select {
-		case data, ok := <-recvCh:
-			if !ok {
-				t.mu.Lock()
-				delete(t.streams, id)
-				t.mu.Unlock()
-				t.arq.RemoveRecvBuffer(id)
-				return nil, fmt.Errorf("stream closed before connect result")
-			}
+		case data := <-recvCh:
 			if len(data) == 0 || data[0] != 0x01 {
 				t.mu.Lock()
 				delete(t.streams, id)
@@ -367,6 +374,12 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 				t.arq.RemoveRecvBuffer(id)
 				return nil, fmt.Errorf("connect rejected: %s:%d", addr, port)
 			}
+		case <-s.done:
+			t.mu.Lock()
+			delete(t.streams, id)
+			t.mu.Unlock()
+			t.arq.RemoveRecvBuffer(id)
+			return nil, fmt.Errorf("stream closed before connect result")
 		case <-time.After(10 * time.Second):
 			t.mu.Lock()
 			delete(t.streams, id)
@@ -424,22 +437,31 @@ type udpStream struct {
 	t      *UDPTransport
 	id     uint32
 	recvCh chan []byte
+	// done is closed exactly once when the stream is being torn down. It
+	// lets the transport's delivery callback escape a blocking `recvCh <-`
+	// when Read is no longer happening, and lets Read() exit cleanly. We
+	// never close recvCh itself — closing a channel while another goroutine
+	// is mid-send panics the process, which is what happened before 1.36.2
+	// whenever a stream teardown raced with an in-flight delivery.
+	done chan struct{}
 
 	mu         sync.Mutex
 	buf        []byte // leftover bytes from previous Read
 	seq        uint32
 	closed     bool
-	recvClosed bool // guards against double-close of recvCh
+	recvClosed bool // guards against double-close of done
 }
 
 func (s *udpStream) ID() uint32 { return s.id }
 
-// closeRecvCh closes recvCh exactly once; must be called with s.mu held or
-// in a context where no concurrent close is possible.
+// closeRecvChLocked signals the stream is torn down. Closes s.done exactly
+// once; recvCh itself is left unclosed because closing it would race with
+// any in-flight delivery callback trying to send a payload. The name is
+// retained from the pre-1.36.2 API for call-site compatibility.
 func (s *udpStream) closeRecvChLocked() {
 	if !s.recvClosed {
 		s.recvClosed = true
-		close(s.recvCh)
+		close(s.done)
 	}
 }
 
@@ -455,13 +477,24 @@ func (s *udpStream) Read(p []byte) (int, error) {
 		}
 		s.mu.Unlock()
 
-		data, ok := <-s.recvCh
-		if !ok {
-			return 0, fmt.Errorf("stream closed")
+		select {
+		case data := <-s.recvCh:
+			s.mu.Lock()
+			s.buf = append(s.buf, data...)
+			s.mu.Unlock()
+		case <-s.done:
+			// Drain anything already queued before giving up, so a fast
+			// close on the delivery side doesn't lose tail bytes that
+			// made it into recvCh before done fired.
+			select {
+			case data := <-s.recvCh:
+				s.mu.Lock()
+				s.buf = append(s.buf, data...)
+				s.mu.Unlock()
+			default:
+				return 0, fmt.Errorf("stream closed")
+			}
 		}
-		s.mu.Lock()
-		s.buf = append(s.buf, data...)
-		s.mu.Unlock()
 	}
 }
 
