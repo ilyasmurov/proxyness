@@ -284,3 +284,31 @@ func TestCongestionProbeRTTSkippedDuringStartup(t *testing.T) {
 		t.Fatal("ProbeRTT should not fire during STARTUP — interrupting probe phase wastes a round")
 	}
 }
+
+func TestCongestionProbeRTTExitsEvenIfRestartuped(t *testing.T) {
+	// Regression: entering ProbeRTT, then having the idle→busy logic
+	// flip the connection back into STARTUP, used to leave inProbeRTT
+	// pinned true with cwnd=4 forever. The exit side of checkProbeRTT
+	// must run regardless of startup state.
+	cc := NewCongestionControl()
+	bwe := cc.BWE()
+
+	snap := bwe.TakeSnapshot()
+	time.Sleep(5 * time.Millisecond)
+	bwe.RecordDelivered(5 * 1024 * 1024)
+	bwe.SampleRate(snap, 60*time.Millisecond)
+
+	cc.mu.Lock()
+	cc.inStartup = true // re-entered STARTUP while still in ProbeRTT
+	cc.inProbeRTT = true
+	cc.probeRTTStart = time.Now().Add(-500 * time.Millisecond)
+	cc.probeRTTDrainedAt = time.Now().Add(-probeRTTDuration - 10*time.Millisecond)
+	cc.inFlight = 2
+	cc.mu.Unlock()
+
+	cc.OnAck(1)
+
+	if cc.InProbeRTT() {
+		t.Fatal("ProbeRTT must exit even when inStartup=true — the old gate left upload sessions stuck at cwnd=4")
+	}
+}

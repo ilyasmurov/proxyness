@@ -200,12 +200,14 @@ func (cc *CongestionControl) OnAck(n int) {
 		cc.enterStartup()
 	}
 
-	// ProbeRTT phase management — gated on STEADY. STARTUP is already in
-	// aggressive-probe mode and interrupting it would stretch the time
-	// the connection takes to find its natural cwnd.
-	if !cc.inStartup {
-		cc.checkProbeRTT()
-	}
+	// ProbeRTT state machine — the *entry* check is gated on STEADY so
+	// STARTUP can probe undisturbed, but the *exit* must always run. Before
+	// this was unconditionally gated: a session that entered ProbeRTT,
+	// then re-entered STARTUP via the idle→busy transition above, got
+	// stuck with inProbeRTT=true and cwnd=4 forever because the exit
+	// code never ran. Observed in a 50MB upload that stalled at 0.09 MB/s
+	// with server-side logs showing startup=true probeRTT=true in parallel.
+	cc.checkProbeRTT()
 
 	// Track idle state: connection is idle when barely using the window
 	// for at least 200ms. Brief pauses (e.g., between HTTP responses)
@@ -383,7 +385,9 @@ func (cc *CongestionControl) checkProbeRTT() {
 		}
 		return
 	}
-	if now.After(cc.probeRTTNext) {
+	// Enter only from STEADY — STARTUP is already probing aggressively
+	// and interrupting it wastes a round.
+	if !cc.inStartup && now.After(cc.probeRTTNext) {
 		cc.inProbeRTT = true
 		cc.probeRTTStart = now
 		cc.probeRTTDrainedAt = time.Time{}
