@@ -49,6 +49,19 @@ const (
 	// startupFullBWThresh is the minimum growth ratio to consider delivery
 	// rate "still increasing" during STARTUP (1.25 = 25% growth per round).
 	startupFullBWThresh = 1.25
+
+	// ProbeRTT parameters. Once per probeRTTInterval the CC reduces cwnd to
+	// probeRTTCwnd for probeRTTDuration so the bottleneck queue can drain
+	// and we can sample a fresh minRTT. Without this, a sender happily
+	// keeps a loaded in-path queue (ISP shaper / TSPU / carrier pipe) full
+	// forever, minRTT inflates, cwnd scales with the inflated BDP, and
+	// goodput collapses while wire rate stays high — observed on the NL↔RF
+	// path in 1.36.4 where cwnd=2048 drove RTT to 1800ms and goodput to
+	// 0.13 MB/s. ProbeRTT exists only to refresh minRTT, not to probe
+	// bandwidth; it's a periodic drain, not a bandwidth probe.
+	probeRTTInterval = 10 * time.Second
+	probeRTTDuration = 200 * time.Millisecond
+	probeRTTCwnd     = 4
 )
 
 // CongestionControl implements a BBR-like rate-based congestion control.
@@ -82,16 +95,32 @@ type CongestionControl struct {
 	idleSeen         bool      // true after 200ms+ of low utilization
 	idleStart        time.Time // when low utilization was first detected
 	roundMaxInFlight int       // max inFlight during current STARTUP round
+
+	// ProbeRTT phase tracking. probeRTTNext is the absolute time at which
+	// the next ProbeRTT is due; lastProbeRTTEnd is when the current/last
+	// ProbeRTT window closed (used only for stats). Initialized in
+	// NewCongestionControl so the first probe fires probeRTTInterval from
+	// connection start, not immediately.
+	inProbeRTT      bool
+	probeRTTStart   time.Time
+	lastProbeRTTEnd time.Time
+	probeRTTNext    time.Time
 }
 
 // NewCongestionControl creates a new rate-based CongestionControl.
 func NewCongestionControl() *CongestionControl {
+	now := time.Now()
 	cc := &CongestionControl{
 		cwnd:           startupCwnd,
 		bwe:            NewBandwidthEstimator(),
 		notify:         make(chan struct{}, maxCwnd),
 		inStartup:      true,
 		roundThreshold: startupCwnd, // first round = initial window
+		// Defer the first ProbeRTT by the full interval — STARTUP is
+		// already probing aggressively and its rapid-growth phase benefits
+		// from uninterrupted samples. By the time 10s passes, STARTUP has
+		// almost certainly exited anyway.
+		probeRTTNext: now.Add(probeRTTInterval),
 	}
 	// Pre-fill signals for initial cwnd
 	for i := 0; i < startupCwnd; i++ {
@@ -159,6 +188,13 @@ func (cc *CongestionControl) OnAck(n int) {
 	// utilizing the window (bulk download), re-probe to discover real capacity.
 	if !cc.inStartup && cc.idleSeen && wasFullyUtilized {
 		cc.enterStartup()
+	}
+
+	// ProbeRTT phase management — gated on STEADY. STARTUP is already in
+	// aggressive-probe mode and interrupting it would stretch the time
+	// the connection takes to find its natural cwnd.
+	if !cc.inStartup {
+		cc.checkProbeRTT()
 	}
 
 	// Track idle state: connection is idle when barely using the window
@@ -302,8 +338,39 @@ func (cc *CongestionControl) OnLoss() {
 	// intentionally empty
 }
 
+// checkProbeRTT enters ProbeRTT when probeRTTInterval has elapsed since the
+// last probe (or since connection start), and exits after probeRTTDuration
+// of drained in-flight. During ProbeRTT cwnd is pinned to probeRTTCwnd so
+// the bottleneck queue drains and a fresh minRTT can be sampled.
+//
+// Must be called with mu held.
+func (cc *CongestionControl) checkProbeRTT() {
+	now := time.Now()
+	if cc.inProbeRTT {
+		if now.Sub(cc.probeRTTStart) >= probeRTTDuration {
+			cc.inProbeRTT = false
+			cc.lastProbeRTTEnd = now
+			// Schedule the next probe a full interval from now so back-to-back
+			// ProbeRTTs can't happen if OnAck is called in rapid succession.
+			cc.probeRTTNext = now.Add(probeRTTInterval)
+		}
+		return
+	}
+	if now.After(cc.probeRTTNext) {
+		cc.inProbeRTT = true
+		cc.probeRTTStart = now
+	}
+}
+
 // recalcCwnd sets cwnd from the bandwidth estimate. Must be called with mu held.
 func (cc *CongestionControl) recalcCwnd() {
+	// ProbeRTT overrides BDP-based cwnd: we want to drain, not track the
+	// BDP which is by definition inflated at the moment we entered ProbeRTT.
+	if cc.inProbeRTT {
+		cc.cwnd = probeRTTCwnd
+		return
+	}
+
 	target := cc.bwe.CwndFromBDP(packetMSS, cwndGain)
 	if target <= 0 {
 		return // no estimate yet, keep current cwnd
@@ -326,6 +393,14 @@ func (cc *CongestionControl) recalcCwnd() {
 	if cc.cwnd > maxCwnd {
 		cc.cwnd = maxCwnd
 	}
+}
+
+// InProbeRTT reports whether the connection is currently in the ProbeRTT
+// drain phase. Exposed for diagnostic logging alongside InStartup.
+func (cc *CongestionControl) InProbeRTT() bool {
+	cc.mu.Lock()
+	defer cc.mu.Unlock()
+	return cc.inProbeRTT
 }
 
 // InFlight returns the number of unacknowledged in-flight packets.

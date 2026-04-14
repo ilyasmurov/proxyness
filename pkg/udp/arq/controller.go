@@ -469,6 +469,11 @@ func (c *Controller) InStartup() bool {
 	return c.cwnd.InStartup()
 }
 
+// InProbeRTT reports whether the connection is in the ProbeRTT drain phase.
+func (c *Controller) InProbeRTT() bool {
+	return c.cwnd.InProbeRTT()
+}
+
 // BWEStable reports whether the BWE has enough samples.
 func (c *Controller) BWEStable() bool {
 	return c.cwnd.BWE().IsStable()

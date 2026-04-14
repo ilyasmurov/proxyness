@@ -157,3 +157,77 @@ func TestCongestionOnDrop(t *testing.T) {
 		t.Fatalf("expected inFlight=2 after drop, got %d", inFlight)
 	}
 }
+
+func TestCongestionProbeRTTEntersAndPinsCwnd(t *testing.T) {
+	cc := NewCongestionControl()
+	bwe := cc.BWE()
+
+	// Seed a big BW estimate so BDP-based cwnd would naturally be large,
+	// then exit STARTUP (ProbeRTT only fires in STEADY).
+	snap := bwe.TakeSnapshot()
+	time.Sleep(5 * time.Millisecond)
+	bwe.RecordDelivered(5 * 1024 * 1024)
+	bwe.SampleRate(snap, 60*time.Millisecond)
+	cc.mu.Lock()
+	cc.inStartup = false
+	cc.mu.Unlock()
+	cc.OnAck(1)
+
+	preCwnd := cc.Window()
+	if preCwnd <= probeRTTCwnd {
+		t.Fatalf("pre-probe cwnd must exceed probeRTTCwnd to test pin, got %d", preCwnd)
+	}
+
+	// Force the interval to be due.
+	cc.mu.Lock()
+	cc.probeRTTNext = time.Now().Add(-1 * time.Millisecond)
+	cc.mu.Unlock()
+	cc.OnAck(1)
+
+	if !cc.InProbeRTT() {
+		t.Fatal("expected InProbeRTT=true after interval elapsed")
+	}
+	if cc.Window() != probeRTTCwnd {
+		t.Fatalf("expected cwnd=%d during ProbeRTT, got %d", probeRTTCwnd, cc.Window())
+	}
+}
+
+func TestCongestionProbeRTTExitsAfterDuration(t *testing.T) {
+	cc := NewCongestionControl()
+	bwe := cc.BWE()
+
+	// Seed BW / STEADY / in ProbeRTT
+	snap := bwe.TakeSnapshot()
+	time.Sleep(5 * time.Millisecond)
+	bwe.RecordDelivered(5 * 1024 * 1024)
+	bwe.SampleRate(snap, 60*time.Millisecond)
+	cc.mu.Lock()
+	cc.inStartup = false
+	cc.inProbeRTT = true
+	cc.probeRTTStart = time.Now().Add(-probeRTTDuration - 10*time.Millisecond)
+	cc.mu.Unlock()
+
+	cc.OnAck(1)
+
+	if cc.InProbeRTT() {
+		t.Fatal("expected ProbeRTT to exit after duration elapsed")
+	}
+	if cc.Window() <= probeRTTCwnd {
+		t.Fatalf("expected cwnd to grow back after ProbeRTT exit, got %d", cc.Window())
+	}
+}
+
+func TestCongestionProbeRTTSkippedDuringStartup(t *testing.T) {
+	cc := NewCongestionControl()
+
+	// Force probeRTTNext to be due while still in STARTUP.
+	cc.mu.Lock()
+	cc.probeRTTNext = time.Now().Add(-1 * time.Millisecond)
+	cc.mu.Unlock()
+
+	cc.OnAck(1)
+
+	if cc.InProbeRTT() {
+		t.Fatal("ProbeRTT should not fire during STARTUP — interrupting probe phase wastes a round")
+	}
+}
