@@ -42,21 +42,30 @@ if (typeof localStorage !== "undefined" && localStorage.getItem("proxyness-mode"
   localStorage.setItem("proxyness-mode", "tun");
 }
 
-const SERVER = "95.181.162.242:443";
+const SERVERS = [
+  { id: "aeza",    label: "Aeza NL",    addr: "95.181.162.242:443" },
+  { id: "timeweb", label: "Timeweb NL", addr: "82.97.246.65:443"   },
+];
 const STORAGE_KEY = "proxyness-key";
+const SERVER_STORAGE_KEY = "proxyness-server";
+const defaultServerId = () => localStorage.getItem(SERVER_STORAGE_KEY) || "aeza";
+const serverAddrFor = (id: string) => SERVERS.find((s) => s.id === id)?.addr || SERVERS[0].addr;
 
 // ---------------------------------------------------------------------------
 // Settings Page (sidebar nav variant)
 // ---------------------------------------------------------------------------
 type SettingsSection = "general" | "extension" | "account" | "diagnostics";
 
-function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, onHelperError, isConnected, c, fd, fb, fm }: {
+function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, onHelperError, isConnected, serverId, servers, onServerChange, c, fd, fb, fm }: {
   version: string;
   transportMode: string;
   onTransportChange: (mode: string) => void;
   onChangeKey: () => void;
   onHelperError?: (err: string) => void;
   isConnected: boolean;
+  serverId: string;
+  servers: { id: string; label: string; addr: string }[];
+  onServerChange: (id: string) => void;
   c: Record<string, string>;
   fd: string; fb: string; fm: string;
 }) {
@@ -178,10 +187,36 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
               {sBtn("Check for updates", () => (window as any).appInfo?.openUpdate())}
             </div>
 
-            {animatedDivider(0.25)}
+            {animatedDivider(0.23)}
 
-            {fieldLabel("Transport Protocol", 0.3)}
-            <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content", animation: anim("light", 0.35) }}>
+            {fieldLabel("Proxy Server", 0.27)}
+            <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content", marginBottom: 4, animation: anim("light", 0.3) }}>
+              {servers.map((s) => {
+                const active = serverId === s.id;
+                const activeColor = isConnected ? c.am : c.t2;
+                const activeBg = isConnected ? c.amb : c.bg2;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => onServerChange(s.id)}
+                    style={{
+                      padding: "5px 14px", borderRadius: 4, border: "none",
+                      fontFamily: fd, fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
+                      cursor: "pointer", transition: "all 0.1s",
+                      background: active ? activeBg : "transparent",
+                      color: active ? activeColor : c.t3,
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {animatedDivider(0.35)}
+
+            {fieldLabel("Transport Protocol", 0.4)}
+            <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content", animation: anim("light", 0.45) }}>
               {["auto", "udp", "tls"].map((m) => {
                 const active = transportMode === m;
                 // Mirror the traffic-mode switch: amber highlight only
@@ -300,6 +335,8 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
 
 export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
+  const [serverId, setServerId] = useState<string>(defaultServerId);
+  const SERVER = serverAddrFor(serverId);
   const [showSetup, setShowSetup] = useState(!key);
   const [keyError, setKeyError] = useState("");
   const [keyValidating, setKeyValidating] = useState(false);
@@ -399,7 +436,7 @@ export function App() {
     };
 
     tryReconnect();
-  }, [key, proxyMode, connect]);
+  }, [key, proxyMode, connect, SERVER]);
 
   // Cleanup reconnect timer on unmount
   useEffect(() => {
@@ -575,6 +612,28 @@ export function App() {
     }
   }, [disconnect, stopReconnect]);
 
+  const handleServerChange = useCallback(
+    async (id: string) => {
+      if (id === serverId) return;
+      localStorage.setItem(SERVER_STORAGE_KEY, id);
+      setServerId(id);
+      const nextAddr = serverAddrFor(id);
+      if (!key) return;
+      if (isConnected) {
+        if (proxyMode === "tun") {
+          await tunDisconnect();
+          await new Promise((r) => setTimeout(r, 300));
+          await tunConnect(nextAddr, key);
+        } else {
+          await disconnect();
+          await new Promise((r) => setTimeout(r, 300));
+          await connect(nextAddr, key);
+        }
+      }
+    },
+    [serverId, isConnected, key, proxyMode, tunConnect, tunDisconnect, connect, disconnect],
+  );
+
   // Handle transport mode change from the StatusBar badge dropdown.
   // Persist the mode on the daemon, then force a reconnect so the running
   // transport is replaced by one of the new kind.
@@ -597,7 +656,7 @@ export function App() {
         await connect(SERVER, key);
       }
     },
-    [key, proxyMode, connect, disconnect, tunConnect, tunDisconnect],
+    [key, proxyMode, connect, disconnect, tunConnect, tunDisconnect, SERVER],
   );
 
   // Update tray icon based on connection status
@@ -674,7 +733,7 @@ export function App() {
         }
       }
     });
-  }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect]);
+  }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect, SERVER]);
 
 
   const connectWithKey = async (k: string) => {
@@ -1196,6 +1255,9 @@ export function App() {
           onChangeKey={handleReset}
           onHelperError={setHelperError}
           isConnected={isConnected}
+          serverId={serverId}
+          servers={SERVERS}
+          onServerChange={handleServerChange}
           c={c} fd={fd} fb={fb} fm={fm}
         />
       ) : (
