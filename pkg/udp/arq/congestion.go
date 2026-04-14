@@ -16,15 +16,19 @@ const (
 	// minCwnd prevents the window from collapsing to zero during startup.
 	minCwnd = 4
 
-	// maxCwnd is a safety cap to prevent buffer bloat even with high BW
-	// estimates. At packetMSS=1340 and a 120ms NL↔RF RTT, 2048 packets
-	// = ~2.7 MB in flight ≈ 22 MB/s per-flow ceiling — enough headroom
-	// for users on anything up to gigabit symmetric; previous 512 cap
-	// pinned per-flow ceiling at ~5.7 MB/s, which the BWE observably
-	// bumped against under sustained downloads. BBR-style CC doesn't
-	// react to random loss, so a bigger cap doesn't trigger classic
-	// cwnd-halving storms on lossy paths.
-	maxCwnd = 2048
+	// maxCwnd is the hard cap on the congestion window in packets. 512 at
+	// packetMSS=1340 is ~686 KB in flight ≈ 5.7 MB/s per-flow on a 120ms
+	// RTT path. We briefly tried 2048 (~2.7 MB in flight) in 1.36.4 to
+	// unlock higher peak throughput, but our BWE doesn't implement the
+	// RTT-based ProbeRTT phase of real BBR — it only reacts to delivery
+	// rate. Without an RTT-increase signal, cwnd=2048 happily let the
+	// sender stuff 2.7 MB into whatever queue was narrowest on the path
+	// (ISP shaper, TSPU buffer, carrier pipe), bloating per-packet RTT
+	// from 120ms to 1800ms and collapsing goodput from 1.2 MB/s to
+	// 0.13 MB/s on a 50MB download. Until the CC grows ProbeRTT or some
+	// other buffer-queue sensor, 512 is the biggest cwnd that behaves
+	// well on a real RF→NL path with TSPU in the middle.
+	maxCwnd = 512
 
 	// cwndGain is the multiplier over BDP for the congestion window.
 	// 2.0 allows enough headroom for retransmits and bursty ACKs.
