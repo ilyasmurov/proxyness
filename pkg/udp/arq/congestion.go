@@ -16,8 +16,15 @@ const (
 	// minCwnd prevents the window from collapsing to zero during startup.
 	minCwnd = 4
 
-	// maxCwnd is a safety cap to prevent buffer bloat even with high BW estimates.
-	maxCwnd = 512
+	// maxCwnd is a safety cap to prevent buffer bloat even with high BW
+	// estimates. At packetMSS=1340 and a 120ms NL↔RF RTT, 2048 packets
+	// = ~2.7 MB in flight ≈ 22 MB/s per-flow ceiling — enough headroom
+	// for users on anything up to gigabit symmetric; previous 512 cap
+	// pinned per-flow ceiling at ~5.7 MB/s, which the BWE observably
+	// bumped against under sustained downloads. BBR-style CC doesn't
+	// react to random loss, so a bigger cap doesn't trigger classic
+	// cwnd-halving storms on lossy paths.
+	maxCwnd = 2048
 
 	// cwndGain is the multiplier over BDP for the congestion window.
 	// 2.0 allows enough headroom for retransmits and bursty ACKs.
