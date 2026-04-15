@@ -544,7 +544,10 @@ func (s *udpStream) Write(p []byte) (int, error) {
 	return total, nil
 }
 
-// Close sends MsgStreamClose and cleans up.
+// Close sends MsgStreamClose and cleans up. Also closes s.done so any
+// goroutine blocked in Read() unblocks — without this, once the stream is
+// removed from t.streams the delivery callback can no longer fan data into
+// recvCh, and Read()'s select has nothing left to wake it.
 func (s *udpStream) Close() error {
 	s.mu.Lock()
 	if s.closed {
@@ -552,6 +555,7 @@ func (s *udpStream) Close() error {
 		return nil
 	}
 	s.closed = true
+	s.closeRecvChLocked()
 	s.mu.Unlock()
 
 	// Remove from transport streams map
