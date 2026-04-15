@@ -573,27 +573,40 @@ func (t *Tunnel) reconnectTransport() error {
 	return lastErr
 }
 
+// slowPollSchedule — see tun/engine.go for the full rationale. Same ramp
+// (3,5,7,10,15,20,30,30 = 120s) is used here so both health loops behave
+// identically and the tunnel-only code path can't drift from the engine one.
+var slowPollSchedule = []time.Duration{
+	3 * time.Second,
+	5 * time.Second,
+	7 * time.Second,
+	10 * time.Second,
+	15 * time.Second,
+	20 * time.Second,
+	30 * time.Second,
+	30 * time.Second,
+}
+
 // waitForNetwork slow-polls for recovery after reconnectTransport
 // exhausted with ENETUNREACH. See engine.go waitForNetwork — same
 // rationale, same budget. Without a cap we spin forever when ifscope
 // routes were silently flushed and only a helper-driven full restart
 // can reinstall them.
 func (t *Tunnel) waitForNetwork() error {
-	const slowInterval = 15 * time.Second
-	const maxSlowPollAttempts = 8 // 8 × 15s = 120s before triggering full restart
-	log.Printf("[tunnel] network unreachable — entering slow-poll wait (every %s, up to %d attempts)", slowInterval, maxSlowPollAttempts)
+	log.Printf("[tunnel] network unreachable — entering slow-poll wait (schedule %v, %d attempts)", slowPollSchedule, len(slowPollSchedule))
 	transport.LogNetworkState("[tunnel]")
-	ticker := time.NewTicker(slowInterval)
-	defer ticker.Stop()
 
-	for attempt := 1; attempt <= maxSlowPollAttempts; attempt++ {
+	for attempt, delay := range slowPollSchedule {
+		timer := time.NewTimer(delay)
 		select {
 		case <-t.stopHealth:
+			timer.Stop()
 			return errReconnectStopped
-		case <-ticker.C:
+		case <-timer.C:
+			transport.LogNetworkDiagnostics("[tunnel]", t.serverAddr)
 			err := t.tryReconnectOnce()
 			if err == nil {
-				log.Printf("[tunnel] network recovered, transport re-established")
+				log.Printf("[tunnel] network recovered on attempt %d (after %s), transport re-established", attempt+1, delay)
 				return nil
 			}
 			if transport.IsNetworkUnreachable(err) {
@@ -603,7 +616,7 @@ func (t *Tunnel) waitForNetwork() error {
 			return err
 		}
 	}
-	log.Printf("[tunnel] slow-poll wait: %d attempts exhausted, triggering full restart via client", maxSlowPollAttempts)
+	log.Printf("[tunnel] slow-poll wait: %d attempts exhausted, triggering full restart via client", len(slowPollSchedule))
 	return errSlowPollBudgetExhausted
 }
 

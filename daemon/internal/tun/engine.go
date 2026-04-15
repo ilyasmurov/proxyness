@@ -676,34 +676,56 @@ func (e *Engine) reconnectTransport() error {
 	return lastErr
 }
 
+// slowPollSchedule is the per-attempt wait before the next reconnect try in
+// waitForNetwork. The ramp starts tight (3s) because a real incident on
+// 2026-04-15 was caused by Docker Desktop's vmnetd re-creating a virtual
+// ethN interface: configd fires "network changed" ×4 in a second, the ARP
+// cache for the physical gateway gets invalidated, and recovery typically
+// happens within ~10-20s. A flat 15s interval meant the user's first chance
+// to auto-recover was *after* 15s had already passed, during which manual
+// reconnect races the loop. The ramp keeps total budget at 120s (8 attempts)
+// so the "full restart via client" fallback semantics are unchanged.
+var slowPollSchedule = []time.Duration{
+	3 * time.Second,
+	5 * time.Second,
+	7 * time.Second,
+	10 * time.Second,
+	15 * time.Second,
+	20 * time.Second,
+	30 * time.Second,
+	30 * time.Second,
+}
+
 // waitForNetwork slow-polls for recovery after reconnectTransport
 // exhausted with ENETUNREACH. Returns nil on recovery, errReconnectStopped
 // on stop, a wrapped non-network error if the server error surfaces, or
-// errSlowPollBudgetExhausted once the budget (maxSlowPollAttempts × slowInterval)
-// is consumed — the caller then falls through to stopLocked, which the
-// client's status poll picks up and turns into a fresh engine.Start via
-// startReconnect. That rebuild hits connectAndCreate in engine.go, which
-// re-runs the helper's createTUN and reinstalls the ifscope bypass and
-// server host routes from scratch. Without a budget we spin forever when
-// the routes were flushed by some OS event (observed once on macOS: 6+
-// minutes of silent ENETUNREACH, manual disconnect+reconnect was the only
-// way out).
+// errSlowPollBudgetExhausted once slowPollSchedule is consumed — the caller
+// then falls through to stopLocked, which the client's status poll picks up
+// and turns into a fresh engine.Start via startReconnect. That rebuild hits
+// connectAndCreate in engine.go, which re-runs the helper's createTUN and
+// reinstalls the ifscope bypass and server host routes from scratch. Without
+// a budget we spin forever when the routes were flushed by some OS event
+// (observed once on macOS: 6+ minutes of silent ENETUNREACH, manual
+// disconnect+reconnect was the only way out).
+//
+// On each tick LogNetworkDiagnostics dumps the ARP cache and the kernel's
+// resolved route to the server so the next incident carries a full record
+// of how the OS's view of the network evolved during recovery.
 func (e *Engine) waitForNetwork() error {
-	const slowInterval = 15 * time.Second
-	const maxSlowPollAttempts = 8 // 8 × 15s = 120s before triggering full restart
-	log.Printf("[tun] network unreachable — entering slow-poll wait (every %s, up to %d attempts)", slowInterval, maxSlowPollAttempts)
+	log.Printf("[tun] network unreachable — entering slow-poll wait (schedule %v, %d attempts)", slowPollSchedule, len(slowPollSchedule))
 	transport.LogNetworkState("[tun]")
-	ticker := time.NewTicker(slowInterval)
-	defer ticker.Stop()
 
-	for attempt := 1; attempt <= maxSlowPollAttempts; attempt++ {
+	for attempt, delay := range slowPollSchedule {
+		timer := time.NewTimer(delay)
 		select {
 		case <-e.stopHealth:
+			timer.Stop()
 			return errReconnectStopped
-		case <-ticker.C:
+		case <-timer.C:
+			transport.LogNetworkDiagnostics("[tun]", e.serverAddr)
 			err := e.tryReconnectOnce()
 			if err == nil {
-				log.Printf("[tun] network recovered, transport re-established")
+				log.Printf("[tun] network recovered on attempt %d (after %s), transport re-established", attempt+1, delay)
 				return nil
 			}
 			if transport.IsNetworkUnreachable(err) {
@@ -714,14 +736,14 @@ func (e *Engine) waitForNetwork() error {
 			return err
 		}
 	}
-	log.Printf("[tun] slow-poll wait: %d attempts exhausted, triggering full engine restart via client", maxSlowPollAttempts)
+	log.Printf("[tun] slow-poll wait: %d attempts exhausted, triggering full engine restart via client", len(slowPollSchedule))
 	return errSlowPollBudgetExhausted
 }
 
-// errSlowPollBudgetExhausted is returned by waitForNetwork when the slow-poll
-// has tried to reconnect maxSlowPollAttempts times and every attempt produced
-// ENETUNREACH. Signals the caller to stop the engine so the client restarts it
-// and the helper gets a chance to re-install routes.
+// errSlowPollBudgetExhausted is returned by waitForNetwork when slowPollSchedule
+// is consumed and every attempt produced ENETUNREACH. Signals the caller to
+// stop the engine so the client restarts it and the helper gets a chance to
+// re-install routes.
 var errSlowPollBudgetExhausted = errors.New("slow-poll budget exhausted")
 
 func (e *Engine) healthLoop() {
