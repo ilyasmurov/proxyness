@@ -27,7 +27,6 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":443", "listen address")
-	dbPath := flag.String("db", "data.db", "SQLite database path")
 	adminUser := flag.String("admin-user", "", "admin username (or ADMIN_USER env)")
 	adminPass := flag.String("admin-password", "", "admin password (or ADMIN_PASSWORD env)")
 	certFile := flag.String("cert", "cert.pem", "TLS certificate file")
@@ -45,7 +44,12 @@ func main() {
 		log.Fatal("admin-user and admin-password are required (flags or ADMIN_USER/ADMIN_PASSWORD env)")
 	}
 
-	database, err := db.Open(*dbPath)
+	dbURL := os.Getenv("PROXYNESS_DB_URL")
+	if dbURL == "" {
+		log.Fatal("PROXYNESS_DB_URL env required (e.g. postgres://user:pw@10.88.0.1:5432/proxyness?sslmode=disable)")
+	}
+
+	database, err := db.Open(dbURL)
 	if err != nil {
 		log.Fatalf("db: %v", err)
 	}
