@@ -19,6 +19,7 @@ func main() {
 	sqlitePath := flag.String("sqlite", "", "path to source SQLite file (required)")
 	pgURL := flag.String("pg", "", "destination Postgres connection URL (required)")
 	skipLogs := flag.Bool("skip-logs", false, "skip the logs table (large, optional)")
+	truncate := flag.Bool("truncate", false, "TRUNCATE target tables before copy (destructive)")
 	flag.Parse()
 
 	if *sqlitePath == "" || *pgURL == "" {
@@ -39,6 +40,13 @@ func main() {
 	tx, err := dst.Begin(ctx)
 	must(err, "begin tx")
 	defer tx.Rollback(ctx) //nolint:errcheck // committed below on success
+
+	if *truncate {
+		if _, err := tx.Exec(ctx, "TRUNCATE user_sites, site_ips, site_domains, sites, logs, changelog, traffic_stats, devices, users RESTART IDENTITY CASCADE"); err != nil {
+			log.Fatalf("truncate: %v", err)
+		}
+		fmt.Println("truncated")
+	}
 
 	if err := copyUsers(ctx, src, tx); err != nil {
 		log.Fatalf("users: %v", err)

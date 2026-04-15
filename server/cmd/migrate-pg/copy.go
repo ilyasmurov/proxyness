@@ -49,7 +49,7 @@ func copyUsers(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
 }
 
 func copyDevices(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
-	rows, err := src.QueryContext(ctx, `SELECT id, user_id, name, key, active, created_at FROM devices ORDER BY id`)
+	rows, err := src.QueryContext(ctx, `SELECT id, user_id, name, key, active, COALESCE(client_version,'') AS client_version, COALESCE(machine_id,'') AS machine_id, created_at FROM devices ORDER BY id`)
 	if err != nil {
 		return err
 	}
@@ -57,20 +57,20 @@ func copyDevices(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
 	var data [][]any
 	for rows.Next() {
 		var id, userID, active int64
-		var name, key, createdAt string
-		if err := rows.Scan(&id, &userID, &name, &key, &active, &createdAt); err != nil {
+		var name, key, clientVersion, machineID, createdAt string
+		if err := rows.Scan(&id, &userID, &name, &key, &active, &clientVersion, &machineID, &createdAt); err != nil {
 			return err
 		}
 		ts, err := parseSQLiteTime(createdAt)
 		if err != nil {
 			return fmt.Errorf("devices.created_at %q: %w", createdAt, err)
 		}
-		data = append(data, []any{id, userID, name, key, active != 0, ts})
+		data = append(data, []any{id, userID, name, key, active != 0, clientVersion, machineID, ts})
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	n, err := tx.CopyFrom(ctx, pgx.Identifier{"devices"}, []string{"id", "user_id", "name", "key", "active", "created_at"}, pgx.CopyFromRows(data))
+	n, err := tx.CopyFrom(ctx, pgx.Identifier{"devices"}, []string{"id", "user_id", "name", "key", "active", "client_version", "machine_id", "created_at"}, pgx.CopyFromRows(data))
 	if err != nil {
 		return err
 	}
