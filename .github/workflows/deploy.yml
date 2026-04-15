@@ -81,17 +81,17 @@ jobs:
               -p 443:443 \
               -p 443:443/udp \
               -v proxyness-data:/data \
+              --env-file /etc/proxyness/db.env \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
               -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
               ghcr.io/${{ github.repository }}:latest \
               -addr ":443" \
-              -db /data/data.db \
               -cert /data/cert.pem \
               -keyfile /data/key.pem \
               -config "http://172.17.0.1:8443"
 
   deploy-timeweb:
-    needs: build-and-push
+    needs: [build-and-push, deploy-aeza]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -119,10 +119,10 @@ jobs:
               -p 443:443 \
               -p 443:443/udp \
               -v smurov-proxy-data:/data \
+              --env-file /etc/proxyness/db.env \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
               -e ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}" \
               ghcr.io/${{ github.repository }}:latest \
               -addr ":443" \
-              -db /data/data.db \
               -cert /data/cert.pem \
               -keyfile /data/key.pem
