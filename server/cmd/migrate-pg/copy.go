@@ -79,7 +79,7 @@ func copyDevices(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
 }
 
 func copyTrafficStats(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
-	rows, err := src.QueryContext(ctx, `SELECT id, device_id, hour, bytes_in, bytes_out, connections FROM traffic_stats ORDER BY id`)
+	rows, err := src.QueryContext(ctx, `SELECT ts.id, ts.device_id, ts.hour, ts.bytes_in, ts.bytes_out, ts.connections FROM traffic_stats ts JOIN devices d ON d.id = ts.device_id ORDER BY ts.id`)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func copySites(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
 }
 
 func copySiteDomains(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
-	rows, err := src.QueryContext(ctx, `SELECT site_id, domain, is_primary FROM site_domains`)
+	rows, err := src.QueryContext(ctx, `SELECT sd.site_id, sd.domain, sd.is_primary FROM site_domains sd JOIN sites s ON s.id = sd.site_id`)
 	if err != nil {
 		return err
 	}
@@ -251,7 +251,7 @@ func copySiteIPs(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
 }
 
 func copyUserSites(ctx context.Context, src *sql.DB, tx pgx.Tx) error {
-	rows, err := src.QueryContext(ctx, `SELECT user_id, site_id, enabled, updated_at FROM user_sites`)
+	rows, err := src.QueryContext(ctx, `SELECT us.user_id, us.site_id, us.enabled, us.updated_at FROM user_sites us JOIN users u ON u.id = us.user_id JOIN sites s ON s.id = us.site_id`)
 	if err != nil {
 		return err
 	}
