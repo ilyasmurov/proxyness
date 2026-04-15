@@ -677,20 +677,26 @@ func (e *Engine) reconnectTransport() error {
 }
 
 // waitForNetwork slow-polls for recovery after reconnectTransport
-// exhausted with ENETUNREACH. Laptop sleep / extended WiFi drop can last
-// hours, longer than any reasonable fast-retry budget, so this has no
-// timeout — it keeps trying one connect every slowInterval until the OS
-// brings routes back (returns nil), until a non-network error surfaces
-// (returns that error — server is probably really down now, caller
-// should stop), or until stop is requested (returns
-// errReconnectStopped).
+// exhausted with ENETUNREACH. Returns nil on recovery, errReconnectStopped
+// on stop, a wrapped non-network error if the server error surfaces, or
+// errSlowPollBudgetExhausted once the budget (maxSlowPollAttempts × slowInterval)
+// is consumed — the caller then falls through to stopLocked, which the
+// client's status poll picks up and turns into a fresh engine.Start via
+// startReconnect. That rebuild hits connectAndCreate in engine.go, which
+// re-runs the helper's createTUN and reinstalls the ifscope bypass and
+// server host routes from scratch. Without a budget we spin forever when
+// the routes were flushed by some OS event (observed once on macOS: 6+
+// minutes of silent ENETUNREACH, manual disconnect+reconnect was the only
+// way out).
 func (e *Engine) waitForNetwork() error {
 	const slowInterval = 15 * time.Second
-	log.Printf("[tun] network unreachable — entering slow-poll wait (every %s)", slowInterval)
+	const maxSlowPollAttempts = 8 // 8 × 15s = 120s before triggering full restart
+	log.Printf("[tun] network unreachable — entering slow-poll wait (every %s, up to %d attempts)", slowInterval, maxSlowPollAttempts)
+	transport.LogNetworkState("[tun]")
 	ticker := time.NewTicker(slowInterval)
 	defer ticker.Stop()
 
-	for {
+	for attempt := 1; attempt <= maxSlowPollAttempts; attempt++ {
 		select {
 		case <-e.stopHealth:
 			return errReconnectStopped
@@ -708,7 +714,15 @@ func (e *Engine) waitForNetwork() error {
 			return err
 		}
 	}
+	log.Printf("[tun] slow-poll wait: %d attempts exhausted, triggering full engine restart via client", maxSlowPollAttempts)
+	return errSlowPollBudgetExhausted
 }
+
+// errSlowPollBudgetExhausted is returned by waitForNetwork when the slow-poll
+// has tried to reconnect maxSlowPollAttempts times and every attempt produced
+// ENETUNREACH. Signals the caller to stop the engine so the client restarts it
+// and the helper gets a chance to re-install routes.
+var errSlowPollBudgetExhausted = errors.New("slow-poll budget exhausted")
 
 func (e *Engine) healthLoop() {
 	// 12 × 5s = 60s — matches the reconnectTransport budget above so

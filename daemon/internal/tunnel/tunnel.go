@@ -575,15 +575,18 @@ func (t *Tunnel) reconnectTransport() error {
 
 // waitForNetwork slow-polls for recovery after reconnectTransport
 // exhausted with ENETUNREACH. See engine.go waitForNetwork — same
-// rationale: laptop sleep can last hours, and killing the tunnel on the
-// way is exactly the bug this fixes.
+// rationale, same budget. Without a cap we spin forever when ifscope
+// routes were silently flushed and only a helper-driven full restart
+// can reinstall them.
 func (t *Tunnel) waitForNetwork() error {
 	const slowInterval = 15 * time.Second
-	log.Printf("[tunnel] network unreachable — entering slow-poll wait (every %s)", slowInterval)
+	const maxSlowPollAttempts = 8 // 8 × 15s = 120s before triggering full restart
+	log.Printf("[tunnel] network unreachable — entering slow-poll wait (every %s, up to %d attempts)", slowInterval, maxSlowPollAttempts)
+	transport.LogNetworkState("[tunnel]")
 	ticker := time.NewTicker(slowInterval)
 	defer ticker.Stop()
 
-	for {
+	for attempt := 1; attempt <= maxSlowPollAttempts; attempt++ {
 		select {
 		case <-t.stopHealth:
 			return errReconnectStopped
@@ -600,7 +603,12 @@ func (t *Tunnel) waitForNetwork() error {
 			return err
 		}
 	}
+	log.Printf("[tunnel] slow-poll wait: %d attempts exhausted, triggering full restart via client", maxSlowPollAttempts)
+	return errSlowPollBudgetExhausted
 }
+
+// errSlowPollBudgetExhausted mirrors the engine.go sentinel — see there.
+var errSlowPollBudgetExhausted = errors.New("slow-poll budget exhausted")
 
 func (t *Tunnel) acceptLoop(ln net.Listener) {
 	for {
