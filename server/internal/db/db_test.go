@@ -1,19 +1,77 @@
 package db_test
 
 import (
+	"database/sql"
+	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"proxyness/server/internal/db"
 )
 
+// openTestDB spins up a private Postgres database per test by connecting to the
+// URL in PROXYNESS_TEST_DB_URL, CREATE DATABASEing a unique name, applying
+// pg/schema.sql, and returning an open connection. The connecting role must
+// have CREATEDB (on Aeza: `ALTER ROLE proxyness CREATEDB;`). If the env var is
+// unset, the test is skipped — CI does not run these.
 func openTestDB(t *testing.T) *db.DB {
 	t.Helper()
-	d, err := db.Open(":memory:")
+	baseURL := os.Getenv("PROXYNESS_TEST_DB_URL")
+	if baseURL == "" {
+		t.Skip("PROXYNESS_TEST_DB_URL not set")
+	}
+	admin, err := sql.Open("pgx", baseURL)
+	if err != nil {
+		t.Fatalf("open admin conn: %v", err)
+	}
+	defer admin.Close()
+
+	name := fmt.Sprintf("proxyness_test_%d", time.Now().UnixNano())
+	if _, err := admin.Exec("CREATE DATABASE " + name); err != nil {
+		t.Fatalf("create test db: %v", err)
+	}
+
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		t.Fatalf("parse url: %v", err)
+	}
+	u.Path = "/" + name
+	testURL := u.String()
+
+	// Apply the canonical schema. Relative to the test binary cwd, which is
+	// the package directory (server/internal/db), schema.sql is at pg/schema.sql.
+	schemaPath := filepath.Join("pg", "schema.sql")
+	schema, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatalf("read schema: %v", err)
+	}
+	setup, err := sql.Open("pgx", testURL)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	if _, err := setup.Exec(string(schema)); err != nil {
+		setup.Close()
+		t.Fatalf("apply schema: %v", err)
+	}
+	setup.Close()
+
+	d, err := db.Open(testURL)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	t.Cleanup(func() { d.Close() })
+	t.Cleanup(func() {
+		d.Close()
+		admin2, err := sql.Open("pgx", baseURL)
+		if err == nil {
+			admin2.Exec("DROP DATABASE " + name)
+			admin2.Close()
+		}
+	})
 	return d
 }
 
