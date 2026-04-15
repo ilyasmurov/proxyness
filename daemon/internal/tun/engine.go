@@ -914,13 +914,13 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPat
 	e.mu.Unlock()
 
 	if tr != nil {
-		e.proxyTCPTransport(local, tr, dstAddr, dstPort)
+		e.proxyTCPTransport(local, tr, dstAddr, dstPort, appPath)
 	} else {
 		e.proxyTCPLegacy(local, dstAddr, dstPort)
 	}
 }
 
-func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16) {
+func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16, appPath string) {
 	stream, err := tr.OpenStream(0x01, dstAddr, dstPort)
 	if err != nil {
 		e.streamOpenFailures.Add(1)
@@ -935,9 +935,21 @@ func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAd
 	}
 	e.streamOpenFailures.Store(0)
 
-	streamRelay(local, stream, func(in, out int64) {
+	sniff := newSNISniffer(local)
+	start := time.Now()
+	var bytesDown, bytesUp int64
+
+	reason := streamRelay(sniff, stream, func(in, out int64) {
+		atomic.AddInt64(&bytesDown, in)
+		atomic.AddInt64(&bytesUp, out)
 		e.meter.Add(in, out)
 	})
+
+	logTCPClose(dstAddr, dstPort, sniff.Host(), appPath,
+		time.Since(start),
+		atomic.LoadInt64(&bytesUp),
+		atomic.LoadInt64(&bytesDown),
+		reason)
 }
 
 func (e *Engine) proxyTCPLegacy(local net.Conn, dstAddr string, dstPort uint16) {
@@ -1318,11 +1330,19 @@ func idleRelay(c1, c2 net.Conn, onBytes func(in, out int64)) {
 }
 
 // streamRelay copies data bidirectionally between a net.Conn and a
-// transport.Stream with idle timeout and traffic counting.
-func streamRelay(local net.Conn, stream transport.Stream, onBytes func(in, out int64)) {
+// transport.Stream with idle timeout and traffic counting. Returns a
+// short reason string for whoever killed the stream first — one of
+// `download: <err>` (stream.Read / local.Write failed) or
+// `upload: <err>` (local.Read / stream.Write failed). The caller can
+// use this for post-mortem logging.
+func streamRelay(local net.Conn, stream transport.Stream, onBytes func(in, out int64)) string {
 	var active int64 = time.Now().UnixNano()
 
-	errc := make(chan error, 2)
+	type relayErr struct {
+		dir string
+		err error
+	}
+	errc := make(chan relayErr, 2)
 	// stream → local (download)
 	go func() {
 		buf := make([]byte, 32*1024)
@@ -1331,7 +1351,7 @@ func streamRelay(local net.Conn, stream transport.Stream, onBytes func(in, out i
 			if n > 0 {
 				atomic.StoreInt64(&active, time.Now().UnixNano())
 				if _, werr := local.Write(buf[:n]); werr != nil {
-					errc <- werr
+					errc <- relayErr{"download", werr}
 					return
 				}
 				if onBytes != nil {
@@ -1339,7 +1359,7 @@ func streamRelay(local net.Conn, stream transport.Stream, onBytes func(in, out i
 				}
 			}
 			if err != nil {
-				errc <- err
+				errc <- relayErr{"download", err}
 				return
 			}
 		}
@@ -1353,7 +1373,7 @@ func streamRelay(local net.Conn, stream transport.Stream, onBytes func(in, out i
 			if n > 0 {
 				atomic.StoreInt64(&active, time.Now().UnixNano())
 				if _, werr := stream.Write(buf[:n]); werr != nil {
-					errc <- werr
+					errc <- relayErr{"upload", werr}
 					return
 				}
 				if onBytes != nil {
@@ -1366,15 +1386,16 @@ func streamRelay(local net.Conn, stream transport.Stream, onBytes func(in, out i
 						continue
 					}
 				}
-				errc <- err
+				errc <- relayErr{"upload", err}
 				return
 			}
 		}
 	}()
-	<-errc
+	first := <-errc
 	local.Close()
 	stream.Close()
 	<-errc
+	return fmt.Sprintf("%s: %v", first.dir, first.err)
 }
 
 func dialHelper(addr string) (net.Conn, error) {
