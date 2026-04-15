@@ -66,6 +66,11 @@ type Tunnel struct {
 	transportFactory TransportFactory
 	machineID        [16]byte
 
+	// Optional: called by waitForNetwork on each slow-poll tick to re-
+	// install physical routes via the helper. Wired in daemon main to
+	// engine.RefreshRoutes. Nil in tests — skipped silently in that case.
+	refreshRoutesFn func() error
+
 	connsMu sync.Mutex
 	conns   map[uint64]net.Conn
 	connSeq uint64
@@ -135,6 +140,17 @@ func (t *Tunnel) SetTransportFactory(factory TransportFactory, machineID [16]byt
 	defer t.mu.Unlock()
 	t.transportFactory = factory
 	t.machineID = machineID
+}
+
+// SetRouteRefresher installs a callback invoked by waitForNetwork on
+// each slow-poll tick. The daemon wires this to the tun engine's
+// RefreshRoutes so ENETUNREACH stalls that a plain socket retry can't
+// clear get a chance to unstick the kernel's neighbor cache via the
+// helper. Safe to leave unset (tests).
+func (t *Tunnel) SetRouteRefresher(fn func() error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.refreshRoutesFn = fn
 }
 
 func (t *Tunnel) trackConn(c net.Conn) uint64 {
@@ -604,6 +620,16 @@ func (t *Tunnel) waitForNetwork() error {
 			return errReconnectStopped
 		case <-timer.C:
 			transport.LogNetworkDiagnostics("[tunnel]", t.serverAddr)
+			t.mu.Lock()
+			refresh := t.refreshRoutesFn
+			t.mu.Unlock()
+			if refresh != nil {
+				if err := refresh(); err != nil {
+					log.Printf("[tunnel] slow-poll: route refresh failed: %v", err)
+				} else {
+					log.Printf("[tunnel] slow-poll: routes refreshed via helper")
+				}
+			}
 			err := t.tryReconnectOnce()
 			if err == nil {
 				log.Printf("[tunnel] network recovered on attempt %d (after %s), transport re-established", attempt+1, delay)

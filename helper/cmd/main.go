@@ -9,7 +9,7 @@ import (
 )
 
 type Request struct {
-	Action     string `json:"action"`      // "create" or "destroy"
+	Action     string `json:"action"`      // "create", "destroy", or "refresh_routes"
 	ServerAddr string `json:"server_addr"` // server address for route exclusion (create only)
 }
 
@@ -65,6 +65,9 @@ func handleConn(conn net.Conn) {
 		}
 	case "destroy":
 		resp := destroyTUN()
+		writeResponse(conn, resp)
+	case "refresh_routes":
+		resp := refreshRoutes()
 		writeResponse(conn, resp)
 	default:
 		writeResponse(conn, Response{Error: fmt.Sprintf("unknown action: %s", req.Action)})

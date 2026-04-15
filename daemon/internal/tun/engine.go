@@ -456,6 +456,62 @@ func (e *Engine) connectAndCreate(req StartRequest) (net.Conn, error) {
 	return conn, nil
 }
 
+// RefreshRoutes asks the helper to re-install the server-host, DNS,
+// and ifscope bypass routes without destroying the TUN device. Used by
+// waitForNetwork to unstick the kernel's ARP/neighbor cache when
+// sendto() returns ENETUNREACH despite routes being present in
+// netstat — a macOS quirk after physical-interface flaps (Docker
+// vmnetd re-creating bridged interfaces, USB-ethernet plug/unplug,
+// brief wifi loss). A plain socket reconnect can't recover because
+// the blackhole is at the neighbor layer, not the transport. The
+// helper's `route delete + route add -host <server> <gw>` forces a
+// fresh neighbor resolution for the gateway, which is exactly what
+// the user's manual "disconnect → reconnect" achieved. Dialing a
+// fresh helper connection rather than piggybacking on helperConn is
+// intentional: helperConn is in packet-relay mode and sending JSON
+// on it would corrupt the framing.
+func (e *Engine) RefreshRoutes() error {
+	e.mu.Lock()
+	addr := e.helperAddr
+	e.mu.Unlock()
+	if addr == "" {
+		return errors.New("helper not connected")
+	}
+	conn, err := dialHelper(addr)
+	if err != nil {
+		return fmt.Errorf("dial helper: %w", err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	req := map[string]string{"action": "refresh_routes"}
+	if err := json.NewEncoder(conn).Encode(req); err != nil {
+		return fmt.Errorf("write request: %w", err)
+	}
+	var respBuf []byte
+	oneByte := make([]byte, 1)
+	for {
+		if _, err := conn.Read(oneByte); err != nil {
+			return fmt.Errorf("read response: %w", err)
+		}
+		if oneByte[0] == '\n' {
+			break
+		}
+		respBuf = append(respBuf, oneByte[0])
+	}
+	var resp struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(respBuf, &resp); err != nil {
+		return fmt.Errorf("parse response: %w", err)
+	}
+	if !resp.OK {
+		return fmt.Errorf("helper: %s", resp.Error)
+	}
+	return nil
+}
+
 // bridgeInbound reads framed IP packets from helper and injects into gVisor stack.
 //
 // Allocations: gVisor's buffer.MakeWithData → NewViewWithData *copies* the
@@ -723,6 +779,11 @@ func (e *Engine) waitForNetwork() error {
 			return errReconnectStopped
 		case <-timer.C:
 			transport.LogNetworkDiagnostics("[tun]", e.serverAddr)
+			if err := e.RefreshRoutes(); err != nil {
+				log.Printf("[tun] slow-poll: route refresh failed: %v", err)
+			} else {
+				log.Printf("[tun] slow-poll: routes refreshed via helper")
+			}
 			err := e.tryReconnectOnce()
 			if err == nil {
 				log.Printf("[tun] network recovered on attempt %d (after %s), transport re-established", attempt+1, delay)

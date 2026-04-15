@@ -116,6 +116,65 @@ func createTUN(serverAddr string) Response {
 	return Response{TUNName: name}
 }
 
+// refreshRoutes mirrors the darwin version — re-installs server host,
+// DNS, and physical-interface bypass routes without destroying the TUN
+// device. Used by waitForNetwork to kick the kernel's neighbor cache
+// when sendto() returns "network is unreachable" despite routes being
+// present. See main_darwin.go refreshRoutes for the full rationale.
+func refreshRoutes() Response {
+	if tunDevice == nil {
+		return Response{Error: "no TUN device"}
+	}
+
+	newGw := getDefaultGateway()
+	if newGw == "" {
+		return Response{Error: "no default gateway (system offline)"}
+	}
+	physIdx := getPhysicalInterfaceIndex()
+
+	// Drop stale routes (ignore errors — may not exist).
+	if serverHost != "" {
+		ips, err := net.LookupHost(serverHost)
+		if err == nil {
+			for _, ip := range ips {
+				run("route", "delete", ip)
+			}
+		} else {
+			run("route", "delete", serverHost)
+		}
+	}
+	for _, dns := range getSystemDNS() {
+		run("route", "delete", dns)
+	}
+	if physIdx > 0 {
+		run("route", "delete", "0.0.0.0", "mask", "128.0.0.0", "IF", fmt.Sprintf("%d", physIdx))
+		run("route", "delete", "128.0.0.0", "mask", "128.0.0.0", "IF", fmt.Sprintf("%d", physIdx))
+	}
+
+	// Re-add.
+	if serverHost != "" {
+		ips, err := net.LookupHost(serverHost)
+		if err == nil {
+			for _, ip := range ips {
+				runLog("route", "add", ip, "mask", "255.255.255.255", newGw, "metric", "1")
+				log.Printf("refresh: re-added server route %s via %s", ip, newGw)
+			}
+		} else {
+			runLog("route", "add", serverHost, "mask", "255.255.255.255", newGw, "metric", "1")
+		}
+	}
+	for _, dns := range getSystemDNS() {
+		runLog("route", "add", dns, "mask", "255.255.255.255", newGw, "metric", "1")
+	}
+	if physIdx > 0 {
+		runLog("route", "add", "0.0.0.0", "mask", "128.0.0.0", newGw, "IF", fmt.Sprintf("%d", physIdx), "metric", "9999")
+		runLog("route", "add", "128.0.0.0", "mask", "128.0.0.0", newGw, "IF", fmt.Sprintf("%d", physIdx), "metric", "9999")
+		log.Printf("refresh: re-added bypass routes via IF %d (gw %s)", physIdx, newGw)
+	}
+
+	return Response{}
+}
+
 func destroyTUN() Response {
 	if tunDevice == nil {
 		return Response{Error: "no TUN device"}

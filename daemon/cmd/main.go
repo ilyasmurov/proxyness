@@ -29,6 +29,7 @@ func main() {
 	meter := dstats.NewRateMeter()
 	tnl := tunnel.New(meter)
 	tunEngine := tun.NewEngine(meter)
+	tnl.SetRouteRefresher(tunEngine.RefreshRoutes)
 
 	if *serverAddr != "" && *key != "" {
 		if err := tnl.Start(*listenAddr, *serverAddr, *key); err != nil {

@@ -105,6 +105,79 @@ func createTUN(serverAddr string) Response {
 	return Response{TUNName: name}
 }
 
+// refreshRoutes re-installs the server host, DNS, and ifscope bypass
+// routes without touching the TUN device or its default-split routes.
+// Called by the daemon's waitForNetwork when sendto() returns
+// ENETUNREACH despite routes appearing present — typical darwin symptom
+// of a stale ARP/neighbor cache for the gateway after an interface flap
+// (Docker vmnetd, USB-ethernet plug/unplug, brief wifi loss). The
+// `route delete` followed by `route add -host <server> <gw>` forces the
+// kernel to re-resolve the gateway's MAC, which unsticks the blackhole
+// state that a plain socket reconnect can't clear.
+//
+// Also re-reads the current default gateway/interface, so if the
+// physical interface or gateway changed (wifi ↔ ethernet) the new
+// values get used for the re-added routes.
+func refreshRoutes() Response {
+	if tunDevice == nil {
+		return Response{Error: "no TUN device"}
+	}
+
+	newGw := getDefaultGateway()
+	newIface := getDefaultInterface()
+	if newGw == "" {
+		return Response{Error: "no default gateway (system offline)"}
+	}
+
+	// Drop stale routes. These may fail if the route was already flushed
+	// by some OS event — that's expected, run() just logs and continues.
+	if serverHost != "" {
+		ips, err := net.LookupHost(serverHost)
+		if err == nil {
+			for _, ip := range ips {
+				run("route", "delete", "-host", ip)
+			}
+		} else {
+			run("route", "delete", "-host", serverHost)
+		}
+	}
+	for _, dns := range getSystemDNS() {
+		run("route", "delete", "-host", dns)
+	}
+	if origInterface != "" {
+		run("route", "delete", "-net", "0.0.0.0/1", "-ifscope", origInterface)
+		run("route", "delete", "-net", "128.0.0.0/1", "-ifscope", origInterface)
+	}
+
+	origGateway = newGw
+	origInterface = newIface
+
+	// Re-add — each `route add -host X gw` triggers a fresh neighbor
+	// resolution for gw, which is the whole point of this function.
+	if serverHost != "" {
+		ips, err := net.LookupHost(serverHost)
+		if err == nil {
+			for _, ip := range ips {
+				run("route", "add", "-host", ip, newGw)
+				log.Printf("refresh: re-added server route %s via %s", ip, newGw)
+			}
+		} else {
+			run("route", "add", "-host", serverHost, newGw)
+			log.Printf("refresh: re-added server route %s via %s", serverHost, newGw)
+		}
+	}
+	for _, dns := range getSystemDNS() {
+		run("route", "add", "-host", dns, newGw)
+	}
+	if newIface != "" {
+		run("route", "add", "-net", "0.0.0.0/1", newGw, "-ifscope", newIface)
+		run("route", "add", "-net", "128.0.0.0/1", newGw, "-ifscope", newIface)
+		log.Printf("refresh: re-added bypass routes via %s (gw %s)", newIface, newGw)
+	}
+
+	return Response{}
+}
+
 func destroyTUN() Response {
 	if tunDevice == nil {
 		return Response{Error: "no TUN device"}
