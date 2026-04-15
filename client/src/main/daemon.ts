@@ -1,5 +1,6 @@
 import { ChildProcess, spawn, execFileSync } from "child_process";
 import path from "path";
+import fs from "node:fs";
 import { createConnection } from "node:net";
 import { app } from "electron";
 
@@ -10,18 +11,92 @@ let daemonRestartTimer: ReturnType<typeof setTimeout> | null = null;
 const MAX_LOG_LINES = 500;
 const logLines: string[] = [];
 
+// Disk logging: one rolling file in Electron's per-app logs directory
+// (macOS: ~/Library/Logs/Proxyness/daemon.log, Windows: %APPDATA%\Proxyness\logs\daemon.log,
+// Linux: ~/.config/Proxyness/logs/daemon.log). Rotated when it crosses
+// 20 MB, keeping the previous 3 versions. Survives client restarts.
+const LOG_FILE_MAX_BYTES = 20 * 1024 * 1024;
+const LOG_FILE_KEEP = 3;
+let logStream: fs.WriteStream | null = null;
+let logStreamBytes = 0;
+
+function getLogFilePath(): string {
+  return path.join(app.getPath("logs"), "daemon.log");
+}
+
+function rotateLogsOnDisk(base: string): void {
+  for (let i = LOG_FILE_KEEP - 1; i >= 1; i--) {
+    const src = `${base}.${i}`;
+    const dst = `${base}.${i + 1}`;
+    if (fs.existsSync(src)) {
+      try { fs.renameSync(src, dst); } catch { /* ignore */ }
+    }
+  }
+  if (fs.existsSync(base)) {
+    try { fs.renameSync(base, `${base}.1`); } catch { /* ignore */ }
+  }
+}
+
+function ensureLogStream(): fs.WriteStream | null {
+  if (logStream) return logStream;
+  try {
+    const dir = app.getPath("logs");
+    fs.mkdirSync(dir, { recursive: true });
+    const base = getLogFilePath();
+    if (fs.existsSync(base)) {
+      const stat = fs.statSync(base);
+      if (stat.size > LOG_FILE_MAX_BYTES) {
+        rotateLogsOnDisk(base);
+        logStreamBytes = 0;
+      } else {
+        logStreamBytes = stat.size;
+      }
+    } else {
+      logStreamBytes = 0;
+    }
+    logStream = fs.createWriteStream(base, { flags: "a" });
+    return logStream;
+  } catch {
+    return null;
+  }
+}
+
+function writeToDisk(entry: string): void {
+  const s = ensureLogStream();
+  if (!s) return;
+  const line = entry + "\n";
+  s.write(line);
+  logStreamBytes += line.length;
+  if (logStreamBytes > LOG_FILE_MAX_BYTES) {
+    // Mid-run rotation: close, shuffle, reopen. Any write buffered in the
+    // old stream still flushes to the now-.1 file — not lost, just
+    // lands in the previous rotation slot.
+    try { s.end(); } catch { /* ignore */ }
+    logStream = null;
+    logStreamBytes = 0;
+    rotateLogsOnDisk(getLogFilePath());
+  }
+}
+
 function addLog(source: string, data: string) {
-  const ts = new Date().toLocaleTimeString("en-GB", { hour12: false });
+  const now = new Date();
+  const ts = now.toLocaleTimeString("en-GB", { hour12: false });
+  const isoTs = now.toISOString();
   for (const line of data.trim().split("\n")) {
     if (line) {
       logLines.push(`${ts} [${source}] ${line}`);
       if (logLines.length > MAX_LOG_LINES) logLines.shift();
+      writeToDisk(`${isoTs} [${source}] ${line}`);
     }
   }
 }
 
 export function getLogs(): string[] {
   return [...logLines];
+}
+
+export function getLogFile(): string {
+  return getLogFilePath();
 }
 
 export function clearLogs(): void {
