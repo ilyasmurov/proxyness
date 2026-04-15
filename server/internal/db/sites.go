@@ -26,7 +26,7 @@ func (d *DB) GetMySites(userID int) ([]UserSite, error) {
 		SELECT s.id, s.slug, s.label, us.enabled, us.updated_at
 		FROM user_sites us
 		JOIN sites s ON us.site_id = s.id
-		WHERE us.user_id = ?
+		WHERE us.user_id = $1
 		ORDER BY s.label
 	`, userID)
 	if err != nil {
@@ -37,11 +37,9 @@ func (d *DB) GetMySites(userID int) ([]UserSite, error) {
 	out := []UserSite{}
 	for rows.Next() {
 		var s UserSite
-		var enabledInt int
-		if err := rows.Scan(&s.ID, &s.Slug, &s.Label, &enabledInt, &s.UpdatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.Slug, &s.Label, &s.Enabled, &s.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan user_sites: %w", err)
 		}
-		s.Enabled = enabledInt != 0
 		s.Domains = []string{}
 		s.IPs = []string{}
 		out = append(out, s)
@@ -54,7 +52,7 @@ func (d *DB) GetMySites(userID int) ([]UserSite, error) {
 	// Phase A has ≤100 rows per user, so N+1 is fine; optimize later if needed.
 	for i := range out {
 		domRows, err := d.sql.Query(
-			`SELECT domain FROM site_domains WHERE site_id = ? ORDER BY is_primary DESC, domain`,
+			`SELECT domain FROM site_domains WHERE site_id = $1 ORDER BY is_primary DESC, domain`,
 			out[i].ID,
 		)
 		if err != nil {
@@ -71,7 +69,7 @@ func (d *DB) GetMySites(userID int) ([]UserSite, error) {
 		domRows.Close()
 
 		ipRows, err := d.sql.Query(
-			`SELECT cidr FROM site_ips WHERE site_id = ? ORDER BY cidr`,
+			`SELECT cidr FROM site_ips WHERE site_id = $1 ORDER BY cidr`,
 			out[i].ID,
 		)
 		if err != nil {
@@ -107,9 +105,9 @@ func (d *DB) SearchCatalog(q string, limit int) ([]CatalogSite, error) {
 	}
 	rows, err := d.sql.Query(`
 		SELECT id, label, primary_domain FROM sites
-		WHERE LOWER(label) LIKE ? OR LOWER(primary_domain) LIKE ?
+		WHERE LOWER(label) LIKE $1 OR LOWER(primary_domain) LIKE $2
 		ORDER BY label
-		LIMIT ?
+		LIMIT $3
 	`, q, q, limit)
 	if err != nil {
 		return nil, fmt.Errorf("search catalog: %w", err)
@@ -150,7 +148,7 @@ func (d *DB) ApplyAddOp(tx *sql.Tx, userID int, primaryDomain, label string, at 
 	}
 
 	var existingID int
-	err := tx.QueryRow(`SELECT id FROM sites WHERE primary_domain = ?`, primaryDomain).Scan(&existingID)
+	err := tx.QueryRow(`SELECT id FROM sites WHERE primary_domain = $1`, primaryDomain).Scan(&existingID)
 	if err != nil && err != sql.ErrNoRows {
 		return AddOpResult{}, err
 	}
@@ -167,22 +165,18 @@ func (d *DB) ApplyAddOp(tx *sql.Tx, userID int, primaryDomain, label string, at 
 		return AddOpResult{}, err
 	}
 
-	res, err := tx.Exec(
+	var siteID int
+	err = tx.QueryRow(
 		`INSERT INTO sites (slug, label, primary_domain, approved, created_by_user_id)
-		 VALUES (?, ?, ?, 1, ?)`,
+		 VALUES ($1, $2, $3, TRUE, $4) RETURNING id`,
 		slug, label, primaryDomain, userID,
-	)
+	).Scan(&siteID)
 	if err != nil {
 		return AddOpResult{}, err
 	}
-	siteID64, err := res.LastInsertId()
-	if err != nil {
-		return AddOpResult{}, err
-	}
-	siteID := int(siteID64)
 
 	if _, err := tx.Exec(
-		`INSERT INTO site_domains (site_id, domain, is_primary) VALUES (?, ?, 1)`,
+		`INSERT INTO site_domains (site_id, domain, is_primary) VALUES ($1, $2, TRUE)`,
 		siteID, primaryDomain,
 	); err != nil {
 		return AddOpResult{}, err
@@ -196,8 +190,8 @@ func (d *DB) ApplyAddOp(tx *sql.Tx, userID int, primaryDomain, label string, at 
 
 func ensureUserSite(tx *sql.Tx, userID, siteID int, at int64) error {
 	_, err := tx.Exec(
-		`INSERT OR IGNORE INTO user_sites (user_id, site_id, enabled, updated_at)
-		 VALUES (?, ?, 1, ?)`,
+		`INSERT INTO user_sites (user_id, site_id, enabled, updated_at)
+		 VALUES ($1, $2, TRUE, $3) ON CONFLICT (user_id, site_id) DO NOTHING`,
 		userID, siteID, at,
 	)
 	return err
@@ -223,7 +217,7 @@ func pickSlug(tx *sql.Tx, primaryDomain string) (string, error) {
 	suffix := 2
 	for {
 		var existing int
-		err := tx.QueryRow(`SELECT id FROM sites WHERE slug = ?`, attempt).Scan(&existing)
+		err := tx.QueryRow(`SELECT id FROM sites WHERE slug = $1`, attempt).Scan(&existing)
 		if err == sql.ErrNoRows {
 			return attempt, nil
 		}
@@ -267,7 +261,7 @@ func (d *DB) ApplyAddDomainOp(tx *sql.Tx, userID, siteID int, domain string, at 
 	// Auth: only users who have the site enabled can enrich its domains.
 	var dummy int
 	err := tx.QueryRow(
-		`SELECT 1 FROM user_sites WHERE user_id=? AND site_id=?`,
+		`SELECT 1 FROM user_sites WHERE user_id=$1 AND site_id=$2`,
 		userID, siteID,
 	).Scan(&dummy)
 	if err == sql.ErrNoRows {
@@ -278,7 +272,7 @@ func (d *DB) ApplyAddDomainOp(tx *sql.Tx, userID, siteID int, domain string, at 
 	}
 
 	res, err := tx.Exec(
-		`INSERT OR IGNORE INTO site_domains (site_id, domain, is_primary) VALUES (?, ?, 0)`,
+		`INSERT INTO site_domains (site_id, domain, is_primary) VALUES ($1, $2, FALSE) ON CONFLICT (site_id, domain) DO NOTHING`,
 		siteID, domain,
 	)
 	if err != nil {
@@ -303,7 +297,7 @@ const (
 func (d *DB) ApplyToggleOp(tx *sql.Tx, userID, siteID int, enabled bool, at int64) ToggleStatus {
 	var currentAt int64
 	err := tx.QueryRow(
-		`SELECT updated_at FROM user_sites WHERE user_id=? AND site_id=?`,
+		`SELECT updated_at FROM user_sites WHERE user_id=$1 AND site_id=$2`,
 		userID, siteID,
 	).Scan(&currentAt)
 	if err == sql.ErrNoRows {
@@ -316,13 +310,9 @@ func (d *DB) ApplyToggleOp(tx *sql.Tx, userID, siteID int, enabled bool, at int6
 		return ToggleStale
 	}
 
-	enabledInt := 0
-	if enabled {
-		enabledInt = 1
-	}
 	if _, err := tx.Exec(
-		`UPDATE user_sites SET enabled=?, updated_at=? WHERE user_id=? AND site_id=?`,
-		enabledInt, at, userID, siteID,
+		`UPDATE user_sites SET enabled=$1, updated_at=$2 WHERE user_id=$3 AND site_id=$4`,
+		enabled, at, userID, siteID,
 	); err != nil {
 		return ToggleNotFound
 	}
@@ -334,7 +324,7 @@ func (d *DB) ApplyToggleOp(tx *sql.Tx, userID, siteID int, enabled bool, at int6
 // deleting a missing row is a silent no-op.
 func (d *DB) ApplyRemoveOp(tx *sql.Tx, userID, siteID int) error {
 	_, err := tx.Exec(
-		`DELETE FROM user_sites WHERE user_id=? AND site_id=?`,
+		`DELETE FROM user_sites WHERE user_id=$1 AND site_id=$2`,
 		userID, siteID,
 	)
 	return err

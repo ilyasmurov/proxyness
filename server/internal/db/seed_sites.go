@@ -8,7 +8,7 @@ package db
 type SeedSite struct {
 	Slug          string
 	Label         string
-	PrimaryDomain string   // dedup key, also inserted as an is_primary=1 row in site_domains
+	PrimaryDomain string   // dedup key, also inserted as an is_primary=TRUE row in site_domains
 	Domains       []string // extra domains, NOT including PrimaryDomain
 	IPs           []string // CIDRs (may be empty)
 }
@@ -115,20 +115,20 @@ func (d *DB) SeedSitesIfEmpty() error {
 		id := int64(i + 1)
 		if _, err := tx.Exec(
 			`INSERT INTO sites (id, slug, label, primary_domain, approved, created_by_user_id)
-			 VALUES (?, ?, ?, ?, 1, NULL)`,
+			 VALUES ($1, $2, $3, $4, TRUE, NULL)`,
 			id, s.Slug, s.Label, s.PrimaryDomain,
 		); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(
-			`INSERT INTO site_domains (site_id, domain, is_primary) VALUES (?, ?, 1)`,
+			`INSERT INTO site_domains (site_id, domain, is_primary) VALUES ($1, $2, TRUE)`,
 			id, s.PrimaryDomain,
 		); err != nil {
 			return err
 		}
 		for _, dom := range s.Domains {
 			if _, err := tx.Exec(
-				`INSERT INTO site_domains (site_id, domain, is_primary) VALUES (?, ?, 0)`,
+				`INSERT INTO site_domains (site_id, domain, is_primary) VALUES ($1, $2, FALSE)`,
 				id, dom,
 			); err != nil {
 				return err
@@ -136,7 +136,7 @@ func (d *DB) SeedSitesIfEmpty() error {
 		}
 		for _, cidr := range s.IPs {
 			if _, err := tx.Exec(
-				`INSERT INTO site_ips (site_id, cidr) VALUES (?, ?)`,
+				`INSERT INTO site_ips (site_id, cidr) VALUES ($1, $2)`,
 				id, cidr,
 			); err != nil {
 				return err
