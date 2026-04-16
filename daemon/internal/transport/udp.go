@@ -53,6 +53,11 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 	}
 	t.devKey = devKey
 
+	// Replace port with the dedicated UDP port to avoid TSPU blocks on UDP 443.
+	if host, _, err := net.SplitHostPort(server); err == nil {
+		server = net.JoinHostPort(host, UDPPort)
+	}
+
 	// Use the protected dialer so the UDP socket is bound to the physical
 	// interface (Windows IP_UNICAST_IF / macOS IP_BOUND_IF). Without this,
 	// when the TUN engine is active our outbound proxy datagrams hit the

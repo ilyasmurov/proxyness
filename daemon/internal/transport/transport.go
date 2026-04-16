@@ -7,6 +7,10 @@ const (
 	ModeAuto = "auto"
 	ModeUDP  = "udp"
 	ModeTLS  = "tls"
+
+	// UDPPort is the dedicated server port for UDP transport.
+	// Separate from TLS 443 to avoid TSPU/ISP blocks on UDP 443.
+	UDPPort = "8443"
 )
 
 // Transport abstracts the connection to the proxy server.

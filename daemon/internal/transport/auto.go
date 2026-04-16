@@ -18,7 +18,7 @@ func NewAutoTransport() *AutoTransport {
 }
 
 func (a *AutoTransport) Connect(server, key string, machineID [16]byte) error {
-	// Try UDP first
+	// Try UDP first (UDPTransport.Connect replaces the port internally)
 	udp := NewUDPTransport()
 	done := make(chan error, 1)
 	go func() {
