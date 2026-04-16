@@ -88,7 +88,8 @@ jobs:
               -addr ":443" \
               -cert /data/cert.pem \
               -keyfile /data/key.pem \
-              -config "http://172.17.0.1:8443"
+              -config "http://172.17.0.1:8443" \
+              -peer "https://10.88.0.2:443"
 
   deploy-timeweb:
     needs: [build-and-push, deploy-aeza]
