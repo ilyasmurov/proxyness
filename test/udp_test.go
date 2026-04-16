@@ -1,8 +1,7 @@
 package test
 
 import (
-	"encoding/binary"
-	"net"
+"net"
 	"testing"
 	"time"
 
@@ -72,7 +71,6 @@ func TestUDPPacketRoundTrip(t *testing.T) {
 	pkt := &pkgudp.Packet{
 		ConnID:   0xABCD1234,
 		Type:     pkgudp.MsgStreamData,
-		PktNum:   1,
 		StreamID: 42,
 		Data:     []byte("hello from client"),
 	}
@@ -140,65 +138,3 @@ func TestUDPStreamOpenEncodeDecode(t *testing.T) {
 	}
 }
 
-// TestUDPAckRoundTrip tests encoding and decoding an ACK packet over a real UDP socket.
-func TestUDPAckRoundTrip(t *testing.T) {
-	serverConn, err := net.ListenPacket("udp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer serverConn.Close()
-
-	clientConn, err := net.Dial("udp", serverConn.LocalAddr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer clientConn.Close()
-
-	key := make([]byte, 32)
-	for i := range key {
-		key[i] = byte(i)
-	}
-
-	// Build ACK payload
-	ackData := make([]byte, 36) // CumAck(4) + Bitmap(32)
-	binary.BigEndian.PutUint32(ackData[0:4], 42) // CumAck=42
-
-	pkt := &pkgudp.Packet{
-		ConnID: 0xABCD1234,
-		Type:   pkgudp.MsgAck,
-		PktNum: 0, // ACKs are not tracked
-		Data:   ackData,
-	}
-	encoded, err := pkgudp.EncodePacket(pkt, key)
-	if err != nil {
-		t.Fatalf("encode: %v", err)
-	}
-	if _, err := clientConn.Write(encoded); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	buf := make([]byte, 2048)
-	serverConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	n, _, err := serverConn.ReadFrom(buf)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-
-	decoded, err := pkgudp.DecodePacket(buf[:n], key)
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if decoded.Type != pkgudp.MsgAck {
-		t.Fatalf("type: got 0x%02x, want 0x%02x", decoded.Type, pkgudp.MsgAck)
-	}
-	if decoded.PktNum != 0 {
-		t.Fatalf("pktNum: got %d, want 0", decoded.PktNum)
-	}
-	if len(decoded.Data) < 4 {
-		t.Fatal("ack data too short")
-	}
-	cumAck := binary.BigEndian.Uint32(decoded.Data[0:4])
-	if cumAck != 42 {
-		t.Fatalf("cumAck: got %d, want 42", cumAck)
-	}
-}
