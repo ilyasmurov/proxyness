@@ -48,7 +48,7 @@ const SERVERS = [
 ];
 const STORAGE_KEY = "proxyness-key";
 const SERVER_STORAGE_KEY = "proxyness-server";
-const defaultServerId = () => localStorage.getItem(SERVER_STORAGE_KEY) || "aeza";
+const defaultServerId = () => localStorage.getItem(SERVER_STORAGE_KEY) || "timeweb";
 const serverAddrFor = (id: string) => SERVERS.find((s) => s.id === id)?.addr || SERVERS[0].addr;
 
 // ---------------------------------------------------------------------------
