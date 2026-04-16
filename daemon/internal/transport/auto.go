@@ -2,10 +2,20 @@ package transport
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"time"
 
 	pkgudp "proxyness/pkg/udp"
+)
+
+const (
+	// probeMinBytes is the minimum number of bytes the probe must read to
+	// consider UDP bulk data working. Cloudflare's / response is ~15 KB of
+	// HTML, so 10 KB is comfortably under that. TSPU that passes the
+	// handshake but throttles/drops bulk data won't deliver 10 KB in time.
+	probeMinBytes = 10 * 1024
+	probeTimeout  = 5 * time.Second
 )
 
 const udpTimeout = 3 * time.Second
@@ -97,38 +107,56 @@ func (a *AutoTransport) DoneChan() <-chan struct{} {
 	return nil
 }
 
-// probeUDP opens a test TCP stream through the UDP transport to verify that
-// data actually flows in both directions. Returns nil on success.
+// probeUDP opens a test TCP stream through the UDP transport and downloads
+// real data to verify bulk throughput works. TSPU may pass small handshakes
+// while throttling/dropping bulk UDP — a HEAD + 32 bytes won't catch that.
+// We GET http://1.1.1.1/ (returns ~15 KB of HTML) and require at least
+// probeMinBytes (10 KB) within probeTimeout (5s).
 func (a *AutoTransport) probeUDP(udp *UDPTransport) error {
-	// Open a TCP stream to Cloudflare — fast, globally available, tiny response.
 	stream, err := udp.OpenStream(pkgudp.StreamTypeTCP, "1.1.1.1", 80)
 	if err != nil {
 		return fmt.Errorf("open probe stream: %w", err)
 	}
 	defer stream.Close()
 
-	// Send minimal HTTP request and try to read some response bytes.
-	_, err = stream.Write([]byte("HEAD / HTTP/1.1\r\nHost: 1.1.1.1\r\nConnection: close\r\n\r\n"))
+	_, err = stream.Write([]byte("GET / HTTP/1.1\r\nHost: 1.1.1.1\r\nConnection: close\r\n\r\n"))
 	if err != nil {
 		return fmt.Errorf("write probe: %w", err)
 	}
 
-	// Read with timeout — we only need a few bytes to confirm data flows back.
-	buf := make([]byte, 32)
-	readDone := make(chan error, 1)
+	type probeResult struct {
+		n   int
+		err error
+	}
+	ch := make(chan probeResult, 1)
 	go func() {
-		_, rerr := stream.Read(buf)
-		readDone <- rerr
+		total := 0
+		buf := make([]byte, 4096)
+		for total < probeMinBytes {
+			n, rerr := stream.Read(buf)
+			total += n
+			if rerr != nil {
+				// EOF after enough bytes is fine (Connection: close)
+				if total >= probeMinBytes && rerr == io.EOF {
+					ch <- probeResult{total, nil}
+					return
+				}
+				ch <- probeResult{total, rerr}
+				return
+			}
+		}
+		ch <- probeResult{total, nil}
 	}()
 
 	select {
-	case err := <-readDone:
-		if err != nil {
-			return fmt.Errorf("read probe: %w", err)
+	case res := <-ch:
+		if res.err != nil {
+			return fmt.Errorf("probe read: %w (got %d bytes)", res.err, res.n)
 		}
+		log.Printf("[transport] UDP probe: received %d bytes OK", res.n)
 		return nil
-	case <-time.After(5 * time.Second):
-		return fmt.Errorf("probe read timeout (no data received in 5s)")
+	case <-time.After(probeTimeout):
+		return fmt.Errorf("probe timeout: could not read %d bytes in %s (UDP bulk data blocked?)", probeMinBytes, probeTimeout)
 	}
 }
 
