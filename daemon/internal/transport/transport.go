@@ -9,9 +9,9 @@ const (
 	ModeTLS  = "tls"
 
 	// UDPPort is the server port for UDP transport.
-	// Must be 443 — TSPU passes UDP 443 (looks like QUIC) but blocks
-	// non-standard ports like 8443.
-	UDPPort = "443"
+	// Port 8443: ISP blocks UDP 443 entirely, but 8443 passes handshakes
+	// and small packets. Bulk data works with NACK-based retransmit.
+	UDPPort = "8443"
 )
 
 // Transport abstracts the connection to the proxy server.
