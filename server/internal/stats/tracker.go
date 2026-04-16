@@ -19,6 +19,13 @@ type ConnInfo struct {
 	BytesOut   int64     `json:"bytes_out"`
 }
 
+type deviceMeta struct {
+	name     string
+	userName string
+	version  string
+	lastSeen int64 // unix timestamp of last connection activity
+}
+
 type Tracker struct {
 	mu    sync.RWMutex
 	conns map[int64]*ConnInfo
@@ -27,13 +34,20 @@ type Tracker struct {
 
 	bufMu         sync.RWMutex
 	deviceBuffers map[int]*pkgstats.RingBuffer
+	deviceMetas   map[int]*deviceMeta
 	stop          chan struct{}
 }
+
+// devicePresenceTimeout is how long a device stays visible after its last
+// connection closes. With TLS transport every HTTP request is a separate
+// short-lived TCP connection, so there are natural gaps between requests.
+const devicePresenceTimeout = 60 // seconds
 
 func New() *Tracker {
 	t := &Tracker{
 		conns:         make(map[int64]*ConnInfo),
 		deviceBuffers: make(map[int]*pkgstats.RingBuffer),
+		deviceMetas:   make(map[int]*deviceMeta),
 		stop:          make(chan struct{}),
 	}
 	go t.rateTicker()
@@ -92,6 +106,14 @@ func (t *Tracker) computeRates(prev map[int64][2]int64) {
 			t.deviceBuffers[deviceID] = buf
 		}
 		buf.Add(pkgstats.RatePoint{Timestamp: now, BytesIn: d.in, BytesOut: d.out})
+	}
+	// Cleanup stale devices (no activity for 1 hour)
+	const staleTimeout int64 = 3600
+	for id, m := range t.deviceMetas {
+		if now-m.lastSeen > staleTimeout {
+			delete(t.deviceMetas, id)
+			delete(t.deviceBuffers, id)
+		}
 	}
 	t.bufMu.Unlock()
 }
@@ -162,6 +184,21 @@ func (t *Tracker) Rates() []DeviceRate {
 	t.bufMu.RLock()
 	defer t.bufMu.RUnlock()
 
+	// Include devices that have no active connections right now but were
+	// seen recently (within devicePresenceTimeout). This keeps TLS-only
+	// devices visible — their connections are short-lived HTTP requests
+	// that flash in and out of t.conns in milliseconds.
+	now := time.Now().Unix()
+	for id, m := range t.deviceMetas {
+		if devices[id] != nil {
+			continue // already tracked via active connection
+		}
+		if now-m.lastSeen > devicePresenceTimeout {
+			continue // stale
+		}
+		devices[id] = &devInfo{name: m.name, userName: m.userName, version: m.version}
+	}
+
 	result := make([]DeviceRate, 0, len(devices))
 	for id, info := range devices {
 		dr := DeviceRate{
@@ -191,6 +228,7 @@ func (t *Tracker) Rates() []DeviceRate {
 
 func (t *Tracker) Add(deviceID int, deviceName, userName, version string, isTLS bool) int64 {
 	id := atomic.AddInt64(&t.nextID, 1)
+	now := time.Now()
 	t.mu.Lock()
 	t.conns[id] = &ConnInfo{
 		DeviceID:   deviceID,
@@ -198,9 +236,22 @@ func (t *Tracker) Add(deviceID int, deviceName, userName, version string, isTLS 
 		UserName:   userName,
 		Version:    version,
 		TLS:        isTLS,
-		StartedAt:  time.Now(),
+		StartedAt:  now,
 	}
 	t.mu.Unlock()
+
+	// Update device presence metadata
+	t.bufMu.Lock()
+	m := t.deviceMetas[deviceID]
+	if m == nil {
+		m = &deviceMeta{}
+		t.deviceMetas[deviceID] = m
+	}
+	m.name = deviceName
+	m.userName = userName
+	m.version = version
+	m.lastSeen = now.Unix()
+	t.bufMu.Unlock()
 	return id
 }
 
@@ -222,23 +273,16 @@ func (t *Tracker) Remove(id int64) *ConnInfo {
 		return nil
 	}
 	delete(t.conns, id)
-
-	// Check if any connections remain for this device
-	deviceID := c.DeviceID
-	hasMore := false
-	for _, other := range t.conns {
-		if other.DeviceID == deviceID {
-			hasMore = true
-			break
-		}
-	}
 	t.mu.Unlock()
 
-	if !hasMore {
-		t.bufMu.Lock()
-		delete(t.deviceBuffers, deviceID)
-		t.bufMu.Unlock()
+	// Update lastSeen so the device stays visible in Rates() after
+	// its last connection closes (important for TLS transport where
+	// every HTTP request is a separate short-lived TCP connection).
+	t.bufMu.Lock()
+	if m := t.deviceMetas[c.DeviceID]; m != nil {
+		m.lastSeen = time.Now().Unix()
 	}
+	t.bufMu.Unlock()
 
 	return &ConnInfo{
 		DeviceID:   c.DeviceID,
@@ -267,6 +311,19 @@ func (t *Tracker) Active() []ConnInfo {
 
 func (t *Tracker) ActiveCount() int {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return len(t.conns)
+	n := len(t.conns)
+	t.mu.RUnlock()
+	if n > 0 {
+		return n
+	}
+	// Count recently-seen devices (TLS presence)
+	now := time.Now().Unix()
+	t.bufMu.RLock()
+	defer t.bufMu.RUnlock()
+	for _, m := range t.deviceMetas {
+		if now-m.lastSeen <= devicePresenceTimeout {
+			n++
+		}
+	}
+	return n
 }
