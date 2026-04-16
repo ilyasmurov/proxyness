@@ -128,6 +128,8 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 	case pkgudp.MsgStreamClose:
 		log.Printf("udp: stream close connID=%d stream=%d", connID, pkt.StreamID)
 		l.handleStreamClose(sess, pkt)
+	case pkgudp.MsgNack:
+		l.handleNack(sess, pkt, addr)
 	case pkgudp.MsgKeepalive:
 		// Echo keepalive back so client can detect dead sessions
 		resp := &pkgudp.Packet{ConnID: connID, Type: pkgudp.MsgKeepalive}
@@ -385,7 +387,9 @@ func (l *Listener) handleStreamClose(sess *Session, pkt *pkgudp.Packet) {
 	sess.RemoveStream(pkt.StreamID)
 }
 
-// relayFromDest reads from the destination connection and sends StreamData packets to the client.
+// relayFromDest reads from the destination connection and sends StreamData
+// packets to the client. Each packet gets a per-stream sequence number and
+// is stored in the stream's SendBuf for NACK-based retransmit.
 func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) {
 	defer func() {
 		sess.RemoveStream(streamID)
@@ -402,20 +406,55 @@ func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) 
 				return
 			}
 			st.BytesOut += int64(n)
-			// See streamWriter comment above. These bytes were read from the
-			// destination and are being relayed back to the client — DOWNLOAD
-			// from the client's perspective, so they go in the "in" slot.
 			if sess.TrackerID != 0 {
 				l.tracker.AddBytes(sess.TrackerID, int64(n), 0)
 			}
 
-			if sendErr := l.sendPacketTo(sess, pkgudp.MsgStreamData, streamID, buf[:n]); sendErr != nil {
+			seq := st.SendBuf.Next()
+			pkt := &pkgudp.Packet{
+				ConnID:   sess.Token,
+				Type:     pkgudp.MsgStreamData,
+				StreamID: streamID,
+				Seq:      seq,
+				Data:     buf[:n],
+			}
+			raw, encErr := pkgudp.EncodePacket(pkt, sess.SessionKey)
+			if encErr != nil {
+				log.Printf("udp: encode stream=%d: %v", streamID, encErr)
+				return
+			}
+			// Store a copy for retransmit before sending
+			stored := make([]byte, len(raw))
+			copy(stored, raw)
+			st.SendBuf.Store(seq, stored)
+
+			sess.mu.Lock()
+			addr := sess.ClientAddr
+			sess.mu.Unlock()
+			if _, sendErr := l.conn.WriteTo(raw, addr); sendErr != nil {
 				log.Printf("udp: send stream=%d: %v", streamID, sendErr)
 				return
 			}
 		}
 		if err != nil {
 			return
+		}
+	}
+}
+
+// handleNack retransmits packets requested by the client.
+func (l *Listener) handleNack(sess *Session, pkt *pkgudp.Packet, addr net.Addr) {
+	seqs, err := pkgudp.DecodeNack(pkt.Data)
+	if err != nil {
+		return
+	}
+	st, ok := sess.GetStream(pkt.StreamID)
+	if !ok {
+		return
+	}
+	for _, seq := range seqs {
+		if p := st.SendBuf.Get(seq); p != nil {
+			l.conn.WriteTo(p.Raw, addr) //nolint:errcheck
 		}
 	}
 }

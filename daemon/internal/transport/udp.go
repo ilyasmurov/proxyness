@@ -199,11 +199,9 @@ func (t *UDPTransport) recvLoop() {
 			if s == nil {
 				continue
 			}
-			select {
-			case s.recvCh <- pkt.Data:
-			default:
-				// Drop — consumer slow, upper TCP will retransmit
-			}
+			// Deliver through reorder buffer — ensures in-order delivery
+			// and triggers NACKs for gaps.
+			s.deliverOrBuffer(t, pkt)
 		case pkgudp.MsgStreamClose:
 			t.mu.Lock()
 			s, ok := t.streams[pkt.StreamID]
@@ -275,10 +273,12 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 	// streams hold the full buffer.
 	recvCh := make(chan []byte, 4096)
 	s := &udpStream{
-		t:      t,
-		id:     id,
-		recvCh: recvCh,
-		done:   make(chan struct{}),
+		t:        t,
+		id:       id,
+		recvCh:   recvCh,
+		done:     make(chan struct{}),
+		ooo:      make(map[uint32][]byte),
+		nackSent: make(map[uint32]bool),
 	}
 	t.streams[id] = s
 	t.mu.Unlock()
@@ -378,6 +378,12 @@ func (t *UDPTransport) sendPacketDirect(typ byte, streamID uint32, data []byte) 
 // udpStream
 // ---------------------------------------------------------------------------
 
+// reorderBufMax is the maximum number of out-of-order packets buffered per
+// stream before we give up waiting and deliver what we have. Sized for ~2 MB
+// of buffered data at 1340 bytes per packet. Beyond this, the gap is likely
+// unrecoverable and the upper TCP will retransmit.
+const reorderBufMax = 1536
+
 type udpStream struct {
 	t      *UDPTransport
 	id     uint32
@@ -389,10 +395,13 @@ type udpStream struct {
 	// an in-flight delivery.
 	done chan struct{}
 
-	mu         sync.Mutex
-	buf        []byte // leftover bytes from previous Read
-	closed     bool
-	recvClosed bool // guards against double-close of done
+	mu          sync.Mutex
+	buf         []byte // leftover bytes from previous Read
+	closed      bool
+	recvClosed  bool // guards against double-close of done
+	expectedSeq uint32            // next expected sequence number (1-based)
+	ooo         map[uint32][]byte // out-of-order packets awaiting delivery
+	nackSent    map[uint32]bool   // seqs we've already NACKed
 }
 
 func (s *udpStream) ID() uint32 { return s.id }
@@ -405,6 +414,115 @@ func (s *udpStream) closeRecvChLocked() {
 	if !s.recvClosed {
 		s.recvClosed = true
 		close(s.done)
+	}
+}
+
+// deliverOrBuffer processes an incoming data packet through the reorder buffer.
+// Packets arriving in order are delivered immediately to recvCh. Out-of-order
+// packets are buffered and a NACK is sent for the gap. When the missing packet
+// arrives, all consecutive buffered packets are flushed.
+func (s *udpStream) deliverOrBuffer(t *UDPTransport, pkt *pkgudp.Packet) {
+	data := make([]byte, len(pkt.Data))
+	copy(data, pkt.Data)
+
+	s.mu.Lock()
+
+	// Seq 0 means non-sequenced (e.g. connect result) — deliver directly.
+	if pkt.Seq == 0 {
+		s.mu.Unlock()
+		select {
+		case s.recvCh <- data:
+		default:
+		}
+		return
+	}
+
+	// First sequenced packet — initialize expected.
+	if s.expectedSeq == 0 {
+		s.expectedSeq = pkt.Seq
+	}
+
+	if pkt.Seq == s.expectedSeq {
+		// In order — deliver and flush any consecutive buffered packets.
+		s.expectedSeq++
+		s.mu.Unlock()
+
+		select {
+		case s.recvCh <- data:
+		default:
+		}
+
+		// Flush consecutive buffered packets.
+		for {
+			s.mu.Lock()
+			next, ok := s.ooo[s.expectedSeq]
+			if !ok {
+				s.mu.Unlock()
+				break
+			}
+			delete(s.ooo, s.expectedSeq)
+			delete(s.nackSent, s.expectedSeq)
+			s.expectedSeq++
+			s.mu.Unlock()
+
+			select {
+			case s.recvCh <- next:
+			default:
+			}
+		}
+	} else if pkt.Seq > s.expectedSeq {
+		// Future packet — buffer and NACK the gap.
+		if s.ooo == nil {
+			s.ooo = make(map[uint32][]byte)
+		}
+		s.ooo[pkt.Seq] = data
+
+		// Collect missing seqs for NACK.
+		var missing []uint32
+		if s.nackSent == nil {
+			s.nackSent = make(map[uint32]bool)
+		}
+		for seq := s.expectedSeq; seq < pkt.Seq; seq++ {
+			if !s.nackSent[seq] {
+				missing = append(missing, seq)
+				s.nackSent[seq] = true
+			}
+		}
+
+		// If ooo buffer is too large, skip ahead — gap is unrecoverable.
+		if len(s.ooo) > reorderBufMax {
+			log.Printf("udp: stream %d reorder buffer overflow (%d), skipping to seq %d",
+				s.id, len(s.ooo), pkt.Seq)
+			s.expectedSeq = pkt.Seq + 1
+			s.ooo = make(map[uint32][]byte)
+			s.nackSent = make(map[uint32]bool)
+			s.mu.Unlock()
+			return
+		}
+
+		s.mu.Unlock()
+
+		if len(missing) > 0 {
+			go t.sendNack(s.id, missing)
+		}
+	} else {
+		// Old packet (retransmit of already-delivered seq) — check if it fills
+		// a gap in our ooo buffer. If not, it's a true duplicate; drop it.
+		s.mu.Unlock()
+	}
+}
+
+// sendNack sends a NACK message to the server requesting retransmit of missing seqs.
+func (t *UDPTransport) sendNack(streamID uint32, seqs []uint32) {
+	// Chunk into batches of 64 (max per NACK message).
+	for len(seqs) > 0 {
+		batch := seqs
+		if len(batch) > 64 {
+			batch = seqs[:64]
+		}
+		seqs = seqs[len(batch):]
+		data := pkgudp.EncodeNack(batch)
+		t.sendPacketDirect(pkgudp.MsgNack, streamID, data) //nolint:errcheck
 	}
 }
 

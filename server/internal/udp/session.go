@@ -25,6 +25,43 @@ type Session struct {
 	nextSID uint32
 }
 
+// sendBufSize is the number of slots in the per-stream retransmit ring buffer.
+// 512 × ~1400 bytes ≈ 700 KB per active stream. Packets older than 512 sends
+// are unrecoverable via NACK; the upper TCP will retransmit at that point.
+const sendBufSize = 512
+
+// SendBuf is a ring buffer that stores recently-sent packets for NACK retransmit.
+type SendBuf struct {
+	ring [sendBufSize]*SentPacket
+	seq  uint32 // next sequence number to assign (starts at 1)
+}
+
+// SentPacket holds a pre-encoded packet for fast retransmit.
+type SentPacket struct {
+	Seq uint32
+	Raw []byte // pre-encoded wire bytes, ready to WriteTo
+}
+
+// Next assigns and returns the next sequence number.
+func (sb *SendBuf) Next() uint32 {
+	sb.seq++
+	return sb.seq
+}
+
+// Store saves a sent packet in the ring buffer.
+func (sb *SendBuf) Store(seq uint32, raw []byte) {
+	sb.ring[seq%sendBufSize] = &SentPacket{Seq: seq, Raw: raw}
+}
+
+// Get retrieves a stored packet by seq, or nil if evicted/missing.
+func (sb *SendBuf) Get(seq uint32) *SentPacket {
+	p := sb.ring[seq%sendBufSize]
+	if p != nil && p.Seq == seq {
+		return p
+	}
+	return nil
+}
+
 // StreamState tracks one proxied stream within a session.
 type StreamState struct {
 	Type     byte // 0x01=TCP, 0x02=UDP
@@ -36,6 +73,7 @@ type StreamState struct {
 	BytesIn  int64
 	BytesOut int64
 	Created  time.Time
+	SendBuf  SendBuf // ring buffer for NACK-based retransmit
 }
 
 func (s *Session) AddStream() uint32 {

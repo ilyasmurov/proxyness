@@ -13,6 +13,7 @@ func TestPacketEncodeDecodeData(t *testing.T) {
 		ConnID:   0x12345678,
 		Type:     MsgStreamData,
 		StreamID: 42,
+		Seq:      17,
 		Data:     []byte("hello"),
 	}
 
@@ -39,6 +40,9 @@ func TestPacketEncodeDecodeData(t *testing.T) {
 	}
 	if decoded.StreamID != pkt.StreamID {
 		t.Fatalf("streamID: got %d, want %d", decoded.StreamID, pkt.StreamID)
+	}
+	if decoded.Seq != pkt.Seq {
+		t.Fatalf("seq: got %d, want %d", decoded.Seq, pkt.Seq)
 	}
 	if string(decoded.Data) != "hello" {
 		t.Fatalf("data: got %q", decoded.Data)
@@ -95,5 +99,24 @@ func TestPacketHandshake(t *testing.T) {
 	}
 	if string(decoded.Data) != "handshake-payload" {
 		t.Fatalf("data: got %q", decoded.Data)
+	}
+}
+
+func TestNackEncodeDecode(t *testing.T) {
+	seqs := []uint32{5, 7, 12, 100}
+	data := EncodeNack(seqs)
+
+	decoded, err := DecodeNack(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(decoded) != len(seqs) {
+		t.Fatalf("count: got %d, want %d", len(decoded), len(seqs))
+	}
+	for i, s := range decoded {
+		if s != seqs[i] {
+			t.Fatalf("seq[%d]: got %d, want %d", i, s, seqs[i])
+		}
 	}
 }

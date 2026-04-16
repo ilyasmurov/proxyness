@@ -79,7 +79,7 @@ jobs:
               --restart unless-stopped \
               --ulimit nofile=32768:32768 \
               -p 4430:443 \
-              -p 8443:8443/udp \
+              -p 443:443/udp \
               -v proxyness-data:/data \
               --env-file /etc/proxyness/db.env \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
@@ -117,7 +117,7 @@ jobs:
               --restart unless-stopped \
               --ulimit nofile=32768:32768 \
               -p 443:443 \
-              -p 8443:8443/udp \
+              -p 443:443/udp \
               -v smurov-proxy-data:/data \
               --env-file /etc/proxyness/db.env \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \

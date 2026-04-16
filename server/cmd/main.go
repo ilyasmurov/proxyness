@@ -31,7 +31,7 @@ func main() {
 	adminPass := flag.String("admin-password", "", "admin password (or ADMIN_PASSWORD env)")
 	certFile := flag.String("cert", "cert.pem", "TLS certificate file")
 	keyFile := flag.String("keyfile", "key.pem", "TLS private key file")
-	udpAddr := flag.String("udp-addr", ":8443", "UDP listen address (separate port to avoid TSPU blocks on UDP 443)")
+	udpAddr := flag.String("udp-addr", ":443", "UDP listen address")
 	configAddr := flag.String("config", "", "config service address (default http://127.0.0.1:8443)")
 	flag.Parse()
 
@@ -82,7 +82,7 @@ func main() {
 
 	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, *configAddr)
 
-	// Start UDP listener on a separate port to avoid TSPU blocks on UDP 443
+	// Start UDP listener (same port 443 as TLS — UDP and TCP don't conflict)
 	udpConn, err := net.ListenPacket("udp", *udpAddr)
 	if err != nil {
 		log.Fatalf("udp listen: %v", err)
