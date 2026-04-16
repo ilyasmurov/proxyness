@@ -55,5 +55,5 @@ jobs:
             docker run -d \
               --name proxyness-admin \
               --restart unless-stopped \
-              -p 8080:80 \
+              -p 8081:80 \
               ghcr.io/${{ github.repository }}-admin:latest
