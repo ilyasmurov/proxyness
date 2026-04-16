@@ -54,7 +54,15 @@ const serverAddrFor = (id: string) => SERVERS.find((s) => s.id === id)?.addr || 
 // ---------------------------------------------------------------------------
 // Settings Page (sidebar nav variant)
 // ---------------------------------------------------------------------------
-type SettingsSection = "general" | "extension" | "account" | "diagnostics";
+type SettingsSection = "general" | "notifications" | "extension" | "account" | "diagnostics";
+
+const NOTIF_KEYS = {
+  connect: "notif-connect",
+  disconnect: "notif-disconnect",
+  reconnect: "notif-reconnect",
+  updates: "notif-updates",
+} as const;
+const notifDefault = (key: string) => localStorage.getItem(key) !== "false"; // enabled by default
 
 function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, onHelperError, isConnected, serverId, servers, onServerChange, c, fd, fb, fm }: {
   version: string;
@@ -72,11 +80,15 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
   const [section, setSection] = useState<SettingsSection>("general");
   const [token, setToken] = useState("");
   const [copied, setCopied] = useState(false);
+  const [notifConnect, setNotifConnect] = useState(() => notifDefault(NOTIF_KEYS.connect));
+  const [notifDisconnect, setNotifDisconnect] = useState(() => notifDefault(NOTIF_KEYS.disconnect));
+  const [notifReconnect, setNotifReconnect] = useState(() => notifDefault(NOTIF_KEYS.reconnect));
+  const [notifUpdates, setNotifUpdates] = useState(() => notifDefault(NOTIF_KEYS.updates));
   // Keyboard nav — ArrowUp/ArrowDown cycle focus + active section
   // between sidebar nav items. Standard tablist pattern.
-  const NAV_SECTIONS: SettingsSection[] = ["general", "extension", "account", "diagnostics"];
+  const NAV_SECTIONS: SettingsSection[] = ["general", "notifications", "extension", "account", "diagnostics"];
   const navRefs = useRef<Record<SettingsSection, HTMLButtonElement | null>>({
-    general: null, extension: null, account: null, diagnostics: null,
+    general: null, notifications: null, extension: null, account: null, diagnostics: null,
   });
   const handleNavKey = (e: React.KeyboardEvent, id: SettingsSection) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -168,9 +180,10 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
         padding: "16px 0", display: "flex", flexDirection: "column", gap: 1,
       }}>
         <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.05s both" }}>{navItem("general", "General")}</div>
-        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>{navItem("extension", "Extension")}</div>
-        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>{navItem("account", "Account")}</div>
-        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>{navItem("diagnostics", "Diagnostics")}</div>
+        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.1s both" }}>{navItem("notifications", "Notifications")}</div>
+        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.15s both" }}>{navItem("extension", "Extension")}</div>
+        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.2s both" }}>{navItem("account", "Account")}</div>
+        <div style={{ animation: "pn-blur-row 0.3s cubic-bezier(0.25,1,0.5,1) 0.25s both" }}>{navItem("diagnostics", "Diagnostics")}</div>
       </div>
 
       {/* Panel */}
@@ -243,6 +256,51 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
             </div>
           </>
         )}
+
+        {section === "notifications" && (() => {
+          const toggle = (label: string, desc: string, value: boolean, set: (v: boolean) => void, storageKey: string, delay: number) => (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, animation: anim("row", delay) }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: fd, fontSize: 13, fontWeight: 600, color: c.t1 }}>{label}</div>
+                <div style={{ fontFamily: fb, fontSize: 11, color: c.t3, marginTop: 2 }}>{desc}</div>
+              </div>
+              <button
+                onClick={() => { const next = !value; set(next); localStorage.setItem(storageKey, String(next)); }}
+                style={{
+                  width: 36, height: 20, borderRadius: 10, border: "none", cursor: "pointer",
+                  background: value ? c.am : c.bg1,
+                  position: "relative" as const, transition: "background 0.15s",
+                  flexShrink: 0,
+                }}
+              >
+                <div style={{
+                  width: 14, height: 14, borderRadius: 7,
+                  background: value ? c.bg0 : c.t3,
+                  position: "absolute" as const, top: 3,
+                  left: value ? 19 : 3,
+                  transition: "left 0.15s, background 0.15s",
+                }} />
+              </button>
+            </div>
+          );
+          return (
+            <>
+              <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4, animation: anim("heavy", 0.05) }}>Notifications</div>
+              <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5, animation: anim("light", 0.1) }}>Control which system notifications are shown.</div>
+
+              {toggle("Connected", "Notify when proxy connects", notifConnect, setNotifConnect, NOTIF_KEYS.connect, 0.15)}
+              {animatedDivider(0.2)}
+              {toggle("Disconnected", "Notify when proxy disconnects", notifDisconnect, setNotifDisconnect, NOTIF_KEYS.disconnect, 0.25)}
+              {animatedDivider(0.3)}
+              {toggle("Reconnecting", "Notify when proxy is reconnecting", notifReconnect, setNotifReconnect, NOTIF_KEYS.reconnect, 0.35)}
+              {animatedDivider(0.4)}
+              {toggle("Updates", "Notify about available updates", notifUpdates, (v) => {
+                setNotifUpdates(v);
+                (window as any).appInfo?.setNotifUpdates(v);
+              }, NOTIF_KEYS.updates, 0.45)}
+            </>
+          );
+        })()}
 
         {section === "extension" && (
           <>
@@ -384,6 +442,8 @@ export function App() {
     // Send stored key to main process so config poller can start
     const storedKey = localStorage.getItem(STORAGE_KEY);
     if (storedKey) (window as any).updater?.storeKey(storedKey);
+    // Sync notification prefs to main process
+    (window as any).appInfo?.setNotifUpdates(notifDefault(NOTIF_KEYS.updates));
   }, []);
 
 
@@ -669,9 +729,9 @@ export function App() {
     if (prev === current) return;
     const notify = (window as any).appInfo?.showNotification;
     if (!notify) return;
-    if (current === "connected") notify("Proxyness", "Connected");
-    else if (current === "reconnecting") notify("Proxyness", "Reconnecting...");
-    else if (current === "disconnected") notify("Proxyness", "Disconnected");
+    if (current === "connected" && notifDefault(NOTIF_KEYS.connect)) notify("Proxyness", "Connected");
+    else if (current === "reconnecting" && notifDefault(NOTIF_KEYS.reconnect)) notify("Proxyness", "Reconnecting...");
+    else if (current === "disconnected" && notifDefault(NOTIF_KEYS.disconnect)) notify("Proxyness", "Disconnected");
   }, [isConnected, daemonReconnecting, reconnecting]);
 
   // On system wake, the daemon's UDP session is silently dead (server forgot

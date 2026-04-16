@@ -554,7 +554,7 @@ async function pollConfig() {
     for (const n of data.notifications || []) {
       if (shownNotificationIds.has(n.id)) continue;
       shownNotificationIds.add(n.id);
-      if (Notification.isSupported()) {
+      if (notifUpdatesEnabled && Notification.isSupported()) {
         new Notification({ title: n.title, body: n.message || "", silent: false }).show();
       }
     }
@@ -564,6 +564,7 @@ async function pollConfig() {
 }
 
 let storedDeviceKey = "";
+let notifUpdatesEnabled = true;
 const shownNotificationIds = new Set<string>();
 
 function setupIpc() {
@@ -925,6 +926,10 @@ function setupIpc() {
 
   ipcMain.on("tray-status", (_e, connected: boolean) => {
     setTrayConnected(connected);
+  });
+
+  ipcMain.on("set-notif-updates", (_e, enabled: boolean) => {
+    notifUpdatesEnabled = enabled;
   });
 
   ipcMain.on("show-notification", (_e, data: { title: string; body: string }) => {
