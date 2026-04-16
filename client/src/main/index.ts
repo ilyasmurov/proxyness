@@ -401,27 +401,51 @@ function createWindow() {
   });
 }
 
-let trayConnected = false;
+type TrayState = "connected" | "disconnected" | "connecting";
+let trayState: TrayState = "disconnected";
+let trayBlinkTimer: ReturnType<typeof setInterval> | null = null;
+let trayBlinkVisible = true;
 
-function trayIconPath(connected: boolean): string {
-  const buildDir = app.isPackaged
+function trayBuildDir(): string {
+  return app.isPackaged
     ? path.join(process.resourcesPath, "app.asar", "build")
     : path.join(__dirname, "../../build");
-  if (process.platform === "darwin") {
-    return path.join(buildDir, connected ? "trayConnectedTemplate.png" : "trayTemplate.png");
-  }
-  return path.join(buildDir, connected ? "trayConnected.png" : "tray.png");
 }
 
 function loadTrayIcon(connected: boolean): Electron.NativeImage {
-  const icon = nativeImage.createFromPath(trayIconPath(connected));
+  const dir = trayBuildDir();
+  const file = process.platform === "darwin"
+    ? (connected ? "trayConnectedTemplate.png" : "trayTemplate.png")
+    : (connected ? "trayConnected.png" : "tray.png");
+  const icon = nativeImage.createFromPath(path.join(dir, file));
   if (process.platform === "darwin") icon.setTemplateImage(true);
   return icon;
 }
 
+function makeDimIcon(): Electron.NativeImage {
+  const src = loadTrayIcon(false);
+  const size = src.getSize();
+  const buf = src.toBitmap();
+  // Multiply alpha channel by 0.35 for a dim look
+  for (let i = 3; i < buf.length; i += 4) {
+    buf[i] = Math.round(buf[i] * 0.35);
+  }
+  const dim = nativeImage.createFromBitmap(buf, { width: size.width, height: size.height });
+  if (process.platform === "darwin") dim.setTemplateImage(true);
+  return dim;
+}
+
+function stopTrayBlink() {
+  if (trayBlinkTimer) {
+    clearInterval(trayBlinkTimer);
+    trayBlinkTimer = null;
+  }
+  trayBlinkVisible = true;
+}
+
 function updateTrayMenu() {
   if (!tray) return;
-  const connectLabel = trayConnected ? "Disconnect" : "Connect";
+  const connectLabel = trayState === "connected" ? "Disconnect" : "Connect";
   const contextMenu = Menu.buildFromTemplate([
     {
       label: "Show",
@@ -431,7 +455,7 @@ function updateTrayMenu() {
     {
       label: connectLabel,
       click: () => {
-        mainWindow?.webContents.send(trayConnected ? "tray-disconnect" : "tray-connect");
+        mainWindow?.webContents.send(trayState === "connected" ? "tray-disconnect" : "tray-connect");
       },
     },
     { type: "separator" },
@@ -446,15 +470,30 @@ function updateTrayMenu() {
   tray.setContextMenu(contextMenu);
 }
 
-function setTrayConnected(connected: boolean) {
-  if (trayConnected === connected) return;
-  trayConnected = connected;
-  tray?.setImage(loadTrayIcon(connected));
+function setTrayState(state: TrayState) {
+  if (trayState === state) return;
+  trayState = state;
+  stopTrayBlink();
+
+  if (state === "connected") {
+    tray?.setImage(loadTrayIcon(true));
+  } else if (state === "disconnected") {
+    tray?.setImage(makeDimIcon());
+  } else {
+    // connecting / reconnecting — blink between normal and dim
+    const normal = loadTrayIcon(false);
+    const dim = makeDimIcon();
+    tray?.setImage(normal);
+    trayBlinkTimer = setInterval(() => {
+      trayBlinkVisible = !trayBlinkVisible;
+      tray?.setImage(trayBlinkVisible ? normal : dim);
+    }, 600);
+  }
   updateTrayMenu();
 }
 
 function createTray() {
-  tray = new Tray(loadTrayIcon(false));
+  tray = new Tray(makeDimIcon());
   tray.setToolTip("Proxyness");
   updateTrayMenu();
 
@@ -909,6 +948,22 @@ function setupIpc() {
 
   ipcMain.handle("get-installed-apps", () => getInstalledApps());
 
+  ipcMain.handle("install-extension", async () => {
+    // Extension is bundled in resources/extension/ (packaged) or ../extension/ (dev)
+    const extDir = app.isPackaged
+      ? path.join(process.resourcesPath, "extension")
+      : path.join(__dirname, "../../../extension");
+    try {
+      const fs = await import("fs");
+      if (!fs.existsSync(extDir)) return { ok: false, error: "Extension not found" };
+      shell.openPath(extDir);
+      shell.openExternal("chrome://extensions");
+      return { ok: true, path: extDir };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
   ipcMain.handle("get-daemon-token", () => getDaemonToken());
 
   ipcMain.handle("get-seed-sites", () => {
@@ -924,8 +979,13 @@ function setupIpc() {
     }
   });
 
-  ipcMain.on("tray-status", (_e, connected: boolean) => {
-    setTrayConnected(connected);
+  ipcMain.on("tray-status", (_e, status: string) => {
+    // Backwards compat: old renderer sends boolean, new sends string
+    if (typeof status === "boolean") {
+      setTrayState(status ? "connected" : "disconnected");
+    } else {
+      setTrayState(status as TrayState);
+    }
   });
 
   ipcMain.on("set-notif-updates", (_e, enabled: boolean) => {

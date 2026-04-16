@@ -306,11 +306,60 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
           <>
             <div style={{ fontFamily: fd, fontSize: 16, fontWeight: 700, color: c.t1, letterSpacing: 0.3, marginBottom: 4, animation: anim("heavy", 0.05) }}>Browser Extension</div>
             <div style={{ fontFamily: fb, fontSize: 12, color: c.t3, marginBottom: 20, lineHeight: 1.5, animation: anim("light", 0.1) }}>
-              Use this token to connect the browser extension to the local daemon.
+              Connect the Proxyness browser extension to control per-site proxying.
             </div>
 
-            {fieldLabel("Daemon Token", 0.15)}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, animation: anim("row", 0.2) }}>
+            {fieldLabel("Install", 0.15)}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 14, padding: "14px 16px",
+              background: c.bg2, border: `1px solid ${c.b1}`, borderRadius: 8,
+              animation: anim("row", 0.2),
+            }}>
+              <svg width="40" height="40" viewBox="0 0 128 128" style={{ flexShrink: 0 }}>
+                <defs><mask id="ext-eye"><rect width="128" height="128" fill="white"/><ellipse cx="64" cy="48" rx="16" ry="16" fill="black"/></mask></defs>
+                <path d="M16,48 C16,20 33.9,4 64,4 C94.1,4 112,20 112,48 L112,100 L96,84 L80,100 L64,84 L48,100 L32,84 L16,100 Z" fill={c.am} mask="url(#ext-eye)"/>
+              </svg>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: fd, fontSize: 13, fontWeight: 600, color: c.t1, marginBottom: 2 }}>Proxyness for Chrome</div>
+                <div style={{ fontFamily: fb, fontSize: 11, color: c.t3, lineHeight: 1.4 }}>Per-site proxy rules, site discovery, block detection</div>
+              </div>
+              <button
+                onClick={() => (window as any).appInfo?.installExtension()}
+                style={{
+                  padding: "6px 16px", borderRadius: 5, fontFamily: fd, fontSize: 11,
+                  fontWeight: 600, letterSpacing: 0.3, cursor: "pointer", flexShrink: 0,
+                  border: `1px solid oklch(0.78 0.155 75 / 0.3)`,
+                  background: "oklch(0.78 0.155 75 / 0.12)",
+                  color: c.am, transition: "all 0.1s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(0.78 0.155 75 / 0.2)"; e.currentTarget.style.borderColor = "oklch(0.78 0.155 75 / 0.5)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "oklch(0.78 0.155 75 / 0.12)"; e.currentTarget.style.borderColor = "oklch(0.78 0.155 75 / 0.3)"; }}
+              >
+                Install
+              </button>
+            </div>
+            <div style={{ marginTop: 12, animation: anim("light", 0.25) }}>
+              {[
+                ["1", "Click Install to open the extension folder"],
+                ["2", "Open chrome://extensions and enable Developer mode"],
+                ["3", "Click Load unpacked and select the opened folder"],
+              ].map(([n, text]) => (
+                <div key={n} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                  <div style={{
+                    width: 16, height: 16, borderRadius: 8, flexShrink: 0, marginTop: 1,
+                    background: "oklch(0.78 0.155 75 / 0.12)",
+                    fontFamily: fd, fontSize: 10, fontWeight: 700, color: c.am,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>{n}</div>
+                  <div style={{ fontFamily: fb, fontSize: 11, color: c.t3, lineHeight: 1.4 }}>{text}</div>
+                </div>
+              ))}
+            </div>
+
+            {animatedDivider(0.35)}
+
+            {fieldLabel("Daemon Token", 0.4)}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, animation: anim("row", 0.45) }}>
               <div style={{
                 flex: 1, padding: "6px 10px", background: c.bg2, border: `1px solid ${c.b1}`,
                 borderRadius: 5, fontFamily: fm, fontSize: 11, color: c.t2,
@@ -333,7 +382,6 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
-
           </>
         )}
 
@@ -711,8 +759,9 @@ export function App() {
 
   // Update tray icon based on connection status
   useEffect(() => {
-    (window as any).appInfo?.setTrayStatus(isConnected);
-  }, [isConnected]);
+    const state = isConnected ? "connected" : (daemonReconnecting || reconnecting) ? "connecting" : "disconnected";
+    (window as any).appInfo?.setTrayStatus(state);
+  }, [isConnected, daemonReconnecting, reconnecting]);
 
   // Desktop notifications on connection state transitions.
   // prevNotifState tracks the last state we notified on so we only fire

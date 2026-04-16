@@ -14,6 +14,10 @@
       "from": "resources/",
       "to": "resources/",
       "filter": ["daemon-*", "helper-*", "wintun.dll", "seed_sites.json"]
+    },
+    {
+      "from": "../extension/",
+      "to": "extension/"
     }
   ],
   "publish": {

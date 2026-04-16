@@ -30,11 +30,12 @@ contextBridge.exposeInMainWorld("appInfo", {
   minimizeWindow: () => ipcRenderer.send("window-minimize"),
   openLogs: () => ipcRenderer.send("open-logs"),
   openUpdate: () => ipcRenderer.send("open-update"),
-  setTrayStatus: (connected: boolean) => ipcRenderer.send("tray-status", connected),
+  setTrayStatus: (status: string) => ipcRenderer.send("tray-status", status),
   showNotification: (title: string, body: string) =>
     ipcRenderer.send("show-notification", { title, body }),
   setNotifUpdates: (enabled: boolean) =>
     ipcRenderer.send("set-notif-updates", enabled),
+  installExtension: () => ipcRenderer.invoke("install-extension"),
   getSeedSites: () => ipcRenderer.invoke("get-seed-sites"),
   getDaemonToken: () => ipcRenderer.invoke("get-daemon-token"),
   getHelperStatus: () => ipcRenderer.invoke("get-helper-status"),
