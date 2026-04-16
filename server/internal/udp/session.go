@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"proxyness/pkg/udp/arq"
 	"proxyness/server/internal/stats"
 )
 
@@ -21,12 +20,9 @@ type Session struct {
 	ClientAddr net.Addr
 	LastSeen   time.Time
 
-	ARQ *arq.Controller
-
 	mu      sync.Mutex
 	streams map[uint32]*StreamState
 	nextSID uint32
-	nextSeq map[uint32]*uint32 // per-stream sequence counter for server→client
 }
 
 // StreamState tracks one proxied stream within a session.
@@ -48,8 +44,6 @@ func (s *Session) AddStream() uint32 {
 	s.nextSID++
 	id := s.nextSID
 	s.streams[id] = &StreamState{Created: time.Now()}
-	seq := uint32(0)
-	s.nextSeq[id] = &seq
 	return id
 }
 
@@ -58,18 +52,6 @@ func (s *Session) GetStream(id uint32) (*StreamState, bool) {
 	defer s.mu.Unlock()
 	st, ok := s.streams[id]
 	return st, ok
-}
-
-func (s *Session) NextSeq(streamID uint32) uint32 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	seq, ok := s.nextSeq[streamID]
-	if !ok {
-		return 0
-	}
-	v := *seq
-	*seq++
-	return v
 }
 
 func (s *Session) RemoveStream(id uint32) {
@@ -84,10 +66,6 @@ func (s *Session) RemoveStream(id uint32) {
 			st.Conn.Close()
 		}
 		delete(s.streams, id)
-		delete(s.nextSeq, id)
-	}
-	if s.ARQ != nil {
-		s.ARQ.RemoveRecvBuffer(id)
 	}
 }
 
@@ -103,11 +81,6 @@ func (s *Session) CloseAllStreams() {
 			st.Conn.Close()
 		}
 		delete(s.streams, id)
-	}
-	s.nextSeq = make(map[uint32]*uint32)
-	if s.ARQ != nil {
-		s.ARQ.Close()
-		s.ARQ = nil
 	}
 }
 
@@ -142,7 +115,6 @@ func (m *SessionManager) Create(sessionKey []byte, deviceID int) uint32 {
 		DeviceID:   deviceID,
 		LastSeen:   time.Now(),
 		streams:    make(map[uint32]*StreamState),
-		nextSeq:    make(map[uint32]*uint32),
 	}
 
 	return token

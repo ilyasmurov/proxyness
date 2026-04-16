@@ -10,14 +10,8 @@ import (
 
 	"proxyness/pkg/auth"
 	pkgudp "proxyness/pkg/udp"
-	"proxyness/pkg/udp/arq"
 	"proxyness/server/internal/db"
 	"proxyness/server/internal/stats"
-)
-
-const (
-	arqRetransmitInterval = 50 * time.Millisecond
-	arqAckInterval        = 25 * time.Millisecond
 )
 
 // Listener handles incoming QUIC-disguised UDP packets on a PacketConn.
@@ -118,28 +112,22 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 
 	switch pkt.Type {
 	case pkgudp.MsgStreamOpen:
-		// Record PktNum for ACK — stream open is sent through ARQ.
-		// Without this, daemon's cwnd fills and blocks all sends.
-		if sess.ARQ != nil && pkt.PktNum > 0 {
-			sess.ARQ.RecordPktNum(pkt.PktNum)
-		}
 		log.Printf("udp: stream open connID=%d stream=%d from %s", connID, pkt.StreamID, addr)
 		go l.handleStreamOpen(sess, pkt, addr) // async: dial blocks
 	case pkgudp.MsgStreamData:
-		if sess.ARQ != nil {
-			sess.ARQ.HandleData(pkt) // records PktNum + delivers to recvBuf
+		st, ok := sess.GetStream(pkt.StreamID)
+		if ok && st.WriteCh != nil {
+			cp := make([]byte, len(pkt.Data))
+			copy(cp, pkt.Data)
+			select {
+			case st.WriteCh <- cp:
+			default:
+				log.Printf("udp: stream %d write channel full, dropping %d bytes", pkt.StreamID, len(pkt.Data))
+			}
 		}
 	case pkgudp.MsgStreamClose:
-		// Record PktNum for ACK — stream close is sent through ARQ
-		if sess.ARQ != nil && pkt.PktNum > 0 {
-			sess.ARQ.RecordPktNum(pkt.PktNum)
-		}
 		log.Printf("udp: stream close connID=%d stream=%d", connID, pkt.StreamID)
 		l.handleStreamClose(sess, pkt)
-	case pkgudp.MsgAck:
-		if sess.ARQ != nil {
-			sess.ARQ.HandleAck(pkt.Data)
-		}
 	case pkgudp.MsgKeepalive:
 		// Echo keepalive back so client can detect dead sessions
 		resp := &pkgudp.Packet{ConnID: connID, Type: pkgudp.MsgKeepalive}
@@ -239,34 +227,6 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 	// Register in stats tracker so device appears online in admin panel
 	sess.TrackerID = l.tracker.Add(device.ID, device.Name, device.UserName, device.Version, false)
 
-	// Initialize ARQ Controller for this session.
-	// sendFn uses a short write deadline so retransmit storms from dead sessions
-	// can't block the shared socket and starve processLoop.
-	sess.ARQ = arq.New(token, sessionKey, func(data []byte) error {
-		sess.mu.Lock()
-		clientAddr := sess.ClientAddr
-		sess.mu.Unlock()
-		_, err := l.conn.WriteTo(data, clientAddr)
-		return err
-	}, func(streamID uint32, data []byte) {
-		st, ok := sess.GetStream(streamID)
-		if !ok || st.WriteCh == nil {
-			return
-		}
-		cp := make([]byte, len(data))
-		copy(cp, data)
-		select {
-		case st.WriteCh <- cp:
-		default:
-			// write channel full — drop data to avoid blocking processLoop
-			log.Printf("udp: stream %d write channel full, dropping %d bytes", streamID, len(data))
-		}
-	})
-
-	// Start ARQ background goroutines
-	go l.sessionRetransmitLoop(sess)
-	go l.sessionAckLoop(sess)
-
 	// Build and send HandshakeResponse encrypted with device key.
 	resp := &pkgudp.HandshakeResponse{
 		EphemeralPub: serverPubBytes,
@@ -309,49 +269,23 @@ func (l *Listener) checkMachineID(deviceID int, deviceName, machineID string) er
 	return nil
 }
 
-// sessionRetransmitLoop periodically triggers ARQ retransmissions for a session.
-func (l *Listener) sessionRetransmitLoop(sess *Session) {
-	ticker := time.NewTicker(arqRetransmitInterval)
-	defer ticker.Stop()
-	statsTicker := time.NewTicker(2 * time.Second)
-	defer statsTicker.Stop()
-	done := sess.ARQ.Done()
-	for {
-		select {
-		case <-done:
-			return
-		case <-ticker.C:
-			sess.ARQ.RetransmitTick()
-		case <-statsTicker.C:
-			cwnd, inFlight, slots, _ := sess.ARQ.CwndStats()
-			sendBuf := sess.ARQ.SendBufLen()
-			rto := sess.ARQ.RTOMillis()
-			maxBW, minRTT, bdp := sess.ARQ.BWEStats()
-			startup := sess.ARQ.InStartup()
-			probeRTT := sess.ARQ.InProbeRTT()
-			bweStable := sess.ARQ.BWEStable()
-			if inFlight > 0 || sendBuf > 0 {
-				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB startup=%v probeRTT=%v stable=%v",
-					sess.Token, cwnd, inFlight, slots, sendBuf, rto,
-					maxBW/1024/1024, minRTT.Milliseconds(), bdp/1024, startup, probeRTT, bweStable)
-			}
-		}
+// sendPacketTo sends a packet to the session's client address.
+func (l *Listener) sendPacketTo(sess *Session, typ byte, streamID uint32, data []byte) error {
+	pkt := &pkgudp.Packet{
+		ConnID:   sess.Token,
+		Type:     typ,
+		StreamID: streamID,
+		Data:     data,
 	}
-}
-
-// sessionAckLoop periodically sends delayed ACKs for a session.
-func (l *Listener) sessionAckLoop(sess *Session) {
-	ticker := time.NewTicker(arqAckInterval)
-	defer ticker.Stop()
-	done := sess.ARQ.Done()
-	for {
-		select {
-		case <-done:
-			return
-		case <-ticker.C:
-			sess.ARQ.AckTick()
-		}
+	raw, err := pkgudp.EncodePacket(pkt, sess.SessionKey)
+	if err != nil {
+		return err
 	}
+	sess.mu.Lock()
+	addr := sess.ClientAddr
+	sess.mu.Unlock()
+	_, err = l.conn.WriteTo(raw, addr)
+	return err
 }
 
 // handleStreamOpen decodes a StreamOpenMsg, creates a stream in the session,
@@ -365,36 +299,24 @@ func (l *Listener) handleStreamOpen(sess *Session, pkt *pkgudp.Packet, addr net.
 
 	streamID := pkt.StreamID
 
-	// Deduplicate: skip if stream already being processed or connected (retransmit)
+	// Idempotency: if stream already exists, client is retrying — re-send result.
 	sess.mu.Lock()
-	if st, exists := sess.streams[streamID]; exists && (st.Conn != nil || st.Dialing) {
+	if existing := sess.streams[streamID]; existing != nil {
 		sess.mu.Unlock()
+		l.sendResult(sess, streamID, true)
 		return
 	}
-	if _, exists := sess.streams[streamID]; !exists {
-		sess.streams[streamID] = &StreamState{
-			Created: time.Now(),
-			WriteCh: make(chan []byte, 1024), // create early so deliverFn can buffer data during dial
-		}
-		seq := uint32(0)
-		sess.nextSeq[streamID] = &seq
+	sess.streams[streamID] = &StreamState{
+		Created: time.Now(),
+		WriteCh: make(chan []byte, 1024), // create early so data can buffer during dial
 	}
 	st := sess.streams[streamID]
-	if st.WriteCh == nil {
-		st.WriteCh = make(chan []byte, 256)
-	}
 	st.Dialing = true
 	sess.mu.Unlock()
 
 	st.Type = msg.StreamType
 	st.Addr = msg.Addr
 	st.Port = msg.Port
-
-	if sess.ARQ != nil {
-		if err := sess.ARQ.CreateRecvBuffer(streamID); err != nil {
-			// Already exists from previous attempt — not an error
-		}
-	}
 
 	target := net.JoinHostPort(msg.Addr, fmt.Sprintf("%d", msg.Port))
 
@@ -463,7 +385,7 @@ func (l *Listener) handleStreamClose(sess *Session, pkt *pkgudp.Packet) {
 	sess.RemoveStream(pkt.StreamID)
 }
 
-// relayFromDest reads from the destination connection and sends StreamData packets to the client via ARQ.
+// relayFromDest reads from the destination connection and sends StreamData packets to the client.
 func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) {
 	defer func() {
 		sess.RemoveStream(streamID)
@@ -487,13 +409,9 @@ func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) 
 				l.tracker.AddBytes(sess.TrackerID, int64(n), 0)
 			}
 
-			seq := sess.NextSeq(streamID)
-
-			if sess.ARQ != nil {
-				if sendErr := sess.ARQ.Send(pkgudp.MsgStreamData, streamID, seq, buf[:n]); sendErr != nil {
-					log.Printf("udp: arq send stream=%d: %v", streamID, sendErr)
-					return
-				}
+			if sendErr := l.sendPacketTo(sess, pkgudp.MsgStreamData, streamID, buf[:n]); sendErr != nil {
+				log.Printf("udp: send stream=%d: %v", streamID, sendErr)
+				return
 			}
 		}
 		if err != nil {
@@ -502,24 +420,18 @@ func (l *Listener) relayFromDest(sess *Session, streamID uint32, conn net.Conn) 
 	}
 }
 
-// sendResult sends a single-byte result (0x01=ok, 0x00=fail) as StreamData to the client via ARQ.
-// Uses NextSeq to avoid seq collision with relayFromDest which also uses NextSeq.
+// sendResult sends a single-byte result (0x01=ok, 0x00=fail) as StreamData to the client.
 func (l *Listener) sendResult(sess *Session, streamID uint32, ok bool) {
 	b := byte(0x00)
 	if ok {
 		b = 0x01
 	}
-	if sess.ARQ != nil {
-		seq := sess.NextSeq(streamID)
-		sess.ARQ.Send(pkgudp.MsgStreamData, streamID, seq, []byte{b}) //nolint:errcheck
-	}
+	l.sendPacketTo(sess, pkgudp.MsgStreamData, streamID, []byte{b}) //nolint:errcheck
 }
 
-// sendClose sends a StreamClose packet to the client via ARQ.
+// sendClose sends a StreamClose packet to the client.
 func (l *Listener) sendClose(sess *Session, streamID uint32) {
-	if sess.ARQ != nil {
-		sess.ARQ.Send(pkgudp.MsgStreamClose, streamID, 0, nil) //nolint:errcheck
-	}
+	l.sendPacketTo(sess, pkgudp.MsgStreamClose, streamID, nil) //nolint:errcheck
 }
 
 // BroadcastSessionClose sends a MsgSessionClose packet to every active session
