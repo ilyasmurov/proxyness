@@ -7,8 +7,8 @@ const API_URL = import.meta.env.VITE_API_URL || "https://proxyness.smurov.com";
 // Both streams go through Aeza (valid TLS cert). The /timeweb suffix
 // tells the server to proxy the request to Timeweb over the WG tunnel.
 const SERVERS = [
-  { url: API_URL, suffix: "" },
-  { url: API_URL, suffix: "/timeweb" },
+  { url: API_URL, suffix: "", label: "Aeza NL" },
+  { url: API_URL, suffix: "/timeweb", label: "Timeweb NL" },
 ];
 
 export function useStatsStream() {
@@ -33,7 +33,7 @@ export function useStatsStream() {
       setRates(allRates);
     }
 
-    function connectTo(url: string, suffix: string) {
+    function connectTo(url: string, suffix: string, label: string) {
       const key = `${url}${suffix}`;
       async function connect() {
         try {
@@ -69,7 +69,8 @@ export function useStatsStream() {
                   serverActive.current.set(key, parsed);
                   merge();
                 } else if (event === "rate") {
-                  serverRates.current.set(key, parsed);
+                  const tagged = (parsed as any[]).map((d: any) => ({ ...d, server: label }));
+                  serverRates.current.set(key, tagged);
                   merge();
                 }
               } catch {}
@@ -84,8 +85,8 @@ export function useStatsStream() {
       connect();
     }
 
-    for (const { url, suffix } of SERVERS) {
-      connectTo(url, suffix);
+    for (const { url, suffix, label } of SERVERS) {
+      connectTo(url, suffix, label);
     }
 
     return () => controller.abort();

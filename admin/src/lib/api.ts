@@ -82,6 +82,7 @@ export interface DeviceRate {
   tls_conns: number;
   raw_conns: number;
   history: Array<{ t: number; down: number; up: number }>;
+  server?: string;
 }
 
 export interface ChangelogEntry {

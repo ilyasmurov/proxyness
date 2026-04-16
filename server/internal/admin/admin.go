@@ -103,6 +103,14 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string, 
 		peerProxy.Transport = &http.Transport{
 			TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
 		}
+		peerProxy.ModifyResponse = func(resp *http.Response) error {
+			resp.Header.Del("Access-Control-Allow-Origin")
+			resp.Header.Del("Access-Control-Allow-Methods")
+			resp.Header.Del("Access-Control-Allow-Headers")
+			resp.Header.Del("Access-Control-Allow-Credentials")
+			resp.Header.Del("Access-Control-Max-Age")
+			return nil
+		}
 		suffix := "timeweb"
 		if i > 0 {
 			suffix = fmt.Sprintf("peer%d", i)
