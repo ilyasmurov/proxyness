@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	pkgudp "proxyness/pkg/udp"
 )
 
 const udpTimeout = 3 * time.Second
@@ -28,11 +30,22 @@ func (a *AutoTransport) Connect(server, key string, machineID [16]byte) error {
 	select {
 	case err := <-done:
 		if err == nil {
-			a.active = udp
-			log.Printf("[transport] connected via UDP")
-			return nil
+			// Handshake succeeded — probe actual data flow by opening a
+			// test TCP stream to a known fast host. TSPU/ISP may allow the
+			// small handshake packets through while blocking bulk UDP data
+			// (observed 2026-04-16: YouTube unreachable on UDP despite
+			// successful handshake + stream open/close in server logs).
+			if probeErr := a.probeUDP(udp); probeErr != nil {
+				log.Printf("[transport] UDP probe failed: %v, falling back to TLS", probeErr)
+				udp.Close()
+			} else {
+				a.active = udp
+				log.Printf("[transport] connected via UDP (probe OK)")
+				return nil
+			}
+		} else {
+			log.Printf("[transport] UDP failed: %v, falling back to TLS", err)
 		}
-		log.Printf("[transport] UDP failed: %v, falling back to TLS", err)
 	case <-time.After(udpTimeout):
 		udp.Close()
 		log.Printf("[transport] UDP timeout, falling back to TLS")
@@ -81,6 +94,57 @@ func (a *AutoTransport) DoneChan() <-chan struct{} {
 	if d, ok := a.active.(interface{ DoneChan() <-chan struct{} }); ok {
 		return d.DoneChan()
 	}
+	return nil
+}
+
+// probeUDP opens a test TCP stream through the UDP transport to verify that
+// data actually flows in both directions. Returns nil on success.
+func (a *AutoTransport) probeUDP(udp *UDPTransport) error {
+	// Open a TCP stream to Cloudflare — fast, globally available, tiny response.
+	stream, err := udp.OpenStream(pkgudp.StreamTypeTCP, "1.1.1.1", 80)
+	if err != nil {
+		return fmt.Errorf("open probe stream: %w", err)
+	}
+	defer stream.Close()
+
+	// Send minimal HTTP request and try to read some response bytes.
+	_, err = stream.Write([]byte("HEAD / HTTP/1.1\r\nHost: 1.1.1.1\r\nConnection: close\r\n\r\n"))
+	if err != nil {
+		return fmt.Errorf("write probe: %w", err)
+	}
+
+	// Read with timeout — we only need a few bytes to confirm data flows back.
+	buf := make([]byte, 32)
+	readDone := make(chan error, 1)
+	go func() {
+		_, rerr := stream.Read(buf)
+		readDone <- rerr
+	}()
+
+	select {
+	case err := <-readDone:
+		if err != nil {
+			return fmt.Errorf("read probe: %w", err)
+		}
+		return nil
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("probe read timeout (no data received in 5s)")
+	}
+}
+
+// FallbackToTLS closes the current (presumably broken UDP) transport and
+// reconnects via TLS. Called by engine/tunnel D3 when streams fail on Auto+UDP.
+func (a *AutoTransport) FallbackToTLS(server, key string, machineID [16]byte) error {
+	if a.active != nil {
+		a.active.Close()
+		a.active = nil
+	}
+	tls := NewTLSTransport()
+	if err := tls.Connect(server, key, machineID); err != nil {
+		return fmt.Errorf("TLS fallback: %w", err)
+	}
+	a.active = tls
+	log.Printf("[transport] fell back to TLS after UDP data failure")
 	return nil
 }
 

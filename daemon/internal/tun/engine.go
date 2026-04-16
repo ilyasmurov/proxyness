@@ -657,6 +657,31 @@ func (e *Engine) transportDone() <-chan struct{} {
 // stopLocked (which is already being called by whoever signalled stop).
 var errReconnectStopped = errors.New("reconnect stopped")
 
+// tryFallbackToTLS checks if the current transport is AutoTransport running
+// over UDP. If so, it calls FallbackToTLS to switch to TLS without a full
+// reconnect cycle. Returns true if the fallback succeeded.
+func (e *Engine) tryFallbackToTLS() bool {
+	e.mu.Lock()
+	tr := e.transport
+	serverAddr := e.serverAddr
+	key := e.key
+	mid := e.machineID
+	e.mu.Unlock()
+
+	auto, ok := tr.(*transport.AutoTransport)
+	if !ok || auto.Mode() != transport.ModeUDP {
+		return false
+	}
+
+	log.Printf("[tun] D3: Auto+UDP detected, attempting TLS fallback")
+	if err := auto.FallbackToTLS(serverAddr, key, mid); err != nil {
+		log.Printf("[tun] D3: TLS fallback failed: %v", err)
+		return false
+	}
+	log.Printf("[tun] D3: fell back to TLS successfully")
+	return true
+}
+
 // tryReconnectOnce performs a single transport Connect attempt and, on
 // success, publishes the new transport to e.transport. On failure the
 // fresh transport is closed and the engine's transport field is left as
@@ -888,6 +913,17 @@ func (e *Engine) healthLoop() {
 					e.streamOpenFailures.Load())
 				e.streamOpenFailures.Store(0)
 				e.setReconnecting()
+
+				// If Auto chose UDP but streams keep failing, the UDP data
+				// path is likely blocked (TSPU/ISP). Try falling back to TLS
+				// within the same AutoTransport before doing a full rebuild.
+				if fell := e.tryFallbackToTLS(); fell {
+					doneCh = e.transportDone()
+					failures = 0
+					e.setConnected()
+					continue
+				}
+
 				err := e.reconnectTransport()
 				if err == nil {
 					doneCh = e.transportDone()

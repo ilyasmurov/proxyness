@@ -464,6 +464,15 @@ func (t *Tunnel) healthLoop() {
 			if status == Connected && t.stallDetected() {
 				log.Printf("[tunnel] D3: traffic stall detected")
 				t.setReconnecting()
+
+				// If Auto chose UDP but data stalled, try TLS fallback first.
+				if fell := t.tryFallbackToTLS(); fell {
+					doneCh = t.transportDone()
+					failures = 0
+					t.setConnected()
+					continue
+				}
+
 				err := t.reconnectTransport()
 				if err == nil {
 					doneCh = t.transportDone()
@@ -523,6 +532,31 @@ func (t *Tunnel) stallDetected() bool {
 // the caller should exit the health loop without calling stopLocked
 // (already being called by whoever signalled stop).
 var errReconnectStopped = errors.New("reconnect stopped")
+
+// tryFallbackToTLS checks if the current transport is AutoTransport running
+// over UDP. If so, it calls FallbackToTLS to switch to TLS without a full
+// reconnect cycle. Returns true if the fallback succeeded.
+func (t *Tunnel) tryFallbackToTLS() bool {
+	t.mu.Lock()
+	tr := t.transport
+	serverAddr := t.serverAddr
+	key := t.key
+	mid := t.machineID
+	t.mu.Unlock()
+
+	auto, ok := tr.(*transport.AutoTransport)
+	if !ok || auto.Mode() != transport.ModeUDP {
+		return false
+	}
+
+	log.Printf("[tunnel] D3: Auto+UDP detected, attempting TLS fallback")
+	if err := auto.FallbackToTLS(serverAddr, key, mid); err != nil {
+		log.Printf("[tunnel] D3: TLS fallback failed: %v", err)
+		return false
+	}
+	log.Printf("[tunnel] D3: fell back to TLS successfully")
+	return true
+}
 
 // tryReconnectOnce performs a single transport Connect attempt and
 // publishes the new transport on success. On failure the fresh transport
