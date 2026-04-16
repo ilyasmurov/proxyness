@@ -1,7 +1,8 @@
 package test
 
 import (
-"net"
+	"encoding/binary"
+	"net"
 	"testing"
 	"time"
 
