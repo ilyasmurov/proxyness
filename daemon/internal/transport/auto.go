@@ -10,11 +10,9 @@ import (
 )
 
 const (
-	// probeMinBytes is the minimum number of bytes the probe must read to
-	// consider UDP bulk data working. Cloudflare's / response is ~15 KB of
-	// HTML, so 10 KB is comfortably under that. TSPU that passes the
-	// handshake but throttles/drops bulk data won't deliver 10 KB in time.
-	probeMinBytes = 10 * 1024
+	// probeMinBytes: any data beyond the connect result (1 byte) proves the
+	// UDP data path works. Even a single HTTP header line is enough.
+	probeMinBytes = 16
 	probeTimeout  = 5 * time.Second
 )
 
