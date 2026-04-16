@@ -17,18 +17,17 @@ import (
 
 // Handler holds the admin HTTP mux and its dependencies.
 type Handler struct {
-	db           *db.DB
-	tracker      *stats.Tracker
-	user         string
-	password     string
-	downloadsDir string
-	deviceAuth   *DeviceAuth
-	mux          *http.ServeMux
+	db         *db.DB
+	tracker    *stats.Tracker
+	user       string
+	password   string
+	deviceAuth *DeviceAuth
+	mux        *http.ServeMux
 }
 
 // NewHandler creates and wires up the admin HTTP handler.
-func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir, configAddr string) *Handler {
-	h := &Handler{db: d, tracker: tr, user: user, password: password, downloadsDir: downloadsDir}
+func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string) *Handler {
+	h := &Handler{db: d, tracker: tr, user: user, password: password}
 	h.deviceAuth = NewDeviceAuth(d)
 	mux := http.NewServeMux()
 
@@ -73,12 +72,6 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir, confi
 	mux.Handle("/api/admin/notifications", h.authHandler(configProxy))
 	mux.Handle("/api/admin/notifications/", h.authHandler(configProxy))
 	mux.Handle("/api/admin/services", h.authHandler(configProxy))
-
-	// Download files
-	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadsDir))))
-
-	// SPA static files (auth required)
-	mux.Handle("/admin/", h.authHandler(SPAHandler()))
 
 	// Landing page (reverse proxy to standalone landing container on port 80).
 	// Uses Docker bridge IP because the server runs in its own container —

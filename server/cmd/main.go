@@ -79,7 +79,7 @@ func main() {
 	}
 	log.Printf("server listening on %s", *addr)
 
-	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, "/data/downloads", *configAddr)
+	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, *configAddr)
 
 	// Start UDP listener on same port (different protocol, no conflict)
 	udpConn, err := net.ListenPacket("udp", *addr)
