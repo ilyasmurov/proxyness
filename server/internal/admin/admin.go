@@ -68,6 +68,14 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string) 
 	}
 	configTarget, _ := url.Parse(configAddr)
 	configProxy := httputil.NewSingleHostReverseProxy(configTarget)
+	// Strip CORS headers from config service responses — the server's
+	// ServeHTTP already sets them and duplicates cause browser rejection.
+	configProxy.ModifyResponse = func(resp *http.Response) error {
+		resp.Header.Del("Access-Control-Allow-Origin")
+		resp.Header.Del("Access-Control-Allow-Methods")
+		resp.Header.Del("Access-Control-Allow-Headers")
+		return nil
+	}
 	mux.Handle("GET /api/client-config", configProxy)
 	mux.Handle("/api/admin/notifications", h.authHandler(configProxy))
 	mux.Handle("/api/admin/notifications/", h.authHandler(configProxy))
