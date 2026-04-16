@@ -479,5 +479,7 @@ func (s *udpStream) Close() error {
 	delete(s.t.streams, s.id)
 	s.t.mu.Unlock()
 
-	return s.t.sendPacketDirect(pkgudp.MsgStreamClose, s.id, nil)
+	// Best-effort: notify server, ignore send errors (transport may be closed)
+	s.t.sendPacketDirect(pkgudp.MsgStreamClose, s.id, nil)
+	return nil
 }
