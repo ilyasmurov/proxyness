@@ -10,16 +10,17 @@ import (
 	"time"
 
 	pkgudp "proxyness/pkg/udp"
+	"proxyness/pkg/udp/arq"
 )
 
 const (
-	udpMaxPayload  = 1340 // max data bytes per MsgStreamData packet
+	udpMaxPayload  = 1340 // max data bytes per MsgStreamData packet (4 bytes less for PktNum field)
 	udpKeepalive   = 3 * time.Second
 	udpHandshakeTO = 3 * time.Second
 	udpReadBuf     = 65535
 
-	udpStreamOpenRetries = 3
-	udpStreamOpenTimeout = 1 * time.Second
+	arqRetransmitInterval = 50 * time.Millisecond
+	arqAckInterval        = 25 * time.Millisecond
 )
 
 // UDPTransport implements Transport over a single multiplexed UDP connection.
@@ -28,6 +29,7 @@ type UDPTransport struct {
 	sessionKey []byte
 	connID     uint32
 	devKey     []byte // 32-byte device key derived from hex string
+	arq        *arq.Controller
 
 	mu      sync.Mutex
 	streams map[uint32]*udpStream
@@ -52,11 +54,6 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 		return fmt.Errorf("decode device key: %w", err)
 	}
 	t.devKey = devKey
-
-	// Replace port with the dedicated UDP port to avoid TSPU blocks on UDP 443.
-	if host, _, err := net.SplitHostPort(server); err == nil {
-		server = net.JoinHostPort(host, UDPPort)
-	}
 
 	// Use the protected dialer so the UDP socket is bound to the physical
 	// interface (Windows IP_UNICAST_IF / macOS IP_BOUND_IF). Without this,
@@ -102,6 +99,7 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 		ConnID:   0,
 		Type:     pkgudp.MsgHandshake,
 		StreamID: 0,
+		Seq:      0,
 		Data:     reqData,
 	}
 	encoded, err := pkgudp.EncodePacket(pkt, devKey)
@@ -152,14 +150,51 @@ func (t *UDPTransport) Connect(server, key string, machineID [16]byte) error {
 	t.sessionKey = sessionKey
 	t.connID = resp.SessionToken
 
+	// Create ARQ Controller.
+	// sendFn uses a short write deadline so retransmit storms or concurrent
+	// data sends can't block the UDP socket and starve the receive path.
+	t.arq = arq.New(t.connID, t.sessionKey, func(data []byte) error {
+		_, err := t.conn.Write(data)
+		return err
+	}, func(streamID uint32, data []byte) {
+		t.mu.Lock()
+		s, ok := t.streams[streamID]
+		t.mu.Unlock()
+		if !ok {
+			return
+		}
+		// Drop-on-full with an explicit done escape for teardown races.
+		//
+		// A blocking variant (tried in 1.36.3) stalled recvLoop whenever
+		// recvCh was full, which starved ackLoop of new ackState updates,
+		// which made the server's RTO retransmit timer fire for packets
+		// already queued in our kernel UDP buffer — turning a mild
+		// consumer slowdown into a cascading retransmit storm that cut
+		// end-to-end throughput by 10× on a 50MB download.
+		//
+		// Dropping here does silently lose bytes if the consumer is
+		// genuinely overwhelmed, but in practice the 1024-entry recvCh
+		// (~1.3 MB) absorbs normal bursts, and the stalled-recvLoop
+		// failure mode is dramatically worse. Separate done channel
+		// keeps us from panicking on a close-recvCh teardown race.
+		payload := append([]byte(nil), data...)
+		select {
+		case s.recvCh <- payload:
+		case <-s.done:
+		default:
+		}
+	})
+
 	t.lastRecv.Store(time.Now().UnixNano())
 	go t.recvLoop()
 	go t.keepaliveLoop()
+	go t.retransmitLoop()
+	go t.ackLoop()
 
 	return nil
 }
 
-// recvLoop reads incoming UDP packets and delivers them directly to streams.
+// recvLoop reads incoming UDP packets and dispatches them through the ARQ controller.
 func (t *UDPTransport) recvLoop() {
 	buf := make([]byte, udpReadBuf)
 	for {
@@ -193,16 +228,14 @@ func (t *UDPTransport) recvLoop() {
 			go t.Close()
 			return
 		case pkgudp.MsgStreamData:
-			t.mu.Lock()
-			s := t.streams[pkt.StreamID]
-			t.mu.Unlock()
-			if s == nil {
-				continue
-			}
-			// Deliver through reorder buffer — ensures in-order delivery
-			// and triggers NACKs for gaps.
-			s.deliverOrBuffer(t, pkt)
+			t.arq.HandleData(pkt)
+		case pkgudp.MsgAck:
+			t.arq.HandleAck(pkt.Data)
 		case pkgudp.MsgStreamClose:
+			// Record PktNum for ACK — stream close is sent through ARQ
+			if pkt.PktNum > 0 {
+				t.arq.RecordPktNum(pkt.PktNum)
+			}
 			t.mu.Lock()
 			s, ok := t.streams[pkt.StreamID]
 			t.mu.Unlock()
@@ -210,6 +243,7 @@ func (t *UDPTransport) recvLoop() {
 				t.mu.Lock()
 				delete(t.streams, pkt.StreamID)
 				t.mu.Unlock()
+				t.arq.RemoveRecvBuffer(pkt.StreamID)
 				s.mu.Lock()
 				s.closeRecvChLocked()
 				s.mu.Unlock()
@@ -252,9 +286,48 @@ func (t *UDPTransport) keepaliveLoop() {
 	}
 }
 
+func (t *UDPTransport) retransmitLoop() {
+	ticker := time.NewTicker(arqRetransmitInterval)
+	defer ticker.Stop()
+	statsTicker := time.NewTicker(2 * time.Second)
+	defer statsTicker.Stop()
+	for {
+		select {
+		case <-t.done:
+			return
+		case <-ticker.C:
+			t.arq.RetransmitTick()
+		case <-statsTicker.C:
+			cwnd, inFlight, slots, _ := t.arq.CwndStats()
+			sendBuf := t.arq.SendBufLen()
+			rto := t.arq.RTOMillis()
+			maxBW, minRTT, bdp := t.arq.BWEStats()
+			startup := t.arq.InStartup()
+			probeRTT := t.arq.InProbeRTT()
+			bweStable := t.arq.BWEStable()
+			if inFlight > 0 || sendBuf > 0 {
+				log.Printf("udp: daemon cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB startup=%v probeRTT=%v stable=%v",
+					cwnd, inFlight, slots, sendBuf, rto,
+					maxBW/1024/1024, minRTT.Milliseconds(), bdp/1024, startup, probeRTT, bweStable)
+			}
+		}
+	}
+}
+
+func (t *UDPTransport) ackLoop() {
+	ticker := time.NewTicker(arqAckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-t.done:
+			return
+		case <-ticker.C:
+			t.arq.AckTick()
+		}
+	}
+}
+
 // OpenStream allocates a stream ID, sends MsgStreamOpen, and returns a udpStream.
-// For TCP streams, waits for a connect result with up to 3 retries × 1s timeout.
-// For UDP streams, returns immediately after sending MsgStreamOpen.
 func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (Stream, error) {
 	if t.closed.Load() {
 		return nil, fmt.Errorf("transport closed")
@@ -266,22 +339,27 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 	// 4096 × ~1340 bytes ≈ 5.4 MB of per-stream ingress buffer. At observed
 	// wire rates of 5+ MB/s on saturated downloads the previous 1024-entry
 	// buffer (~1.3 MB) filled within ~250ms of consumer stall, after which
-	// the drop-on-full kicked in and user-visible goodput capped at the drain
-	// rate rather than the wire rate. A deeper queue absorbs bursts without
-	// dropping; per-stream memory is bounded by transport MaxStreams (256) ×
-	// 5.4 MB = 1.4 GB worst case, but in practice only active download
-	// streams hold the full buffer.
+	// the deliverCb default-drop kicked in and the user-visible goodput
+	// capped at the drain rate rather than the wire rate. A deeper queue
+	// absorbs bursts without dropping; per-stream memory is bounded by
+	// transport MaxStreams (256) × 5.4 MB = 1.4 GB worst case, but in
+	// practice only active download streams hold the full buffer.
 	recvCh := make(chan []byte, 4096)
 	s := &udpStream{
-		t:        t,
-		id:       id,
-		recvCh:   recvCh,
-		done:     make(chan struct{}),
-		ooo:      make(map[uint32][]byte),
-		nackSent: make(map[uint32]bool),
+		t:      t,
+		id:     id,
+		recvCh: recvCh,
+		done:   make(chan struct{}),
 	}
 	t.streams[id] = s
 	t.mu.Unlock()
+
+	if err := t.arq.CreateRecvBuffer(id); err != nil {
+		t.mu.Lock()
+		delete(t.streams, id)
+		t.mu.Unlock()
+		return nil, fmt.Errorf("create recv buffer: %w", err)
+	}
 
 	// Send MsgStreamOpen
 	payload := (&pkgudp.StreamOpenMsg{
@@ -290,46 +368,41 @@ func (t *UDPTransport) OpenStream(streamType byte, addr string, port uint16) (St
 		Port:       port,
 	}).Encode()
 
-	if err := t.sendPacketDirect(pkgudp.MsgStreamOpen, id, payload); err != nil {
+	if err := t.arq.Send(pkgudp.MsgStreamOpen, id, 0, payload); err != nil {
 		t.mu.Lock()
 		delete(t.streams, id)
 		t.mu.Unlock()
+		t.arq.RemoveRecvBuffer(id)
 		return nil, fmt.Errorf("send stream open: %w", err)
 	}
 
-	// For TCP streams wait for a single-byte connect result.
-	// Retry up to udpStreamOpenRetries times with udpStreamOpenTimeout each.
+	// For TCP streams wait for a single-byte result on the receive channel.
+	// recvCh is no longer closed on teardown (see udpStream.done) so we
+	// select on s.done instead to catch transport/stream close during the
+	// connect wait.
 	if streamType == pkgudp.StreamTypeTCP {
-		var lastErr error
-		for attempt := 0; attempt < udpStreamOpenRetries; attempt++ {
-			select {
-			case data := <-recvCh:
-				if len(data) == 0 || data[0] != 0x01 {
-					lastErr = fmt.Errorf("connect rejected: %s:%d", addr, port)
-					// No point retrying a server-side rejection
-					t.mu.Lock()
-					delete(t.streams, id)
-					t.mu.Unlock()
-					return nil, lastErr
-				}
-				return s, nil
-			case <-s.done:
+		select {
+		case data := <-recvCh:
+			if len(data) == 0 || data[0] != 0x01 {
 				t.mu.Lock()
 				delete(t.streams, id)
 				t.mu.Unlock()
-				return nil, fmt.Errorf("stream closed before connect result")
-			case <-time.After(udpStreamOpenTimeout):
-				lastErr = fmt.Errorf("connect timeout: %s:%d", addr, port)
-				// Retry: resend MsgStreamOpen
-				if attempt < udpStreamOpenRetries-1 {
-					_ = t.sendPacketDirect(pkgudp.MsgStreamOpen, id, payload)
-				}
+				t.arq.RemoveRecvBuffer(id)
+				return nil, fmt.Errorf("connect rejected: %s:%d", addr, port)
 			}
+		case <-s.done:
+			t.mu.Lock()
+			delete(t.streams, id)
+			t.mu.Unlock()
+			t.arq.RemoveRecvBuffer(id)
+			return nil, fmt.Errorf("stream closed before connect result")
+		case <-time.After(10 * time.Second):
+			t.mu.Lock()
+			delete(t.streams, id)
+			t.mu.Unlock()
+			t.arq.RemoveRecvBuffer(id)
+			return nil, fmt.Errorf("connect timeout: %s:%d", addr, port)
 		}
-		t.mu.Lock()
-		delete(t.streams, id)
-		t.mu.Unlock()
-		return nil, lastErr
 	}
 
 	return s, nil
@@ -341,6 +414,10 @@ func (t *UDPTransport) Close() error {
 		return nil
 	}
 	close(t.done)
+
+	if t.arq != nil {
+		t.arq.Close()
+	}
 
 	t.mu.Lock()
 	for _, s := range t.streams {
@@ -354,23 +431,17 @@ func (t *UDPTransport) Close() error {
 	return t.conn.Close()
 }
 
-func (t *UDPTransport) Mode() string            { return ModeUDP }
-func (t *UDPTransport) Alive() bool             { return !t.closed.Load() }
+func (t *UDPTransport) Mode() string  { return ModeUDP }
+func (t *UDPTransport) Alive() bool       { return !t.closed.Load() }
 func (t *UDPTransport) DoneChan() <-chan struct{} { return t.done }
 
-// sendPacketDirect encodes and sends a packet directly on the shared connection.
-func (t *UDPTransport) sendPacketDirect(typ byte, streamID uint32, data []byte) error {
-	pkt := &pkgudp.Packet{
-		ConnID:   t.connID,
-		Type:     typ,
-		StreamID: streamID,
-		Data:     data,
-	}
-	raw, err := pkgudp.EncodePacket(pkt, t.sessionKey)
+// sendPacket is a helper to encode and send a packet on the shared connection.
+func (t *UDPTransport) sendPacket(pkt *pkgudp.Packet) error {
+	data, err := pkgudp.EncodePacket(pkt, t.sessionKey)
 	if err != nil {
 		return err
 	}
-	_, err = t.conn.Write(raw)
+	_, err = t.conn.Write(data)
 	return err
 }
 
@@ -378,151 +449,35 @@ func (t *UDPTransport) sendPacketDirect(typ byte, streamID uint32, data []byte) 
 // udpStream
 // ---------------------------------------------------------------------------
 
-// reorderBufMax is the maximum number of out-of-order packets buffered per
-// stream before we give up waiting and deliver what we have. Sized for ~2 MB
-// of buffered data at 1340 bytes per packet. Beyond this, the gap is likely
-// unrecoverable and the upper TCP will retransmit.
-const reorderBufMax = 1536
-
 type udpStream struct {
 	t      *UDPTransport
 	id     uint32
 	recvCh chan []byte
 	// done is closed exactly once when the stream is being torn down. It
-	// lets Read() exit cleanly. We never close recvCh itself — closing a
-	// channel while another goroutine is mid-send panics the process, which
-	// is what happened before 1.36.2 whenever a stream teardown raced with
-	// an in-flight delivery.
+	// lets the transport's delivery callback escape a blocking `recvCh <-`
+	// when Read is no longer happening, and lets Read() exit cleanly. We
+	// never close recvCh itself — closing a channel while another goroutine
+	// is mid-send panics the process, which is what happened before 1.36.2
+	// whenever a stream teardown raced with an in-flight delivery.
 	done chan struct{}
 
-	mu          sync.Mutex
-	buf         []byte // leftover bytes from previous Read
-	closed      bool
-	recvClosed  bool // guards against double-close of done
-	expectedSeq uint32            // next expected sequence number (1-based)
-	ooo         map[uint32][]byte // out-of-order packets awaiting delivery
-	nackSent    map[uint32]bool   // seqs we've already NACKed
+	mu         sync.Mutex
+	buf        []byte // leftover bytes from previous Read
+	seq        uint32
+	closed     bool
+	recvClosed bool // guards against double-close of done
 }
 
 func (s *udpStream) ID() uint32 { return s.id }
 
 // closeRecvChLocked signals the stream is torn down. Closes s.done exactly
 // once; recvCh itself is left unclosed because closing it would race with
-// any in-flight delivery trying to send a payload. The name is retained from
-// the pre-1.36.2 API for call-site compatibility.
+// any in-flight delivery callback trying to send a payload. The name is
+// retained from the pre-1.36.2 API for call-site compatibility.
 func (s *udpStream) closeRecvChLocked() {
 	if !s.recvClosed {
 		s.recvClosed = true
 		close(s.done)
-	}
-}
-
-// deliverOrBuffer processes an incoming data packet through the reorder buffer.
-// Packets arriving in order are delivered immediately to recvCh. Out-of-order
-// packets are buffered and a NACK is sent for the gap. When the missing packet
-// arrives, all consecutive buffered packets are flushed.
-func (s *udpStream) deliverOrBuffer(t *UDPTransport, pkt *pkgudp.Packet) {
-	data := make([]byte, len(pkt.Data))
-	copy(data, pkt.Data)
-
-	s.mu.Lock()
-
-	// Seq 0 means non-sequenced (e.g. connect result) — deliver directly.
-	if pkt.Seq == 0 {
-		s.mu.Unlock()
-		select {
-		case s.recvCh <- data:
-		default:
-		}
-		return
-	}
-
-	// First sequenced packet — initialize expected.
-	if s.expectedSeq == 0 {
-		s.expectedSeq = pkt.Seq
-	}
-
-	if pkt.Seq == s.expectedSeq {
-		// In order — deliver and flush any consecutive buffered packets.
-		s.expectedSeq++
-		s.mu.Unlock()
-
-		select {
-		case s.recvCh <- data:
-		default:
-		}
-
-		// Flush consecutive buffered packets.
-		for {
-			s.mu.Lock()
-			next, ok := s.ooo[s.expectedSeq]
-			if !ok {
-				s.mu.Unlock()
-				break
-			}
-			delete(s.ooo, s.expectedSeq)
-			delete(s.nackSent, s.expectedSeq)
-			s.expectedSeq++
-			s.mu.Unlock()
-
-			select {
-			case s.recvCh <- next:
-			default:
-			}
-		}
-	} else if pkt.Seq > s.expectedSeq {
-		// Future packet — buffer and NACK the gap.
-		if s.ooo == nil {
-			s.ooo = make(map[uint32][]byte)
-		}
-		s.ooo[pkt.Seq] = data
-
-		// Collect missing seqs for NACK.
-		var missing []uint32
-		if s.nackSent == nil {
-			s.nackSent = make(map[uint32]bool)
-		}
-		for seq := s.expectedSeq; seq < pkt.Seq; seq++ {
-			if !s.nackSent[seq] {
-				missing = append(missing, seq)
-				s.nackSent[seq] = true
-			}
-		}
-
-		// If ooo buffer is too large, skip ahead — gap is unrecoverable.
-		if len(s.ooo) > reorderBufMax {
-			log.Printf("udp: stream %d reorder buffer overflow (%d), skipping to seq %d",
-				s.id, len(s.ooo), pkt.Seq)
-			s.expectedSeq = pkt.Seq + 1
-			s.ooo = make(map[uint32][]byte)
-			s.nackSent = make(map[uint32]bool)
-			s.mu.Unlock()
-			return
-		}
-
-		s.mu.Unlock()
-
-		if len(missing) > 0 {
-			go t.sendNack(s.id, missing)
-		}
-	} else {
-		// Old packet (retransmit of already-delivered seq) — check if it fills
-		// a gap in our ooo buffer. If not, it's a true duplicate; drop it.
-		s.mu.Unlock()
-	}
-}
-
-// sendNack sends a NACK message to the server requesting retransmit of missing seqs.
-func (t *UDPTransport) sendNack(streamID uint32, seqs []uint32) {
-	// Chunk into batches of 64 (max per NACK message).
-	for len(seqs) > 0 {
-		batch := seqs
-		if len(batch) > 64 {
-			batch = seqs[:64]
-		}
-		seqs = seqs[len(batch):]
-		data := pkgudp.EncodeNack(batch)
-		t.sendPacketDirect(pkgudp.MsgNack, streamID, data) //nolint:errcheck
 	}
 }
 
@@ -559,9 +514,7 @@ func (s *udpStream) Read(p []byte) (int, error) {
 	}
 }
 
-// Write implements io.Writer. Chunks data into 1340-byte segments and sends
-// each directly: encrypt → send → forget. TCP reliability is handled by
-// gVisor inside the tunnel.
+// Write implements io.Writer. Chunks data into 1340-byte segments.
 func (s *udpStream) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	if s.closed {
@@ -576,7 +529,13 @@ func (s *udpStream) Write(p []byte) (int, error) {
 		if len(chunk) > udpMaxPayload {
 			chunk = p[:udpMaxPayload]
 		}
-		if err := s.t.sendPacketDirect(pkgudp.MsgStreamData, s.id, chunk); err != nil {
+
+		s.mu.Lock()
+		seq := s.seq
+		s.seq++
+		s.mu.Unlock()
+
+		if err := s.t.arq.Send(pkgudp.MsgStreamData, s.id, seq, chunk); err != nil {
 			return total, err
 		}
 		total += len(chunk)
@@ -586,7 +545,9 @@ func (s *udpStream) Write(p []byte) (int, error) {
 }
 
 // Close sends MsgStreamClose and cleans up. Also closes s.done so any
-// goroutine blocked in Read() unblocks.
+// goroutine blocked in Read() unblocks — without this, once the stream is
+// removed from t.streams the delivery callback can no longer fan data into
+// recvCh, and Read()'s select has nothing left to wake it.
 func (s *udpStream) Close() error {
 	s.mu.Lock()
 	if s.closed {
@@ -602,7 +563,6 @@ func (s *udpStream) Close() error {
 	delete(s.t.streams, s.id)
 	s.t.mu.Unlock()
 
-	// Best-effort: notify server, ignore send errors (transport may be closed)
-	s.t.sendPacketDirect(pkgudp.MsgStreamClose, s.id, nil)
-	return nil
+	s.t.arq.RemoveRecvBuffer(s.id)
+	return s.t.arq.Send(pkgudp.MsgStreamClose, s.id, 0, nil)
 }

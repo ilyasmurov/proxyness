@@ -1,0 +1,196 @@
+package arq
+
+import (
+	"sort"
+	"sync"
+	"time"
+)
+
+const maxRetransmits = 15
+
+// SentPacket holds a packet that has been sent but not yet acknowledged.
+type SentPacket struct {
+	PktNum      uint32
+	RawData     []byte
+	MsgType     byte
+	StreamID    uint32
+	Seq         uint32
+	Payload     []byte
+	SentAt      time.Time
+	LastSentAt  time.Time
+	Retransmits int
+	Acked       bool
+	Delivery    DeliverySnapshot // bandwidth estimation state at send time
+}
+
+// IsRetransmit reports whether this packet has been retransmitted at least once.
+func (p *SentPacket) IsRetransmit() bool {
+	return p.Retransmits > 0
+}
+
+// SendBuffer stores unacknowledged sent packets for potential retransmission.
+type SendBuffer struct {
+	mu         sync.Mutex
+	packets    map[uint32]*SentPacket
+	maxSize    int
+	expiredBuf []*SentPacket // reusable slice for Expired results
+}
+
+// NewSendBuffer creates a SendBuffer with the given maximum capacity.
+func NewSendBuffer(maxSize int) *SendBuffer {
+	return &SendBuffer{
+		packets: make(map[uint32]*SentPacket),
+		maxSize: maxSize,
+	}
+}
+
+// Add stores a new sent packet. SentAt and LastSentAt are set to now.
+func (sb *SendBuffer) Add(pktNum uint32, raw []byte, msgType byte, streamID, seq uint32, payload []byte, snap DeliverySnapshot) {
+	now := time.Now()
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	sb.packets[pktNum] = &SentPacket{
+		PktNum:     pktNum,
+		RawData:    raw,
+		MsgType:    msgType,
+		StreamID:   streamID,
+		Seq:        seq,
+		Payload:    payload,
+		SentAt:     now,
+		LastSentAt: now,
+		Delivery:   snap,
+	}
+}
+
+// Get returns the SentPacket for the given packet number, or nil if not present.
+func (sb *SendBuffer) Get(pktNum uint32) *SentPacket {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.packets[pktNum]
+}
+
+// AckCumulative removes all packets with PktNum <= cumAck and returns the
+// number of newly acknowledged packets (excludes those already selectively ACKed).
+func (sb *SendBuffer) AckCumulative(cumAck uint32) int {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	if len(sb.packets) == 0 {
+		return 0
+	}
+	count := 0
+	for pktNum, pkt := range sb.packets {
+		if pktNum <= cumAck {
+			if !pkt.Acked {
+				count++
+			}
+			delete(sb.packets, pktNum)
+		}
+	}
+	return count
+}
+
+// AckSelective marks the packet with the given number as acknowledged without
+// removing it from the buffer (it will be removed by the next AckCumulative).
+func (sb *SendBuffer) AckSelective(pktNum uint32) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	if pkt, ok := sb.packets[pktNum]; ok {
+		pkt.Acked = true
+	}
+}
+
+// Expired returns all unacked packets whose LastSentAt is older than rto,
+// sorted by PktNum ascending so oldest packets are retransmitted first.
+// Reuses an internal buffer to avoid allocations on the hot path.
+func (sb *SendBuffer) Expired(rto time.Duration) []*SentPacket {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	// Fast path: empty buffer — retransmitLoop fires every 50ms even when
+	// nothing is in flight, and time.Now() + the map-iteration setup is
+	// still measurable overhead at 20Hz × N streams.
+	if len(sb.packets) == 0 {
+		return sb.expiredBuf[:0]
+	}
+	now := time.Now()
+	sb.expiredBuf = sb.expiredBuf[:0]
+	for _, pkt := range sb.packets {
+		if !pkt.Acked && now.Sub(pkt.LastSentAt) > rto {
+			sb.expiredBuf = append(sb.expiredBuf, pkt)
+		}
+	}
+	if len(sb.expiredBuf) > 1 {
+		sort.Slice(sb.expiredBuf, func(i, j int) bool {
+			return sb.expiredBuf[i].PktNum < sb.expiredBuf[j].PktNum
+		})
+	}
+	return sb.expiredBuf
+}
+
+// MarkResent updates the packet entry in-place after retransmission.
+// The PktNum stays the same so the receiver can fill the original gap
+// in its cumulative ACK sequence.
+func (sb *SendBuffer) MarkResent(pktNum uint32, newRaw []byte) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	pkt, ok := sb.packets[pktNum]
+	if !ok {
+		return
+	}
+	pkt.RawData = newRaw
+	pkt.LastSentAt = time.Now()
+	pkt.Retransmits++
+}
+
+// IsMaxRetransmits reports whether the packet has reached the retransmit limit.
+func (sb *SendBuffer) IsMaxRetransmits(pktNum uint32) bool {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	pkt, ok := sb.packets[pktNum]
+	if !ok {
+		return false
+	}
+	return pkt.Retransmits >= maxRetransmits
+}
+
+// Drop removes a packet from the buffer unconditionally, returning true
+// if the packet existed.
+func (sb *SendBuffer) Drop(pktNum uint32) bool {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	_, ok := sb.packets[pktNum]
+	if ok {
+		delete(sb.packets, pktNum)
+	}
+	return ok
+}
+
+// Len returns the number of packets currently in the buffer.
+func (sb *SendBuffer) Len() int {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return len(sb.packets)
+}
+
+// IsFull reports whether the buffer has reached its maximum capacity.
+func (sb *SendBuffer) IsFull() bool {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return len(sb.packets) >= sb.maxSize
+}
+
+// FirstUnacked returns the SentPacket with the lowest PktNum that is not yet
+// acknowledged, or nil if all packets are acknowledged (or the buffer is empty).
+func (sb *SendBuffer) FirstUnacked() *SentPacket {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	var first *SentPacket
+	for _, pkt := range sb.packets {
+		if pkt.Acked {
+			continue
+		}
+		if first == nil || pkt.PktNum < first.PktNum {
+			first = pkt
+		}
+	}
+	return first
+}

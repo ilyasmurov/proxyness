@@ -1,9 +1,10 @@
 package transport
 
 import (
-	"net"
 	"testing"
 	"time"
+
+	"proxyness/pkg/udp/arq"
 )
 
 // TestUDPStreamCloseUnblocksRead is a regression test for a goroutine leak
@@ -14,21 +15,13 @@ import (
 // ~9500 leaked goroutines after ~12h of normal proxy traffic, with CPU
 // pegged at 200% in runtime.gcBgMarkWorker.
 func TestUDPStreamCloseUnblocksRead(t *testing.T) {
-	// Create a UDP socket pair so sendPacketDirect doesn't panic on nil conn.
-	c1, err := net.ListenPacket("udp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c1.Close()
-	conn := c1.(*net.UDPConn)
-
 	tr := &UDPTransport{
-		streams:    make(map[uint32]*udpStream),
-		sessionKey: make([]byte, 32), // dummy key
-		conn:       conn,
-		connID:     1,
-		done:       make(chan struct{}),
+		streams: make(map[uint32]*udpStream),
 	}
+	tr.arq = arq.New(1, make([]byte, 32),
+		func([]byte) error { return nil },
+		func(uint32, []byte) {},
+	)
 
 	s := &udpStream{
 		t:      tr,
