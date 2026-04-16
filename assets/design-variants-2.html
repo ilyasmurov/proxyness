@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Design Variants (Part 2)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #111; color: #eee; min-height: 100vh;
+  }
+
+  /* Tab switcher */
+  .variant-tabs {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; justify-content: center; gap: 4px;
+    padding: 16px 20px;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .variant-tabs button {
+    padding: 8px 16px; border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; background: transparent; color: #888;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    font-family: inherit; transition: all 0.2s;
+  }
+  .variant-tabs button:hover { border-color: rgba(255,255,255,0.25); color: #ccc; }
+  .variant-tabs button.active {
+    background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);
+    color: #fff; font-weight: 600;
+  }
+
+  .variant-section { display: none; padding-top: 70px; min-height: 100vh; }
+  .variant-section.active { display: block; }
+
+  .section-label {
+    text-align: center; padding: 32px 20px 12px;
+    color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 2px;
+  }
+  .section-desc {
+    text-align: center; max-width: 600px; margin: 0 auto 40px;
+    color: #888; font-size: 14px; line-height: 1.6;
+  }
+  .window-wrap { display: flex; justify-content: center; padding: 0 20px 60px; }
+  .window {
+    width: 840px; height: 580px; border-radius: 12px;
+    overflow: hidden; position: relative;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  /* Shared titlebar */
+  .titlebar {
+    height: 36px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 12px;
+    position: relative; z-index: 10;
+  }
+  .titlebar-text { font-size: 12px; font-weight: 500; }
+  .titlebar-buttons { display: flex; gap: 2px; }
+  .tb {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: transparent; border: none;
+    cursor: pointer; font-size: 14px; display: flex;
+    align-items: center; justify-content: center; transition: all 0.15s;
+  }
+
+  /* ===== E: Neon — Cyberpunk HUD ===== */
+  .v-e .window {
+    background: #05080f;
+    border: 1px solid rgba(0,255,136,0.1);
+  }
+  .v-e .titlebar { border-bottom: 1px solid rgba(0,255,136,0.08); }
+  .v-e .titlebar-text { color: rgba(0,255,136,0.4); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .v-e .tb { color: rgba(0,255,136,0.3); }
+  .v-e .tb:hover { color: #00ff88; background: rgba(0,255,136,0.08); }
+
+  .v-e .grid-bg {
+    position: absolute; inset: 0; z-index: 0;
+    background:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .v-e .scan-line {
+    position: absolute; inset: 0; z-index: 1;
+    background: repeating-linear-gradient(
+      transparent, transparent 2px,
+      rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+  }
+
+  .v-e .neon-content {
+    position: relative; z-index: 5;
+    max-width: 720px; margin: 0 auto;
+    padding: 16px 20px; height: calc(100% - 36px);
+    display: flex; flex-direction: column;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .v-e .neon-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .v-e .neon-title {
+    font-size: 18px; font-weight: 700; color: #00ff88;
+    text-shadow: 0 0 20px rgba(0,255,136,0.3);
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+  .v-e .neon-mode {
+    display: flex; gap: 4px;
+  }
+  .v-e .neon-mode button {
+    padding: 5px 14px; border-radius: 4px; font-size: 11px;
+    font-family: 'JetBrains Mono', monospace; cursor: pointer;
+    border: 1px solid rgba(0,255,136,0.15); background: transparent;
+    color: rgba(0,255,136,0.3); transition: all 0.15s;
+  }
+  .v-e .neon-mode button.active {
+    border-color: #00ff88; color: #00ff88;
+    box-shadow: 0 0 10px rgba(0,255,136,0.15), inset 0 0 10px rgba(0,255,136,0.05);
+  }
+
+  .v-e .hud-status {
+    border: 1px solid rgba(0,255,136,0.12);
+    border-radius: 8px; padding: 16px 20px;
+    background: rgba(0,255,136,0.02);
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .v-e .hud-status::before {
+    content: "STATUS"; position: absolute; top: -8px; left: 16px;
+    font-size: 9px; letter-spacing: 2px; color: rgba(0,255,136,0.4);
+    background: #05080f; padding: 0 6px;
+  }
+  .v-e .hud-row {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .v-e .hud-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #00ff88;
+    box-shadow: 0 0 8px #00ff88, 0 0 16px rgba(0,255,136,0.3);
+    animation: neon-blink 2s ease-in-out infinite;
+  }
+  @keyframes neon-blink {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px #00ff88, 0 0 16px rgba(0,255,136,0.3); }
+    50% { opacity: 0.5; box-shadow: 0 0 4px #00ff88; }
+  }
+  .v-e .hud-label { font-size: 13px; color: #00ff88; font-weight: 600; }
+  .v-e .hud-server { font-size: 12px; color: rgba(0,255,136,0.35); }
+  .v-e .hud-transport {
+    font-size: 10px; padding: 2px 8px; border-radius: 3px;
+    border: 1px solid rgba(0,255,136,0.2); color: rgba(0,255,136,0.6);
+  }
+  .v-e .hud-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .v-e .hud-metric { text-align: right; }
+  .v-e .hud-metric .val { font-size: 12px; font-weight: 600; }
+  .v-e .hud-metric .val.dl { color: #00ff88; }
+  .v-e .hud-metric .val.ul { color: #00aaff; }
+  .v-e .hud-metric .lbl { font-size: 9px; color: rgba(255,255,255,0.2); letter-spacing: 1px; }
+  .v-e .hud-uptime { font-size: 14px; color: rgba(0,255,136,0.5); }
+  .v-e .hud-btn {
+    padding: 7px 18px; border: 1px solid rgba(255,50,50,0.3);
+    border-radius: 4px; background: rgba(255,50,50,0.05);
+    color: #ff4444; font-size: 11px; font-weight: 600;
+    font-family: 'JetBrains Mono', monospace; cursor: pointer;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  .v-e .hud-apps {
+    border: 1px solid rgba(0,255,136,0.08);
+    border-radius: 8px; flex: 1; overflow-y: auto;
+    position: relative;
+  }
+  .v-e .hud-apps::before {
+    content: "ROUTING TABLE"; position: absolute; top: -8px; left: 16px;
+    font-size: 9px; letter-spacing: 2px; color: rgba(0,255,136,0.3);
+    background: #05080f; padding: 0 6px; z-index: 2;
+  }
+  .v-e .hud-apps-header {
+    display: flex; padding: 12px 16px 8px;
+    font-size: 9px; color: rgba(0,255,136,0.25);
+    letter-spacing: 1px; text-transform: uppercase;
+    border-bottom: 1px solid rgba(0,255,136,0.06);
+  }
+  .v-e .hud-apps-header span:nth-child(1) { width: 160px; }
+  .v-e .hud-apps-header span:nth-child(2) { width: 120px; }
+  .v-e .hud-apps-header span:nth-child(3) { flex: 1; text-align: right; }
+
+  .v-e .hud-app-row {
+    display: flex; align-items: center; padding: 8px 16px;
+    font-size: 12px; transition: background 0.1s; cursor: pointer;
+  }
+  .v-e .hud-app-row:hover { background: rgba(0,255,136,0.03); }
+  .v-e .hud-app-row .name { width: 160px; color: rgba(255,255,255,0.7); }
+  .v-e .hud-app-row .domain { width: 120px; color: rgba(0,255,136,0.25); font-size: 11px; }
+  .v-e .hud-app-row .route {
+    flex: 1; text-align: right; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .v-e .hud-app-row .route.proxy { color: #00ff88; }
+  .v-e .hud-app-row .route.direct { color: rgba(255,255,255,0.15); }
+
+  .v-e .hud-apps::-webkit-scrollbar { width: 4px; }
+  .v-e .hud-apps::-webkit-scrollbar-thumb { background: rgba(0,255,136,0.15); border-radius: 2px; }
+
+
+  /* ===== F: Polar — Light Theme ===== */
+  .v-f .window {
+    background: #f8f9fc;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.08);
+  }
+  .v-f .titlebar { border-bottom: 1px solid rgba(0,0,0,0.06); }
+  .v-f .titlebar-text { color: rgba(0,0,0,0.35); }
+  .v-f .tb { color: rgba(0,0,0,0.3); }
+  .v-f .tb:hover { background: rgba(0,0,0,0.05); color: rgba(0,0,0,0.7); }
+
+  .v-f .polar-content {
+    max-width: 720px; margin: 0 auto;
+    padding: 16px 20px; height: calc(100% - 36px);
+    display: flex; flex-direction: column;
+  }
+  .v-f .polar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .v-f .polar-brand {
+    font-size: 18px; font-weight: 700; color: #1a1a2e;
+    letter-spacing: -0.5px;
+  }
+  .v-f .polar-brand span { color: #3b82f6; }
+  .v-f .polar-mode {
+    display: flex; gap: 2px; padding: 3px;
+    background: #eef1f6; border-radius: 10px;
+  }
+  .v-f .polar-mode button {
+    padding: 6px 16px; border: none; border-radius: 8px;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    background: transparent; color: #999; font-family: inherit;
+    transition: all 0.2s;
+  }
+  .v-f .polar-mode button.active {
+    background: #fff; color: #1a1a2e; font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .v-f .polar-status {
+    padding: 16px 20px; border-radius: 14px;
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .v-f .polar-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
+  }
+  .v-f .polar-st { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+  .v-f .polar-sub { font-size: 13px; color: #999; }
+  .v-f .polar-transport {
+    font-size: 10px; padding: 3px 8px; border-radius: 5px;
+    background: #eef1f6; color: #666; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .v-f .polar-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .v-f .polar-uptime {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: #bbb;
+  }
+  .v-f .polar-speeds {
+    display: flex; flex-direction: column; gap: 1px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .v-f .polar-speeds .dl { color: #22c55e; }
+  .v-f .polar-speeds .ul { color: #3b82f6; }
+  .v-f .polar-btn {
+    padding: 8px 20px; border-radius: 8px;
+    background: #fef2f2; border: 1px solid #fecaca;
+    color: #ef4444; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+
+  .v-f .polar-tabs {
+    display: flex; gap: 0; margin-bottom: 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .v-f .polar-tab {
+    padding: 10px 20px; font-size: 13px; font-weight: 500;
+    color: #bbb; cursor: pointer; margin-bottom: -1px;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .v-f .polar-tab.active {
+    color: #1a1a2e; border-bottom-color: #3b82f6; font-weight: 600;
+  }
+
+  .v-f .polar-apps {
+    flex: 1; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .v-f .polar-app {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 10px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .v-f .polar-app:hover { background: rgba(0,0,0,0.02); }
+  .v-f .polar-ava {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+  }
+  .v-f .polar-app-info { flex: 1; }
+  .v-f .polar-app-name { font-size: 14px; font-weight: 500; color: #1a1a2e; }
+  .v-f .polar-app-domain { font-size: 11px; color: #bbb; }
+  .v-f .polar-toggle {
+    width: 40px; height: 22px; border-radius: 11px;
+    background: #e5e7eb; position: relative; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .v-f .polar-toggle.on { background: #3b82f6; }
+  .v-f .polar-toggle .dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; position: absolute; top: 2px; left: 2px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  }
+  .v-f .polar-toggle.on .dot { transform: translateX(18px); }
+
+  .v-f .polar-apps::-webkit-scrollbar { width: 5px; }
+  .v-f .polar-apps::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.08); border-radius: 3px; }
+
+
+  /* ===== G: Route — Map Visualization ===== */
+  .v-g .window { background: #0c1020; }
+  .v-g .titlebar-text { color: rgba(255,255,255,0.3); }
+  .v-g .tb { color: rgba(255,255,255,0.25); }
+  .v-g .tb:hover { background: rgba(255,255,255,0.08); color: #eee; }
+
+  .v-g .map-bg {
+    position: absolute; inset: 0; z-index: 0;
+    overflow: hidden;
+  }
+  /* Simplified world map with dots */
+  .v-g .map-dots {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(1px 1px at 20% 30%, rgba(59,130,246,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 25% 35%, rgba(59,130,246,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 30% 28%, rgba(59,130,246,0.25) 0%, transparent 100%),
+      radial-gradient(1px 1px at 35% 40%, rgba(59,130,246,0.15) 0%, transparent 100%),
+      radial-gradient(1px 1px at 40% 32%, rgba(59,130,246,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 45% 38%, rgba(59,130,246,0.25) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 30%, rgba(59,130,246,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 55% 35%, rgba(59,130,246,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 60% 42%, rgba(59,130,246,0.15) 0%, transparent 100%),
+      radial-gradient(1px 1px at 65% 33%, rgba(59,130,246,0.25) 0%, transparent 100%),
+      radial-gradient(1px 1px at 70% 38%, rgba(59,130,246,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 75% 30%, rgba(59,130,246,0.15) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 35%, rgba(59,130,246,0.2) 0%, transparent 100%);
+  }
+
+  /* Connection line animation */
+  .v-g .route-line {
+    position: absolute; z-index: 2;
+    width: 100%; height: 100%;
+  }
+  .v-g .route-line svg { width: 100%; height: 100%; }
+  .v-g .route-path {
+    fill: none; stroke: url(#routeGrad); stroke-width: 2;
+    stroke-dasharray: 8 4;
+    animation: dash-flow 1.5s linear infinite;
+  }
+  @keyframes dash-flow { to { stroke-dashoffset: -24; } }
+  .v-g .route-glow {
+    fill: none; stroke: rgba(59,130,246,0.15); stroke-width: 6;
+    filter: blur(3px);
+  }
+
+  /* Location pins */
+  .v-g .pin {
+    position: absolute; z-index: 3;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .v-g .pin-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    position: relative;
+  }
+  .v-g .pin-dot::before {
+    content: ""; position: absolute; inset: -4px;
+    border-radius: 50%; border: 1px solid;
+    animation: pin-pulse 2s ease-in-out infinite;
+  }
+  @keyframes pin-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.5); opacity: 0; }
+  }
+  .v-g .pin.origin .pin-dot { background: #f59e0b; }
+  .v-g .pin.origin .pin-dot::before { border-color: rgba(245,158,11,0.3); }
+  .v-g .pin.dest .pin-dot { background: #3b82f6; }
+  .v-g .pin.dest .pin-dot::before { border-color: rgba(59,130,246,0.3); }
+  .v-g .pin-label {
+    font-size: 10px; font-weight: 600; padding: 3px 8px;
+    border-radius: 4px; white-space: nowrap;
+    backdrop-filter: blur(10px);
+  }
+  .v-g .pin.origin .pin-label { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .v-g .pin.dest .pin-label { background: rgba(59,130,246,0.15); color: #60a5fa; }
+
+  .v-g .route-content {
+    position: relative; z-index: 5;
+    height: calc(100% - 36px);
+    display: flex; flex-direction: column;
+    padding: 0 28px 20px;
+  }
+  .v-g .route-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0;
+  }
+  .v-g .route-brand {
+    font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.8);
+    letter-spacing: -0.3px;
+  }
+  .v-g .route-mode {
+    display: flex; gap: 2px; padding: 2px;
+    background: rgba(255,255,255,0.06); border-radius: 8px;
+  }
+  .v-g .route-mode button {
+    padding: 5px 14px; border: none; border-radius: 6px;
+    font-size: 11px; cursor: pointer; background: transparent;
+    color: rgba(255,255,255,0.3); font-family: inherit;
+  }
+  .v-g .route-mode button.active {
+    background: rgba(59,130,246,0.15); color: #60a5fa; font-weight: 600;
+    border: 1px solid rgba(59,130,246,0.2);
+  }
+
+  .v-g .route-spacer { flex: 1; }
+
+  .v-g .route-panel {
+    background: rgba(12,16,32,0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px; padding: 16px 20px;
+  }
+  .v-g .route-stats {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 14px; padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .v-g .route-stat-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(34,197,94,0.4);
+  }
+  .v-g .route-stat-text { font-size: 14px; font-weight: 600; }
+  .v-g .route-stat-sub { font-size: 12px; color: rgba(255,255,255,0.3); }
+  .v-g .route-stat-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 4px;
+    background: rgba(59,130,246,0.12); color: #60a5fa;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .v-g .route-stat-right { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+  .v-g .route-stat-metric {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .v-g .route-stat-metric .dl { color: #4ade80; }
+  .v-g .route-stat-metric .ul { color: #60a5fa; }
+  .v-g .route-stat-uptime {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: rgba(255,255,255,0.3);
+  }
+  .v-g .route-disc-btn {
+    padding: 7px 18px; border-radius: 8px;
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);
+    color: #f87171; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+
+  .v-g .route-apps {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .v-g .route-chip {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px 5px 5px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px; cursor: pointer; transition: all 0.15s;
+  }
+  .v-g .route-chip.on { border-color: rgba(59,130,246,0.25); background: rgba(59,130,246,0.06); }
+  .v-g .route-chip-icon {
+    width: 22px; height: 22px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: #fff;
+  }
+  .v-g .route-chip-name { font-size: 11px; color: rgba(255,255,255,0.5); }
+
+
+  /* ===== H: Terminal — CLI Aesthetic ===== */
+  .v-h .window {
+    background: #0a0a0a;
+    border: 1px solid #222;
+  }
+  .v-h .titlebar {
+    background: #151515; border-bottom: 1px solid #222;
+  }
+  .v-h .titlebar-text {
+    color: #666; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .v-h .mac-dots {
+    display: flex; gap: 7px; align-items: center;
+  }
+  .v-h .mac-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+  }
+  .v-h .mac-dot.r { background: #ff5f57; }
+  .v-h .mac-dot.y { background: #febc2e; }
+  .v-h .mac-dot.g { background: #28c840; }
+  .v-h .tb { color: #555; }
+
+  .v-h .term-content {
+    height: calc(100% - 36px); padding: 16px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.8;
+    overflow-y: auto;
+  }
+  .v-h .term-line { display: flex; gap: 0; }
+  .v-h .prompt { color: #22c55e; white-space: pre; }
+  .v-h .cmd { color: #e2e8f0; }
+  .v-h .output { color: #888; }
+  .v-h .dim { color: #444; }
+  .v-h .accent { color: #3b82f6; }
+  .v-h .green { color: #22c55e; }
+  .v-h .red { color: #ef4444; }
+  .v-h .yellow { color: #f59e0b; }
+  .v-h .cyan { color: #06b6d4; }
+  .v-h .bold { font-weight: 700; }
+  .v-h .cursor-block {
+    display: inline-block; width: 8px; height: 16px;
+    background: #22c55e; animation: term-blink 1s step-end infinite;
+    vertical-align: middle; margin-left: 2px;
+  }
+  @keyframes term-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .v-h .term-box {
+    border: 1px solid #222; border-radius: 6px;
+    margin: 8px 0; padding: 12px 16px;
+    background: rgba(255,255,255,0.02);
+  }
+  .v-h .term-table { width: 100%; }
+  .v-h .term-table td { padding: 2px 0; }
+  .v-h .term-table td:first-child { color: #666; width: 140px; }
+
+  .v-h .term-apps-table { margin: 8px 0; }
+  .v-h .term-apps-row {
+    display: flex; padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .v-h .term-apps-row .col-name { width: 140px; color: #e2e8f0; }
+  .v-h .term-apps-row .col-domain { width: 160px; color: #666; }
+  .v-h .term-apps-row .col-route { width: 80px; }
+  .v-h .term-apps-row.header { color: #444; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #222; padding-bottom: 6px; margin-bottom: 4px; }
+  .v-h .term-apps-row.header .col-name,
+  .v-h .term-apps-row.header .col-domain,
+  .v-h .term-apps-row.header .col-route { color: #444; }
+
+  .v-h .term-content::-webkit-scrollbar { width: 5px; }
+  .v-h .term-content::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
+
+
+  /* ===== I: Nebula — Gradient + Floating Cards ===== */
+  .v-i .window {
+    background: #0a0a1a;
+    overflow: hidden;
+  }
+  .v-i .nebula-bg {
+    position: absolute; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(168,85,247,0.1) 0%, transparent 40%),
+      radial-gradient(ellipse at 60% 80%, rgba(59,130,246,0.08) 0%, transparent 45%);
+  }
+  .v-i .nebula-stars {
+    position: absolute; inset: 0; z-index: 1;
+    background-image:
+      radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.2), transparent),
+      radial-gradient(1px 1px at 50% 10%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 70% 40%, rgba(255,255,255,0.15), transparent),
+      radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.25), transparent),
+      radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.2), transparent),
+      radial-gradient(1px 1px at 85% 15%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 45% 90%, rgba(255,255,255,0.15), transparent),
+      radial-gradient(1px 1px at 65% 55%, rgba(255,255,255,0.2), transparent),
+      radial-gradient(1px 1px at 25% 45%, rgba(255,255,255,0.25), transparent);
+  }
+
+  .v-i .titlebar { position: relative; z-index: 10; }
+  .v-i .titlebar-text { color: rgba(255,255,255,0.3); }
+  .v-i .tb { color: rgba(255,255,255,0.25); }
+  .v-i .tb:hover { background: rgba(255,255,255,0.08); color: #eee; }
+
+  .v-i .nebula-content {
+    position: relative; z-index: 5;
+    max-width: 720px; margin: 0 auto;
+    padding: 8px 20px 20px; height: calc(100% - 36px);
+    display: flex; flex-direction: column;
+  }
+  .v-i .nebula-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .v-i .nebula-brand {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px; font-weight: 700; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #c084fc, #60a5fa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .v-i .nebula-mode {
+    display: flex; gap: 2px; padding: 3px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+  }
+  .v-i .nebula-mode button {
+    padding: 5px 14px; border: none; border-radius: 8px;
+    font-size: 11px; cursor: pointer; background: transparent;
+    color: rgba(255,255,255,0.3); font-family: inherit;
+  }
+  .v-i .nebula-mode button.active {
+    background: rgba(255,255,255,0.1); color: #fff; font-weight: 600;
+  }
+
+  .v-i .nebula-status {
+    padding: 20px 24px; border-radius: 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(20px);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .v-i .nebula-orb {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #a78bfa, #6366f1);
+    box-shadow: 0 0 20px rgba(99,102,241,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+    animation: orb-float 4s ease-in-out infinite;
+  }
+  @keyframes orb-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+  .v-i .nebula-st-info { flex: 1; }
+  .v-i .nebula-st-label {
+    font-size: 16px; font-weight: 600; margin-bottom: 2px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .v-i .nebula-st-sub { font-size: 12px; color: rgba(255,255,255,0.35); }
+  .v-i .nebula-st-sub .badge {
+    display: inline-block; margin-left: 8px;
+    padding: 1px 6px; border-radius: 4px;
+    background: rgba(99,102,241,0.15); color: #a78bfa;
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+  }
+  .v-i .nebula-st-metrics {
+    display: flex; gap: 20px; align-items: center;
+  }
+  .v-i .nebula-metric-group {
+    display: flex; flex-direction: column; gap: 1px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-align: right;
+  }
+  .v-i .nebula-metric-group .dl { color: #4ade80; }
+  .v-i .nebula-metric-group .ul { color: #818cf8; }
+  .v-i .nebula-uptime {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; color: rgba(255,255,255,0.3);
+  }
+  .v-i .nebula-disc {
+    padding: 8px 20px; border-radius: 10px;
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.15);
+    color: #f87171; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+
+  .v-i .nebula-tabs {
+    display: flex; gap: 0; margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .v-i .nebula-tab {
+    padding: 10px 20px; font-size: 12px; font-weight: 500;
+    color: rgba(255,255,255,0.25); cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .v-i .nebula-tab.active {
+    color: #c084fc; border-bottom-color: #8b5cf6;
+  }
+
+  .v-i .nebula-apps {
+    flex: 1; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    align-content: start;
+  }
+  .v-i .nebula-app {
+    padding: 14px; border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .v-i .nebula-app:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.1);
+  }
+  .v-i .nebula-app.on {
+    border-color: rgba(139,92,246,0.25);
+    background: rgba(139,92,246,0.05);
+  }
+  .v-i .nebula-app-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .v-i .nebula-app-name { font-size: 12px; font-weight: 500; flex: 1; }
+  .v-i .nebula-app-badge {
+    font-size: 9px; padding: 2px 6px; border-radius: 4px;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .v-i .nebula-app-badge.on { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .v-i .nebula-app-badge.off { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.2); }
+
+  .v-i .nebula-apps::-webkit-scrollbar { width: 4px; }
+  .v-i .nebula-apps::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="variant-tabs">
+  <button class="active" onclick="showVariant('e')">E: Neon</button>
+  <button onclick="showVariant('f')">F: Polar (Light)</button>
+  <button onclick="showVariant('g')">G: Route (Map)</button>
+  <button onclick="showVariant('h')">H: Terminal</button>
+  <button onclick="showVariant('i')">I: Nebula</button>
+</div>
+
+
+<!-- ==================== VARIANT E: Neon ==================== -->
+<div class="variant-section v-e active" id="variant-e">
+  <div class="section-label">Variant E &mdash; Neon</div>
+  <div class="section-desc">
+    Киберпанк-HUD: сетка на фоне, скан-линии, неоновый зелёный акцент.<br>
+    Приложения показаны как routing table. Всё в JetBrains Mono.
+  </div>
+
+  <div class="window-wrap">
+    <div class="window">
+      <div class="grid-bg"></div>
+      <div class="scan-line"></div>
+
+      <div class="titlebar">
+        <div class="titlebar-text">proxyness &mdash; v1.31.0</div>
+        <div class="titlebar-buttons">
+          <button class="tb">&#9881;</button>
+          <button class="tb">&minus;</button>
+          <button class="tb" style="font-size:12px">&#10005;</button>
+        </div>
+      </div>
+
+      <div class="neon-content">
+        <div class="neon-header">
+          <div class="neon-title">Proxyness</div>
+          <div class="neon-mode">
+            <button class="active">TUN</button>
+            <button>SOCKS5</button>
+          </div>
+        </div>
+
+        <div class="hud-status">
+          <div class="hud-row">
+            <div class="hud-dot"></div>
+            <span class="hud-label">CONNECTED</span>
+            <span class="hud-server">95.181.162.242</span>
+            <span class="hud-transport">UDP</span>
+            <div class="hud-right">
+              <div class="hud-metric">
+                <div class="val dl">&#8595; 2.4 KB/s</div>
+              </div>
+              <div class="hud-metric">
+                <div class="val ul">&#8593; 559 B/s</div>
+              </div>
+              <span class="hud-uptime">02:14:37</span>
+              <button class="hud-btn">DISCONNECT</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-apps">
+          <div class="hud-apps-header">
+            <span>Process</span>
+            <span>Endpoint</span>
+            <span>Route</span>
+          </div>
+          <div class="hud-app-row"><span class="name">Telegram</span><span class="domain">telegram.org</span><span class="route proxy">&#9679; PROXY</span></div>
+          <div class="hud-app-row"><span class="name">Discord</span><span class="domain">discord.com</span><span class="route proxy">&#9679; PROXY</span></div>
+          <div class="hud-app-row"><span class="name">Claude</span><span class="domain">claude.ai</span><span class="route proxy">&#9679; PROXY</span></div>
+          <div class="hud-app-row"><span class="name">Cursor</span><span class="domain">cursor.com</span><span class="route proxy">&#9679; PROXY</span></div>
+          <div class="hud-app-row"><span class="name">Slack</span><span class="domain">slack.com</span><span class="route direct">&#9675; DIRECT</span></div>
+          <div class="hud-app-row"><span class="name">YouTube</span><span class="domain">youtube.com</span><span class="route direct">&#9675; DIRECT</span></div>
+          <div class="hud-app-row"><span class="name">Instagram</span><span class="domain">instagram.com</span><span class="route direct">&#9675; DIRECT</span></div>
+          <div class="hud-app-row"><span class="name">X (Twitter)</span><span class="domain">x.com</span><span class="route direct">&#9675; DIRECT</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ==================== VARIANT F: Polar (Light) ==================== -->
+<div class="variant-section v-f" id="variant-f">
+  <div class="section-label">Variant F &mdash; Polar (Light Theme)</div>
+  <div class="section-desc">
+    Светлая тема в стиле Apple/Linear. Чистый белый с мягкими тенями,<br>
+    округлые элементы, приятная типографика. Для тех кто не любит тёмные UI.
+  </div>
+
+  <div class="window-wrap" style="background: #e5e7eb; padding-top: 40px; padding-bottom: 80px; border-radius: 20px; margin: 0 40px;">
+    <div class="window">
+      <div class="titlebar">
+        <div class="titlebar-text">Proxyness v1.31.0</div>
+        <div class="titlebar-buttons">
+          <button class="tb">&#9881;</button>
+          <button class="tb">&minus;</button>
+          <button class="tb" style="font-size:12px">&#10005;</button>
+        </div>
+      </div>
+
+      <div class="polar-content">
+        <div class="polar-header">
+          <div class="polar-brand">Proxyness</div>
+          <div class="polar-mode">
+            <button class="active">Full (TUN)</button>
+            <button>Browser only</button>
+          </div>
+        </div>
+
+        <div class="polar-status">
+          <div class="polar-dot"></div>
+          <span class="polar-st">Connected</span>
+          <span class="polar-sub">to 95.181.162.242</span>
+          <span class="polar-transport">UDP</span>
+          <div class="polar-right">
+            <span class="polar-uptime">02:14:37</span>
+            <div class="polar-speeds">
+              <span class="dl">&#8595; 2.4 KB/s</span>
+              <span class="ul">&#8593; 559 B/s</span>
+            </div>
+            <button class="polar-btn">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="polar-tabs">
+          <div class="polar-tab active">Main</div>
+          <div class="polar-tab">Extension</div>
+        </div>
+
+        <div class="polar-apps">
+          <div class="polar-app">
+            <div class="polar-ava" style="background: linear-gradient(135deg, #0088cc, #006699)">T</div>
+            <div class="polar-app-info"><div class="polar-app-name">Telegram</div><div class="polar-app-domain">telegram.org</div></div>
+            <div class="polar-toggle on"><div class="dot"></div></div>
+          </div>
+          <div class="polar-app">
+            <div class="polar-ava" style="background: linear-gradient(135deg, #5865F2, #4752C4)">D</div>
+            <div class="polar-app-info"><div class="polar-app-name">Discord</div><div class="polar-app-domain">discord.com</div></div>
+            <div class="polar-toggle on"><div class="dot"></div></div>
+          </div>
+          <div class="polar-app">
+            <div class="polar-ava" style="background: linear-gradient(135deg, #d4956b, #b37a53)">C</div>
+            <div class="polar-app-info"><div class="polar-app-name">Claude</div><div class="polar-app-domain">claude.ai</div></div>
+            <div class="polar-toggle on"><div class="dot"></div></div>
+          </div>
+          <div class="polar-app">
+            <div class="polar-ava" style="background: linear-gradient(135deg, #1da1f2, #1a91da)">Cu</div>
+            <div class="polar-app-info"><div class="polar-app-name">Cursor</div><div class="polar-app-domain">cursor.com</div></div>
+            <div class="polar-toggle on"><div class="dot"></div></div>
+          </div>
+          <div class="polar-app">
+            <div class="polar-ava" style="background: linear-gradient(135deg, #4A154B, #3b1139)">S</div>
+            <div class="polar-app-info"><div class="polar-app-name">Slack</div><div class="polar-app-domain">slack.com</div></div>
+            <div class="polar-toggle"><div class="dot"></div></div>
+          </div>
+          <div class="polar-app">
+            <div class="polar-ava" style="background: linear-gradient(135deg, #ff0000, #cc0000)">Y</div>
+            <div class="polar-app-info"><div class="polar-app-name">YouTube</div><div class="polar-app-domain">youtube.com</div></div>
+            <div class="polar-toggle"><div class="dot"></div></div>
+          </div>
+          <div class="polar-app">
+            <div class="polar-ava" style="background: linear-gradient(135deg, #E1306C, #C13584)">I</div>
+            <div class="polar-app-info"><div class="polar-app-name">Instagram</div><div class="polar-app-domain">instagram.com</div></div>
+            <div class="polar-toggle"><div class="dot"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ==================== VARIANT G: Route ==================== -->
+<div class="variant-section v-g" id="variant-g">
+  <div class="section-label">Variant G &mdash; Route (Map)</div>
+  <div class="section-desc">
+    Визуализация маршрута: анимированная линия Россия → Нидерланды.<br>
+    Точки отправления и назначения на фоне. Данные внизу в overlay-панели.
+  </div>
+
+  <div class="window-wrap">
+    <div class="window">
+      <div class="map-bg">
+        <div class="map-dots"></div>
+        <!-- Route line SVG -->
+        <svg class="route-line" viewBox="0 0 840 580" preserveAspectRatio="none" style="position:absolute; inset:0; z-index:2;">
+          <defs>
+            <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:0.8"/>
+              <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.8"/>
+            </linearGradient>
+          </defs>
+          <path class="route-glow" d="M 650 220 Q 420 120 320 240"/>
+          <path class="route-path" d="M 650 220 Q 420 120 320 240"/>
+        </svg>
+      </div>
+
+      <!-- Pins -->
+      <div class="pin origin" style="left: 620px; top: 186px;">
+        <div class="pin-dot"></div>
+        <div class="pin-label">Moscow, RU</div>
+      </div>
+      <div class="pin dest" style="left: 290px; top: 206px;">
+        <div class="pin-dot"></div>
+        <div class="pin-label">Amsterdam, NL</div>
+      </div>
+
+      <div class="titlebar">
+        <div class="titlebar-text" style="color: rgba(255,255,255,0.25)">Proxyness v1.31.0</div>
+        <div class="titlebar-buttons">
+          <button class="tb">&#9881;</button>
+          <button class="tb">&minus;</button>
+          <button class="tb" style="font-size:12px">&#10005;</button>
+        </div>
+      </div>
+
+      <div class="route-content">
+        <div class="route-top">
+          <div class="route-brand">Proxyness</div>
+          <div class="route-mode">
+            <button class="active">Full (TUN)</button>
+            <button>Browser only</button>
+          </div>
+        </div>
+
+        <div class="route-spacer"></div>
+
+        <div class="route-panel">
+          <div class="route-stats">
+            <div class="route-stat-dot"></div>
+            <span class="route-stat-text">Connected</span>
+            <span class="route-stat-sub">to 95.181.162.242</span>
+            <span class="route-stat-badge">UDP</span>
+            <div class="route-stat-right">
+              <div class="route-stat-metric">
+                <span class="dl">&#8595; 2.4 KB/s</span> &nbsp;
+                <span class="ul">&#8593; 559 B/s</span>
+              </div>
+              <span class="route-stat-uptime">02:14:37</span>
+              <button class="route-disc-btn">Disconnect</button>
+            </div>
+          </div>
+
+          <div class="route-apps">
+            <div class="route-chip on">
+              <div class="route-chip-icon" style="background: linear-gradient(135deg, #0088cc, #006699)">T</div>
+              <span class="route-chip-name">Telegram</span>
+            </div>
+            <div class="route-chip on">
+              <div class="route-chip-icon" style="background: linear-gradient(135deg, #5865F2, #4752C4)">D</div>
+              <span class="route-chip-name">Discord</span>
+            </div>
+            <div class="route-chip on">
+              <div class="route-chip-icon" style="background: linear-gradient(135deg, #d4956b, #b37a53)">C</div>
+              <span class="route-chip-name">Claude</span>
+            </div>
+            <div class="route-chip on">
+              <div class="route-chip-icon" style="background: linear-gradient(135deg, #1da1f2, #1a91da)">Cu</div>
+              <span class="route-chip-name">Cursor</span>
+            </div>
+            <div class="route-chip">
+              <div class="route-chip-icon" style="background: linear-gradient(135deg, #4A154B, #3b1139)">S</div>
+              <span class="route-chip-name">Slack</span>
+            </div>
+            <div class="route-chip">
+              <div class="route-chip-icon" style="background: linear-gradient(135deg, #ff0000, #cc0000)">Y</div>
+              <span class="route-chip-name">YouTube</span>
+            </div>
+            <div class="route-chip">
+              <div class="route-chip-icon" style="background: linear-gradient(135deg, #555, #333)">X</div>
+              <span class="route-chip-name">X</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ==================== VARIANT H: Terminal ==================== -->
+<div class="variant-section v-h" id="variant-h">
+  <div class="section-label">Variant H &mdash; Terminal</div>
+  <div class="section-desc">
+    CLI-эстетика: вся информация как вывод терминала.<br>
+    Моноширинный шрифт, зелёный prompt, мигающий курсор. Для гиков.
+  </div>
+
+  <div class="window-wrap">
+    <div class="window">
+      <div class="titlebar">
+        <div class="mac-dots">
+          <div class="mac-dot r"></div>
+          <div class="mac-dot y"></div>
+          <div class="mac-dot g"></div>
+        </div>
+        <div class="titlebar-text">proxyness &mdash; zsh &mdash; 80x24</div>
+        <div></div>
+      </div>
+
+      <div class="term-content">
+        <div class="term-line"><span class="prompt">~ $ </span><span class="cmd">proxyness status</span></div>
+        <br>
+        <div class="term-box">
+          <table class="term-table">
+            <tr><td class="dim">status</td><td><span class="green bold">&#9679; connected</span></td></tr>
+            <tr><td class="dim">server</td><td><span class="accent">95.181.162.242:443</span></td></tr>
+            <tr><td class="dim">transport</td><td><span class="cyan">UDP (DTLS 1.3)</span></td></tr>
+            <tr><td class="dim">mode</td><td>TUN (full traffic)</td></tr>
+            <tr><td class="dim">uptime</td><td>02:14:37</td></tr>
+            <tr><td class="dim">download</td><td><span class="green">&#8595; 2.4 KB/s</span> <span class="dim">(total: 847.2 MB)</span></td></tr>
+            <tr><td class="dim">upload</td><td><span class="accent">&#8593; 559 B/s</span> <span class="dim">(total: 124.8 MB)</span></td></tr>
+            <tr><td class="dim">latency</td><td><span class="yellow">42ms</span></td></tr>
+            <tr><td class="dim">device</td><td>utun7 <span class="dim">(10.0.0.1/24)</span></td></tr>
+          </table>
+        </div>
+        <br>
+        <div class="term-line"><span class="prompt">~ $ </span><span class="cmd">proxyness routes</span></div>
+        <br>
+        <div class="term-apps-table">
+          <div class="term-apps-row header">
+            <span class="col-name">Process</span>
+            <span class="col-domain">Endpoint</span>
+            <span class="col-route">Route</span>
+          </div>
+          <div class="term-apps-row"><span class="col-name">Telegram</span><span class="col-domain dim">telegram.org</span><span class="col-route green">PROXY</span></div>
+          <div class="term-apps-row"><span class="col-name">Discord</span><span class="col-domain dim">discord.com</span><span class="col-route green">PROXY</span></div>
+          <div class="term-apps-row"><span class="col-name">Claude</span><span class="col-domain dim">claude.ai</span><span class="col-route green">PROXY</span></div>
+          <div class="term-apps-row"><span class="col-name">Cursor</span><span class="col-domain dim">cursor.com</span><span class="col-route green">PROXY</span></div>
+          <div class="term-apps-row"><span class="col-name">Slack</span><span class="col-domain dim">slack.com</span><span class="col-route dim">DIRECT</span></div>
+          <div class="term-apps-row"><span class="col-name">YouTube</span><span class="col-domain dim">youtube.com</span><span class="col-route dim">DIRECT</span></div>
+          <div class="term-apps-row"><span class="col-name">Instagram</span><span class="col-domain dim">instagram.com</span><span class="col-route dim">DIRECT</span></div>
+          <div class="term-apps-row"><span class="col-name">X (Twitter)</span><span class="col-domain dim">x.com</span><span class="col-route dim">DIRECT</span></div>
+        </div>
+        <br>
+        <div class="output dim">4 proxied, 4 direct &mdash; total 8 apps monitored</div>
+        <br>
+        <div class="term-line"><span class="prompt">~ $ </span><span class="cursor-block"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ==================== VARIANT I: Nebula ==================== -->
+<div class="variant-section v-i" id="variant-i">
+  <div class="section-label">Variant I &mdash; Nebula</div>
+  <div class="section-desc">
+    Глубокий космический градиент с фиолетовыми/синими оттенками.<br>
+    Space Grotesk шрифт, светящийся orb как индикатор, карточная сетка приложений.
+  </div>
+
+  <div class="window-wrap">
+    <div class="window">
+      <div class="nebula-bg"></div>
+      <div class="nebula-stars"></div>
+
+      <div class="titlebar">
+        <div class="titlebar-text">Proxyness v1.31.0</div>
+        <div class="titlebar-buttons">
+          <button class="tb">&#9881;</button>
+          <button class="tb">&minus;</button>
+          <button class="tb" style="font-size:12px">&#10005;</button>
+        </div>
+      </div>
+
+      <div class="nebula-content">
+        <div class="nebula-header">
+          <div class="nebula-brand">Proxyness</div>
+          <div class="nebula-mode">
+            <button class="active">Full (TUN)</button>
+            <button>Browser only</button>
+          </div>
+        </div>
+
+        <div class="nebula-status">
+          <div class="nebula-orb">&#10003;</div>
+          <div class="nebula-st-info">
+            <div class="nebula-st-label">Connected</div>
+            <div class="nebula-st-sub">to 95.181.162.242 <span class="badge">UDP</span></div>
+          </div>
+          <div class="nebula-st-metrics">
+            <div class="nebula-metric-group">
+              <span class="dl">&#8595; 2.4 KB/s</span>
+              <span class="ul">&#8593; 559 B/s</span>
+            </div>
+            <span class="nebula-uptime">02:14:37</span>
+            <button class="nebula-disc">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="nebula-tabs">
+          <div class="nebula-tab active">Main</div>
+          <div class="nebula-tab">Extension</div>
+        </div>
+
+        <div class="nebula-apps">
+          <div class="nebula-app on">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #0088cc, #006699)">T</div>
+            <div class="nebula-app-name">Telegram</div>
+            <div class="nebula-app-badge on">Proxy</div>
+          </div>
+          <div class="nebula-app on">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #5865F2, #4752C4)">D</div>
+            <div class="nebula-app-name">Discord</div>
+            <div class="nebula-app-badge on">Proxy</div>
+          </div>
+          <div class="nebula-app on">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #d4956b, #b37a53)">C</div>
+            <div class="nebula-app-name">Claude</div>
+            <div class="nebula-app-badge on">Proxy</div>
+          </div>
+          <div class="nebula-app on">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #1da1f2, #1a91da)">Cu</div>
+            <div class="nebula-app-name">Cursor</div>
+            <div class="nebula-app-badge on">Proxy</div>
+          </div>
+          <div class="nebula-app">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #4A154B, #3b1139)">S</div>
+            <div class="nebula-app-name">Slack</div>
+            <div class="nebula-app-badge off">Direct</div>
+          </div>
+          <div class="nebula-app">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #ff0000, #cc0000)">Y</div>
+            <div class="nebula-app-name">YouTube</div>
+            <div class="nebula-app-badge off">Direct</div>
+          </div>
+          <div class="nebula-app">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #E1306C, #C13584)">I</div>
+            <div class="nebula-app-name">Instagram</div>
+            <div class="nebula-app-badge off">Direct</div>
+          </div>
+          <div class="nebula-app">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #555, #333)">X</div>
+            <div class="nebula-app-name">X (Twitter)</div>
+            <div class="nebula-app-badge off">Direct</div>
+          </div>
+          <div class="nebula-app">
+            <div class="nebula-app-icon" style="background: linear-gradient(135deg, #0a66c2, #084d8e)">L</div>
+            <div class="nebula-app-name">LinkedIn</div>
+            <div class="nebula-app-badge off">Direct</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+function showVariant(id) {
+  document.querySelectorAll('.variant-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.variant-tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('variant-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

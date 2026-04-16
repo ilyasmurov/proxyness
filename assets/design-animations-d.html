@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Blur Resolve (detailed)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@300;400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fd:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+    --fb:'Figtree',system-ui,sans-serif;
+    --fm:'Barlow',system-ui,sans-serif;
+    --bg0:oklch(0.12 0.014 250);--bg1:oklch(0.155 0.016 250);--bg2:oklch(0.19 0.018 250);
+    --b1:oklch(0.24 0.013 250);
+    --t1:oklch(0.93 0.006 250);--t2:oklch(0.60 0.012 250);--t3:oklch(0.40 0.01 250);
+    --am:oklch(0.78 0.155 75);--amd:oklch(0.55 0.09 75);--amb:oklch(0.19 0.035 75);
+    --bl:oklch(0.68 0.12 235);--gn:oklch(0.72 0.15 150);
+    --rd:oklch(0.62 0.19 25);--rdb:oklch(0.17 0.03 25);
+    --eo:cubic-bezier(0.25,1,0.5,1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--fb);background:#060608;color:#ccc;min-height:100vh;-webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;align-items:center;gap:32px;padding:40px 20px}
+
+  .label{font:600 11px var(--fd);color:var(--t3);letter-spacing:2px;text-transform:uppercase;text-align:center;margin-bottom:4px}
+  .desc{font:400 11px var(--fb);color:oklch(0.30 0.008 250);text-align:center;margin-bottom:12px;line-height:1.5;max-width:520px}
+  .controls{display:flex;gap:6px;justify-content:center;margin-bottom:8px}
+  .ctrl-btn{
+    padding:5px 14px;border-radius:5px;border:1px solid var(--b1);background:var(--bg2);
+    color:var(--t2);font:600 11px var(--fd);letter-spacing:0.3px;cursor:pointer;transition:all 0.1s;
+  }
+  .ctrl-btn:hover{border-color:oklch(0.35 0.012 250);color:var(--t1)}
+
+  .win{width:800px;height:520px;background:var(--bg0);border-radius:10px;overflow:hidden;position:relative;
+    box-shadow:0 1px 0 var(--b1),0 20px 40px -8px rgba(0,0,0,0.5)}
+  .tbar{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;position:absolute;top:0;left:0;right:0;z-index:20}
+  .tbar-id{font:600 11px var(--fd);color:oklch(0.25 0.01 250);letter-spacing:0.5px;text-transform:uppercase}
+  .tc{display:flex;gap:2px}
+  .tb{width:26px;height:26px;border-radius:5px;background:transparent;border:none;color:var(--t3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+  .page{position:absolute;inset:0;visibility:hidden}
+  .page.visible{visibility:visible}
+
+  /* Blur resolve keyframes with stagger */
+  @keyframes blur-bg    { from{opacity:0;filter:blur(20px) brightness(0.1)}  to{opacity:1;filter:blur(0) brightness(0.25)} }
+  @keyframes blur-heavy { from{opacity:0;filter:blur(12px);transform:translateY(8px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
+  @keyframes blur-med   { from{opacity:0;filter:blur(6px);transform:translateY(5px)}  to{opacity:1;filter:blur(0);transform:translateY(0)} }
+  @keyframes blur-light { from{opacity:0;filter:blur(4px);transform:translateY(3px)}  to{opacity:1;filter:blur(0);transform:translateY(0)} }
+  @keyframes blur-fade  { from{opacity:0;filter:blur(3px)}  to{opacity:1;filter:blur(0)} }
+  @keyframes blur-dot   { from{opacity:0;transform:scale(0)} to{opacity:1;transform:scale(1)} }
+  @keyframes blur-badge { from{opacity:0;filter:blur(4px);transform:scale(0.8)} to{opacity:1;filter:blur(0);transform:scale(1)} }
+  @keyframes blur-metric{ from{opacity:0;filter:blur(6px)} to{opacity:1;filter:blur(0)} }
+  @keyframes blur-btn   { from{opacity:0;filter:blur(4px);transform:translateY(4px)} to{opacity:1;filter:blur(0);transform:translateY(0)} }
+  @keyframes blur-tab   { from{opacity:0;filter:blur(3px)} to{opacity:1;filter:blur(0)} }
+  @keyframes blur-row   { from{opacity:0;filter:blur(4px);transform:translateX(-6px)} to{opacity:1;filter:blur(0);transform:translateX(0)} }
+  @keyframes tab-line   { from{transform:scaleX(0)} to{transform:scaleX(1)} }
+
+  /* ===== SETUP PAGE ===== */
+  .setup-bg{position:absolute;inset:0}
+  .setup-bg video{width:100%;height:100%;object-fit:cover;filter:brightness(0.25) saturate(1.2)}
+  .setup-overlay{position:absolute;inset:0;background:linear-gradient(to right,oklch(0.12 0.014 250/0.92) 45%,oklch(0.12 0.014 250/0.3))}
+  .setup-form{position:relative;z-index:5;height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 0 0 64px}
+
+  .anim .setup-bg       { animation: blur-bg 0.9s var(--eo) both; }
+  .anim .setup-brand    { animation: blur-heavy 0.7s var(--eo) 0.15s both; }
+  .anim .setup-sub      { animation: blur-med 0.6s var(--eo) 0.3s both; }
+  .anim .setup-lbl      { animation: blur-light 0.4s var(--eo) 0.45s both; }
+  .anim .setup-input    { animation: blur-light 0.5s var(--eo) 0.5s both; }
+  .anim .setup-hint     { animation: blur-fade 0.4s var(--eo) 0.6s both; }
+
+  .setup-brand{font:300 42px var(--fd);color:var(--t1);letter-spacing:3px;text-transform:uppercase;line-height:1;margin-bottom:4px}
+  .setup-sub{font:600 14px var(--fd);color:var(--amd);letter-spacing:4px;text-transform:uppercase;margin-bottom:48px}
+  .setup-lbl{font:600 10px var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+  .setup-input{width:280px;padding:10px 14px;background:oklch(0.155 0.016 250/0.7);backdrop-filter:blur(6px);border:1px solid var(--b1);border-radius:5px;color:var(--t1);font:400 14px var(--fb);outline:none}
+  .setup-hint{font:400 11px var(--fb);color:var(--t3);margin-top:10px;max-width:280px}
+
+
+  /* ===== MAIN PAGE ===== */
+  .vheader{position:relative;overflow:hidden;background:var(--bg1);border-bottom:1px solid var(--b1)}
+  .vheader video{position:absolute;inset:0;width:100%;height:300%;object-fit:cover;margin-top:-60px;filter:brightness(0.35) saturate(1.2)}
+  .vheader .grad{position:absolute;inset:0;background:linear-gradient(to bottom,oklch(0.12 0.014 250/0.3),oklch(0.12 0.014 250/0.85) 70%,oklch(0.12 0.014 250/0.95))}
+
+  .anim .vheader        { animation: blur-fade 0.5s var(--eo) both; }
+  .anim .st-dot         { animation: blur-dot 0.3s var(--eo) 0.2s both; }
+  .anim .st-label       { animation: blur-heavy 0.5s var(--eo) 0.25s both; }
+  .anim .st-server      { animation: blur-light 0.4s var(--eo) 0.35s both; }
+  .anim .st-badge       { animation: blur-badge 0.3s var(--eo) 0.4s both; }
+  .anim .st-metric-1    { animation: blur-metric 0.3s var(--eo) 0.35s both; }
+  .anim .st-metric-2    { animation: blur-metric 0.3s var(--eo) 0.4s both; }
+  .anim .st-metric-3    { animation: blur-metric 0.3s var(--eo) 0.45s both; }
+  .anim .st-btn         { animation: blur-btn 0.4s var(--eo) 0.5s both; }
+  .anim .st-tab         { animation: blur-tab 0.3s var(--eo) 0.4s both; }
+  .anim .st-tab:nth-child(2) { animation-delay: 0.45s; }
+  .anim .st-tab:nth-child(3) { animation-delay: 0.5s; }
+  .anim .st-tab-line    { animation: tab-line 0.3s var(--eo) 0.55s both; transform-origin: left; }
+
+  .anim .cnt-title      { animation: blur-med 0.4s var(--eo) 0.5s both; }
+  .anim .cnt-desc       { animation: blur-light 0.4s var(--eo) 0.55s both; }
+  .anim .cnt-row-1      { animation: blur-row 0.3s var(--eo) 0.55s both; }
+  .anim .cnt-row-2      { animation: blur-row 0.3s var(--eo) 0.6s both; }
+  .anim .cnt-row-3      { animation: blur-row 0.3s var(--eo) 0.65s both; }
+  .anim .cnt-row-4      { animation: blur-row 0.3s var(--eo) 0.7s both; }
+
+  /* Status strip layout */
+  .status{position:relative;z-index:5;height:100px;display:flex;align-items:center;padding:30px 24px 0;gap:16px}
+  .st-left{display:flex;flex-direction:column;gap:2px}
+  .st-sub{display:flex;align-items:center;gap:8px}
+  .st-right{margin-left:auto;display:flex;align-items:center;gap:20px}
+  .metric-col{display:flex;flex-direction:column;gap:1px;text-align:right}
+
+  /* Tabs */
+  .tabs{position:relative;z-index:5;display:flex;padding:0 24px;border-top:1px solid oklch(0.24 0.013 250/0.5)}
+  .tab{padding:8px 16px;font:500 13px var(--fd);letter-spacing:0.3px;position:relative}
+  .tab.on{color:var(--am);font-weight:600}
+  .tab.off{color:var(--t3)}
+  .tab.on .tab-underline{position:absolute;bottom:0;left:16px;right:16px;height:2px;background:var(--am)}
+
+  /* Content */
+  .content-area{padding:16px 24px}
+
+  /* App rows */
+  .app-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px}
+  .app-ico{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font:700 8px var(--fd);color:#fff}
+  .app-nm{font:500 12px var(--fb);color:var(--t1);flex:1}
+  .app-st{font:600 9px var(--fd);letter-spacing:1px;text-transform:uppercase;color:var(--bl)}
+  .app-st.off{color:var(--t3)}
+</style>
+</head>
+<body>
+
+<div class="label">D &mdash; Blur Resolve (detailed stagger)</div>
+<div class="desc">Каждый элемент появляется из размытия отдельно: точка, статус, сервер, бейдж, метрики, кнопка, табы, строки приложений — всё каскадом с разной интенсивностью blur.</div>
+<div class="controls">
+  <button class="ctrl-btn" onclick="replay('setup')">Setup Screen</button>
+  <button class="ctrl-btn" onclick="replay('main')">Main Screen</button>
+</div>
+
+<div class="win">
+  <div class="tbar"><div class="tbar-id">Proxyness</div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+
+  <!-- SETUP -->
+  <div class="page anim visible" id="pg-setup">
+    <div class="setup-bg"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video></div>
+    <div class="setup-overlay"></div>
+    <div class="setup-form">
+      <div class="setup-brand">Proxyness</div>
+      <div class="setup-sub">Secure system-level proxy<br>for apps and browsers</div>
+      <div class="setup-lbl">Access Key</div>
+      <input class="setup-input" type="password" placeholder="Paste your access key" />
+      <div class="setup-hint">Paste the key — connection starts automatically</div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="page anim" id="pg-main">
+    <div class="vheader">
+      <video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video>
+      <div class="grad"></div>
+      <div class="status">
+        <div class="st-dot" style="width:8px;height:8px;border-radius:50%;background:var(--am);flex-shrink:0"></div>
+        <div class="st-left">
+          <span class="st-label" style="font:700 22px var(--fd);color:var(--t1);letter-spacing:0.3px;line-height:1">Connected</span>
+          <div class="st-sub">
+            <span class="st-server" style="font:400 12px var(--fb);color:var(--t3)">95.181.162.242</span>
+            <span class="st-badge" style="font:600 9px var(--fd);letter-spacing:1px;text-transform:uppercase;color:var(--amd);padding:1px 5px;background:var(--amb);border-radius:3px">UDP</span>
+          </div>
+        </div>
+        <div class="st-right">
+          <div class="metric-col st-metric-1"><span style="font:600 13px var(--fm);color:var(--gn);font-variant-numeric:tabular-nums">↓ 2.4 KB/s</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Down</span></div>
+          <div class="metric-col st-metric-2"><span style="font:600 13px var(--fm);color:var(--bl);font-variant-numeric:tabular-nums">↑ 559 B/s</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Up</span></div>
+          <div class="metric-col st-metric-3"><span style="font:600 13px var(--fm);color:var(--t2);font-variant-numeric:tabular-nums">02:14:37</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Uptime</span></div>
+          <button class="st-btn" style="font:600 11px var(--fd);letter-spacing:0.5px;padding:5px 14px;border-radius:4px;cursor:pointer;background:var(--rdb);border:1px solid oklch(0.62 0.19 25/0.15);color:var(--rd)">Disconnect</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <div class="tab on st-tab">All traffic<div class="tab-underline st-tab-line"></div></div>
+        <div class="tab off st-tab">Selected</div>
+        <div class="tab off st-tab">Browsers</div>
+      </div>
+    </div>
+    <div class="content-area" style="margin-top:136px">
+      <div class="cnt-title" style="font:600 15px var(--fd);color:var(--t2);letter-spacing:0.3px;margin-bottom:4px">All system traffic routed through proxy</div>
+      <div class="cnt-desc" style="font:400 13px var(--fb);color:var(--t3);line-height:1.6;margin-bottom:16px">Every connection from this device goes through the server.</div>
+      <div class="app-row cnt-row-1"><div class="app-ico" style="background:#2AABEE">T</div><div class="app-nm">Telegram</div><span class="app-st">Proxy / TLS</span></div>
+      <div class="app-row cnt-row-2"><div class="app-ico" style="background:#5865F2">D</div><div class="app-nm">Discord</div><span class="app-st">Proxy / TLS</span></div>
+      <div class="app-row cnt-row-3"><div class="app-ico" style="background:#D97757">C</div><div class="app-nm">Claude</div><span class="app-st">Proxy / Raw</span></div>
+      <div class="app-row cnt-row-4"><div class="app-ico" style="background:#00B4D8">Cu</div><div class="app-nm">Cursor</div><span class="app-st">Proxy / TLS</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function replay(page) {
+  const setup = document.getElementById('pg-setup');
+  const main = document.getElementById('pg-main');
+
+  setup.classList.remove('visible','anim');
+  main.classList.remove('visible','anim');
+  void setup.offsetWidth;
+
+  setTimeout(() => {
+    const target = page === 'setup' ? setup : main;
+    target.classList.add('anim','visible');
+  }, 50);
+}
+</script>
+
+</body>
+</html>

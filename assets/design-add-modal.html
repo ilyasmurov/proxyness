@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Add Site Modal Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fd:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+    --fb:'Figtree',system-ui,sans-serif;
+    --fm:'Barlow',system-ui,sans-serif;
+    --bg0:oklch(0.12 0.014 250);--bg1:oklch(0.155 0.016 250);--bg2:oklch(0.19 0.018 250);
+    --bg3:oklch(0.23 0.016 250);--bgh:oklch(0.26 0.015 250);
+    --b1:oklch(0.24 0.013 250);--b2:oklch(0.30 0.014 250);
+    --t1:oklch(0.93 0.006 250);--t2:oklch(0.60 0.012 250);--t3:oklch(0.40 0.01 250);
+    --am:oklch(0.78 0.155 75);--amb:oklch(0.19 0.035 75);
+    --bl:oklch(0.68 0.12 235);--blb:oklch(0.18 0.028 235);
+    --gn:oklch(0.72 0.15 150);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--fb);background:#060608;color:#ccc;min-height:100vh;-webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;align-items:center;gap:50px;padding:40px 20px}
+
+  .label{font:600 11px var(--fd);color:var(--t3);letter-spacing:2px;text-transform:uppercase;text-align:center;margin-bottom:6px}
+  .desc{font:400 11px var(--fb);color:oklch(0.35 0.008 250);text-align:center;margin-bottom:20px;line-height:1.5;max-width:420px}
+
+  .ico{border-radius:5px;display:flex;align-items:center;justify-content:center;font:700 var(--fd);color:#fff;flex-shrink:0}
+
+  /* Backdrop */
+  .backdrop{
+    width:800px;height:520px;border-radius:10px;position:relative;overflow:hidden;
+    background:var(--bg0);border:1px solid var(--b1);
+    box-shadow:0 20px 40px -8px rgba(0,0,0,0.5);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .backdrop::before{
+    content:"";position:absolute;inset:0;
+    background:rgba(0,0,0,0.5);
+  }
+
+
+  /* ====== VARIANT A: Inline panel (no overlay) ====== */
+  .va .modal{
+    position:relative;z-index:5;width:420px;
+    background:var(--bg1);border:1px solid var(--b1);
+    border-radius:10px;padding:20px;
+    box-shadow:0 16px 48px rgba(0,0,0,0.4);
+  }
+  .va .m-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .va .m-title{font:700 16px var(--fd);color:var(--t1);letter-spacing:0.3px}
+  .va .m-close{
+    width:24px;height:24px;border-radius:4px;background:transparent;border:none;
+    color:var(--t3);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    transition:all 0.1s;
+  }
+  .va .m-close:hover{background:var(--bg3);color:var(--t1)}
+
+  .va .m-input{
+    width:100%;padding:8px 12px;margin-bottom:12px;
+    background:var(--bg0);border:1px solid var(--b1);border-radius:5px;
+    color:var(--t1);font:400 13px var(--fb);outline:none;
+    transition:border-color 0.12s;
+  }
+  .va .m-input:focus{border-color:var(--b2)}
+  .va .m-input::placeholder{color:var(--t3)}
+
+  .va .m-results{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;max-height:220px;overflow-y:auto}
+  .va .m-results::-webkit-scrollbar{width:3px}
+  .va .m-results::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
+
+  .va .m-card{
+    padding:8px 6px;border-radius:6px;display:flex;flex-direction:column;align-items:center;gap:4px;
+    background:var(--bg0);border:1px solid var(--b1);cursor:pointer;transition:all 0.1s;
+  }
+  .va .m-card:hover{border-color:var(--b2);background:var(--bg2)}
+  .va .m-card.sel{border-color:oklch(from var(--bl) l c h/0.4);background:var(--blb)}
+  .va .m-card.added{opacity:0.4;cursor:default}
+  .va .m-card .ico{width:24px;height:24px;font-size:9px;border-radius:6px}
+  .va .m-card-name{font:600 10px var(--fb);color:var(--t1);text-align:center;line-height:1.2}
+  .va .m-card-domain{font:400 8px var(--fm);color:var(--t3);text-align:center}
+  .va .m-card-badge{font:700 7px var(--fd);color:var(--gn);letter-spacing:0.5px}
+
+  .va .m-footer{display:flex;justify-content:flex-end;gap:8px}
+  .va .m-btn{
+    padding:6px 16px;border-radius:4px;font:600 12px var(--fd);letter-spacing:0.3px;
+    cursor:pointer;transition:all 0.1s;
+  }
+  .va .m-btn.cancel{background:transparent;border:1px solid var(--b1);color:var(--t2)}
+  .va .m-btn.cancel:hover{border-color:var(--b2);color:var(--t1)}
+  .va .m-btn.submit{background:var(--bl);border:none;color:oklch(0.15 0.01 235)}
+  .va .m-btn.submit:hover{background:oklch(0.72 0.13 235)}
+  .va .m-btn.disabled{opacity:0.4;cursor:default}
+
+
+  /* ====== VARIANT B: Compact list (no grid) ====== */
+  .vb .modal{
+    position:relative;z-index:5;width:380px;
+    background:var(--bg1);border:1px solid var(--b1);
+    border-radius:10px;padding:16px;
+    box-shadow:0 16px 48px rgba(0,0,0,0.4);
+  }
+  .vb .m-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .vb .m-title{font:700 14px var(--fd);color:var(--t1);letter-spacing:0.3px;flex:1}
+  .vb .m-close{
+    width:22px;height:22px;border-radius:4px;background:transparent;border:none;
+    color:var(--t3);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .vb .m-close:hover{background:var(--bg3);color:var(--t1)}
+
+  .vb .m-input{
+    width:100%;padding:7px 10px;margin-bottom:10px;
+    background:var(--bg0);border:1px solid var(--b1);border-radius:5px;
+    color:var(--t1);font:400 12px var(--fb);outline:none;
+  }
+  .vb .m-input::placeholder{color:var(--t3)}
+
+  .vb .m-list{display:flex;flex-direction:column;gap:1px;margin-bottom:12px;max-height:200px;overflow-y:auto}
+  .vb .m-list::-webkit-scrollbar{width:3px}
+  .vb .m-list::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
+
+  .vb .m-row{
+    display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:4px;
+    cursor:pointer;transition:background 0.1s;
+  }
+  .vb .m-row:hover{background:var(--bg2)}
+  .vb .m-row.sel{background:var(--blb)}
+  .vb .m-row.added{opacity:0.4;cursor:default}
+  .vb .m-row .ico{width:20px;height:20px;font-size:8px;border-radius:5px}
+  .vb .m-row-info{flex:1;min-width:0}
+  .vb .m-row-name{font:500 12px var(--fb);color:var(--t1);line-height:1.2}
+  .vb .m-row-domain{font:400 9px var(--fm);color:var(--t3)}
+  .vb .m-row-badge{font:700 7px var(--fd);color:var(--gn);letter-spacing:0.5px}
+  .vb .m-row-check{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--b2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.1s}
+  .vb .m-row.sel .m-row-check{background:var(--bl);border-color:var(--bl)}
+  .vb .m-row.sel .m-row-check::after{content:"✓";font-size:9px;color:oklch(0.15 0.01 235);font-weight:700}
+
+  .vb .m-footer{display:flex;justify-content:flex-end;gap:8px}
+  .vb .m-btn{padding:5px 14px;border-radius:4px;font:600 11px var(--fd);letter-spacing:0.3px;cursor:pointer;transition:all 0.1s}
+  .vb .m-btn.cancel{background:transparent;border:1px solid var(--b1);color:var(--t2)}
+  .vb .m-btn.cancel:hover{border-color:var(--b2);color:var(--t1)}
+  .vb .m-btn.submit{background:var(--bl);border:none;color:oklch(0.15 0.01 235)}
+
+
+  /* ====== VARIANT C: Search-first with tags ====== */
+  .vc .modal{
+    position:relative;z-index:5;width:400px;
+    background:var(--bg1);border:1px solid var(--b1);
+    border-radius:10px;overflow:hidden;
+    box-shadow:0 16px 48px rgba(0,0,0,0.4);
+  }
+  .vc .m-search-bar{
+    display:flex;align-items:center;gap:8px;
+    padding:12px 14px;border-bottom:1px solid var(--b1);
+  }
+  .vc .m-search-ico{color:var(--t3);flex-shrink:0}
+  .vc .m-input{
+    flex:1;padding:0;background:transparent;border:none;
+    color:var(--t1);font:400 13px var(--fb);outline:none;
+  }
+  .vc .m-input::placeholder{color:var(--t3)}
+  .vc .m-close{
+    width:22px;height:22px;border-radius:4px;background:transparent;border:none;
+    color:var(--t3);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .vc .m-close:hover{color:var(--t1)}
+
+  .vc .m-body{padding:12px 14px}
+  .vc .m-section-label{font:600 9px var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+
+  .vc .m-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
+  .vc .m-tag{
+    display:flex;align-items:center;gap:5px;
+    padding:4px 10px 4px 4px;border-radius:5px;cursor:pointer;
+    background:var(--bg0);border:1px solid var(--b1);transition:all 0.1s;
+  }
+  .vc .m-tag:hover{border-color:var(--b2);background:var(--bg2)}
+  .vc .m-tag.sel{border-color:oklch(from var(--bl) l c h/0.35);background:var(--blb)}
+  .vc .m-tag.added{opacity:0.4;cursor:default}
+  .vc .m-tag .ico{width:18px;height:18px;font-size:7px;border-radius:4px}
+  .vc .m-tag-name{font:500 11px var(--fb);color:var(--t1)}
+  .vc .m-tag-badge{font:700 7px var(--fd);color:var(--gn);letter-spacing:0.3px;margin-left:2px}
+
+  .vc .m-manual{
+    padding:10px 12px;border-radius:6px;background:var(--bg0);border:1px solid var(--b1);
+    display:flex;align-items:center;gap:10px;margin-bottom:14px;
+  }
+  .vc .m-manual .ico{width:22px;height:22px;font-size:8px;border-radius:5px}
+  .vc .m-manual-info{flex:1}
+  .vc .m-manual-name{font:600 12px var(--fb);color:var(--t1)}
+  .vc .m-manual-domain{font:400 9px var(--fm);color:var(--t3)}
+
+  .vc .m-footer{display:flex;justify-content:flex-end;gap:8px}
+  .vc .m-btn{padding:6px 16px;border-radius:4px;font:600 11px var(--fd);letter-spacing:0.3px;cursor:pointer;transition:all 0.1s}
+  .vc .m-btn.cancel{background:transparent;border:1px solid var(--b1);color:var(--t2)}
+  .vc .m-btn.cancel:hover{border-color:var(--b2);color:var(--t1)}
+  .vc .m-btn.submit{background:var(--bl);border:none;color:oklch(0.15 0.01 235)}
+</style>
+</head>
+<body>
+
+<!-- ====== A: Card grid ====== -->
+<div class="label">A &mdash; Card Grid</div>
+<div class="desc">Классическая модалка. Заголовок сверху, поиск, сетка карточек 3 в ряд, кнопки внизу.</div>
+<div class="backdrop va">
+  <div class="modal">
+    <div class="m-header">
+      <div class="m-title">Add site</div>
+      <button class="m-close">✕</button>
+    </div>
+    <input class="m-input" placeholder="Search or enter domain..." value="chat" />
+    <div class="m-results">
+      <div class="m-card sel">
+        <div class="ico" style="width:24px;height:24px;font-size:9px;background:oklch(0.50 0.10 170)">O</div>
+        <div class="m-card-name">ChatGPT</div>
+        <div class="m-card-domain">chat.openai.com</div>
+      </div>
+      <div class="m-card added">
+        <div class="ico" style="width:24px;height:24px;font-size:9px;background:#D97757">C</div>
+        <div class="m-card-name">Claude</div>
+        <div class="m-card-domain">claude.ai</div>
+        <div class="m-card-badge">ADDED</div>
+      </div>
+      <div class="m-card">
+        <div class="ico" style="width:24px;height:24px;font-size:9px;background:oklch(0.50 0.12 280)">C</div>
+        <div class="m-card-name">Character AI</div>
+        <div class="m-card-domain">character.ai</div>
+      </div>
+      <div class="m-card">
+        <div class="ico" style="width:24px;height:24px;font-size:9px;background:oklch(0.50 0.08 200)">P</div>
+        <div class="m-card-name">Perplexity</div>
+        <div class="m-card-domain">perplexity.ai</div>
+      </div>
+      <div class="m-card">
+        <div class="ico" style="width:24px;height:24px;font-size:9px;background:oklch(0.45 0.12 150)">C</div>
+        <div class="m-card-name">ChatBot</div>
+        <div class="m-card-domain">chatbot.com</div>
+      </div>
+    </div>
+    <div class="m-footer">
+      <button class="m-btn cancel">Cancel</button>
+      <button class="m-btn submit">Add (1)</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ====== B: Compact list with checkboxes ====== -->
+<div class="label">B &mdash; List + Checkboxes</div>
+<div class="desc">Список строк с чекбоксами. Компактнее чем сетка. Мульти-выбор через галочки.</div>
+<div class="backdrop vb">
+  <div class="modal">
+    <div class="m-header">
+      <div class="m-title">Add site</div>
+      <button class="m-close">✕</button>
+    </div>
+    <input class="m-input" placeholder="Search or enter domain..." value="chat" />
+    <div class="m-list">
+      <div class="m-row sel">
+        <div class="ico" style="width:20px;height:20px;font-size:8px;background:oklch(0.50 0.10 170)">O</div>
+        <div class="m-row-info"><div class="m-row-name">ChatGPT</div><div class="m-row-domain">chat.openai.com</div></div>
+        <div class="m-row-check"></div>
+      </div>
+      <div class="m-row added">
+        <div class="ico" style="width:20px;height:20px;font-size:8px;background:#D97757">C</div>
+        <div class="m-row-info"><div class="m-row-name">Claude</div><div class="m-row-domain">claude.ai</div></div>
+        <div class="m-row-badge">ADDED</div>
+      </div>
+      <div class="m-row">
+        <div class="ico" style="width:20px;height:20px;font-size:8px;background:oklch(0.50 0.12 280)">C</div>
+        <div class="m-row-info"><div class="m-row-name">Character AI</div><div class="m-row-domain">character.ai</div></div>
+        <div class="m-row-check"></div>
+      </div>
+      <div class="m-row">
+        <div class="ico" style="width:20px;height:20px;font-size:8px;background:oklch(0.50 0.08 200)">P</div>
+        <div class="m-row-info"><div class="m-row-name">Perplexity</div><div class="m-row-domain">perplexity.ai</div></div>
+        <div class="m-row-check"></div>
+      </div>
+      <div class="m-row">
+        <div class="ico" style="width:20px;height:20px;font-size:8px;background:oklch(0.45 0.12 150)">C</div>
+        <div class="m-row-info"><div class="m-row-name">ChatBot</div><div class="m-row-domain">chatbot.com</div></div>
+        <div class="m-row-check"></div>
+      </div>
+    </div>
+    <div class="m-footer">
+      <button class="m-btn cancel">Cancel</button>
+      <button class="m-btn submit">Add (1)</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ====== C: Search bar + tags ====== -->
+<div class="label">C &mdash; Search Bar + Tags</div>
+<div class="desc">Инпут как часть шапки (spotlight-стиль). Результаты как чипы/теги. Manual entry как отдельный блок.</div>
+<div class="backdrop vc">
+  <div class="modal">
+    <div class="m-search-bar">
+      <svg class="m-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="m-input" placeholder="Search or enter domain..." value="chat" />
+      <button class="m-close">✕</button>
+    </div>
+    <div class="m-body">
+      <div class="m-section-label">Results</div>
+      <div class="m-tags">
+        <div class="m-tag sel">
+          <div class="ico" style="width:18px;height:18px;font-size:7px;background:oklch(0.50 0.10 170)">O</div>
+          <div class="m-tag-name">ChatGPT</div>
+        </div>
+        <div class="m-tag added">
+          <div class="ico" style="width:18px;height:18px;font-size:7px;background:#D97757">C</div>
+          <div class="m-tag-name">Claude</div>
+          <div class="m-tag-badge">ADDED</div>
+        </div>
+        <div class="m-tag">
+          <div class="ico" style="width:18px;height:18px;font-size:7px;background:oklch(0.50 0.12 280)">C</div>
+          <div class="m-tag-name">Character AI</div>
+        </div>
+        <div class="m-tag">
+          <div class="ico" style="width:18px;height:18px;font-size:7px;background:oklch(0.50 0.08 200)">P</div>
+          <div class="m-tag-name">Perplexity</div>
+        </div>
+        <div class="m-tag">
+          <div class="ico" style="width:18px;height:18px;font-size:7px;background:oklch(0.45 0.12 150)">C</div>
+          <div class="m-tag-name">ChatBot</div>
+        </div>
+      </div>
+
+      <div class="m-section-label">Manual entry</div>
+      <div class="m-manual">
+        <div class="ico" style="width:22px;height:22px;font-size:8px;background:oklch(0.45 0.10 200)">C</div>
+        <div class="m-manual-info">
+          <div class="m-manual-name">Chat</div>
+          <div class="m-manual-domain">chat.com</div>
+        </div>
+      </div>
+
+      <div class="m-footer">
+        <button class="m-btn cancel">Cancel</button>
+        <button class="m-btn submit">Add (1)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

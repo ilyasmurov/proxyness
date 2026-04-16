@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>StatusBar Mockup — Connected</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0b0f1a;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 30px;
+      padding: 40px;
+    }
+
+    h3 { color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+
+    .statusbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px; background: #16213e; border-radius: 10px; width: 720px;
+    }
+
+    .globe {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #2a6a3a, #1a3a2a);
+      border: 1px solid #4caf50; flex-shrink: 0; margin-right: 4px;
+      box-shadow: 0 0 3px rgba(76,175,80,0.55);
+      opacity: 0;
+    }
+
+    .server-text { font-size: 16px; color: #888; display: inline-flex; }
+
+    .transport-badge {
+      font-size: 11px; padding: 3px 7px 3px 8px; border-radius: 4px;
+      background: #1a3a5c; color: #ccc; text-transform: uppercase;
+      font-weight: 600; letter-spacing: 0.5px; border: none;
+      display: inline-flex; align-items: center; gap: 3px; opacity: 0;
+    }
+
+    .speed-fraction {
+      display: flex; flex-direction: column; align-items: flex-start;
+      gap: 1px; font-size: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      line-height: 1.1; opacity: 0;
+      min-width: 75px;
+    }
+    .speed-fraction .down { color: #4ade80; display: inline-flex; font-size: 11px; }
+    .speed-fraction .up { color: #60a5fa; display: inline-flex; font-size: 11px; }
+
+    .uptime {
+      color: #aaa; font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      display: inline-flex;
+    }
+
+    .status-text {
+      font-size: 16px; font-weight: 600;
+      display: inline-flex; gap: 0;
+    }
+    .letter { opacity: 0; display: inline-block; }
+
+    @keyframes letter-in {
+      from { opacity: 0; filter: blur(4px); transform: translateY(4px); }
+      to   { opacity: 1; filter: blur(0); transform: translateY(0); }
+    }
+    @keyframes fade-in {
+      from { opacity: 0; transform: scale(0.8); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    @keyframes fade-only {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    .right-group {
+      display: flex; align-items: center; gap: 20px; margin-left: auto;
+    }
+
+    .btn-disconnect {
+      position: relative; padding: 8px 22px;
+      background: #2a0a0a; color: #f44336;
+      border: 1px solid #f44336; border-radius: 6px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      flex-shrink: 0; overflow: hidden; min-width: 120px; height: 36px;
+      opacity: 0;
+    }
+    .btn-disconnect .graph-bg {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 60%; width: 100%;
+    }
+    .btn-disconnect span { position: relative; z-index: 1; }
+
+    .replay {
+      padding: 8px 20px; background: #1a3a5c; color: #ccc;
+      border: none; border-radius: 6px; font-size: 13px; cursor: pointer;
+      font-family: inherit;
+    }
+    .replay:hover { background: #264a70; }
+  </style>
+</head>
+<body>
+
+  <div style="text-align:center">
+    <h3>Connected — entrance animation</h3>
+    <div class="statusbar">
+      <div class="globe" id="globe"></div>
+      <span class="status-text" id="text"></span>
+      <span class="server-text" id="server"></span>
+      <span class="transport-badge" id="transport">UDP <span style="font-size:14px;opacity:0.6">&#9662;</span></span>
+      <div class="right-group">
+        <span class="uptime" id="uptime"></span>
+        <div class="speed-fraction" id="speed">
+          <span class="down" id="speed-down"></span>
+          <span class="up" id="speed-up"></span>
+        </div>
+        <button class="btn-disconnect" id="btn">
+          <svg class="graph-bg" viewBox="0 0 120 36" preserveAspectRatio="none" id="graph-svg"></svg>
+          <span>Disconnect</span>
+        </button>
+      </div>
+    </div>
+    <br>
+    <button class="replay" onclick="replay()">Replay</button>
+  </div>
+
+  <script>
+    // --- Graph ---
+    const POINTS = 30, GW = 120, GH = 36;
+    const downHist = Array(POINTS).fill(0);
+    const upHist = Array(POINTS).fill(0);
+    let curDown = 2400, curUp = 559, seconds = 648;
+    let gInterval = null;
+
+    function rand(a, b) { return a + Math.random() * (b - a); }
+    function fmtSpeed(b) {
+      if (b < 1024) return `${Math.round(b)} B/s`;
+      if (b < 1048576) return `${(b / 1024).toFixed(1)} KB/s`;
+      return `${(b / 1048576).toFixed(1)} MB/s`;
+    }
+    function poly(arr, mx) {
+      const s = GW / (arr.length - 1);
+      return arr.map((v, i) => `${i * s},${GH - (v / mx) * (GH - 4) - 2}`).join(" ");
+    }
+    function tickGraph() {
+      curDown = Math.max(200, Math.min(curDown + rand(-800, 1200), 50000));
+      curUp = Math.max(50, Math.min(curUp + rand(-300, 500), 15000));
+      downHist.push(curDown); downHist.shift();
+      upHist.push(curUp); upHist.shift();
+      const mx = Math.max(1, ...downHist, ...upHist);
+      document.getElementById("graph-svg").innerHTML =
+        `<polyline points="${poly(downHist, mx)}" fill="none" stroke="#4ade80" stroke-width="2" opacity="0.5"/>` +
+        `<polyline points="${poly(upHist, mx)}" fill="none" stroke="#60a5fa" stroke-width="1.5" opacity="0.45"/>`;
+      document.getElementById("speed-down").textContent = `\u2193 ${fmtSpeed(curDown)}`;
+      document.getElementById("speed-up").textContent = `\u2191 ${fmtSpeed(curUp)}`;
+      seconds++;
+      const h = Math.floor(seconds / 3600), m = Math.floor((seconds % 3600) / 60), s = seconds % 60;
+      document.getElementById("uptime").textContent = [h, m, s].map(v => String(v).padStart(2, "0")).join(":");
+    }
+    function seedGraph() {
+      for (let i = 0; i < POINTS; i++) {
+        curDown = Math.max(200, Math.min(curDown + rand(-600, 800), 50000));
+        curUp = Math.max(50, Math.min(curUp + rand(-200, 400), 15000));
+        downHist[i] = curDown; upHist[i] = curUp;
+      }
+    }
+
+    // --- Animation ---
+    function buildLetters(el, word, startMs) {
+      el.innerHTML = "";
+      for (let i = 0; i < word.length; i++) {
+        const sp = document.createElement("span");
+        sp.className = "letter";
+        sp.innerHTML = word[i] === " " ? "&nbsp;" : word[i];
+        sp.style.animation = `letter-in 0.1s ease-out ${startMs + i * 20}ms forwards`;
+        el.appendChild(sp);
+      }
+    }
+
+    function fadeIn(id, delay) {
+      const el = document.getElementById(id);
+      el.style.opacity = "0";
+      el.style.animation = `fade-only 0.3s ease-out ${delay}ms forwards`;
+    }
+
+    function replay() {
+      if (gInterval) clearInterval(gInterval);
+
+      // Reset all
+      ["globe", "transport", "btn"].forEach(id => {
+        const el = document.getElementById(id);
+        el.style.opacity = "0"; el.style.animation = "";
+      });
+      ["text", "server", "uptime", "speed-down", "speed-up"].forEach(id => {
+        document.getElementById(id).innerHTML = "";
+      });
+      document.getElementById("speed").style.opacity = "1";
+      document.getElementById("graph-svg").innerHTML = "";
+
+      void document.getElementById("globe").offsetWidth;
+
+      // Globe
+      const el = document.getElementById("globe");
+      el.style.animation = "fade-in 0.3s ease-out forwards";
+
+      // "Connected" by letters
+      let t = 200;
+      buildLetters(document.getElementById("text"), "Connected", t);
+      t += "Connected".length * 20;
+
+      // "to 95.181.162.242" by letters
+      buildLetters(document.getElementById("server"), "to 95.181.162.242", t);
+      t += "to 95.181.162.242".length * 20;
+
+      // Transport badge fade
+      fadeIn("transport", t);
+      t += 50;
+
+      // Uptime by letters
+      buildLetters(document.getElementById("uptime"), "00:10:48", t);
+      t += "00:10:48".length * 20;
+
+      // Speed by letters
+      buildLetters(document.getElementById("speed-down"), "\u2193 2.4 KB/s", t);
+      buildLetters(document.getElementById("speed-up"), "\u2191 559 B/s", t);
+      t += "\u2193 2.4 KB/s".length * 20;
+
+      // Disconnect button
+      fadeIn("btn", t);
+
+      // Start graph
+      setTimeout(() => {
+        seedGraph();
+        tickGraph();
+        gInterval = setInterval(tickGraph, 500);
+      }, t + 200);
+    }
+
+    replay();
+  </script>
+
+</body>
+</html>

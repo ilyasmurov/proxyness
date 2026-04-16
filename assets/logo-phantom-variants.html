@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROXYNESS — Phantom Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800;900&family=Urbanist:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:oklch(0.11 0.013 250);--bg2:oklch(0.155 0.015 250);--bg3:oklch(0.22 0.016 250);
+    --t1:oklch(0.94 0.005 250);--t2:oklch(0.55 0.010 250);--t3:oklch(0.36 0.008 250);
+    --am:oklch(0.78 0.16 75);--am-d:oklch(0.62 0.14 75);
+    --lt:oklch(0.965 0.004 250);--lt1:oklch(0.14 0.013 250);--lt-am:oklch(0.50 0.14 75);
+    --body:oklch(0.26 0.02 250);--body-hi:oklch(0.32 0.018 250);--body-sh:oklch(0.20 0.018 250);
+    --pupil:oklch(0.14 0.02 250);
+    --lb:oklch(0.90 0.007 250);--lb-hi:oklch(0.94 0.005 250);--lb-sh:oklch(0.85 0.008 250);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--t1);font-family:'Outfit',system-ui;-webkit-font-smoothing:antialiased}
+  .p{max-width:1300px;margin:0 auto;padding:48px 36px 120px}
+  .hl{font-family:'Geist Mono',monospace;font-size:10px;font-weight:500;letter-spacing:3px;color:var(--am);margin-bottom:6px}
+  .ht{font-size:26px;font-weight:300;margin-bottom:4px}.ht b{font-weight:800}
+  .hs{font-size:12.5px;color:var(--t2);margin-bottom:48px}
+  .concept{margin-bottom:60px}
+  .ch{display:flex;align-items:baseline;gap:14px;margin-bottom:4px}
+  .cn{font-family:'Geist Mono',monospace;font-size:10px;font-weight:500;color:var(--am-d);letter-spacing:1.5px}
+  .ct{font-size:16px;font-weight:700}
+  .cd{font-size:12px;color:var(--t2);max-width:64ch;line-height:1.7;margin-bottom:22px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .card{background:var(--bg2);border-radius:14px;padding:28px 32px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:190px;position:relative;flex:1;min-width:320px}
+  .card.lt{background:var(--lt)}
+  .tag{position:absolute;top:10px;left:14px;font-family:'Geist Mono',monospace;font-size:8px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3)}
+  .card.lt .tag{color:oklch(0.58 0.008 250)}
+  .wm{display:flex;align-items:center;gap:13px}
+  .wmt{font-family:'Outfit';font-size:22px;font-weight:700;letter-spacing:3px;color:var(--t1)}
+  .card.lt .wmt{color:var(--lt1)}
+  .icons{display:flex;align-items:center;gap:14px}
+  .sz{font-family:'Geist Mono',monospace;font-size:7.5px;color:var(--t3);text-align:center;margin-top:3px}
+  .card.lt .sz{color:oklch(0.58 0.008 250)}
+</style>
+</head>
+<body>
+<div class="p">
+
+<div class="hl">PHANTOM VARIATIONS</div>
+<div class="ht"><b>PROXYNESS</b> — Ghost Icon Explorations</div>
+<div class="hs">8 вариаций призрака. Разные стили, пропорции, уровень детализации.</div>
+
+<!-- ═══════════ 01: SLEEK ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">01</span><span class="ct">Sleek</span></div>
+  <div class="cd">Вытянутый, обтекаемый. Как stealth-самолёт. Голова уже, хвост длиннее и растворяется. Минимум деталей — только глаза.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="38" height="36" viewBox="0 0 38 36" fill="none">
+          <path d="M19 1 C12 1 6 7 6 16 L6 28 Q9 25 12 28 Q15 31 19 27 Q23 31 26 28 Q29 25 32 28 L32 16 C32 7 26 1 19 1Z" fill="var(--body)"/>
+          <path d="M19 1 C24 1 28 4 30 9 C31 12 32 14 32 16 L32 18 C29 16 24 15 19 15 C14 15 9 16 6 18 L6 16 C6 7 12 1 19 1Z" fill="var(--body-hi)"/>
+          <ellipse cx="14" cy="15" rx="3.5" ry="4" fill="var(--am)"/>
+          <ellipse cx="24" cy="15" rx="3.5" ry="4" fill="var(--am)"/>
+          <ellipse cx="15" cy="15.8" rx="1.5" ry="2.2" fill="var(--pupil)"/>
+          <ellipse cx="25" cy="15.8" rx="1.5" ry="2.2" fill="var(--pupil)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 5 C22 5 14 13 14 26 L14 50 Q19 45 24 50 Q28 54 32 48 Q36 54 40 50 Q45 45 50 50 L50 26 C50 13 42 5 32 5Z" fill="var(--body)"/><path d="M32 5 C39 5 44 9 47 15 C49 19 50 22 50 26 L50 29 C46 26 39 24 32 24 C25 24 18 26 14 29 L14 26 C14 13 22 5 32 5Z" fill="var(--body-hi)"/><ellipse cx="24" cy="25" rx="5.5" ry="6.5" fill="var(--am)"/><ellipse cx="40" cy="25" rx="5.5" ry="6.5" fill="var(--am)"/><ellipse cx="25.5" cy="26" rx="2.2" ry="3.5" fill="var(--pupil)"/><ellipse cx="41.5" cy="26" rx="2.2" ry="3.5" fill="var(--pupil)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 5 C22 5 14 13 14 26 L14 50 Q19 45 24 50 Q28 54 32 48 Q36 54 40 50 Q45 45 50 50 L50 26 C50 13 42 5 32 5Z" fill="var(--body)"/><ellipse cx="24" cy="25" rx="6.5" ry="7.5" fill="var(--am)"/><ellipse cx="40" cy="25" rx="6.5" ry="7.5" fill="var(--am)"/><ellipse cx="25.8" cy="26.2" rx="2.8" ry="4" fill="var(--pupil)"/><ellipse cx="41.8" cy="26.2" rx="2.8" ry="4" fill="var(--pupil)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 3 C20 3 12 12 12 26 L12 54 Q20 46 28 54 Q32 50 36 54 Q44 46 52 54 L52 26 C52 12 44 3 32 3Z" fill="var(--body)"/><ellipse cx="24" cy="25" rx="8" ry="9" fill="var(--am)"/><ellipse cx="40" cy="25" rx="8" ry="9" fill="var(--am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="38" height="36" viewBox="0 0 38 36" fill="none">
+          <path d="M19 1 C12 1 6 7 6 16 L6 28 Q9 25 12 28 Q15 31 19 27 Q23 31 26 28 Q29 25 32 28 L32 16 C32 7 26 1 19 1Z" fill="var(--lb)"/>
+          <path d="M19 1 C24 1 28 4 30 9 C31 12 32 14 32 16 L32 18 C29 16 24 15 19 15 C14 15 9 16 6 18 L6 16 C6 7 12 1 19 1Z" fill="var(--lb-hi)"/>
+          <ellipse cx="14" cy="15" rx="3.5" ry="4" fill="var(--lt-am)"/>
+          <ellipse cx="24" cy="15" rx="3.5" ry="4" fill="var(--lt-am)"/>
+          <ellipse cx="15" cy="15.8" rx="1.5" ry="2.2" fill="var(--lt)"/>
+          <ellipse cx="25" cy="15.8" rx="1.5" ry="2.2" fill="var(--lt)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 5 C22 5 14 13 14 26 L14 50 Q19 45 24 50 Q28 54 32 48 Q36 54 40 50 Q45 45 50 50 L50 26 C50 13 42 5 32 5Z" fill="var(--lb)"/><path d="M32 5 C39 5 44 9 47 15 C49 19 50 22 50 26 L50 29 C46 26 39 24 32 24 C25 24 18 26 14 29 L14 26 C14 13 22 5 32 5Z" fill="var(--lb-hi)"/><ellipse cx="24" cy="25" rx="5.5" ry="6.5" fill="var(--lt-am)"/><ellipse cx="40" cy="25" rx="5.5" ry="6.5" fill="var(--lt-am)"/><ellipse cx="25.5" cy="26" rx="2.2" ry="3.5" fill="var(--lt)"/><ellipse cx="41.5" cy="26" rx="2.2" ry="3.5" fill="var(--lt)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 5 C22 5 14 13 14 26 L14 50 Q19 45 24 50 Q28 54 32 48 Q36 54 40 50 Q45 45 50 50 L50 26 C50 13 42 5 32 5Z" fill="var(--lb)"/><ellipse cx="24" cy="25" rx="6.5" ry="7.5" fill="var(--lt-am)"/><ellipse cx="40" cy="25" rx="6.5" ry="7.5" fill="var(--lt-am)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 3 C20 3 12 12 12 26 L12 54 Q20 46 28 54 Q32 50 36 54 Q44 46 52 54 L52 26 C52 12 44 3 32 3Z" fill="var(--lb)"/><ellipse cx="24" cy="25" rx="8" ry="9" fill="var(--lt-am)"/><ellipse cx="40" cy="25" rx="8" ry="9" fill="var(--lt-am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 02: HOODED ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">02</span><span class="ct">Hooded</span></div>
+  <div class="cd">Капюшон/плащ, из-под которого светятся глаза. Stealth-образ. Капюшон создаёт тень вокруг лица, глаза горят из темноты. Ассассин, не хэллоуин.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="36" height="38" viewBox="0 0 36 38" fill="none">
+          <!-- Hood/cloak outer -->
+          <path d="M18 1 C10 1 3 8 3 18 L3 32 L7 28 L11 32 L15 28 L18 31 L21 28 L25 32 L29 28 L33 32 L33 18 C33 8 26 1 18 1Z" fill="var(--body-sh)"/>
+          <!-- Hood shape -->
+          <path d="M18 1 C10 1 4 7 4 16 C4 18 5 20 7 22 L12 18 L18 14 L24 18 L29 22 C31 20 32 18 32 16 C32 7 26 1 18 1Z" fill="var(--body)"/>
+          <!-- Hood peak -->
+          <path d="M18 1 C13 1 9 3 7 7 L18 4 L29 7 C27 3 23 1 18 1Z" fill="var(--body-hi)"/>
+          <!-- Dark face area -->
+          <ellipse cx="18" cy="20" rx="9" ry="7" fill="oklch(0.12 0.015 250)"/>
+          <!-- Eyes glow -->
+          <ellipse cx="14" cy="19" rx="3" ry="2.8" fill="var(--am)"/>
+          <ellipse cx="22" cy="19" rx="3" ry="2.8" fill="var(--am)"/>
+          <ellipse cx="14.8" cy="19.3" rx="1.2" ry="1.5" fill="var(--pupil)"/>
+          <ellipse cx="22.8" cy="19.3" rx="1.2" ry="1.5" fill="var(--pupil)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 4 C22 4 12 12 12 26 L12 54 L17 49 L22 54 L27 49 L32 53 L37 49 L42 54 L47 49 L52 54 L52 26 C52 12 42 4 32 4Z" fill="var(--body-sh)"/><path d="M32 4 C22 4 14 11 14 24 C14 27 15 30 18 34 L24 28 L32 22 L40 28 L46 34 C49 30 50 27 50 24 C50 11 42 4 32 4Z" fill="var(--body)"/><path d="M32 4 C26 4 20 7 17 12 L32 7 L47 12 C44 7 38 4 32 4Z" fill="var(--body-hi)"/><ellipse cx="32" cy="32" rx="14" ry="11" fill="oklch(0.10 0.015 250)"/><ellipse cx="26" cy="31" rx="5" ry="4.5" fill="var(--am)"/><ellipse cx="38" cy="31" rx="5" ry="4.5" fill="var(--am)"/><ellipse cx="27.2" cy="31.5" rx="2" ry="2.5" fill="var(--pupil)"/><ellipse cx="39.2" cy="31.5" rx="2" ry="2.5" fill="var(--pupil)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 4 C22 4 12 12 12 26 L12 54 L17 49 L22 54 L27 49 L32 53 L37 49 L42 54 L47 49 L52 54 L52 26 C52 12 42 4 32 4Z" fill="var(--body-sh)"/><path d="M32 4 C22 4 14 11 14 24 C14 27 15 30 18 34 L24 28 L32 22 L40 28 L46 34 C49 30 50 27 50 24 C50 11 42 4 32 4Z" fill="var(--body)"/><ellipse cx="32" cy="32" rx="14" ry="11" fill="oklch(0.10 0.015 250)"/><ellipse cx="26" cy="31" rx="6" ry="5.5" fill="var(--am)"/><ellipse cx="38" cy="31" rx="6" ry="5.5" fill="var(--am)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 2 C20 2 10 11 10 26 L10 56 L18 48 L26 56 L32 50 L38 56 L46 48 L54 56 L54 26 C54 11 44 2 32 2Z" fill="var(--body-sh)"/><path d="M32 2 C22 2 14 10 14 24 C14 28 16 32 20 36 L32 24 L44 36 C48 32 50 28 50 24 C50 10 42 2 32 2Z" fill="var(--body)"/><ellipse cx="32" cy="34" rx="15" ry="12" fill="oklch(0.10 0.015 250)"/><ellipse cx="25" cy="32" rx="7" ry="7" fill="var(--am)"/><ellipse cx="39" cy="32" rx="7" ry="7" fill="var(--am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="36" height="38" viewBox="0 0 36 38" fill="none">
+          <path d="M18 1 C10 1 3 8 3 18 L3 32 L7 28 L11 32 L15 28 L18 31 L21 28 L25 32 L29 28 L33 32 L33 18 C33 8 26 1 18 1Z" fill="var(--lb-sh)"/>
+          <path d="M18 1 C10 1 4 7 4 16 C4 18 5 20 7 22 L12 18 L18 14 L24 18 L29 22 C31 20 32 18 32 16 C32 7 26 1 18 1Z" fill="var(--lb)"/>
+          <path d="M18 1 C13 1 9 3 7 7 L18 4 L29 7 C27 3 23 1 18 1Z" fill="var(--lb-hi)"/>
+          <ellipse cx="18" cy="20" rx="9" ry="7" fill="oklch(0.96 0.003 250)"/>
+          <ellipse cx="14" cy="19" rx="3" ry="2.8" fill="var(--lt-am)"/>
+          <ellipse cx="22" cy="19" rx="3" ry="2.8" fill="var(--lt-am)"/>
+          <ellipse cx="14.8" cy="19.3" rx="1.2" ry="1.5" fill="var(--lt)"/>
+          <ellipse cx="22.8" cy="19.3" rx="1.2" ry="1.5" fill="var(--lt)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 4 C22 4 12 12 12 26 L12 54 L17 49 L22 54 L27 49 L32 53 L37 49 L42 54 L47 49 L52 54 L52 26 C52 12 42 4 32 4Z" fill="var(--lb-sh)"/><path d="M32 4 C22 4 14 11 14 24 C14 27 15 30 18 34 L24 28 L32 22 L40 28 L46 34 C49 30 50 27 50 24 C50 11 42 4 32 4Z" fill="var(--lb)"/><ellipse cx="32" cy="32" rx="14" ry="11" fill="oklch(0.96 0.003 250)"/><ellipse cx="26" cy="31" rx="5" ry="4.5" fill="var(--lt-am)"/><ellipse cx="38" cy="31" rx="5" ry="4.5" fill="var(--lt-am)"/><ellipse cx="27.2" cy="31.5" rx="2" ry="2.5" fill="var(--lt)"/><ellipse cx="39.2" cy="31.5" rx="2" ry="2.5" fill="var(--lt)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 4 C22 4 12 12 12 26 L12 54 L17 49 L22 54 L27 49 L32 53 L37 49 L42 54 L47 49 L52 54 L52 26 C52 12 42 4 32 4Z" fill="var(--lb-sh)"/><path d="M32 4 C22 4 14 11 14 24 C14 27 15 30 18 34 L24 28 L32 22 L40 28 L46 34 C49 30 50 27 50 24 C50 11 42 4 32 4Z" fill="var(--lb)"/><ellipse cx="26" cy="31" rx="6" ry="5.5" fill="var(--lt-am)"/><ellipse cx="38" cy="31" rx="6" ry="5.5" fill="var(--lt-am)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 2 C20 2 10 11 10 26 L10 56 L18 48 L26 56 L32 50 L38 56 L46 48 L54 56 L54 26 C54 11 44 2 32 2Z" fill="var(--lb-sh)"/><path d="M32 2 C22 2 14 10 14 24 C14 28 16 32 20 36 L32 24 L44 36 C48 32 50 28 50 24 C50 10 42 2 32 2Z" fill="var(--lb)"/><ellipse cx="25" cy="32" rx="7" ry="7" fill="var(--lt-am)"/><ellipse cx="39" cy="32" rx="7" ry="7" fill="var(--lt-am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 03: CYCLOPS ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">03</span><span class="ct">Cyclops</span></div>
+  <div class="cd">Один большой глаз. Инопланетный, загадочный, уникальный. Сразу отличается от любого другого ghost-лого. Глаз-прожектор = прокси видит всё, но сам невидим.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="34" height="36" viewBox="0 0 34 36" fill="none">
+          <path d="M17 1 C9 1 3 8 3 17 L3 30 L7 26 L11 30 L17 25 L23 30 L27 26 L31 30 L31 17 C31 8 25 1 17 1Z" fill="var(--body)"/>
+          <path d="M17 1 C22 1 26 4 28 8 L28 14 C25 12 21 11 17 11 C13 11 9 12 6 14 L6 8 C8 4 12 1 17 1Z" fill="var(--body-hi)"/>
+          <!-- Single big eye -->
+          <ellipse cx="17" cy="16" rx="6.5" ry="6" fill="var(--am)"/>
+          <ellipse cx="18" cy="16.5" rx="3" ry="3.5" fill="var(--pupil)"/>
+          <circle cx="15" cy="14" r="1.5" fill="oklch(0.95 0.02 75)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 5 C21 5 13 14 13 27 L13 52 L18 47 L24 52 L32 45 L40 52 L46 47 L51 52 L51 27 C51 14 43 5 32 5Z" fill="var(--body)"/><path d="M32 5 C39 5 44 9 47 15 L47 23 C43 20 38 18 32 18 C26 18 21 20 17 23 L17 15 C20 9 25 5 32 5Z" fill="var(--body-hi)"/><ellipse cx="32" cy="26" rx="11" ry="10" fill="var(--am)"/><ellipse cx="34" cy="27" rx="5" ry="6" fill="var(--pupil)"/><circle cx="28" cy="22" r="2.5" fill="oklch(0.95 0.02 75)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 5 C21 5 13 14 13 27 L13 52 L18 47 L24 52 L32 45 L40 52 L46 47 L51 52 L51 27 C51 14 43 5 32 5Z" fill="var(--body)"/><ellipse cx="32" cy="26" rx="12" ry="11" fill="var(--am)"/><ellipse cx="34" cy="27.5" rx="5.5" ry="6.5" fill="var(--pupil)"/><circle cx="28" cy="22" r="3" fill="oklch(0.95 0.02 75)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 3 C19 3 10 13 10 28 L10 56 L19 47 L28 56 L32 50 L36 56 L45 47 L54 56 L54 28 C54 13 45 3 32 3Z" fill="var(--body)"/><ellipse cx="32" cy="26" rx="14" ry="13" fill="var(--am)"/><ellipse cx="34" cy="28" rx="6.5" ry="8" fill="var(--pupil)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="34" height="36" viewBox="0 0 34 36" fill="none">
+          <path d="M17 1 C9 1 3 8 3 17 L3 30 L7 26 L11 30 L17 25 L23 30 L27 26 L31 30 L31 17 C31 8 25 1 17 1Z" fill="var(--lb)"/>
+          <path d="M17 1 C22 1 26 4 28 8 L28 14 C25 12 21 11 17 11 C13 11 9 12 6 14 L6 8 C8 4 12 1 17 1Z" fill="var(--lb-hi)"/>
+          <ellipse cx="17" cy="16" rx="6.5" ry="6" fill="var(--lt-am)"/>
+          <ellipse cx="18" cy="16.5" rx="3" ry="3.5" fill="var(--lt)"/>
+          <circle cx="15" cy="14" r="1.5" fill="oklch(0.35 0.10 75)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 5 C21 5 13 14 13 27 L13 52 L18 47 L24 52 L32 45 L40 52 L46 47 L51 52 L51 27 C51 14 43 5 32 5Z" fill="var(--lb)"/><path d="M32 5 C39 5 44 9 47 15 L47 23 C43 20 38 18 32 18 C26 18 21 20 17 23 L17 15 C20 9 25 5 32 5Z" fill="var(--lb-hi)"/><ellipse cx="32" cy="26" rx="11" ry="10" fill="var(--lt-am)"/><ellipse cx="34" cy="27" rx="5" ry="6" fill="var(--lt)"/><circle cx="28" cy="22" r="2.5" fill="oklch(0.35 0.10 75)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 5 C21 5 13 14 13 27 L13 52 L18 47 L24 52 L32 45 L40 52 L46 47 L51 52 L51 27 C51 14 43 5 32 5Z" fill="var(--lb)"/><ellipse cx="32" cy="26" rx="12" ry="11" fill="var(--lt-am)"/><ellipse cx="34" cy="27.5" rx="5.5" ry="6.5" fill="var(--lt)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 3 C19 3 10 13 10 28 L10 56 L19 47 L28 56 L32 50 L36 56 L45 47 L54 56 L54 28 C54 13 45 3 32 3Z" fill="var(--lb)"/><ellipse cx="32" cy="26" rx="14" ry="13" fill="var(--lt-am)"/><ellipse cx="34" cy="28" rx="6.5" ry="8" fill="var(--lt)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 04: COMPACT ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">04</span><span class="ct">Compact</span></div>
+  <div class="cd">Широкий и приземистый. Квадратные пропорции — идеально для app icon. Глаза расставлены широко, хвост короткий. Как штамп или значок.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="38" height="32" viewBox="0 0 38 32" fill="none">
+          <path d="M19 2 C10 2 3 8 3 16 L3 26 L7 23 L12 26 L17 23 L19 25 L21 23 L26 26 L31 23 L35 26 L35 16 C35 8 28 2 19 2Z" fill="var(--body)"/>
+          <path d="M19 2 C26 2 32 6 34 12 C34 12 28 10 19 10 C10 10 4 12 4 12 C6 6 12 2 19 2Z" fill="var(--body-hi)"/>
+          <ellipse cx="13" cy="15" rx="4" ry="3.5" fill="var(--am)"/>
+          <ellipse cx="25" cy="15" rx="4" ry="3.5" fill="var(--am)"/>
+          <ellipse cx="14" cy="15.5" rx="1.8" ry="2" fill="var(--pupil)"/>
+          <ellipse cx="26" cy="15.5" rx="1.8" ry="2" fill="var(--pupil)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 8 C20 8 10 16 10 28 L10 48 L16 43 L22 48 L28 43 L32 46 L36 43 L42 48 L48 43 L54 48 L54 28 C54 16 44 8 32 8Z" fill="var(--body)"/><path d="M32 8 C42 8 50 13 52 22 C52 22 44 18 32 18 C20 18 12 22 12 22 C14 13 22 8 32 8Z" fill="var(--body-hi)"/><ellipse cx="24" cy="28" rx="6.5" ry="5.5" fill="var(--am)"/><ellipse cx="40" cy="28" rx="6.5" ry="5.5" fill="var(--am)"/><ellipse cx="25.5" cy="28.8" rx="2.8" ry="3.2" fill="var(--pupil)"/><ellipse cx="41.5" cy="28.8" rx="2.8" ry="3.2" fill="var(--pupil)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 8 C20 8 10 16 10 28 L10 48 L16 43 L22 48 L28 43 L32 46 L36 43 L42 48 L48 43 L54 48 L54 28 C54 16 44 8 32 8Z" fill="var(--body)"/><ellipse cx="24" cy="28" rx="7.5" ry="6.5" fill="var(--am)"/><ellipse cx="40" cy="28" rx="7.5" ry="6.5" fill="var(--am)"/><ellipse cx="25.8" cy="29" rx="3.2" ry="3.8" fill="var(--pupil)"/><ellipse cx="41.8" cy="29" rx="3.2" ry="3.8" fill="var(--pupil)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 6 C18 6 8 15 8 28 L8 52 L16 44 L24 52 L32 46 L40 52 L48 44 L56 52 L56 28 C56 15 46 6 32 6Z" fill="var(--body)"/><ellipse cx="23" cy="27" rx="9" ry="8" fill="var(--am)"/><ellipse cx="41" cy="27" rx="9" ry="8" fill="var(--am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="38" height="32" viewBox="0 0 38 32" fill="none">
+          <path d="M19 2 C10 2 3 8 3 16 L3 26 L7 23 L12 26 L17 23 L19 25 L21 23 L26 26 L31 23 L35 26 L35 16 C35 8 28 2 19 2Z" fill="var(--lb)"/>
+          <path d="M19 2 C26 2 32 6 34 12 C34 12 28 10 19 10 C10 10 4 12 4 12 C6 6 12 2 19 2Z" fill="var(--lb-hi)"/>
+          <ellipse cx="13" cy="15" rx="4" ry="3.5" fill="var(--lt-am)"/>
+          <ellipse cx="25" cy="15" rx="4" ry="3.5" fill="var(--lt-am)"/>
+          <ellipse cx="14" cy="15.5" rx="1.8" ry="2" fill="var(--lt)"/>
+          <ellipse cx="26" cy="15.5" rx="1.8" ry="2" fill="var(--lt)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 8 C20 8 10 16 10 28 L10 48 L16 43 L22 48 L28 43 L32 46 L36 43 L42 48 L48 43 L54 48 L54 28 C54 16 44 8 32 8Z" fill="var(--lb)"/><ellipse cx="24" cy="28" rx="6.5" ry="5.5" fill="var(--lt-am)"/><ellipse cx="40" cy="28" rx="6.5" ry="5.5" fill="var(--lt-am)"/><ellipse cx="25.5" cy="28.8" rx="2.8" ry="3.2" fill="var(--lt)"/><ellipse cx="41.5" cy="28.8" rx="2.8" ry="3.2" fill="var(--lt)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 8 C20 8 10 16 10 28 L10 48 L16 43 L22 48 L28 43 L32 46 L36 43 L42 48 L48 43 L54 48 L54 28 C54 16 44 8 32 8Z" fill="var(--lb)"/><ellipse cx="24" cy="28" rx="7.5" ry="6.5" fill="var(--lt-am)"/><ellipse cx="40" cy="28" rx="7.5" ry="6.5" fill="var(--lt-am)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 6 C18 6 8 15 8 28 L8 52 L16 44 L24 52 L32 46 L40 52 L48 44 L56 52 L56 28 C56 15 46 6 32 6Z" fill="var(--lb)"/><ellipse cx="23" cy="27" rx="9" ry="8" fill="var(--lt-am)"/><ellipse cx="41" cy="27" rx="9" ry="8" fill="var(--lt-am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 05: THROUGH WALL ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">05</span><span class="ct">Through the Wall</span></div>
+  <div class="cd">Призрак наполовину прошёл сквозь вертикальную стену — левая часть тела ещё "там", правая уже "здесь". Стена = фаервол/блокировка. Призрак = трафик проходит насквозь.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="42" height="36" viewBox="0 0 42 36" fill="none">
+          <!-- Wall -->
+          <rect x="16" y="0" width="4" height="36" fill="oklch(0.22 0.015 250)"/>
+          <!-- Ghost behind wall (faded) -->
+          <path d="M18 4 C13 4 8 9 8 16 L8 28 L11 25 L14 28 L17 25 L18 26 L18 16 C18 9 18 4 18 4Z" fill="oklch(0.26 0.02 250 / 0.4)"/>
+          <ellipse cx="14" cy="16" rx="2.5" ry="2.8" fill="oklch(0.78 0.16 75 / 0.35)"/>
+          <!-- Ghost through wall (solid) -->
+          <path d="M20 4 C27 4 33 9 33 16 L33 28 L30 25 L27 28 L24 25 L21 28 L20 25 L20 4Z" fill="var(--body)"/>
+          <path d="M20 4 C25 4 30 7 32 12 L32 15 C29 13 25 12 22 12 L20 12 L20 4Z" fill="var(--body-hi)"/>
+          <ellipse cx="26" cy="16" rx="3" ry="3.2" fill="var(--am)"/>
+          <ellipse cx="27" cy="16.5" rx="1.3" ry="1.8" fill="var(--pupil)"/>
+          <!-- Wall crack glow -->
+          <line x1="18" y1="6" x2="18" y2="30" stroke="oklch(0.78 0.16 75 / 0.2)" stroke-width="1"/>
+          <line x1="20" y1="6" x2="20" y2="30" stroke="oklch(0.78 0.16 75 / 0.15)" stroke-width="1"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><rect x="26" y="4" width="6" height="56" fill="oklch(0.20 0.016 250)"/><path d="M29 10 C21 10 14 18 14 28 L14 48 L18 44 L22 48 L26 44 L29 46 L29 10Z" fill="oklch(0.26 0.02 250 / 0.35)"/><ellipse cx="22" cy="28" rx="4" ry="4.5" fill="oklch(0.78 0.16 75 / 0.3)"/><path d="M32 10 C40 10 48 18 48 28 L48 48 L44 44 L40 48 L36 44 L33 46 L32 10Z" fill="var(--body)"/><path d="M32 10 C38 10 44 14 46 20 L46 26 C43 23 38 21 34 21 L32 21 L32 10Z" fill="var(--body-hi)"/><ellipse cx="40" cy="28" rx="5" ry="5.5" fill="var(--am)"/><ellipse cx="41.5" cy="28.8" rx="2.2" ry="3" fill="var(--pupil)"/><line x1="29" y1="8" x2="29" y2="52" stroke="oklch(0.78 0.16 75 / 0.15)" stroke-width="1.5"/><line x1="32" y1="8" x2="32" y2="52" stroke="oklch(0.78 0.16 75 / 0.1)" stroke-width="1.5"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><rect x="25" y="4" width="8" height="56" fill="oklch(0.20 0.016 250)"/><path d="M30 8 C20 8 12 17 12 28 L12 50 L18 44 L24 50 L30 44 L30 8Z" fill="oklch(0.26 0.02 250 / 0.3)"/><ellipse cx="22" cy="28" rx="5" ry="5.5" fill="oklch(0.78 0.16 75 / 0.25)"/><path d="M33 8 C42 8 50 17 50 28 L50 50 L44 44 L38 50 L33 44 L33 8Z" fill="var(--body)"/><ellipse cx="42" cy="28" rx="6" ry="6.5" fill="var(--am)"/><ellipse cx="43.5" cy="29" rx="2.5" ry="3.5" fill="var(--pupil)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><rect x="24" y="2" width="10" height="60" fill="oklch(0.20 0.016 250)"/><path d="M30 6 C18 6 10 16 10 30 L10 54 L20 46 L30 54 L30 6Z" fill="oklch(0.26 0.02 250 / 0.25)"/><path d="M34 6 C46 6 54 16 54 30 L54 54 L44 46 L34 54 L34 6Z" fill="var(--body)"/><ellipse cx="44" cy="28" rx="8" ry="8" fill="var(--am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="42" height="36" viewBox="0 0 42 36" fill="none">
+          <rect x="16" y="0" width="4" height="36" fill="oklch(0.86 0.006 250)"/>
+          <path d="M18 4 C13 4 8 9 8 16 L8 28 L11 25 L14 28 L17 25 L18 26 L18 16 C18 9 18 4 18 4Z" fill="oklch(0.90 0.007 250 / 0.5)"/>
+          <ellipse cx="14" cy="16" rx="2.5" ry="2.8" fill="oklch(0.50 0.14 75 / 0.3)"/>
+          <path d="M20 4 C27 4 33 9 33 16 L33 28 L30 25 L27 28 L24 25 L21 28 L20 25 L20 4Z" fill="var(--lb)"/>
+          <path d="M20 4 C25 4 30 7 32 12 L32 15 C29 13 25 12 22 12 L20 12 L20 4Z" fill="var(--lb-hi)"/>
+          <ellipse cx="26" cy="16" rx="3" ry="3.2" fill="var(--lt-am)"/>
+          <ellipse cx="27" cy="16.5" rx="1.3" ry="1.8" fill="var(--lt)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><rect x="26" y="4" width="6" height="56" fill="oklch(0.88 0.005 250)"/><path d="M29 10 C21 10 14 18 14 28 L14 48 L18 44 L22 48 L26 44 L29 46 L29 10Z" fill="oklch(0.90 0.007 250 / 0.5)"/><ellipse cx="22" cy="28" rx="4" ry="4.5" fill="oklch(0.50 0.14 75 / 0.25)"/><path d="M32 10 C40 10 48 18 48 28 L48 48 L44 44 L40 48 L36 44 L33 46 L32 10Z" fill="var(--lb)"/><ellipse cx="40" cy="28" rx="5" ry="5.5" fill="var(--lt-am)"/><ellipse cx="41.5" cy="28.8" rx="2.2" ry="3" fill="var(--lt)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><rect x="25" y="4" width="8" height="56" fill="oklch(0.88 0.005 250)"/><path d="M33 8 C42 8 50 17 50 28 L50 50 L44 44 L38 50 L33 44 L33 8Z" fill="var(--lb)"/><ellipse cx="42" cy="28" rx="6" ry="6.5" fill="var(--lt-am)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><rect x="24" y="2" width="10" height="60" fill="oklch(0.88 0.005 250)"/><path d="M34 6 C46 6 54 16 54 30 L54 54 L44 46 L34 54 L34 6Z" fill="var(--lb)"/><ellipse cx="44" cy="28" rx="8" ry="8" fill="var(--lt-am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 06: SPEED ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">06</span><span class="ct">Speed</span></div>
+  <div class="cd">Призрак наклонён вперёд, за ним шлейф-линии скорости. Быстрый, целеустремлённый. Ассоциация: скорость прокси. Глаза сужены — фокус.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="42" height="34" viewBox="0 0 42 34" fill="none">
+          <!-- Speed lines -->
+          <line x1="2" y1="12" x2="10" y2="12" stroke="oklch(0.35 0.01 250)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="4" y1="18" x2="12" y2="18" stroke="oklch(0.30 0.01 250)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="2" y1="24" x2="10" y2="24" stroke="oklch(0.35 0.01 250)" stroke-width="1.5" stroke-linecap="round"/>
+          <!-- Leaning ghost -->
+          <path d="M22 2 C16 3 12 9 13 17 L14 28 L17 25 L20 28 L23 25 L26 28 L29 25 L32 28 L30 17 C29 8 27 1 22 2Z" fill="var(--body)" transform="rotate(-12 22 16)"/>
+          <path d="M22 2 C26 1 29 4 30 9 L30 13 C28 11 25 10 22 10 C19 10 16 11 14 13 L14 9 C15 5 18 3 22 2Z" fill="var(--body-hi)" transform="rotate(-12 22 16)"/>
+          <!-- Narrow eyes (focused) -->
+          <ellipse cx="19" cy="14" rx="3.5" ry="2.2" fill="var(--am)" transform="rotate(-12 22 16)"/>
+          <ellipse cx="27" cy="13" rx="3.5" ry="2.2" fill="var(--am)" transform="rotate(-12 22 16)"/>
+          <ellipse cx="20" cy="14.3" rx="1.5" ry="1.2" fill="var(--pupil)" transform="rotate(-12 22 16)"/>
+          <ellipse cx="28" cy="13.3" rx="1.5" ry="1.2" fill="var(--pupil)" transform="rotate(-12 22 16)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><line x1="4" y1="22" x2="16" y2="22" stroke="oklch(0.32 0.01 250)" stroke-width="2.2" stroke-linecap="round"/><line x1="6" y1="32" x2="18" y2="32" stroke="oklch(0.28 0.01 250)" stroke-width="2.2" stroke-linecap="round"/><line x1="4" y1="42" x2="16" y2="42" stroke="oklch(0.32 0.01 250)" stroke-width="2.2" stroke-linecap="round"/><g transform="rotate(-10 35 30)"><path d="M35 6 C26 8 20 16 22 28 L24 50 L28 46 L33 50 L38 46 L43 50 L47 46 L50 50 L48 28 C46 14 42 4 35 6Z" fill="var(--body)"/><path d="M35 6 C40 4 45 8 47 16 L47 22 C44 19 40 18 36 18 C32 18 28 19 24 22 L24 16 C25 10 30 7 35 6Z" fill="var(--body-hi)"/><ellipse cx="30" cy="24" rx="5.5" ry="3.5" fill="var(--am)"/><ellipse cx="42" cy="22" rx="5.5" ry="3.5" fill="var(--am)"/><ellipse cx="31.5" cy="24.5" rx="2.5" ry="2" fill="var(--pupil)"/><ellipse cx="43.5" cy="22.5" rx="2.5" ry="2" fill="var(--pupil)"/></g></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><line x1="4" y1="22" x2="14" y2="22" stroke="oklch(0.30 0.01 250)" stroke-width="3" stroke-linecap="round"/><line x1="6" y1="32" x2="16" y2="32" stroke="oklch(0.26 0.01 250)" stroke-width="3" stroke-linecap="round"/><line x1="4" y1="42" x2="14" y2="42" stroke="oklch(0.30 0.01 250)" stroke-width="3" stroke-linecap="round"/><g transform="rotate(-10 35 30)"><path d="M35 6 C26 8 20 16 22 28 L24 50 L28 46 L33 50 L38 46 L43 50 L47 46 L50 50 L48 28 C46 14 42 4 35 6Z" fill="var(--body)"/><ellipse cx="30" cy="24" rx="6.5" ry="4.5" fill="var(--am)"/><ellipse cx="42" cy="22" rx="6.5" ry="4.5" fill="var(--am)"/></g></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><line x1="2" y1="24" x2="14" y2="24" stroke="oklch(0.28 0.01 250)" stroke-width="4.5" stroke-linecap="round"/><line x1="4" y1="34" x2="16" y2="34" stroke="oklch(0.25 0.01 250)" stroke-width="4.5" stroke-linecap="round"/><line x1="2" y1="44" x2="14" y2="44" stroke="oklch(0.28 0.01 250)" stroke-width="4.5" stroke-linecap="round"/><g transform="rotate(-10 36 30)"><path d="M36 4 C24 6 18 16 20 30 L22 54 L30 46 L38 54 L46 46 L52 54 L50 30 C48 12 44 2 36 4Z" fill="var(--body)"/><ellipse cx="30" cy="26" rx="8" ry="6" fill="var(--am)"/><ellipse cx="44" cy="24" rx="8" ry="6" fill="var(--am)"/></g></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="42" height="34" viewBox="0 0 42 34" fill="none">
+          <line x1="2" y1="12" x2="10" y2="12" stroke="oklch(0.82 0.005 250)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="4" y1="18" x2="12" y2="18" stroke="oklch(0.85 0.005 250)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="2" y1="24" x2="10" y2="24" stroke="oklch(0.82 0.005 250)" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M22 2 C16 3 12 9 13 17 L14 28 L17 25 L20 28 L23 25 L26 28 L29 25 L32 28 L30 17 C29 8 27 1 22 2Z" fill="var(--lb)" transform="rotate(-12 22 16)"/>
+          <ellipse cx="19" cy="14" rx="3.5" ry="2.2" fill="var(--lt-am)" transform="rotate(-12 22 16)"/>
+          <ellipse cx="27" cy="13" rx="3.5" ry="2.2" fill="var(--lt-am)" transform="rotate(-12 22 16)"/>
+          <ellipse cx="20" cy="14.3" rx="1.5" ry="1.2" fill="var(--lt)" transform="rotate(-12 22 16)"/>
+          <ellipse cx="28" cy="13.3" rx="1.5" ry="1.2" fill="var(--lt)" transform="rotate(-12 22 16)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><line x1="4" y1="22" x2="16" y2="22" stroke="oklch(0.85 0.004 250)" stroke-width="2.2" stroke-linecap="round"/><line x1="6" y1="32" x2="18" y2="32" stroke="oklch(0.88 0.004 250)" stroke-width="2.2" stroke-linecap="round"/><line x1="4" y1="42" x2="16" y2="42" stroke="oklch(0.85 0.004 250)" stroke-width="2.2" stroke-linecap="round"/><g transform="rotate(-10 35 30)"><path d="M35 6 C26 8 20 16 22 28 L24 50 L28 46 L33 50 L38 46 L43 50 L47 46 L50 50 L48 28 C46 14 42 4 35 6Z" fill="var(--lb)"/><ellipse cx="30" cy="24" rx="5.5" ry="3.5" fill="var(--lt-am)"/><ellipse cx="42" cy="22" rx="5.5" ry="3.5" fill="var(--lt-am)"/><ellipse cx="31.5" cy="24.5" rx="2.5" ry="2" fill="var(--lt)"/><ellipse cx="43.5" cy="22.5" rx="2.5" ry="2" fill="var(--lt)"/></g></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><line x1="4" y1="24" x2="14" y2="24" stroke="oklch(0.85 0.004 250)" stroke-width="3" stroke-linecap="round"/><line x1="6" y1="34" x2="16" y2="34" stroke="oklch(0.88 0.004 250)" stroke-width="3" stroke-linecap="round"/><g transform="rotate(-10 35 30)"><path d="M35 6 C26 8 20 16 22 28 L24 50 L28 46 L33 50 L38 46 L43 50 L47 46 L50 50 L48 28 C46 14 42 4 35 6Z" fill="var(--lb)"/><ellipse cx="30" cy="24" rx="6.5" ry="4.5" fill="var(--lt-am)"/><ellipse cx="42" cy="22" rx="6.5" ry="4.5" fill="var(--lt-am)"/></g></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><g transform="rotate(-10 36 30)"><path d="M36 4 C24 6 18 16 20 30 L22 54 L30 46 L38 54 L46 46 L52 54 L50 30 C48 12 44 2 36 4Z" fill="var(--lb)"/><ellipse cx="30" cy="26" rx="8" ry="6" fill="var(--lt-am)"/><ellipse cx="44" cy="24" rx="8" ry="6" fill="var(--lt-am)"/></g></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 07: GLYPH ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">07</span><span class="ct">Glyph</span></div>
+  <div class="cd">Максимальная абстракция — призрак как глиф/пиктограмма. Купол + два глаза + волна внизу. Как дорожный знак — считывается мгновенно. Монохром с amber-глазами.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="32" height="34" viewBox="0 0 32 34" fill="none">
+          <path d="M16 2 C8 2 3 8 3 16 L3 26 C5 24 8 26 10 24 C12 26 14 24 16 26 C18 24 20 26 22 24 C24 26 27 24 29 26 L29 16 C29 8 24 2 16 2Z" fill="var(--t1)"/>
+          <ellipse cx="11.5" cy="15" rx="3.5" ry="4" fill="var(--am)"/>
+          <ellipse cx="20.5" cy="15" rx="3.5" ry="4" fill="var(--am)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 8 C22 8 14 16 14 28 L14 46 C17 43 21 46 25 43 C28 46 31 43 32 44 C33 43 36 46 39 43 C43 46 47 43 50 46 L50 28 C50 16 42 8 32 8Z" fill="var(--t1)"/><ellipse cx="25" cy="27" rx="5.5" ry="6.5" fill="var(--am)"/><ellipse cx="39" cy="27" rx="5.5" ry="6.5" fill="var(--am)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 8 C22 8 14 16 14 28 L14 46 C17 43 21 46 25 43 C28 46 31 43 32 44 C33 43 36 46 39 43 C43 46 47 43 50 46 L50 28 C50 16 42 8 32 8Z" fill="var(--t1)"/><ellipse cx="25" cy="27" rx="6.5" ry="7.5" fill="var(--am)"/><ellipse cx="39" cy="27" rx="6.5" ry="7.5" fill="var(--am)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 6 C20 6 10 15 10 28 L10 50 C16 44 22 50 28 44 C32 48 36 44 42 50 C48 44 54 50 54 50 L54 28 C54 15 44 6 32 6Z" fill="var(--t1)"/><ellipse cx="24" cy="26" rx="8" ry="9" fill="var(--am)"/><ellipse cx="40" cy="26" rx="8" ry="9" fill="var(--am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="32" height="34" viewBox="0 0 32 34" fill="none">
+          <path d="M16 2 C8 2 3 8 3 16 L3 26 C5 24 8 26 10 24 C12 26 14 24 16 26 C18 24 20 26 22 24 C24 26 27 24 29 26 L29 16 C29 8 24 2 16 2Z" fill="var(--lt1)"/>
+          <ellipse cx="11.5" cy="15" rx="3.5" ry="4" fill="var(--lt-am)"/>
+          <ellipse cx="20.5" cy="15" rx="3.5" ry="4" fill="var(--lt-am)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 8 C22 8 14 16 14 28 L14 46 C17 43 21 46 25 43 C28 46 31 43 32 44 C33 43 36 46 39 43 C43 46 47 43 50 46 L50 28 C50 16 42 8 32 8Z" fill="var(--lt1)"/><ellipse cx="25" cy="27" rx="5.5" ry="6.5" fill="var(--lt-am)"/><ellipse cx="39" cy="27" rx="5.5" ry="6.5" fill="var(--lt-am)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 8 C22 8 14 16 14 28 L14 46 C17 43 21 46 25 43 C28 46 31 43 32 44 C33 43 36 46 39 43 C43 46 47 43 50 46 L50 28 C50 16 42 8 32 8Z" fill="var(--lt1)"/><ellipse cx="25" cy="27" rx="6.5" ry="7.5" fill="var(--lt-am)"/><ellipse cx="39" cy="27" rx="6.5" ry="7.5" fill="var(--lt-am)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 6 C20 6 10 15 10 28 L10 50 C16 44 22 50 28 44 C32 48 36 44 42 50 C48 44 54 50 54 50 L54 28 C54 15 44 6 32 6Z" fill="var(--lt1)"/><ellipse cx="24" cy="26" rx="8" ry="9" fill="var(--lt-am)"/><ellipse cx="40" cy="26" rx="8" ry="9" fill="var(--lt-am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 08: FILLED ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">08</span><span class="ct">Filled Amber</span></div>
+  <div class="cd">Инверсия — весь призрак amber, глаза тёмные. Максимальная контрастность на тёмном фоне. Как предупреждающий знак. Монолитный, заметный. Для tray icon — горящий маяк.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="32" height="34" viewBox="0 0 32 34" fill="none">
+          <path d="M16 2 C8 2 3 8 3 16 L3 28 L7 24 L11 28 L16 24 L21 28 L25 24 L29 28 L29 16 C29 8 24 2 16 2Z" fill="var(--am)"/>
+          <ellipse cx="11.5" cy="15" rx="3" ry="3.5" fill="var(--bg)"/>
+          <ellipse cx="20.5" cy="15" rx="3" ry="3.5" fill="var(--bg)"/>
+          <ellipse cx="12.3" cy="15.5" rx="1.2" ry="1.8" fill="oklch(0.06 0.01 250)"/>
+          <ellipse cx="21.3" cy="15.5" rx="1.2" ry="1.8" fill="oklch(0.06 0.01 250)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 6 C21 6 13 15 13 27 L13 50 L19 44 L25 50 L32 44 L39 50 L45 44 L51 50 L51 27 C51 15 43 6 32 6Z" fill="var(--am)"/><ellipse cx="25" cy="26" rx="5" ry="5.5" fill="var(--bg2)"/><ellipse cx="39" cy="26" rx="5" ry="5.5" fill="var(--bg2)"/><ellipse cx="26.2" cy="26.8" rx="2" ry="3" fill="oklch(0.06 0.01 250)"/><ellipse cx="40.2" cy="26.8" rx="2" ry="3" fill="oklch(0.06 0.01 250)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 6 C21 6 13 15 13 27 L13 50 L19 44 L25 50 L32 44 L39 50 L45 44 L51 50 L51 27 C51 15 43 6 32 6Z" fill="var(--am)"/><ellipse cx="25" cy="26" rx="6" ry="6.5" fill="var(--bg2)"/><ellipse cx="39" cy="26" rx="6" ry="6.5" fill="var(--bg2)"/><ellipse cx="26.5" cy="27" rx="2.5" ry="3.5" fill="oklch(0.06 0.01 250)"/><ellipse cx="40.5" cy="27" rx="2.5" ry="3.5" fill="oklch(0.06 0.01 250)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/><path d="M32 4 C19 4 10 14 10 28 L10 54 L18 46 L26 54 L32 48 L38 54 L46 46 L54 54 L54 28 C54 14 45 4 32 4Z" fill="var(--am)"/><ellipse cx="24" cy="26" rx="7.5" ry="8" fill="var(--bg2)"/><ellipse cx="40" cy="26" rx="7.5" ry="8" fill="var(--bg2)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="32" height="34" viewBox="0 0 32 34" fill="none">
+          <path d="M16 2 C8 2 3 8 3 16 L3 28 L7 24 L11 28 L16 24 L21 28 L25 24 L29 28 L29 16 C29 8 24 2 16 2Z" fill="var(--lt-am)"/>
+          <ellipse cx="11.5" cy="15" rx="3" ry="3.5" fill="var(--lt)"/>
+          <ellipse cx="20.5" cy="15" rx="3" ry="3.5" fill="var(--lt)"/>
+          <ellipse cx="12.3" cy="15.5" rx="1.2" ry="1.8" fill="oklch(0.30 0.10 75)"/>
+          <ellipse cx="21.3" cy="15.5" rx="1.2" ry="1.8" fill="oklch(0.30 0.10 75)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 6 C21 6 13 15 13 27 L13 50 L19 44 L25 50 L32 44 L39 50 L45 44 L51 50 L51 27 C51 15 43 6 32 6Z" fill="var(--lt-am)"/><ellipse cx="25" cy="26" rx="5" ry="5.5" fill="var(--lt)"/><ellipse cx="39" cy="26" rx="5" ry="5.5" fill="var(--lt)"/><ellipse cx="26.2" cy="26.8" rx="2" ry="3" fill="oklch(0.30 0.10 75)"/><ellipse cx="40.2" cy="26.8" rx="2" ry="3" fill="oklch(0.30 0.10 75)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 6 C21 6 13 15 13 27 L13 50 L19 44 L25 50 L32 44 L39 50 L45 44 L51 50 L51 27 C51 15 43 6 32 6Z" fill="var(--lt-am)"/><ellipse cx="25" cy="26" rx="6" ry="6.5" fill="var(--lt)"/><ellipse cx="39" cy="26" rx="6" ry="6.5" fill="var(--lt)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><path d="M32 4 C19 4 10 14 10 28 L10 54 L18 46 L26 54 L32 48 L38 54 L46 46 L54 54 L54 28 C54 14 45 4 32 4Z" fill="var(--lt-am)"/><ellipse cx="24" cy="26" rx="7.5" ry="8" fill="var(--lt)"/><ellipse cx="40" cy="26" rx="7.5" ry="8" fill="var(--lt)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

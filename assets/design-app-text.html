@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — App Text Status</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fd:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+    --fb:'Figtree',system-ui,sans-serif;
+    --bg0:oklch(0.12 0.014 250);--bg1:oklch(0.155 0.016 250);--bg2:oklch(0.19 0.018 250);
+    --b1:oklch(0.24 0.013 250);
+    --t1:oklch(0.93 0.006 250);--t2:oklch(0.60 0.012 250);--t3:oklch(0.40 0.01 250);
+    --am:oklch(0.78 0.155 75);
+    --bl:oklch(0.68 0.12 235);
+    --gn:oklch(0.72 0.15 150);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--fb);background:#060608;color:#ccc;min-height:100vh;-webkit-font-smoothing:antialiased;
+    display:flex;justify-content:center;align-items:center;padding:40px 20px}
+
+  .panel{background:var(--bg0);border:1px solid var(--b1);border-radius:10px;padding:14px;width:300px}
+  .sec-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;min-height:24px}
+  .sec-title{font:600 11px var(--fd);color:var(--t2);letter-spacing:1.5px;text-transform:uppercase}
+  .sec-count{font:400 10px var(--fb);color:var(--t3)}
+
+  .ico{border-radius:5px;display:flex;align-items:center;justify-content:center;font:700 9px var(--fd);color:#fff;flex-shrink:0;width:22px;height:22px}
+  .ic-tg{background:#2AABEE}.ic-dc{background:#5865F2}.ic-cl{background:#D97757}
+  .ic-cu{background:#00B4D8}.ic-sl{background:#611f69}.ic-yt{background:#FF0000}
+
+  .row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:4px;cursor:pointer;transition:background 0.1s}
+  .row:hover{background:var(--bg2)}
+  .app-nm{font:500 12px var(--fb);color:var(--t1);flex:1}
+  .row.off .app-nm{color:var(--t3)}
+  .row.off .ico{opacity:0.3}
+
+  .ctrls{display:flex;align-items:center;gap:0}
+  .st{font:600 9px var(--fd);letter-spacing:1px;text-transform:uppercase}
+  .st.on{color:var(--bl)}
+  .st.off{color:var(--t3)}
+  .slash{font:400 9px var(--fd);color:oklch(0.30 0.014 250);margin:0 3px}
+  .tls{font:600 9px var(--fd);letter-spacing:0.5px}
+  .tls.on{color:var(--gn)}
+  .tls.off{color:var(--am)}
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <div class="sec-header"><div class="sec-title">Applications</div><div class="sec-count">4 of 6</div></div>
+
+  <div class="row">
+    <div class="ico ic-tg">T</div>
+    <div class="app-nm">Telegram</div>
+    <div class="ctrls"><span class="st on">Proxy</span><span class="slash">/</span><span class="tls on">TLS</span></div>
+  </div>
+  <div class="row">
+    <div class="ico ic-dc">D</div>
+    <div class="app-nm">Discord</div>
+    <div class="ctrls"><span class="st on">Proxy</span><span class="slash">/</span><span class="tls on">TLS</span></div>
+  </div>
+  <div class="row">
+    <div class="ico ic-cl">C</div>
+    <div class="app-nm">Claude</div>
+    <div class="ctrls"><span class="st on">Proxy</span><span class="slash">/</span><span class="tls off">Raw</span></div>
+  </div>
+  <div class="row">
+    <div class="ico ic-cu">Cu</div>
+    <div class="app-nm">Cursor</div>
+    <div class="ctrls"><span class="st on">Proxy</span><span class="slash">/</span><span class="tls on">TLS</span></div>
+  </div>
+  <div class="row off">
+    <div class="ico ic-sl">S</div>
+    <div class="app-nm">Slack</div>
+    <div class="ctrls"><span class="st off">Direct</span></div>
+  </div>
+  <div class="row off">
+    <div class="ico ic-yt">Y</div>
+    <div class="app-nm">YouTube</div>
+    <div class="ctrls"><span class="st off">Direct</span></div>
+  </div>
+</div>
+
+</body>
+</html>

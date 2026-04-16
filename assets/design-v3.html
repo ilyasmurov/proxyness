@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Design v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --xs:0.6875rem;--sm:0.8125rem;--base:0.9375rem;--lg:1.125rem;--xl:1.375rem;
+    --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;
+    --eo:cubic-bezier(0.25,1,0.5,1);--df:120ms;
+    --fd:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+    --fb:'Figtree',system-ui,sans-serif;
+    --fm:'Barlow',system-ui,sans-serif;
+    --bg0:oklch(0.12 0.014 250);--bg1:oklch(0.155 0.016 250);--bg2:oklch(0.19 0.018 250);
+    --bg3:oklch(0.23 0.016 250);--bgh:oklch(0.26 0.015 250);
+    --b1:oklch(0.24 0.013 250);--b2:oklch(0.30 0.014 250);
+    --t1:oklch(0.93 0.006 250);--t2:oklch(0.60 0.012 250);--t3:oklch(0.40 0.01 250);
+    --am:oklch(0.78 0.155 75);--amd:oklch(0.55 0.09 75);--amb:oklch(0.19 0.035 75);
+    --bl:oklch(0.68 0.12 235);--bld:oklch(0.48 0.07 235);--blb:oklch(0.18 0.028 235);
+    --rd:oklch(0.62 0.19 25);--rdb:oklch(0.17 0.03 25);
+    --gn:oklch(0.72 0.15 150);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--fb);background:#080808;color:#ccc;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+  .tabs{position:sticky;top:0;z-index:100;display:flex;justify-content:center;gap:var(--s1);padding:var(--s3) var(--s5);background:rgba(8,8,8,0.94);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap}
+  .tabs button{padding:var(--s2) var(--s3);border:1px solid rgba(255,255,255,0.07);border-radius:5px;background:transparent;color:#555;font:500 var(--sm) var(--fb);cursor:pointer;transition:all var(--df) var(--eo)}
+  .tabs button:hover{color:#999;border-color:rgba(255,255,255,0.12)}
+  .tabs button.on{background:rgba(255,255,255,0.06);color:#ddd}
+  .vs{display:none;padding:28px 0 60px}.vs.on{display:block}
+  .lbl{text-align:center;font:600 var(--xs) var(--fd);color:#383838;letter-spacing:2px;text-transform:uppercase;padding-bottom:6px}
+  .note{text-align:center;max-width:520px;margin:0 auto 28px;font-size:var(--sm);color:#484848;line-height:1.6}
+  .fr{display:flex;justify-content:center;padding:0 20px 44px}
+
+  .win{width:840px;height:580px;background:var(--bg0);border-radius:10px;overflow:hidden;position:relative;box-shadow:0 1px 0 var(--b1),0 20px 40px -8px rgba(0,0,0,0.5)}
+  .tbar{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 var(--s3);background:var(--bg1);border-bottom:1px solid var(--b1)}
+  .tbar-id{font:600 var(--xs) var(--fd);color:var(--t3);letter-spacing:0.5px;text-transform:uppercase}
+  .tbar-id span{font-weight:400;text-transform:none;letter-spacing:0}
+  .tc{display:flex;gap:2px}
+  .tb{width:26px;height:26px;border-radius:5px;background:transparent;border:none;color:var(--t3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--df) var(--eo)}
+  .tb:hover{background:var(--bgh);color:var(--t1)}
+
+  .ai{border-radius:6px;display:flex;align-items:center;justify-content:center;font:700 var(--xs) var(--fd);color:#fff;flex-shrink:0}
+  .ic-tg{background:#2AABEE}.ic-dc{background:#5865F2}.ic-cl{background:#D97757}.ic-cu{background:#00B4D8}
+  .ic-sl{background:#611f69}.ic-yt{background:#FF0000}.ic-ig{background:#C13584}.ic-x{background:oklch(0.35 0 0)}
+
+  .tog{width:32px;height:18px;border-radius:9px;background:var(--bg3);position:relative;cursor:pointer;transition:background var(--df);flex-shrink:0}
+  .tog.on{background:var(--bl)}
+  .tog .k{width:14px;height:14px;border-radius:50%;background:var(--t1);position:absolute;top:2px;left:2px;transition:transform var(--df);box-shadow:0 1px 2px rgba(0,0,0,0.25)}
+  .tog.on .k{transform:translateX(14px)}
+
+  .shdr{font:600 var(--xs) var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:var(--s3)}
+  .shdr:not(:first-child){margin-top:var(--s5)}
+
+  .emp-t{font:600 var(--base) var(--fd);color:var(--t2);letter-spacing:0.3px;margin-bottom:var(--s1)}
+  .emp-d{font:400 var(--sm) var(--fb);color:var(--t3);line-height:1.6}
+
+
+  /* =======================================================
+     V4 — "Cockpit"
+     Left: video bg behind status. Right: content.
+     Apps as 2-col compact grid. Sites as inline tags.
+     ======================================================= */
+  .v4 .body{height:calc(100% - 36px);display:flex}
+
+  .v4 .left{
+    width:280px;flex-shrink:0;position:relative;overflow:hidden;
+    border-right:1px solid var(--b1);
+  }
+  .v4 .left-bg{position:absolute;inset:0;z-index:0}
+  .v4 .left-bg video{width:100%;height:100%;object-fit:cover;filter:brightness(0.25) saturate(1.3)}
+  .v4 .left-overlay{
+    position:absolute;inset:0;
+    background:linear-gradient(to right,rgba(from var(--bg0) r g b/0.5),rgba(from var(--bg0) r g b/0.92));
+  }
+  .v4 .left-content{
+    position:relative;z-index:5;height:100%;
+    display:flex;flex-direction:column;
+    padding:var(--s5) var(--s5) var(--s4);
+  }
+
+  .v4 .brand{font:700 var(--xl) var(--fd);color:var(--t1);letter-spacing:1px;text-transform:uppercase;line-height:1;margin-bottom:var(--s7)}
+
+  .v4 .ind{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s5)}
+  .v4 .ind-dot{width:8px;height:8px;border-radius:50%;background:var(--am);box-shadow:0 0 0 3px oklch(from var(--am) l c h / 0.12)}
+  .v4 .ind-label{font:700 var(--lg) var(--fd);color:var(--t1);letter-spacing:0.5px}
+  .v4 .ind-badge{font:600 9px var(--fd);color:var(--amd);letter-spacing:1px;text-transform:uppercase;padding:2px 6px;background:var(--amb);border-radius:3px}
+
+  .v4 .server-line{font:400 var(--sm) var(--fb);color:var(--t2);margin-bottom:var(--s5)}
+
+  .v4 .gauges{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4) var(--s5)}
+  .v4 .g-label{font:500 9px var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px}
+  .v4 .g-val{font:600 var(--base) var(--fm);font-variant-numeric:tabular-nums;line-height:1}
+  .v4 .g-val.dl{color:var(--gn)}.v4 .g-val.ul{color:var(--bl)}.v4 .g-val.tm{color:var(--t2)}
+
+  .v4 .left-btn{
+    margin-top:auto;font:600 var(--sm) var(--fd);letter-spacing:0.5px;
+    padding:var(--s2) var(--s4);border-radius:5px;cursor:pointer;text-align:center;
+    transition:all var(--df) var(--eo);
+  }
+  .v4 .left-btn.disc{background:var(--rdb);border:1px solid oklch(from var(--rd) l c h/0.18);color:var(--rd)}
+  .v4 .left-btn.conn{background:var(--amb);border:1px solid oklch(from var(--am) l c h/0.2);color:var(--am)}
+
+  .v4 .right{flex:1;display:flex;flex-direction:column;padding:var(--s4) var(--s5);overflow:hidden}
+
+  .v4 .modes{display:flex;gap:var(--s1);margin-bottom:var(--s4);padding-bottom:var(--s4);border-bottom:1px solid var(--b1)}
+  .v4 .mo{padding:var(--s2) var(--s4);border-radius:5px;cursor:pointer;transition:all var(--df) var(--eo)}
+  .v4 .mo:hover{background:var(--bg2)}
+  .v4 .mo.on{background:var(--bg2)}
+  .v4 .mo-n{font:600 var(--sm) var(--fd);color:var(--t2);letter-spacing:0.3px}
+  .v4 .mo.on .mo-n{color:var(--t1)}
+  .v4 .mo-d{font:400 var(--xs) var(--fb);color:var(--t3);margin-top:1px}
+
+  .v4 .cont{flex:1;overflow-y:auto;min-height:0}
+  .v4 .cont::-webkit-scrollbar{width:3px}
+  .v4 .cont::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
+
+  /* Apps — 2-col compact grid */
+  .v4 .app-grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+  .v4 .ag-item{
+    display:flex;align-items:center;gap:var(--s2);
+    padding:var(--s2);border-radius:5px;cursor:pointer;
+    transition:all var(--df) var(--eo);
+  }
+  .v4 .ag-item:hover{background:var(--bg2)}
+  .v4 .ag-item .ai{width:24px;height:24px;font-size:9px}
+  .v4 .ag-item .an{font:500 var(--sm) var(--fb);color:var(--t1);flex:1}
+  .v4 .ag-item.off .an{color:var(--t3)}
+  .v4 .ag-item .st{font:600 9px var(--fd);letter-spacing:0.5px;padding:1px 5px;border-radius:3px}
+  .v4 .ag-item .st.proxy{color:var(--bl);background:var(--blb)}
+  .v4 .ag-item .st.direct{color:var(--t3);background:var(--bg3)}
+
+  /* Sites as inline tags with + button */
+  .v4 .tags{display:flex;flex-wrap:wrap;gap:var(--s2)}
+  .v4 .tag{
+    display:inline-flex;align-items:center;gap:var(--s1);
+    padding:var(--s1) var(--s3);border:1px solid var(--b1);border-radius:4px;
+    font:400 var(--sm) var(--fm);color:var(--t2);cursor:pointer;
+    transition:all var(--df) var(--eo);
+  }
+  .v4 .tag:hover{background:var(--bg2);border-color:var(--b2)}
+  .v4 .tag.on{border-color:oklch(from var(--bl) l c h/0.25);background:var(--blb);color:var(--t1)}
+  .v4 .tag .tx{font-size:10px;color:var(--t3);margin-left:var(--s1)}
+  .v4 .tag.on .tx{color:var(--bl)}
+  .v4 .tag-add{
+    display:inline-flex;align-items:center;gap:var(--s1);
+    padding:var(--s1) var(--s3);border:1px dashed var(--b1);border-radius:4px;
+    font:400 var(--sm) var(--fb);color:var(--t3);cursor:pointer;
+    transition:all var(--df) var(--eo);
+  }
+  .v4 .tag-add:hover{border-color:var(--b2);color:var(--t2)}
+
+
+  /* =======================================================
+     V5 — "Stack"
+     Vertical stack: giant status → mode cards → content
+     Compact, no sidebar, everything flows down.
+     ======================================================= */
+  .v5 .body{height:calc(100% - 36px);display:flex;flex-direction:column;max-width:680px;margin:0 auto;padding:0 var(--s5) var(--s4)}
+
+  .v5 .hero{
+    display:flex;align-items:center;gap:var(--s4);
+    padding:var(--s5) 0 var(--s4);
+    border-bottom:1px solid var(--b1);
+  }
+  .v5 .hero-orb{
+    width:44px;height:44px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--amb);border:2px solid oklch(from var(--am) l c h/0.3);
+  }
+  .v5 .hero-orb svg{width:18px;height:18px;stroke:var(--am);stroke-width:2.5;fill:none;stroke-linecap:round}
+  .v5 .hero-info{flex:1}
+  .v5 .hero-label{font:700 var(--lg) var(--fd);color:var(--t1);letter-spacing:0.3px;line-height:1}
+  .v5 .hero-sub{font:400 var(--sm) var(--fb);color:var(--t3);margin-top:2px}
+  .v5 .hero-sub .badge{font:600 9px var(--fd);color:var(--amd);letter-spacing:1px;text-transform:uppercase;padding:1px 5px;background:var(--amb);border-radius:3px;margin-left:var(--s2)}
+  .v5 .hero-stats{display:flex;gap:var(--s4);align-items:center}
+  .v5 .hs-item{font:500 var(--sm) var(--fm);font-variant-numeric:tabular-nums}
+  .v5 .hs-item.dl{color:var(--gn)}.v5 .hs-item.ul{color:var(--bl)}.v5 .hs-item.tm{color:var(--t3);font-size:var(--xs)}
+  .v5 .hero-btn{
+    font:600 var(--sm) var(--fd);letter-spacing:0.5px;
+    padding:var(--s2) var(--s5);border-radius:5px;cursor:pointer;flex-shrink:0;
+    transition:all var(--df) var(--eo);margin-left:var(--s3);
+  }
+  .v5 .hero-btn.disc{background:var(--rdb);border:1px solid oklch(from var(--rd) l c h/0.18);color:var(--rd)}
+  .v5 .hero-btn.conn{background:var(--amb);border:1px solid oklch(from var(--am) l c h/0.2);color:var(--am)}
+
+  /* Mode — radio cards */
+  .v5 .mode-row{display:flex;gap:var(--s2);padding:var(--s4) 0;border-bottom:1px solid var(--b1)}
+  .v5 .mr{
+    flex:1;display:flex;align-items:center;gap:var(--s3);
+    padding:var(--s3);border-radius:6px;cursor:pointer;
+    transition:all var(--df) var(--eo);
+  }
+  .v5 .mr:hover{background:var(--bg2)}
+  .v5 .mr.on{background:var(--bg2)}
+  .v5 .mr-radio{
+    width:14px;height:14px;border-radius:50%;flex-shrink:0;
+    border:2px solid var(--b2);
+    display:flex;align-items:center;justify-content:center;
+    transition:border-color var(--df);
+  }
+  .v5 .mr.on .mr-radio{border-color:var(--am)}
+  .v5 .mr.on .mr-radio::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--am)}
+  .v5 .mr-text .mr-name{font:600 var(--sm) var(--fd);color:var(--t2);letter-spacing:0.3px}
+  .v5 .mr.on .mr-name{color:var(--t1)}
+  .v5 .mr-text .mr-desc{font:400 var(--xs) var(--fb);color:var(--t3);margin-top:1px}
+
+  .v5 .cont{flex:1;overflow-y:auto;min-height:0;padding-top:var(--s4)}
+  .v5 .cont::-webkit-scrollbar{width:3px}
+  .v5 .cont::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
+
+  /* Two-column split: apps left, sites right */
+  .v5 .split{display:grid;grid-template-columns:1fr 1fr;gap:var(--s5)}
+
+  /* Apps — vertical mini-tiles */
+  .v5 .app-col{display:flex;flex-direction:column;gap:2px}
+  .v5 .ac-item{
+    display:flex;align-items:center;gap:var(--s2);
+    padding:var(--s2);border-radius:5px;cursor:pointer;
+    transition:background var(--df) var(--eo);
+  }
+  .v5 .ac-item:hover{background:var(--bg2)}
+  .v5 .ac-item .ai{width:22px;height:22px;font-size:8px;border-radius:5px}
+  .v5 .ac-item .acn{font:500 var(--sm) var(--fb);color:var(--t1);flex:1}
+  .v5 .ac-item.off .acn{color:var(--t3)}
+
+  /* Sites — compact list */
+  .v5 .site-col{display:flex;flex-direction:column;gap:2px}
+  .v5 .sc-item{
+    display:flex;align-items:center;gap:var(--s2);
+    padding:var(--s2);border-radius:5px;cursor:pointer;
+    transition:background var(--df) var(--eo);
+  }
+  .v5 .sc-item:hover{background:var(--bg2)}
+  .v5 .sc-item .scd{font:400 var(--sm) var(--fm);color:var(--t2);flex:1}
+  .v5 .sc-item.on .scd{color:var(--t1)}
+
+
+  /* =======================================================
+     V6 — "Compact HQ"
+     Everything visible at once. Dense. Status left-aligned,
+     modes as underline tabs, two-col apps|sites below.
+     ======================================================= */
+  .v6 .body{height:calc(100% - 36px);display:flex;flex-direction:column;padding:var(--s5) var(--s6) var(--s4)}
+
+  .v6 .status{
+    display:flex;align-items:baseline;gap:var(--s3);
+    padding-bottom:var(--s4);
+    border-bottom:1px solid var(--b1);
+  }
+  .v6 .s-dot{width:7px;height:7px;border-radius:50%;background:var(--am);flex-shrink:0;align-self:center}
+  .v6 .s-label{font:700 var(--xl) var(--fd);color:var(--t1);letter-spacing:-0.01em}
+  .v6 .s-server{font:400 var(--sm) var(--fb);color:var(--t3)}
+  .v6 .s-badge{font:600 9px var(--fd);color:var(--amd);letter-spacing:1px;text-transform:uppercase;padding:2px 6px;background:var(--amb);border-radius:3px}
+  .v6 .s-right{margin-left:auto;display:flex;align-items:center;gap:var(--s4)}
+  .v6 .s-metric{font:500 var(--sm) var(--fm);font-variant-numeric:tabular-nums}
+  .v6 .s-metric.dl{color:var(--gn)}.v6 .s-metric.ul{color:var(--bl)}
+  .v6 .s-time{font:400 var(--xs) var(--fm);color:var(--t3);font-variant-numeric:tabular-nums}
+  .v6 .s-btn{
+    font:600 var(--sm) var(--fd);letter-spacing:0.5px;
+    padding:var(--s2) var(--s5);border-radius:5px;cursor:pointer;
+    transition:all var(--df) var(--eo);
+  }
+  .v6 .s-btn.disc{background:var(--rdb);border:1px solid oklch(from var(--rd) l c h/0.18);color:var(--rd)}
+
+  /* Underline tabs */
+  .v6 .tabs-row{display:flex;gap:0;border-bottom:1px solid var(--b1);margin-bottom:var(--s4)}
+  .v6 .tr-tab{
+    padding:var(--s3) var(--s5);font:500 var(--sm) var(--fd);color:var(--t3);
+    cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+    letter-spacing:0.3px;transition:all var(--df) var(--eo);
+  }
+  .v6 .tr-tab:hover{color:var(--t2)}
+  .v6 .tr-tab.on{color:var(--am);border-bottom-color:var(--am);font-weight:600}
+
+  .v6 .cont{flex:1;overflow-y:auto;min-height:0}
+  .v6 .cont::-webkit-scrollbar{width:3px}
+  .v6 .cont::-webkit-scrollbar-thumb{background:var(--b1);border-radius:2px}
+
+  /* Two-column: apps | sites, with different visuals */
+  .v6 .dual{display:grid;grid-template-columns:260px 1fr;gap:var(--s6)}
+
+  /* Apps — tight list with status dot */
+  .v6 .app-tight{display:flex;flex-direction:column;gap:1px}
+  .v6 .at-item{
+    display:flex;align-items:center;gap:var(--s3);
+    padding:var(--s2) var(--s2);border-radius:5px;cursor:pointer;
+    transition:background var(--df) var(--eo);
+  }
+  .v6 .at-item:hover{background:var(--bg2)}
+  .v6 .at-item .ai{width:26px;height:26px;font-size:9px}
+  .v6 .at-item .atn{font:500 var(--sm) var(--fb);color:var(--t1);flex:1}
+  .v6 .at-item.off .atn{color:var(--t3)}
+  .v6 .at-item .at-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .v6 .at-item .at-dot.on{background:var(--bl)}
+  .v6 .at-item .at-dot.off{background:var(--bg3)}
+
+  /* Sites — chip flow with toggles */
+  .v6 .site-flow{display:flex;flex-direction:column;gap:3px}
+  .v6 .sf-row{
+    display:flex;align-items:center;gap:var(--s3);
+    padding:var(--s2) 0;
+  }
+  .v6 .sf-domain{font:400 var(--sm) var(--fm);color:var(--t2);flex:1}
+  .v6 .sf-row.on .sf-domain{color:var(--t1)}
+  .v6 .sf-label{font:600 9px var(--fd);letter-spacing:0.5px;padding:1px 5px;border-radius:3px;min-width:42px;text-align:center}
+  .v6 .sf-label.proxy{color:var(--bl);background:var(--blb)}
+  .v6 .sf-label.direct{color:var(--t3);background:var(--bg3)}
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <button class="on" onclick="sw('v4s')">4: Cockpit — Selected</button>
+  <button onclick="sw('v4a')">4: All Traffic</button>
+  <button onclick="sw('v5s')">5: Stack — Selected</button>
+  <button onclick="sw('v5a')">5: All Traffic</button>
+  <button onclick="sw('v6s')">6: HQ — Selected</button>
+  <button onclick="sw('v6a')">6: All Traffic</button>
+</div>
+
+
+<!-- ====== V4: COCKPIT — Selected ====== -->
+<div class="vs v4 on" id="v4s">
+  <div class="lbl">4: Cockpit &mdash; Selected</div>
+  <div class="note">Видео-фон за статус-панелью. Приложения двухколоночной сеткой с бейджами. Сайты тегами с кнопкой добавления.</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="left">
+        <div class="left-bg">
+          <video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video>
+          <div class="left-overlay"></div>
+        </div>
+        <div class="left-content">
+          <div class="brand">Proxyness</div>
+          <div class="ind">
+            <div class="ind-dot"></div>
+            <div class="ind-label">Connected</div>
+            <div class="ind-badge">UDP</div>
+          </div>
+          <div class="server-line">95.181.162.242</div>
+          <div class="gauges">
+            <div><div class="g-label">Down</div><div class="g-val dl">&#8595; 2.4 KB/s</div></div>
+            <div><div class="g-label">Up</div><div class="g-val ul">&#8593; 559 B/s</div></div>
+            <div><div class="g-label">Uptime</div><div class="g-val tm">02:14:37</div></div>
+            <div><div class="g-label">Latency</div><div class="g-val tm">42ms</div></div>
+          </div>
+          <div class="left-btn disc">Disconnect</div>
+        </div>
+      </div>
+      <div class="right">
+        <div class="modes">
+          <div class="mo"><div class="mo-n">All traffic</div><div class="mo-d">Everything proxied</div></div>
+          <div class="mo on"><div class="mo-n">Selected</div><div class="mo-d">Pick apps &amp; sites</div></div>
+          <div class="mo"><div class="mo-n">Browsers</div><div class="mo-d">SOCKS5 only</div></div>
+        </div>
+        <div class="cont">
+          <div class="shdr">Applications</div>
+          <div class="app-grid2">
+            <div class="ag-item"><div class="ai ic-tg" style="width:24px;height:24px;font-size:9px">T</div><div class="an">Telegram</div><div class="st proxy">Proxy</div></div>
+            <div class="ag-item"><div class="ai ic-dc" style="width:24px;height:24px;font-size:9px">D</div><div class="an">Discord</div><div class="st proxy">Proxy</div></div>
+            <div class="ag-item"><div class="ai ic-cl" style="width:24px;height:24px;font-size:9px">C</div><div class="an">Claude</div><div class="st proxy">Proxy</div></div>
+            <div class="ag-item"><div class="ai ic-cu" style="width:24px;height:24px;font-size:9px">Cu</div><div class="an">Cursor</div><div class="st proxy">Proxy</div></div>
+            <div class="ag-item off"><div class="ai ic-sl" style="width:24px;height:24px;font-size:9px">S</div><div class="an">Slack</div><div class="st direct">Direct</div></div>
+            <div class="ag-item off"><div class="ai ic-yt" style="width:24px;height:24px;font-size:9px">Y</div><div class="an">YouTube</div><div class="st direct">Direct</div></div>
+          </div>
+          <div class="shdr">Sites</div>
+          <div class="tags">
+            <div class="tag on">claude.ai <span class="tx">&#10005;</span></div>
+            <div class="tag on">github.com <span class="tx">&#10005;</span></div>
+            <div class="tag on">chat.openai.com <span class="tx">&#10005;</span></div>
+            <div class="tag on">anthropic.com <span class="tx">&#10005;</span></div>
+            <div class="tag">youtube.com</div>
+            <div class="tag">instagram.com</div>
+            <div class="tag">x.com</div>
+            <div class="tag-add">+ Add site</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- V4: All Traffic -->
+<div class="vs v4" id="v4a">
+  <div class="lbl">4: Cockpit &mdash; All Traffic</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="left">
+        <div class="left-bg"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video><div class="left-overlay"></div></div>
+        <div class="left-content">
+          <div class="brand">Proxyness</div>
+          <div class="ind"><div class="ind-dot"></div><div class="ind-label">Connected</div><div class="ind-badge">UDP</div></div>
+          <div class="server-line">95.181.162.242</div>
+          <div class="gauges">
+            <div><div class="g-label">Down</div><div class="g-val dl">&#8595; 12.8 KB/s</div></div>
+            <div><div class="g-label">Up</div><div class="g-val ul">&#8593; 1.2 KB/s</div></div>
+            <div><div class="g-label">Uptime</div><div class="g-val tm">02:14:37</div></div>
+            <div><div class="g-label">Latency</div><div class="g-val tm">42ms</div></div>
+          </div>
+          <div class="left-btn disc">Disconnect</div>
+        </div>
+      </div>
+      <div class="right">
+        <div class="modes">
+          <div class="mo on"><div class="mo-n">All traffic</div><div class="mo-d">Everything proxied</div></div>
+          <div class="mo"><div class="mo-n">Selected</div><div class="mo-d">Pick apps &amp; sites</div></div>
+          <div class="mo"><div class="mo-n">Browsers</div><div class="mo-d">SOCKS5 only</div></div>
+        </div>
+        <div class="cont"><div style="padding:var(--s7) 0"><div class="emp-t">All system traffic routed through proxy</div><div class="emp-d">Every connection goes through the server.<br>Switch to Selected to choose specific apps and sites.</div></div></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+
+<!-- ====== V5: STACK — Selected ====== -->
+<div class="vs v5" id="v5s">
+  <div class="lbl">5: Stack &mdash; Selected</div>
+  <div class="note">Всё вертикально: статус → радио-режимы → две колонки (приложения | сайты). Компактный, без лишнего.</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="hero">
+        <div class="hero-orb"><svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="12"/><path d="M16.24 7.76a6 6 0 1 1-8.48 0"/></svg></div>
+        <div class="hero-info">
+          <div class="hero-label">Connected</div>
+          <div class="hero-sub">95.181.162.242 <span class="badge">UDP</span></div>
+        </div>
+        <div class="hero-stats">
+          <div class="hs-item dl">&#8595; 2.4 KB/s</div>
+          <div class="hs-item ul">&#8593; 559 B/s</div>
+          <div class="hs-item tm">02:14:37</div>
+        </div>
+        <button class="hero-btn disc">Disconnect</button>
+      </div>
+      <div class="mode-row">
+        <div class="mr"><div class="mr-radio"></div><div class="mr-text"><div class="mr-name">All traffic</div><div class="mr-desc">Everything proxied</div></div></div>
+        <div class="mr on"><div class="mr-radio"></div><div class="mr-text"><div class="mr-name">Selected</div><div class="mr-desc">Pick apps &amp; sites</div></div></div>
+        <div class="mr"><div class="mr-radio"></div><div class="mr-text"><div class="mr-name">Browsers</div><div class="mr-desc">SOCKS5 only</div></div></div>
+      </div>
+      <div class="cont">
+        <div class="split">
+          <div>
+            <div class="shdr">Applications</div>
+            <div class="app-col">
+              <div class="ac-item"><div class="ai ic-tg" style="width:22px;height:22px;font-size:8px;border-radius:5px">T</div><div class="acn">Telegram</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="ac-item"><div class="ai ic-dc" style="width:22px;height:22px;font-size:8px;border-radius:5px">D</div><div class="acn">Discord</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="ac-item"><div class="ai ic-cl" style="width:22px;height:22px;font-size:8px;border-radius:5px">C</div><div class="acn">Claude</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="ac-item"><div class="ai ic-cu" style="width:22px;height:22px;font-size:8px;border-radius:5px">Cu</div><div class="acn">Cursor</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="ac-item off"><div class="ai ic-sl" style="width:22px;height:22px;font-size:8px;border-radius:5px">S</div><div class="acn">Slack</div><div class="tog"><div class="k"></div></div></div>
+              <div class="ac-item off"><div class="ai ic-yt" style="width:22px;height:22px;font-size:8px;border-radius:5px">Y</div><div class="acn">YouTube</div><div class="tog"><div class="k"></div></div></div>
+            </div>
+          </div>
+          <div>
+            <div class="shdr">Sites</div>
+            <div class="site-col">
+              <div class="sc-item on"><div class="scd">claude.ai</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="sc-item on"><div class="scd">github.com</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="sc-item on"><div class="scd">chat.openai.com</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="sc-item on"><div class="scd">anthropic.com</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="sc-item"><div class="scd">youtube.com</div><div class="tog"><div class="k"></div></div></div>
+              <div class="sc-item"><div class="scd">instagram.com</div><div class="tog"><div class="k"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- V5: All Traffic -->
+<div class="vs v5" id="v5a">
+  <div class="lbl">5: Stack &mdash; All Traffic</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="hero">
+        <div class="hero-orb"><svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="12"/><path d="M16.24 7.76a6 6 0 1 1-8.48 0"/></svg></div>
+        <div class="hero-info"><div class="hero-label">Connected</div><div class="hero-sub">95.181.162.242 <span class="badge">UDP</span></div></div>
+        <div class="hero-stats"><div class="hs-item dl">&#8595; 12.8 KB/s</div><div class="hs-item ul">&#8593; 1.2 KB/s</div><div class="hs-item tm">02:14:37</div></div>
+        <button class="hero-btn disc">Disconnect</button>
+      </div>
+      <div class="mode-row">
+        <div class="mr on"><div class="mr-radio"></div><div class="mr-text"><div class="mr-name">All traffic</div><div class="mr-desc">Everything proxied</div></div></div>
+        <div class="mr"><div class="mr-radio"></div><div class="mr-text"><div class="mr-name">Selected</div><div class="mr-desc">Pick apps &amp; sites</div></div></div>
+        <div class="mr"><div class="mr-radio"></div><div class="mr-text"><div class="mr-name">Browsers</div><div class="mr-desc">SOCKS5 only</div></div></div>
+      </div>
+      <div class="cont"><div style="padding:var(--s7) 0"><div class="emp-t">All system traffic routed through proxy</div><div class="emp-d">Every connection goes through the server.<br>Switch to Selected to choose specific apps and sites.</div></div></div>
+    </div>
+  </div></div>
+</div>
+
+
+<!-- ====== V6: HQ — Selected ====== -->
+<div class="vs v6" id="v6s">
+  <div class="lbl">6: Compact HQ &mdash; Selected</div>
+  <div class="note">Всё максимально плотно. Статус одной строкой. Табы с подчёркиванием. Две колонки: приложения с точками | сайты с лейблами.</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="status">
+        <div class="s-dot"></div>
+        <div class="s-label">Connected</div>
+        <div class="s-server">95.181.162.242</div>
+        <div class="s-badge">UDP</div>
+        <div class="s-right">
+          <div class="s-metric dl">&#8595; 2.4 KB/s</div>
+          <div class="s-metric ul">&#8593; 559 B/s</div>
+          <div class="s-time">02:14:37</div>
+          <button class="s-btn disc">Disconnect</button>
+        </div>
+      </div>
+      <div class="tabs-row">
+        <div class="tr-tab">All traffic</div>
+        <div class="tr-tab on">Selected</div>
+        <div class="tr-tab">Browsers</div>
+      </div>
+      <div class="cont">
+        <div class="dual">
+          <div>
+            <div class="shdr">Applications</div>
+            <div class="app-tight">
+              <div class="at-item"><div class="ai ic-tg" style="width:26px;height:26px;font-size:9px">T</div><div class="atn">Telegram</div><div class="at-dot on"></div></div>
+              <div class="at-item"><div class="ai ic-dc" style="width:26px;height:26px;font-size:9px">D</div><div class="atn">Discord</div><div class="at-dot on"></div></div>
+              <div class="at-item"><div class="ai ic-cl" style="width:26px;height:26px;font-size:9px">C</div><div class="atn">Claude</div><div class="at-dot on"></div></div>
+              <div class="at-item"><div class="ai ic-cu" style="width:26px;height:26px;font-size:9px">Cu</div><div class="atn">Cursor</div><div class="at-dot on"></div></div>
+              <div class="at-item off"><div class="ai ic-sl" style="width:26px;height:26px;font-size:9px">S</div><div class="atn">Slack</div><div class="at-dot off"></div></div>
+              <div class="at-item off"><div class="ai ic-yt" style="width:26px;height:26px;font-size:9px">Y</div><div class="atn">YouTube</div><div class="at-dot off"></div></div>
+              <div class="at-item off"><div class="ai ic-ig" style="width:26px;height:26px;font-size:9px">I</div><div class="atn">Instagram</div><div class="at-dot off"></div></div>
+            </div>
+          </div>
+          <div>
+            <div class="shdr">Sites</div>
+            <div class="site-flow">
+              <div class="sf-row on"><div class="sf-domain">claude.ai</div><div class="sf-label proxy">Proxy</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="sf-row on"><div class="sf-domain">github.com</div><div class="sf-label proxy">Proxy</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="sf-row on"><div class="sf-domain">chat.openai.com</div><div class="sf-label proxy">Proxy</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="sf-row on"><div class="sf-domain">anthropic.com</div><div class="sf-label proxy">Proxy</div><div class="tog on"><div class="k"></div></div></div>
+              <div class="sf-row"><div class="sf-domain">youtube.com</div><div class="sf-label direct">Direct</div><div class="tog"><div class="k"></div></div></div>
+              <div class="sf-row"><div class="sf-domain">instagram.com</div><div class="sf-label direct">Direct</div><div class="tog"><div class="k"></div></div></div>
+              <div class="sf-row"><div class="sf-domain">x.com</div><div class="sf-label direct">Direct</div><div class="tog"><div class="k"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- V6: All Traffic -->
+<div class="vs v6" id="v6a">
+  <div class="lbl">6: Compact HQ &mdash; All Traffic</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="status">
+        <div class="s-dot"></div>
+        <div class="s-label">Connected</div>
+        <div class="s-server">95.181.162.242</div>
+        <div class="s-badge">UDP</div>
+        <div class="s-right">
+          <div class="s-metric dl">&#8595; 12.8 KB/s</div>
+          <div class="s-metric ul">&#8593; 1.2 KB/s</div>
+          <div class="s-time">02:14:37</div>
+          <button class="s-btn disc">Disconnect</button>
+        </div>
+      </div>
+      <div class="tabs-row">
+        <div class="tr-tab on">All traffic</div>
+        <div class="tr-tab">Selected</div>
+        <div class="tr-tab">Browsers</div>
+      </div>
+      <div class="cont"><div style="padding:var(--s7) 0 0"><div class="emp-t">All system traffic routed through proxy</div><div class="emp-d">Every connection goes through the server.<br>Switch to Selected to choose specific apps and sites.</div></div></div>
+    </div>
+  </div></div>
+</div>
+
+
+<script>
+function sw(id){
+  document.querySelectorAll('.vs').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  event.target.classList.add('on');
+  document.querySelectorAll('.vs:not(.on) video').forEach(v=>v.pause());
+  document.querySelectorAll('.vs.on video').forEach(v=>v.play());
+}
+document.querySelectorAll('.vs:not(.on) video').forEach(v=>v.pause());
+</script>
+
+</body>
+</html>

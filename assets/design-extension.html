@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Proxyness Extension — Design Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── reset ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── page scaffold ── */
+  body {
+    background: oklch(0.16 0.01 250);
+    color: oklch(0.85 0.006 250);
+    font-family: 'Figtree', system-ui, sans-serif;
+    padding: 48px 40px 80px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 28px;
+    letter-spacing: 0.5px;
+    color: oklch(0.93 0.006 250);
+    margin-bottom: 8px;
+  }
+  .page-sub {
+    font-size: 13px;
+    color: oklch(0.50 0.01 250);
+    margin-bottom: 48px;
+    max-width: 600px;
+    line-height: 1.5;
+  }
+
+  .section-title {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: oklch(0.50 0.012 250);
+    margin-bottom: 24px;
+    margin-top: 56px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid oklch(0.22 0.012 250);
+  }
+  .section-title:first-of-type { margin-top: 0; }
+
+  .variant-label {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: oklch(0.45 0.01 250);
+    margin-bottom: 16px;
+    margin-top: 40px;
+  }
+  .variant-label:first-child { margin-top: 0; }
+
+  .row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+
+  .state-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: oklch(0.40 0.01 250);
+    margin-bottom: 8px;
+    font-family: 'Barlow', monospace;
+  }
+
+  .popup-frame {
+    width: 348px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .panel-frame {
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     POPUP — shared palette tokens
+     ══════════════════════════════════════════════════════════ */
+  .p {
+    --bg0: oklch(0.12 0.014 250);
+    --bg1: oklch(0.155 0.016 250);
+    --bg2: oklch(0.19 0.018 250);
+    --bg3: oklch(0.23 0.016 250);
+    --bgh: oklch(0.26 0.015 250);
+    --b1: oklch(0.24 0.013 250);
+    --t1: oklch(0.93 0.006 250);
+    --t2: oklch(0.60 0.012 250);
+    --t3: oklch(0.42 0.01 250);
+    --am: oklch(0.78 0.155 75);
+    --amd: oklch(0.55 0.09 75);
+    --amb: oklch(0.19 0.035 75);
+    --gn: oklch(0.72 0.15 150);
+    --gnb: oklch(0.17 0.03 150);
+    --rd: oklch(0.62 0.19 25);
+    --rdb: oklch(0.17 0.03 25);
+    --bl: oklch(0.68 0.12 235);
+
+    width: 348px;
+    background: var(--bg0);
+    border-radius: 12px;
+    overflow: hidden;
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--t1);
+    border: 1px solid oklch(0.20 0.014 250);
+    box-shadow: 0 8px 32px oklch(0 0 0 / 0.4), 0 1px 3px oklch(0 0 0 / 0.3);
+  }
+
+  /* ── header strip (shared) ── */
+  .p-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--b1);
+    background: var(--bg1);
+  }
+  .p-head-logo {
+    width: 22px; height: 22px;
+    flex-shrink: 0;
+  }
+  .p-head-name {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.6px;
+    color: var(--t1);
+    flex: 1;
+  }
+  .p-head-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .p-head-dot.on { background: var(--gn); box-shadow: 0 0 6px oklch(0.72 0.15 150 / 0.4); }
+  .p-head-dot.off { background: var(--t3); }
+  .p-head-dot.err { background: var(--rd); box-shadow: 0 0 6px oklch(0.62 0.19 25 / 0.3); }
+
+  /* ── body ── */
+  .p-body { padding: 16px; }
+
+  /* ── domain hero ── */
+  .p-domain {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: 0.3px;
+    color: var(--t1);
+    word-break: break-all;
+    line-height: 1.2;
+  }
+
+  /* ── status tag ── */
+  .p-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+  }
+  .p-tag .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .p-tag.proxied {
+    background: var(--gnb);
+    color: var(--gn);
+  }
+  .p-tag.proxied .dot { background: var(--gn); }
+  .p-tag.not-proxied {
+    background: var(--bg2);
+    color: var(--t2);
+  }
+  .p-tag.not-proxied .dot { background: var(--t3); }
+  .p-tag.disabled {
+    background: var(--bg2);
+    color: var(--t3);
+  }
+  .p-tag.disabled .dot { background: var(--t3); }
+  .p-tag.discovering {
+    background: var(--amb);
+    color: var(--am);
+  }
+  .p-tag.discovering .dot { background: var(--am); }
+
+  /* ── buttons ── */
+  .p-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 16px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: background 0.12s, opacity 0.12s;
+  }
+  .p-btn.primary {
+    background: oklch(0.78 0.155 75);
+    color: oklch(0.18 0.03 75);
+  }
+  .p-btn.primary:hover { background: oklch(0.82 0.14 75); }
+  .p-btn.secondary {
+    background: var(--bg2);
+    color: var(--t2);
+    border: 1px solid var(--b1);
+  }
+  .p-btn.secondary:hover { background: var(--bg3); color: var(--t1); }
+  .p-btn.danger {
+    background: var(--rdb);
+    color: var(--rd);
+    border: 1px solid oklch(0.25 0.04 25);
+  }
+  .p-btn.danger:hover { background: oklch(0.20 0.04 25); }
+
+  /* ── input ── */
+  .p-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg2);
+    border: 1px solid var(--b1);
+    border-radius: 6px;
+    color: var(--t1);
+    font-family: 'Barlow', monospace;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    outline: none;
+    transition: border-color 0.12s;
+    margin-top: 12px;
+  }
+  .p-input::placeholder { color: var(--t3); }
+  .p-input:focus { border-color: oklch(0.40 0.06 75); }
+
+  /* ── footer ── */
+  .p-foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--b1);
+    background: var(--bg1);
+  }
+  .p-foot-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--b1);
+    background: transparent;
+    color: var(--t2);
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.12s, background 0.12s, border-color 0.12s;
+    white-space: nowrap;
+  }
+  .p-foot-btn:hover {
+    color: var(--t1);
+    background: var(--bg2);
+    border-color: oklch(0.30 0.014 250);
+  }
+  .p-foot-btn svg {
+    width: 12px; height: 12px;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+  .p-foot-btn:hover svg { opacity: 0.85; }
+  .p-foot .spacer { flex: 1; }
+  .p-foot-btn.danger {
+    color: var(--t3);
+    border-color: transparent;
+  }
+  .p-foot-btn.danger:hover {
+    color: oklch(0.58 0.12 25);
+    background: var(--rdb);
+    border-color: oklch(0.25 0.04 25);
+  }
+
+  /* ── pairing view ── */
+  .p-pair-icon {
+    width: 48px; height: 48px;
+    margin: 0 auto 16px;
+    display: block;
+    opacity: 0.5;
+  }
+  .p-pair-title {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    text-align: center;
+    color: var(--t1);
+    margin-bottom: 6px;
+  }
+  .p-pair-sub {
+    font-size: 12px;
+    color: var(--t2);
+    text-align: center;
+    line-height: 1.5;
+    margin-bottom: 4px;
+  }
+
+  /* ── error msg ── */
+  .p-error {
+    font-size: 11px;
+    color: var(--rd);
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  /* ── daemon-down view ── */
+  .p-down-icon {
+    width: 40px; height: 40px;
+    margin: 0 auto 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--rdb);
+  }
+  .p-down-icon svg { width: 20px; height: 20px; }
+  .p-down-title {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    text-align: center;
+    color: var(--t1);
+    margin-bottom: 4px;
+  }
+  .p-down-sub {
+    font-size: 12px;
+    color: var(--t2);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ── discovery extras ── */
+  .p-disc-hint {
+    font-size: 11px;
+    color: var(--t2);
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+  .p-disc-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--am);
+    margin-top: 6px;
+  }
+  .p-disc-btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .p-disc-btns .p-btn {
+    flex: 1;
+    margin-top: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     FLOATING PANEL — in-page widget
+     ══════════════════════════════════════════════════════════ */
+  .fp {
+    --bg0: oklch(0.12 0.014 250);
+    --bg1: oklch(0.155 0.016 250);
+    --bg2: oklch(0.19 0.018 250);
+    --b1: oklch(0.24 0.013 250);
+    --t1: oklch(0.93 0.006 250);
+    --t2: oklch(0.60 0.012 250);
+    --t3: oklch(0.42 0.01 250);
+    --am: oklch(0.78 0.155 75);
+    --amb: oklch(0.19 0.035 75);
+    --gn: oklch(0.72 0.15 150);
+    --gnb: oklch(0.17 0.03 150);
+    --rd: oklch(0.62 0.19 25);
+    --rdb: oklch(0.17 0.03 25);
+
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 12px;
+    color: var(--t1);
+    background: var(--bg0);
+    border: 1px solid var(--b1);
+    border-radius: 10px;
+    box-shadow: 0 6px 24px oklch(0 0 0 / 0.45), 0 1px 3px oklch(0 0 0 / 0.3);
+    overflow: hidden;
+    width: max-content;
+    max-width: 320px;
+  }
+
+  .fp-inner {
+    padding: 10px 14px;
+  }
+
+  .fp-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .fp-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .fp-dot.green { background: var(--gn); box-shadow: 0 0 5px oklch(0.72 0.15 150 / 0.35); }
+  .fp-dot.gray { background: var(--t3); }
+  .fp-dot.red { background: var(--rd); box-shadow: 0 0 5px oklch(0.62 0.19 25 / 0.25); }
+  .fp-dot.amber { background: var(--am); box-shadow: 0 0 5px oklch(0.78 0.155 75 / 0.3); }
+
+  .fp-label {
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--t1);
+    flex: 1;
+  }
+  .fp-label .host {
+    font-weight: 600;
+    color: var(--t1);
+  }
+  .fp-label .state {
+    color: var(--t2);
+    margin-left: 2px;
+  }
+
+  .fp-icon {
+    width: 16px; height: 16px;
+    flex-shrink: 0;
+    opacity: 0.45;
+  }
+
+  .fp-close {
+    width: 18px; height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: var(--t3);
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    line-height: 1;
+    transition: color 0.1s, background 0.1s;
+  }
+  .fp-close:hover { color: var(--t2); background: var(--bg2); }
+
+  .fp-hint {
+    font-size: 11px;
+    color: var(--t2);
+    line-height: 1.4;
+    margin-top: 6px;
+    padding-left: 39px;
+  }
+
+  .fp-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--am);
+    margin-top: 4px;
+    padding-left: 39px;
+  }
+
+  .fp-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    padding-left: 39px;
+  }
+
+  .fp-btn {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: none;
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .fp-btn.primary {
+    background: oklch(0.78 0.155 75);
+    color: oklch(0.18 0.03 75);
+  }
+  .fp-btn.primary:hover { background: oklch(0.82 0.14 75); }
+  .fp-btn.ghost {
+    background: var(--bg2);
+    color: var(--t2);
+  }
+  .fp-btn.ghost:hover { background: oklch(0.25 0.016 250); color: var(--t1); }
+
+  /* ══════════════════════════════════════════════════════════
+     INLINE SVG helpers
+     ══════════════════════════════════════════════════════════ */
+  .ghost-icon {
+    display: inline-block;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     Simulated page behind floating panel
+     ══════════════════════════════════════════════════════════ */
+  .page-sim {
+    position: relative;
+    width: 480px;
+    height: 160px;
+    background: oklch(0.96 0.005 250);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid oklch(0.88 0.008 250);
+  }
+  .page-sim-bar {
+    height: 28px;
+    background: oklch(0.92 0.006 250);
+    border-bottom: 1px solid oklch(0.86 0.008 250);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 5px;
+  }
+  .page-sim-bar .dot-r { width: 8px; height: 8px; border-radius: 50%; background: oklch(0.85 0.008 250); }
+  .page-sim-body {
+    padding: 12px 16px;
+    position: relative;
+  }
+  .page-sim-body .line {
+    height: 8px;
+    border-radius: 4px;
+    background: oklch(0.90 0.006 250);
+    margin-bottom: 6px;
+  }
+  .page-sim-body .line:nth-child(1) { width: 60%; }
+  .page-sim-body .line:nth-child(2) { width: 85%; }
+  .page-sim-body .line:nth-child(3) { width: 70%; }
+  .page-sim-body .line:nth-child(4) { width: 45%; }
+  .page-sim .fp {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+  }
+
+  /* description blocks */
+  .desc {
+    font-size: 12px;
+    color: oklch(0.50 0.01 250);
+    line-height: 1.5;
+    margin-top: 12px;
+    max-width: 360px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Proxyness Extension — Design</h1>
+<p class="page-sub">Popup (348px) and floating in-page panel. Shared palette with the desktop client: deep blue-grey base, amber accents, green/red status signals.</p>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION: POPUP
+     ═══════════════════════════════════════════════════════ -->
+<div class="section-title">Popup</div>
+
+<!-- ── Pairing ── -->
+<div class="variant-label">Pairing</div>
+<div class="row">
+
+  <div class="popup-frame">
+    <div class="state-label">Fresh install</div>
+    <div class="p">
+      <div class="p-head">
+        <svg class="p-head-logo" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.40 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="12" fill="oklch(0.25 0.014 250)"/>
+        </svg>
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot off"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-pair-title">Connect to desktop app</div>
+        <div class="p-pair-sub">Open the Proxyness app, go to Settings &rarr; Extension, and copy the pairing token.</div>
+        <input class="p-input" type="text" placeholder="Paste token here..." value="">
+        <button class="p-btn primary">Pair</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame">
+    <div class="state-label">With error</div>
+    <div class="p">
+      <div class="p-head">
+        <svg class="p-head-logo" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.40 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="12" fill="oklch(0.25 0.014 250)"/>
+        </svg>
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot off"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-pair-title">Connect to desktop app</div>
+        <div class="p-pair-sub">Open the Proxyness app, go to Settings &rarr; Extension, and copy the pairing token.</div>
+        <input class="p-input" type="text" placeholder="Paste token here..." value="a1b2c3d4e5f6...">
+        <button class="p-btn primary">Pair</button>
+        <div class="p-error">Pairing failed. Is the desktop app running?</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Daemon down ── -->
+<div class="variant-label">Daemon not running</div>
+<div class="row">
+
+  <div class="popup-frame">
+    <div class="state-label">Paired but daemon offline</div>
+    <div class="p">
+      <div class="p-head">
+        <svg class="p-head-logo" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.40 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="12" fill="oklch(0.25 0.014 250)"/>
+        </svg>
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot err"></span>
+      </div>
+      <div class="p-body" style="text-align:center; padding: 24px 16px;">
+        <div class="p-down-icon">
+          <svg viewBox="0 0 20 20" fill="none" stroke="oklch(0.62 0.19 25)" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="10" cy="10" r="7"/>
+            <path d="M10 6.5v4"/>
+            <circle cx="10" cy="14" r="0.5" fill="oklch(0.62 0.19 25)" stroke="none"/>
+          </svg>
+        </div>
+        <div class="p-down-title">App not running</div>
+        <div class="p-down-sub">Start the Proxyness desktop app to use the extension.</div>
+      </div>
+      <div class="p-foot">
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Control panel ── -->
+<div class="variant-label">Control panel — site states</div>
+<div class="row">
+
+  <div class="popup-frame">
+    <div class="state-label">Site proxied</div>
+    <div class="p">
+      <div class="p-head">
+        <svg class="p-head-logo" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.60 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="14" fill="oklch(0.68 0.12 75)"/>
+          <ellipse cx="50" cy="48" rx="8" ry="7" fill="oklch(0.25 0.02 75)"/>
+        </svg>
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot on"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-domain">kinovod.pro</div>
+        <div class="p-tag proxied">
+          <span class="dot"></span>
+          Proxied
+        </div>
+        <button class="p-btn secondary">Disable proxy</button>
+      </div>
+      <div class="p-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          Add site
+        </a>
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame">
+    <div class="state-label">Site not proxied</div>
+    <div class="p">
+      <div class="p-head">
+        <svg class="p-head-logo" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.60 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="14" fill="oklch(0.68 0.12 75)"/>
+          <ellipse cx="50" cy="48" rx="8" ry="7" fill="oklch(0.25 0.02 75)"/>
+        </svg>
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot on"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-domain">habr.com</div>
+        <div class="p-tag not-proxied">
+          <span class="dot"></span>
+          Not proxied
+        </div>
+        <button class="p-btn primary">Proxy this site</button>
+      </div>
+      <div class="p-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          Add site
+        </a>
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame">
+    <div class="state-label">Locally disabled</div>
+    <div class="p">
+      <div class="p-head">
+        <svg class="p-head-logo" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.60 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="14" fill="oklch(0.68 0.12 75)"/>
+          <ellipse cx="50" cy="48" rx="8" ry="7" fill="oklch(0.25 0.02 75)"/>
+        </svg>
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot on"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-domain">youtube.com</div>
+        <div class="p-tag disabled">
+          <span class="dot"></span>
+          Disabled
+        </div>
+        <button class="p-btn primary">Enable proxy</button>
+      </div>
+      <div class="p-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          Add site
+        </a>
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Discovery ── -->
+<div class="variant-label">Discovery mode</div>
+<div class="row">
+
+  <div class="popup-frame">
+    <div class="state-label">Scanning started</div>
+    <div class="p">
+      <div class="p-head">
+        <svg class="p-head-logo" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.60 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="14" fill="oklch(0.68 0.12 75)"/>
+          <ellipse cx="50" cy="48" rx="8" ry="7" fill="oklch(0.25 0.02 75)"/>
+        </svg>
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot on"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-domain">kinogo.biz</div>
+        <div class="p-tag discovering">
+          <span class="dot"></span>
+          Scanning domains
+        </div>
+        <div class="p-disc-hint">Browse the site, play videos — the extension picks up CDN and media hosts automatically.</div>
+        <div class="p-disc-count">+3 domains added</div>
+        <div class="p-disc-btns">
+          <button class="p-btn primary">Reload page</button>
+          <button class="p-btn secondary">Finish</button>
+        </div>
+      </div>
+      <div class="p-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Manual entry ── -->
+<div class="variant-label">Manual entry</div>
+<div class="row">
+
+  <div class="popup-frame">
+    <div class="state-label">System page / new tab</div>
+    <div class="p">
+      <div class="p-head">
+        <svg class="p-head-logo" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.60 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="14" fill="oklch(0.68 0.12 75)"/>
+          <ellipse cx="50" cy="48" rx="8" ry="7" fill="oklch(0.25 0.02 75)"/>
+        </svg>
+        <span class="p-head-name">Proxyness</span>
+        <span class="p-head-dot on"></span>
+      </div>
+      <div class="p-body">
+        <div class="p-pair-title" style="text-align:left;">Add a site</div>
+        <div class="p-pair-sub" style="text-align:left;">Enter a domain to route through proxy.</div>
+        <input class="p-input" type="text" placeholder="example.com">
+        <button class="p-btn primary">Proxy this site</button>
+      </div>
+      <div class="p-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION: FLOATING PANEL
+     ═══════════════════════════════════════════════════════ -->
+<div class="section-title">Floating panel (in-page)</div>
+<p class="desc" style="margin-top:-16px; margin-bottom:24px;">Injected via content script into every page. Shadow DOM. Compact pill that expands for actions. Shown in context on a simulated page.</p>
+
+<!-- ── Proxied (collapsed) ── -->
+<div class="variant-label">Proxied — collapsed</div>
+<div class="row">
+  <div class="panel-frame">
+    <div class="state-label">Minimal confirmation</div>
+    <div class="page-sim">
+      <div class="page-sim-bar">
+        <div class="dot-r"></div><div class="dot-r"></div><div class="dot-r"></div>
+      </div>
+      <div class="page-sim-body">
+        <div class="line"></div>
+        <div class="line"></div>
+        <div class="line"></div>
+        <div class="line"></div>
+      </div>
+      <div class="fp">
+        <div class="fp-inner">
+          <div class="fp-row">
+            <svg class="fp-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+            <div class="fp-dot green"></div>
+            <div class="fp-label"><span class="host">kinovod.pro</span> <span class="state">proxied</span></div>
+            <button class="fp-close">&times;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── All states standalone ── -->
+<div class="variant-label">All panel states</div>
+<div class="row">
+
+  <div class="panel-frame">
+    <div class="state-label">Proxied</div>
+    <div class="fp">
+      <div class="fp-inner">
+        <div class="fp-row">
+          <div class="fp-dot green"></div>
+          <div class="fp-label"><span class="host">kinovod.pro</span> <span class="state">proxied</span></div>
+          <button class="fp-close">&times;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-frame">
+    <div class="state-label">Not in proxy</div>
+    <div class="fp">
+      <div class="fp-inner">
+        <div class="fp-row">
+          <svg class="fp-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+          <div class="fp-dot gray"></div>
+          <div class="fp-label"><span class="host">habr.com</span> <span class="state">not proxied</span></div>
+          <button class="fp-close">&times;</button>
+        </div>
+        <div class="fp-actions">
+          <button class="fp-btn primary">Add to proxy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-frame">
+    <div class="state-label">Blocked</div>
+    <div class="fp">
+      <div class="fp-inner">
+        <div class="fp-row">
+          <svg class="fp-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+          <div class="fp-dot red"></div>
+          <div class="fp-label"><span class="host">rutracker.org</span> <span class="state">blocked</span></div>
+          <button class="fp-close">&times;</button>
+        </div>
+        <div class="fp-actions">
+          <button class="fp-btn primary">Add to proxy</button>
+          <button class="fp-btn ghost">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-frame">
+    <div class="state-label">Daemon down</div>
+    <div class="fp">
+      <div class="fp-inner">
+        <div class="fp-row">
+          <svg class="fp-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+          <div class="fp-dot red"></div>
+          <div class="fp-label"><span class="state">App not running</span></div>
+          <button class="fp-close">&times;</button>
+        </div>
+        <div class="fp-hint">Start the Proxyness desktop app</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Discovering ── -->
+<div class="variant-label">Discovery mode</div>
+<div class="row">
+
+  <div class="panel-frame">
+    <div class="state-label">Just started</div>
+    <div class="fp">
+      <div class="fp-inner">
+        <div class="fp-row">
+          <svg class="fp-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+          <div class="fp-dot amber"></div>
+          <div class="fp-label"><span class="host">kinogo.biz</span> <span class="state">scanning</span></div>
+          <button class="fp-close">&times;</button>
+        </div>
+        <div class="fp-hint">Browse around — I'll pick up CDN hosts</div>
+        <div class="fp-actions">
+          <button class="fp-btn ghost">Finish scanning</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-frame">
+    <div class="state-label">Domains found</div>
+    <div class="fp">
+      <div class="fp-inner">
+        <div class="fp-row">
+          <svg class="fp-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+          <div class="fp-dot amber"></div>
+          <div class="fp-label"><span class="host">kinogo.biz</span> <span class="state">scanning</span></div>
+          <button class="fp-close">&times;</button>
+        </div>
+        <div class="fp-count">+5 domains added</div>
+        <div class="fp-actions">
+          <button class="fp-btn primary">Reload page</button>
+          <button class="fp-btn ghost">Finish</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Disabled ── -->
+<div class="variant-label">Disabled site</div>
+<div class="row">
+  <div class="panel-frame">
+    <div class="state-label">Locally disabled</div>
+    <div class="fp">
+      <div class="fp-inner">
+        <div class="fp-row">
+          <svg class="fp-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+          <div class="fp-dot gray"></div>
+          <div class="fp-label"><span class="host">youtube.com</span> <span class="state">disabled</span></div>
+          <button class="fp-close">&times;</button>
+        </div>
+        <div class="fp-actions">
+          <button class="fp-btn primary">Enable</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     VARIANT B — Compact, no header bar
+     ═══════════════════════════════════════════════════════ -->
+<div class="section-title">Variant B — Compact</div>
+<p class="desc" style="margin-top:-16px; margin-bottom:24px;">Без шапки. Призрак + домен + статус в одном блоке. Меньше высота, быстрее считывается. Footer — иконки без текста.</p>
+
+<style>
+  /* ── Variant B ── */
+  .pb {
+    --bg0: oklch(0.12 0.014 250);
+    --bg1: oklch(0.155 0.016 250);
+    --bg2: oklch(0.19 0.018 250);
+    --bg3: oklch(0.23 0.016 250);
+    --b1: oklch(0.24 0.013 250);
+    --t1: oklch(0.93 0.006 250);
+    --t2: oklch(0.60 0.012 250);
+    --t3: oklch(0.42 0.01 250);
+    --am: oklch(0.78 0.155 75);
+    --amb: oklch(0.19 0.035 75);
+    --gn: oklch(0.72 0.15 150);
+    --gnb: oklch(0.17 0.03 150);
+    --rd: oklch(0.62 0.19 25);
+    --rdb: oklch(0.17 0.03 25);
+
+    width: 300px;
+    background: var(--bg0);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--t1);
+    border: 1px solid oklch(0.20 0.014 250);
+    box-shadow: 0 8px 32px oklch(0 0 0 / 0.4), 0 1px 3px oklch(0 0 0 / 0.3);
+  }
+
+  .pb-body { padding: 14px 14px 12px; }
+
+  .pb-hero {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pb-ghost {
+    width: 32px; height: 32px;
+    flex-shrink: 0;
+  }
+  .pb-info { flex: 1; min-width: 0; }
+  .pb-domain {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: 0.3px;
+    color: var(--t1);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pb-status {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--t2);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .pb-status .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .pb-status .dot.gn { background: var(--gn); }
+  .pb-status .dot.gr { background: var(--t3); }
+  .pb-status .dot.am { background: var(--am); }
+  .pb-status .dot.rd { background: var(--rd); }
+
+  .pb-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 9px 14px;
+    margin-top: 12px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+  }
+  .pb-btn.primary {
+    background: oklch(0.78 0.155 75);
+    color: oklch(0.18 0.03 75);
+  }
+  .pb-btn.secondary {
+    background: var(--bg2);
+    color: var(--t2);
+    border: 1px solid var(--b1);
+  }
+
+  .pb-foot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 14px 8px;
+    border-top: 1px solid var(--b1);
+    background: var(--bg1);
+  }
+  .pb-foot-ico {
+    width: 28px; height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    border: none;
+    background: transparent;
+    color: var(--t3);
+    cursor: pointer;
+    transition: color 0.12s, background 0.12s;
+  }
+  .pb-foot-ico:hover { color: var(--t2); background: var(--bg2); }
+  .pb-foot-ico svg { width: 14px; height: 14px; }
+  .pb-foot-ico.danger:hover { color: oklch(0.58 0.12 25); background: var(--rdb); }
+  .pb-foot .spacer { flex: 1; }
+
+  .pb-input {
+    width: 100%;
+    padding: 9px 10px;
+    margin-top: 10px;
+    background: var(--bg2);
+    border: 1px solid var(--b1);
+    border-radius: 5px;
+    color: var(--t1);
+    font-family: 'Barlow', monospace;
+    font-size: 12px;
+    outline: none;
+  }
+  .pb-input::placeholder { color: var(--t3); }
+
+  .pb-hint {
+    font-size: 11px;
+    color: var(--t2);
+    line-height: 1.4;
+    margin-top: 6px;
+  }
+  .pb-disc-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--am);
+    margin-top: 4px;
+  }
+  .pb-disc-btns {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .pb-disc-btns .pb-btn { flex: 1; margin-top: 0; padding: 7px 10px; font-size: 11px; }
+
+  .pb-center {
+    text-align: center;
+    padding: 20px 14px;
+  }
+  .pb-center-title {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--t1);
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+  .pb-center-sub {
+    font-size: 11px;
+    color: var(--t2);
+    line-height: 1.4;
+  }
+</style>
+
+<div class="variant-label">Control panel</div>
+<div class="row">
+
+  <div class="popup-frame" style="width:300px;">
+    <div class="state-label">Proxied</div>
+    <div class="pb">
+      <div class="pb-body">
+        <div class="pb-hero">
+          <svg class="pb-ghost" viewBox="0 0 100 100" fill="none">
+            <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.60 0.01 250)"/>
+            <ellipse cx="50" cy="48" rx="16" ry="14" fill="oklch(0.68 0.12 75)"/>
+            <ellipse cx="50" cy="48" rx="8" ry="7" fill="oklch(0.25 0.02 75)"/>
+          </svg>
+          <div class="pb-info">
+            <div class="pb-domain">kinovod.pro</div>
+            <div class="pb-status"><span class="dot gn"></span> Proxied</div>
+          </div>
+        </div>
+        <button class="pb-btn secondary">Disable proxy</button>
+      </div>
+      <div class="pb-foot">
+        <button class="pb-foot-ico" title="Add site">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+        </button>
+        <button class="pb-foot-ico" title="Hide panel">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 8c2.5-4 5-5 7-5s4.5 1 7 5c-2.5 4-5 5-7 5s-4.5-1-7-5z"/><line x1="2" y1="14" x2="14" y2="2"/></svg>
+        </button>
+        <span class="spacer"></span>
+        <button class="pb-foot-ico danger" title="Unpair">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame" style="width:300px;">
+    <div class="state-label">Not proxied</div>
+    <div class="pb">
+      <div class="pb-body">
+        <div class="pb-hero">
+          <svg class="pb-ghost" viewBox="0 0 100 100" fill="none">
+            <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.40 0.01 250)"/>
+            <ellipse cx="50" cy="48" rx="16" ry="12" fill="oklch(0.25 0.014 250)"/>
+          </svg>
+          <div class="pb-info">
+            <div class="pb-domain">habr.com</div>
+            <div class="pb-status"><span class="dot gr"></span> Not proxied</div>
+          </div>
+        </div>
+        <button class="pb-btn primary">Proxy this site</button>
+      </div>
+      <div class="pb-foot">
+        <button class="pb-foot-ico" title="Add site">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+        </button>
+        <button class="pb-foot-ico" title="Hide panel">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 8c2.5-4 5-5 7-5s4.5 1 7 5c-2.5 4-5 5-7 5s-4.5-1-7-5z"/><line x1="2" y1="14" x2="14" y2="2"/></svg>
+        </button>
+        <span class="spacer"></span>
+        <button class="pb-foot-ico danger" title="Unpair">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame" style="width:300px;">
+    <div class="state-label">Disabled</div>
+    <div class="pb">
+      <div class="pb-body">
+        <div class="pb-hero">
+          <svg class="pb-ghost" viewBox="0 0 100 100" fill="none">
+            <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.40 0.01 250)"/>
+            <ellipse cx="50" cy="48" rx="16" ry="12" fill="oklch(0.25 0.014 250)"/>
+          </svg>
+          <div class="pb-info">
+            <div class="pb-domain">youtube.com</div>
+            <div class="pb-status"><span class="dot gr"></span> Disabled</div>
+          </div>
+        </div>
+        <button class="pb-btn primary">Enable proxy</button>
+      </div>
+      <div class="pb-foot">
+        <button class="pb-foot-ico" title="Add site">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+        </button>
+        <button class="pb-foot-ico" title="Hide panel">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 8c2.5-4 5-5 7-5s4.5 1 7 5c-2.5 4-5 5-7 5s-4.5-1-7-5z"/><line x1="2" y1="14" x2="14" y2="2"/></svg>
+        </button>
+        <span class="spacer"></span>
+        <button class="pb-foot-ico danger" title="Unpair">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="variant-label">Discovery &amp; special</div>
+<div class="row">
+
+  <div class="popup-frame" style="width:300px;">
+    <div class="state-label">Discovering</div>
+    <div class="pb">
+      <div class="pb-body">
+        <div class="pb-hero">
+          <svg class="pb-ghost" viewBox="0 0 100 100" fill="none">
+            <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.60 0.01 250)"/>
+            <ellipse cx="50" cy="48" rx="16" ry="14" fill="oklch(0.68 0.12 75)"/>
+            <ellipse cx="50" cy="48" rx="8" ry="7" fill="oklch(0.25 0.02 75)"/>
+          </svg>
+          <div class="pb-info">
+            <div class="pb-domain">kinogo.biz</div>
+            <div class="pb-status"><span class="dot am"></span> Scanning domains</div>
+          </div>
+        </div>
+        <div class="pb-hint">Browse the site, play videos — CDN hosts get picked up automatically.</div>
+        <div class="pb-disc-count">+3 domains added</div>
+        <div class="pb-disc-btns">
+          <button class="pb-btn primary">Reload page</button>
+          <button class="pb-btn secondary">Finish</button>
+        </div>
+      </div>
+      <div class="pb-foot">
+        <button class="pb-foot-ico" title="Hide panel">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M1 8c2.5-4 5-5 7-5s4.5 1 7 5c-2.5 4-5 5-7 5s-4.5-1-7-5z"/><line x1="2" y1="14" x2="14" y2="2"/></svg>
+        </button>
+        <span class="spacer"></span>
+        <button class="pb-foot-ico danger" title="Unpair">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame" style="width:300px;">
+    <div class="state-label">Pairing</div>
+    <div class="pb">
+      <div class="pb-center">
+        <svg width="36" height="36" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.40 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="12" fill="oklch(0.25 0.014 250)"/>
+        </svg>
+        <div class="pb-center-title">Connect to Proxyness</div>
+        <div class="pb-center-sub">Paste the token from Settings &rarr; Extension</div>
+      </div>
+      <div class="pb-body" style="padding-top:0;">
+        <input class="pb-input" type="text" placeholder="Paste token here...">
+        <button class="pb-btn primary" style="margin-top:10px;">Pair</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame" style="width:300px;">
+    <div class="state-label">Daemon down</div>
+    <div class="pb">
+      <div class="pb-center">
+        <svg width="36" height="36" viewBox="0 0 100 100" fill="none">
+          <path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="oklch(0.35 0.01 250)"/>
+          <ellipse cx="50" cy="48" rx="16" ry="12" fill="oklch(0.22 0.014 250)"/>
+        </svg>
+        <div class="pb-center-title">App not running</div>
+        <div class="pb-center-sub">Start the Proxyness desktop app</div>
+      </div>
+      <div class="pb-foot">
+        <span class="spacer"></span>
+        <button class="pb-foot-ico danger" title="Unpair">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     VARIANT C — Status band
+     ═══════════════════════════════════════════════════════ -->
+<div class="section-title">Variant C — Status band</div>
+<p class="desc" style="margin-top:-16px; margin-bottom:24px;">Цветная полоса вверху моментально читается: зелёная = proxied, серая = нет, amber = scanning. Домен крупно под полосой.</p>
+
+<style>
+  .pc {
+    --bg0: oklch(0.12 0.014 250);
+    --bg1: oklch(0.155 0.016 250);
+    --bg2: oklch(0.19 0.018 250);
+    --b1: oklch(0.24 0.013 250);
+    --t1: oklch(0.93 0.006 250);
+    --t2: oklch(0.60 0.012 250);
+    --t3: oklch(0.42 0.01 250);
+    --am: oklch(0.78 0.155 75);
+    --amb: oklch(0.19 0.035 75);
+    --gn: oklch(0.72 0.15 150);
+    --gnb: oklch(0.17 0.03 150);
+    --rd: oklch(0.62 0.19 25);
+    --rdb: oklch(0.17 0.03 25);
+
+    width: 340px;
+    background: var(--bg0);
+    border-radius: 12px;
+    overflow: hidden;
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--t1);
+    border: 1px solid oklch(0.20 0.014 250);
+    box-shadow: 0 8px 32px oklch(0 0 0 / 0.4), 0 1px 3px oklch(0 0 0 / 0.3);
+  }
+
+  .pc-band {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+  }
+  .pc-band-icon {
+    width: 18px; height: 18px;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+  .pc-band-label {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    flex: 1;
+  }
+  .pc-band-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .pc-band.green {
+    background: oklch(0.17 0.04 150);
+    color: oklch(0.78 0.12 150);
+  }
+  .pc-band.green .pc-band-dot { background: oklch(0.72 0.15 150); box-shadow: 0 0 6px oklch(0.72 0.15 150 / 0.4); }
+
+  .pc-band.gray {
+    background: var(--bg1);
+    color: var(--t2);
+  }
+  .pc-band.gray .pc-band-dot { background: var(--t3); }
+
+  .pc-band.amber {
+    background: oklch(0.17 0.035 75);
+    color: oklch(0.78 0.12 75);
+  }
+  .pc-band.amber .pc-band-dot { background: var(--am); box-shadow: 0 0 6px oklch(0.78 0.155 75 / 0.3); }
+
+  .pc-band.red {
+    background: oklch(0.15 0.035 25);
+    color: oklch(0.72 0.14 25);
+  }
+  .pc-band.red .pc-band-dot { background: var(--rd); box-shadow: 0 0 6px oklch(0.62 0.19 25 / 0.3); }
+
+  .pc-body { padding: 14px 16px 12px; }
+
+  .pc-domain {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: 0.3px;
+    color: var(--t1);
+    line-height: 1.1;
+    word-break: break-all;
+  }
+
+  .pc-sub {
+    font-size: 11px;
+    color: var(--t2);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .pc-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 14px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Figtree', system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .pc-btn.primary {
+    background: oklch(0.78 0.155 75);
+    color: oklch(0.18 0.03 75);
+  }
+  .pc-btn.secondary {
+    background: var(--bg2);
+    color: var(--t2);
+    border: 1px solid var(--b1);
+  }
+
+  .pc-foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--b1);
+  }
+  /* reuse p-foot-btn styling */
+  .pc-foot .p-foot-btn {
+    font-family: 'Figtree', system-ui, sans-serif;
+  }
+
+  .pc-disc-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--am);
+    margin-top: 6px;
+  }
+  .pc-disc-btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .pc-disc-btns .pc-btn { flex: 1; margin-top: 0; }
+
+  .pc-center {
+    text-align: center;
+    padding: 24px 16px 16px;
+  }
+  .pc-center-title {
+    font-family: 'Barlow Semi Condensed', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--t1);
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+  .pc-center-sub {
+    font-size: 12px;
+    color: var(--t2);
+    line-height: 1.4;
+  }
+  .pc-input {
+    width: 100%;
+    padding: 10px 12px;
+    margin-top: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--b1);
+    border-radius: 6px;
+    color: var(--t1);
+    font-family: 'Barlow', monospace;
+    font-size: 12px;
+    outline: none;
+  }
+  .pc-input::placeholder { color: var(--t3); }
+</style>
+
+<div class="variant-label">Control panel</div>
+<div class="row">
+
+  <div class="popup-frame" style="width:340px;">
+    <div class="state-label">Proxied</div>
+    <div class="pc">
+      <div class="pc-band green">
+        <svg class="pc-band-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+        <span class="pc-band-label">Proxied</span>
+        <span class="pc-band-dot"></span>
+      </div>
+      <div class="pc-body">
+        <div class="pc-domain">kinovod.pro</div>
+        <button class="pc-btn secondary">Disable proxy</button>
+      </div>
+      <div class="pc-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          Add site
+        </a>
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame" style="width:340px;">
+    <div class="state-label">Not proxied</div>
+    <div class="pc">
+      <div class="pc-band gray">
+        <svg class="pc-band-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+        <span class="pc-band-label">Not proxied</span>
+        <span class="pc-band-dot"></span>
+      </div>
+      <div class="pc-body">
+        <div class="pc-domain">habr.com</div>
+        <button class="pc-btn primary">Proxy this site</button>
+      </div>
+      <div class="pc-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          Add site
+        </a>
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame" style="width:340px;">
+    <div class="state-label">Disabled</div>
+    <div class="pc">
+      <div class="pc-band gray">
+        <svg class="pc-band-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+        <span class="pc-band-label">Disabled</span>
+        <span class="pc-band-dot"></span>
+      </div>
+      <div class="pc-body">
+        <div class="pc-domain">youtube.com</div>
+        <button class="pc-btn primary">Enable proxy</button>
+      </div>
+      <div class="pc-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+          Add site
+        </a>
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="variant-label">Discovery &amp; special</div>
+<div class="row">
+
+  <div class="popup-frame" style="width:340px;">
+    <div class="state-label">Discovering</div>
+    <div class="pc">
+      <div class="pc-band amber">
+        <svg class="pc-band-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+        <span class="pc-band-label">Scanning domains</span>
+        <span class="pc-band-dot"></span>
+      </div>
+      <div class="pc-body">
+        <div class="pc-domain">kinogo.biz</div>
+        <div class="pc-sub">Browse the site, play videos — CDN hosts get picked up automatically.</div>
+        <div class="pc-disc-count">+3 domains added</div>
+        <div class="pc-disc-btns">
+          <button class="pc-btn primary">Reload page</button>
+          <button class="pc-btn secondary">Finish</button>
+        </div>
+      </div>
+      <div class="pc-foot">
+        <a class="p-foot-btn" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 8h12"/><path d="M8.5 4L13 8l-4.5 4"/></svg>
+          Hide panel
+        </a>
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame" style="width:340px;">
+    <div class="state-label">Pairing</div>
+    <div class="pc">
+      <div class="pc-band gray">
+        <svg class="pc-band-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+        <span class="pc-band-label">Not connected</span>
+        <span class="pc-band-dot"></span>
+      </div>
+      <div class="pc-body">
+        <div class="pc-sub">Open the Proxyness app, go to Settings &rarr; Extension, and copy the pairing token.</div>
+        <input class="pc-input" type="text" placeholder="Paste token here...">
+        <button class="pc-btn primary" style="margin-top:12px;">Pair</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup-frame" style="width:340px;">
+    <div class="state-label">Daemon down</div>
+    <div class="pc">
+      <div class="pc-band red">
+        <svg class="pc-band-icon" viewBox="0 0 100 100" fill="none"><path d="M50 10 C25 10, 10 30, 10 55 L10 90 L25 75 L40 90 L50 80 L60 90 L75 75 L90 90 L90 55 C90 30, 75 10, 50 10Z" fill="currentColor"/></svg>
+        <span class="pc-band-label">App not running</span>
+        <span class="pc-band-dot"></span>
+      </div>
+      <div class="pc-center" style="padding-top:16px;">
+        <div class="pc-center-sub">Start the Proxyness desktop app to use the extension.</div>
+      </div>
+      <div class="pc-foot">
+        <span class="spacer"></span>
+        <a class="p-foot-btn danger" href="#">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          Unpair
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+</body>
+</html>

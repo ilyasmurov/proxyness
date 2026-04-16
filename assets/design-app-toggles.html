@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — App Toggle Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fd:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+    --fb:'Figtree',system-ui,sans-serif;
+    --fm:'Barlow',system-ui,sans-serif;
+    --bg0:oklch(0.12 0.014 250);--bg1:oklch(0.155 0.016 250);--bg2:oklch(0.19 0.018 250);
+    --bg3:oklch(0.23 0.016 250);--bgh:oklch(0.26 0.015 250);
+    --b1:oklch(0.24 0.013 250);--b2:oklch(0.30 0.014 250);
+    --t1:oklch(0.93 0.006 250);--t2:oklch(0.60 0.012 250);--t3:oklch(0.40 0.01 250);
+    --am:oklch(0.78 0.155 75);--amd:oklch(0.55 0.09 75);--amb:oklch(0.19 0.035 75);
+    --bl:oklch(0.68 0.12 235);--blb:oklch(0.18 0.028 235);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--fb);background:#060608;color:#ccc;min-height:100vh;-webkit-font-smoothing:antialiased;
+    display:flex;flex-wrap:wrap;justify-content:center;gap:40px;padding:40px 20px}
+
+  .variant{width:300px}
+  .variant-label{font:600 11px var(--fd);color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;text-align:center}
+  .variant-desc{font:400 12px var(--fb);color:oklch(0.35 0.008 250);text-align:center;margin-bottom:16px;line-height:1.5}
+  .panel{background:var(--bg0);border:1px solid var(--b1);border-radius:10px;padding:16px;overflow:hidden}
+
+  /* Header row — same across all variants */
+  .sec-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;min-height:24px}
+  .sec-title{font:600 11px var(--fd);color:var(--t2);letter-spacing:1.5px;text-transform:uppercase}
+  .sec-count{font:400 10px var(--fb);color:var(--t3)}
+
+  /* Shared icon */
+  .ico{border-radius:6px;display:flex;align-items:center;justify-content:center;font:700 11px var(--fd);color:#fff;flex-shrink:0}
+  .ic-tg{background:#2AABEE}.ic-dc{background:#5865F2}.ic-cl{background:#D97757}
+  .ic-cu{background:#00B4D8}.ic-sl{background:#611f69}.ic-yt{background:#FF0000}
+
+  /* Toggle */
+  .tog{width:32px;height:18px;border-radius:9px;position:relative;cursor:pointer;transition:background 0.12s;flex-shrink:0}
+  .tog.on{background:var(--bl)}.tog.off{background:var(--bg3)}
+  .tog .k{width:14px;height:14px;border-radius:50%;background:var(--t1);position:absolute;top:2px;transition:left 0.12s;box-shadow:0 1px 2px rgba(0,0,0,0.25)}
+  .tog.on .k{left:16px}.tog.off .k{left:2px}
+
+  /* TLS badge */
+  .tls{font:600 9px var(--fd);letter-spacing:0.5px;padding:2px 5px;border-radius:3px;white-space:nowrap}
+  .tls.on{background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.2)}
+  .tls.off{background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.2)}
+
+
+  /* ======================
+     VARIANT A — Compact rows
+     ====================== */
+  .va .app-row{
+    display:flex;align-items:center;gap:8px;
+    padding:5px 6px;border-radius:5px;cursor:pointer;
+    transition:background 0.12s;
+  }
+  .va .app-row:hover{background:var(--bg2)}
+  .va .app-row .ico{width:24px;height:24px;font-size:9px}
+  .va .app-name{font:500 13px var(--fb);color:var(--t1);flex:1}
+  .va .app-row.off .app-name{color:var(--t3)}
+  .va .app-row.off .ico{opacity:0.35}
+
+
+  /* ======================
+     VARIANT B — Mini tiles grid
+     ====================== */
+  .vb .app-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  .vb .app-tile{
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    padding:8px 4px;border-radius:6px;cursor:pointer;
+    transition:all 0.12s;
+    background:var(--bg1);border:1px solid var(--b1);
+  }
+  .vb .app-tile:hover{background:var(--bg2);border-color:var(--b2)}
+  .vb .app-tile.on{border-color:oklch(from var(--bl) l c h/0.3);background:var(--blb)}
+  .vb .app-tile.off{opacity:0.35}
+  .vb .app-tile .ico{width:26px;height:26px;font-size:10px;border-radius:7px}
+  .vb .tile-name{font:500 10px var(--fb);color:var(--t1);text-align:center;line-height:1.2}
+  .vb .app-tile.off .tile-name{color:var(--t3)}
+  .vb .tile-dot{width:5px;height:5px;border-radius:50%;margin-top:-2px}
+  .vb .app-tile.on .tile-dot{background:var(--bl)}
+  .vb .app-tile.off .tile-dot{background:var(--bg3)}
+
+
+  /* ======================
+     VARIANT C — Horizontal chips
+     ====================== */
+  .vc .app-chips{display:flex;flex-wrap:wrap;gap:4px}
+  .vc .chip{
+    display:flex;align-items:center;gap:6px;
+    padding:4px 10px 4px 4px;border-radius:6px;cursor:pointer;
+    transition:all 0.12s;
+    background:var(--bg1);border:1px solid var(--b1);
+  }
+  .vc .chip:hover{background:var(--bg2);border-color:var(--b2)}
+  .vc .chip.on{border-color:oklch(from var(--bl) l c h/0.25);background:var(--blb)}
+  .vc .chip.off{opacity:0.35}
+  .vc .chip .ico{width:22px;height:22px;font-size:8px;border-radius:5px}
+  .vc .chip-name{font:500 12px var(--fb);color:var(--t1);white-space:nowrap}
+  .vc .chip.off .chip-name{color:var(--t3)}
+
+
+  /* ======================
+     VARIANT D — Dense rows with status dot
+     ====================== */
+  .vd .app-list{display:flex;flex-direction:column;gap:1px}
+  .vd .app-item{
+    display:flex;align-items:center;gap:10px;
+    padding:6px 8px;border-radius:5px;cursor:pointer;
+    transition:background 0.12s;
+  }
+  .vd .app-item:hover{background:var(--bg2)}
+  .vd .app-item .ico{width:22px;height:22px;font-size:8px;border-radius:5px}
+  .vd .app-info{flex:1;min-width:0}
+  .vd .app-nm{font:500 13px var(--fb);color:var(--t1);line-height:1.2}
+  .vd .app-item.off .app-nm{color:var(--t3)}
+  .vd .app-item.off .ico{opacity:0.35}
+  .vd .app-sub{font:400 10px var(--fb);color:var(--am)}
+  .vd .status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .vd .status-dot.on{background:var(--bl)}
+  .vd .status-dot.off{background:var(--bg3)}
+</style>
+</head>
+<body>
+
+<!-- VARIANT A: Compact rows with toggle -->
+<div class="variant">
+  <div class="variant-label">A &mdash; Compact Rows</div>
+  <div class="variant-desc">Строки с иконкой, именем, TLS бейджем и тоглом.<br>Классический список, плотный, понятный.</div>
+  <div class="panel va">
+    <div class="sec-header">
+      <div class="sec-title">Applications</div>
+      <div class="sec-count">4 of 6</div>
+    </div>
+    <div class="app-row">
+      <div class="ico ic-tg" style="width:24px;height:24px;font-size:9px">T</div>
+      <div class="app-name">Telegram</div>
+      <div class="tls on">TLS</div>
+      <div class="tog on"><div class="k"></div></div>
+    </div>
+    <div class="app-row">
+      <div class="ico ic-dc" style="width:24px;height:24px;font-size:9px">D</div>
+      <div class="app-name">Discord</div>
+      <div class="tls on">TLS</div>
+      <div class="tog on"><div class="k"></div></div>
+    </div>
+    <div class="app-row">
+      <div class="ico ic-cl" style="width:24px;height:24px;font-size:9px">C</div>
+      <div class="app-name">Claude</div>
+      <div class="tls off">NO TLS</div>
+      <div class="tog on"><div class="k"></div></div>
+    </div>
+    <div class="app-row">
+      <div class="ico ic-cu" style="width:24px;height:24px;font-size:9px">Cu</div>
+      <div class="app-name">Cursor</div>
+      <div class="tls on">TLS</div>
+      <div class="tog on"><div class="k"></div></div>
+    </div>
+    <div class="app-row off">
+      <div class="ico ic-sl" style="width:24px;height:24px;font-size:9px">S</div>
+      <div class="app-name">Slack</div>
+      <div class="tog off"><div class="k"></div></div>
+    </div>
+    <div class="app-row off">
+      <div class="ico ic-yt" style="width:24px;height:24px;font-size:9px">Y</div>
+      <div class="app-name">YouTube</div>
+      <div class="tog off"><div class="k"></div></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- VARIANT B: Mini tiles grid -->
+<div class="variant">
+  <div class="variant-label">B &mdash; Mini Tiles</div>
+  <div class="variant-desc">Плитки 3 в ряд. Иконка + имя. Включённые с синей рамкой,<br>выключенные полупрозрачные. Клик тоглит.</div>
+  <div class="panel vb">
+    <div class="sec-header">
+      <div class="sec-title">Applications</div>
+      <div class="sec-count">4 of 6</div>
+    </div>
+    <div class="app-grid">
+      <div class="app-tile on"><div class="ico ic-tg">T</div><div class="tile-name">Telegram</div><div class="tile-dot"></div></div>
+      <div class="app-tile on"><div class="ico ic-dc">D</div><div class="tile-name">Discord</div><div class="tile-dot"></div></div>
+      <div class="app-tile on"><div class="ico ic-cl">C</div><div class="tile-name">Claude</div><div class="tile-dot"></div></div>
+      <div class="app-tile on"><div class="ico ic-cu">Cu</div><div class="tile-name">Cursor</div><div class="tile-dot"></div></div>
+      <div class="app-tile off"><div class="ico ic-sl">S</div><div class="tile-name">Slack</div><div class="tile-dot"></div></div>
+      <div class="app-tile off"><div class="ico ic-yt">Y</div><div class="tile-name">YouTube</div><div class="tile-dot"></div></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- VARIANT C: Horizontal chips -->
+<div class="variant">
+  <div class="variant-label">C &mdash; Chips</div>
+  <div class="variant-desc">Горизонтальные чипы с иконкой + именем.<br>Включённые подсвечены, выключенные затенены. Клик тоглит.</div>
+  <div class="panel vc">
+    <div class="sec-header">
+      <div class="sec-title">Applications</div>
+      <div class="sec-count">4 of 6</div>
+    </div>
+    <div class="app-chips">
+      <div class="chip on"><div class="ico ic-tg">T</div><div class="chip-name">Telegram</div></div>
+      <div class="chip on"><div class="ico ic-dc">D</div><div class="chip-name">Discord</div></div>
+      <div class="chip on"><div class="ico ic-cl">C</div><div class="chip-name">Claude</div></div>
+      <div class="chip on"><div class="ico ic-cu">Cu</div><div class="chip-name">Cursor</div></div>
+      <div class="chip off"><div class="ico ic-sl">S</div><div class="chip-name">Slack</div></div>
+      <div class="chip off"><div class="ico ic-yt">Y</div><div class="chip-name">YouTube</div></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- VARIANT D: Dense rows with status dot -->
+<div class="variant">
+  <div class="variant-label">D &mdash; Dense + Dot</div>
+  <div class="variant-desc">Плотные строки с точкой-статусом вместо тогла.<br>Вторая строка для "without TLS". Клик тоглит.</div>
+  <div class="panel vd">
+    <div class="sec-header">
+      <div class="sec-title">Applications</div>
+      <div class="sec-count">4 of 6</div>
+    </div>
+    <div class="app-list">
+      <div class="app-item">
+        <div class="ico ic-tg">T</div>
+        <div class="app-info"><div class="app-nm">Telegram</div></div>
+        <div class="tls on">TLS</div>
+        <div class="status-dot on"></div>
+      </div>
+      <div class="app-item">
+        <div class="ico ic-dc">D</div>
+        <div class="app-info"><div class="app-nm">Discord</div></div>
+        <div class="tls on">TLS</div>
+        <div class="status-dot on"></div>
+      </div>
+      <div class="app-item">
+        <div class="ico ic-cl">C</div>
+        <div class="app-info">
+          <div class="app-nm">Claude</div>
+          <div class="app-sub">without TLS</div>
+        </div>
+        <div class="tls off">NO TLS</div>
+        <div class="status-dot on"></div>
+      </div>
+      <div class="app-item">
+        <div class="ico ic-cu">Cu</div>
+        <div class="app-info"><div class="app-nm">Cursor</div></div>
+        <div class="tls on">TLS</div>
+        <div class="status-dot on"></div>
+      </div>
+      <div class="app-item off">
+        <div class="ico ic-sl">S</div>
+        <div class="app-info"><div class="app-nm">Slack</div></div>
+        <div class="status-dot off"></div>
+      </div>
+      <div class="app-item off">
+        <div class="ico ic-yt">Y</div>
+        <div class="app-info"><div class="app-nm">YouTube</div></div>
+        <div class="status-dot off"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

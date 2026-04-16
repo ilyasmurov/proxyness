@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Notification Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fd:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+    --fb:'Figtree',system-ui,sans-serif;
+    --fm:'Barlow',system-ui,sans-serif;
+    --bg0:oklch(0.12 0.014 250);--bg1:oklch(0.155 0.016 250);--bg2:oklch(0.19 0.018 250);
+    --b1:oklch(0.24 0.013 250);--b2:oklch(0.30 0.014 250);
+    --t1:oklch(0.93 0.006 250);--t2:oklch(0.60 0.012 250);--t3:oklch(0.40 0.01 250);
+    --am:oklch(0.78 0.155 75);--amd:oklch(0.55 0.09 75);--amb:oklch(0.19 0.035 75);
+    --bl:oklch(0.68 0.12 235);--blb:oklch(0.18 0.028 235);
+    --gn:oklch(0.72 0.15 150);--gnb:oklch(0.16 0.025 150);
+    --rd:oklch(0.62 0.19 25);--rdb:oklch(0.17 0.03 25);
+    --eo:cubic-bezier(0.25,1,0.5,1);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--fb);background:#060608;color:#ccc;min-height:100vh;-webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;align-items:center;gap:40px;padding:40px 20px}
+
+  .label{font:600 11px var(--fd);color:var(--t3);letter-spacing:2px;text-transform:uppercase;text-align:center;margin-bottom:4px}
+  .desc{font:400 11px var(--fb);color:oklch(0.30 0.008 250);text-align:center;margin-bottom:16px;line-height:1.5;max-width:500px}
+
+  .group{width:700px;display:flex;flex-direction:column;gap:10px;padding:16px 24px;background:var(--bg0);border:1px solid var(--b1);border-radius:10px}
+  .group-label{font:600 9px var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px}
+
+  /* type colors */
+  .c-update{--nc:oklch(0.68 0.12 235);--nb:oklch(0.15 0.02 235)}
+  .c-migration{--nc:oklch(0.62 0.19 25);--nb:oklch(0.15 0.025 25)}
+  .c-maintenance{--nc:oklch(0.78 0.155 75);--nb:oklch(0.15 0.025 75)}
+  .c-info{--nc:oklch(0.60 0.012 250);--nb:oklch(0.155 0.016 250)}
+  .c-download{--nc:oklch(0.68 0.12 235);--nb:oklch(0.15 0.02 235)}
+  .c-ready{--nc:oklch(0.72 0.15 150);--nb:oklch(0.14 0.02 150)}
+
+
+  /* ====== VARIANT A: Inline bar — icon + text + action ====== */
+  .va .notif{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 12px;border-radius:6px;
+    background:var(--nb);border:1px solid oklch(from var(--nc) l c h/0.15);
+  }
+  .va .n-icon{flex-shrink:0;color:var(--nc)}
+  .va .n-body{flex:1;min-width:0}
+  .va .n-title{font:600 12px var(--fb);color:var(--t1)}
+  .va .n-msg{font:400 11px var(--fb);color:var(--t3);margin-top:1px}
+  .va .n-action{
+    padding:4px 12px;border-radius:4px;font:600 11px var(--fd);letter-spacing:0.3px;
+    cursor:pointer;background:oklch(from var(--nc) l c h/0.15);
+    border:1px solid oklch(from var(--nc) l c h/0.25);color:var(--nc);
+    flex-shrink:0;transition:all 0.1s;
+  }
+  .va .n-action:hover{background:oklch(from var(--nc) l c h/0.25)}
+  .va .n-close{
+    background:none;border:none;color:var(--t3);cursor:pointer;font-size:14px;
+    padding:0 2px;line-height:1;flex-shrink:0;transition:color 0.1s;
+  }
+  .va .n-close:hover{color:var(--t1)}
+  .va .n-progress{height:3px;background:oklch(from var(--nc) l c h/0.15);border-radius:2px;margin-top:6px}
+  .va .n-progress-bar{height:3px;background:var(--nc);border-radius:2px;transition:width 0.3s}
+
+
+  /* ====== VARIANT B: Compact pill — type badge left ====== */
+  .vb .notif{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 10px;border-radius:5px;
+    background:var(--nb);border:1px solid oklch(from var(--nc) l c h/0.12);
+  }
+  .vb .n-type{
+    font:700 8px var(--fd);letter-spacing:1px;text-transform:uppercase;
+    color:var(--nc);padding:2px 6px;border-radius:3px;
+    background:oklch(from var(--nc) l c h/0.12);flex-shrink:0;
+  }
+  .vb .n-title{font:500 12px var(--fb);color:var(--t1);flex:1}
+  .vb .n-action{
+    padding:3px 10px;border-radius:3px;font:600 10px var(--fd);letter-spacing:0.3px;
+    cursor:pointer;background:oklch(from var(--nc) l c h/0.12);
+    border:1px solid oklch(from var(--nc) l c h/0.2);color:var(--nc);
+    flex-shrink:0;
+  }
+  .vb .n-close{
+    background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;
+    padding:0 2px;line-height:1;flex-shrink:0;
+  }
+  .vb .n-progress{height:2px;background:oklch(from var(--nc) l c h/0.12);border-radius:1px;margin-top:4px}
+  .vb .n-progress-bar{height:2px;background:var(--nc);border-radius:1px}
+
+
+  /* ====== VARIANT C: Minimal line — dot + text ====== */
+  .vc .notif{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 8px;
+  }
+  .vc .n-dot{width:5px;height:5px;border-radius:50%;background:var(--nc);flex-shrink:0}
+  .vc .n-title{font:500 12px var(--fb);color:var(--t2);flex:1}
+  .vc .n-title strong{font-weight:600;color:var(--t1)}
+  .vc .n-action{
+    font:600 11px var(--fd);letter-spacing:0.3px;
+    cursor:pointer;background:none;border:none;color:var(--nc);
+    text-decoration:underline;text-underline-offset:2px;flex-shrink:0;
+  }
+  .vc .n-close{
+    background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;
+    padding:0 2px;line-height:1;flex-shrink:0;
+  }
+  .vc .n-progress{height:2px;background:oklch(0.20 0.01 250);border-radius:1px;margin:4px 0 0 13px}
+  .vc .n-progress-bar{height:2px;background:var(--nc);border-radius:1px}
+</style>
+</head>
+<body>
+
+<!-- ====== A: Inline bar ====== -->
+<div class="label">A &mdash; Inline Bar</div>
+<div class="desc">Иконка слева, текст, кнопка действия, крестик. Фон и бордер окрашены по типу.</div>
+<div class="group">
+  <div class="group-label">Update</div>
+  <div class="notif c-update va">
+    <svg class="n-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    <div class="n-body">
+      <div class="n-title">Version 1.32.0 available</div>
+      <div class="n-msg">Bug fixes and performance improvements</div>
+    </div>
+    <button class="n-action">Update</button>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Migration</div>
+  <div class="notif c-migration va">
+    <svg class="n-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div class="n-body">
+      <div class="n-title">Server is moving to a new address</div>
+      <div class="n-msg">Reconnect to continue using the proxy</div>
+    </div>
+    <button class="n-action">Reconnect</button>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Maintenance</div>
+  <div class="notif c-maintenance va">
+    <svg class="n-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <div class="n-body">
+      <div class="n-title">Scheduled maintenance tonight</div>
+      <div class="n-msg">Server will be unavailable 03:00–04:00 MSK</div>
+    </div>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Downloading</div>
+  <div class="notif c-download va">
+    <svg class="n-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    <div class="n-body">
+      <div class="n-title">Downloading update... 67%</div>
+      <div class="n-progress"><div class="n-progress-bar" style="width:67%"></div></div>
+    </div>
+  </div>
+
+  <div class="group-label">Ready</div>
+  <div class="notif c-ready va">
+    <svg class="n-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <div class="n-body"><div class="n-title">Update ready to install</div></div>
+    <button class="n-action">Restart & Update</button>
+  </div>
+</div>
+
+
+<!-- ====== B: Compact pill ====== -->
+<div class="label">B &mdash; Compact Pill</div>
+<div class="desc">Бейдж типа слева (UPDATE / ALERT / MAINT). Одна строка. Минимум высоты.</div>
+<div class="group">
+  <div class="group-label">Update</div>
+  <div class="notif c-update vb">
+    <span class="n-type">Update</span>
+    <span class="n-title">Version 1.32.0 available — bug fixes and performance</span>
+    <button class="n-action">Update</button>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Migration</div>
+  <div class="notif c-migration vb">
+    <span class="n-type">Alert</span>
+    <span class="n-title">Server is moving — reconnect to continue</span>
+    <button class="n-action">Reconnect</button>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Maintenance</div>
+  <div class="notif c-maintenance vb">
+    <span class="n-type">Maint</span>
+    <span class="n-title">Server unavailable tonight 03:00–04:00 MSK</span>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Downloading</div>
+  <div class="notif c-download vb">
+    <span class="n-type">Update</span>
+    <span class="n-title">Downloading... 67%</span>
+    <div style="flex:1"><div class="n-progress"><div class="n-progress-bar" style="width:67%"></div></div></div>
+  </div>
+
+  <div class="group-label">Ready</div>
+  <div class="notif c-ready vb">
+    <span class="n-type">Ready</span>
+    <span class="n-title">Update ready to install</span>
+    <button class="n-action">Restart</button>
+  </div>
+</div>
+
+
+<!-- ====== C: Minimal line ====== -->
+<div class="label">C &mdash; Minimal Line</div>
+<div class="desc">Точка + текст + ссылка-действие. Без фона, без рамки. Максимально ненавязчивый.</div>
+<div class="group">
+  <div class="group-label">Update</div>
+  <div class="notif c-update vc">
+    <div class="n-dot"></div>
+    <span class="n-title"><strong>v1.32.0</strong> available — bug fixes and performance</span>
+    <button class="n-action">Update</button>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Migration</div>
+  <div class="notif c-migration vc">
+    <div class="n-dot"></div>
+    <span class="n-title"><strong>Server moving</strong> — reconnect to continue</span>
+    <button class="n-action">Reconnect</button>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Maintenance</div>
+  <div class="notif c-maintenance vc">
+    <div class="n-dot"></div>
+    <span class="n-title"><strong>Maintenance</strong> tonight 03:00–04:00 MSK</span>
+    <button class="n-close">×</button>
+  </div>
+
+  <div class="group-label">Downloading</div>
+  <div class="notif c-download vc">
+    <div class="n-dot"></div>
+    <span class="n-title">Downloading update... 67%</span>
+    <div style="flex:1"><div class="n-progress"><div class="n-progress-bar" style="width:67%"></div></div></div>
+  </div>
+
+  <div class="group-label">Ready</div>
+  <div class="notif c-ready vc">
+    <div class="n-dot"></div>
+    <span class="n-title"><strong>Update ready</strong></span>
+    <button class="n-action">Restart & Update</button>
+  </div>
+</div>
+
+</body>
+</html>

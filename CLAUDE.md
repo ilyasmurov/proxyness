@@ -46,9 +46,9 @@ TLS listener on port 443. `ListenerMux` peeks first byte to route:
 - `0x02` (MsgTypeUDP) → UDP proxy relay (framed UDP over TLS)
 - HTTP → admin API (Basic Auth, REST endpoints for users/devices/traffic stats) + landing page
 
-Admin UI (`server/admin-ui/`) is a React/Vite app compiled and embedded into the server binary via Go embed.
+Admin API endpoints remain in the server binary (REST + SSE), but the UI is a separate service (see Admin Dashboard below). SSE endpoint `GET /admin/api/stats/stream` pushes active connections + device rates every second. CORS allows `https://admin.proxyness.smurov.com`.
 
-Key internals: `mux/` (connection routing), `db/` (Postgres — users, devices, traffic_stats; 60s-TTL `deviceCache` in front of `GetDeviceByKey` with admin-side invalidation), `admin/` (HTTP API + stats), `stats/` (atomic connection tracker), `proxy/` (TCP/UDP relay handlers).
+Key internals: `mux/` (connection routing), `db/` (Postgres — users, devices, traffic_stats; 60s-TTL `deviceCache` in front of `GetDeviceByKey` with admin-side invalidation), `admin/` (HTTP API + SSE stats), `stats/` (atomic connection tracker), `proxy/` (TCP/UDP relay handlers).
 
 ### Daemon (`daemon/`)
 Local SOCKS5 server (default `127.0.0.1:1080`) + TUN proxy engine. Exposes HTTP control API (default `127.0.0.1:9090`).
@@ -99,6 +99,14 @@ Electron 33 + React 19 + TypeScript + Vite. Custom frameless window. Spawns daem
 Main process: `src/main/` (daemon lifecycle + log capture in `daemon.ts`, system proxy in `sysproxy.ts`, installed apps detection in `apps.ts`).
 Renderer: `src/renderer/` (React UI with `App.tsx`, curated app list in `AppRules.tsx`, mode selector in `ModeSelector.tsx`, notification banner with dismiss in `NotificationBanner.tsx`).
 
+### Admin Dashboard (`admin/`)
+Standalone React 19 + Vite + TypeScript SPA served by nginx. Deployed as its own container on Aeza at `admin.proxyness.smurov.com`. Communicates with proxy server exclusively via REST API + SSE (no direct DB access).
+
+- `src/lib/api.ts` — fetch wrapper, injects Basic Auth, base URL from `VITE_API_URL`
+- `src/hooks/useStatsStream.ts` — SSE client for live stats (fetch+ReadableStream, not EventSource, because native EventSource doesn't support custom headers)
+- `src/lib/auth.ts` — credentials in sessionStorage, login form on missing credentials
+- Pages: Dashboard (SSE-driven), Users, UserDetail, Sites, SiteDetail, Notifications, Releases, Changelog, Logs
+
 ### Browser Extension (`extension/`)
 Chrome MV3 extension. Popup (348px) + floating in-page panel (shadow DOM content script) + service worker. Pairs with desktop daemon via token stored in `chrome.storage.local`.
 
@@ -137,6 +145,7 @@ All deploys are tag-triggered. Push to main does NOT deploy anything. Tag conven
 | Server + admin | `server-*` | `server-1.0.0` | `deploy.yml` | `server/VERSION` |
 | Landing page | `landing-*` | `landing-1.0.0` | `deploy-landing.yml` | `landing/VERSION` |
 | Config service | `config-*` | `config-1.0.0` | `deploy-config.yml` | `config/VERSION` |
+| Admin dashboard | `admin-*` | `admin-1.0.0` | `deploy-admin.yml` | `admin/VERSION` |
 | Client apps | `v*` | `v1.36.0` | `release.yml` | `client/package.json` |
 | Client (pre-release) | `v*-beta.*` | `v1.36.0-beta.1` | `release.yml` | `client/package.json` |
 
@@ -153,6 +162,8 @@ All workflows also support `workflow_dispatch` for manual trigger from GitHub UI
 
 ### Shared infra on Aeza
 
+- **Host nginx** as SNI-based TCP router on port 443. `stream` block peeks SNI hostname: `admin.proxyness.smurov.com` → 127.0.0.1:8444 (TLS terminated by nginx `http` block, Let's Encrypt cert, proxied to admin container on 8081); everything else → 127.0.0.1:4430 (proxy container, handles its own TLS). UDP 443 bypasses nginx (stream is TCP-only). Config: `/etc/nginx/nginx.conf`. Cert renewal: certbot with pre/post hooks to stop/start nginx.
+- **Admin dashboard**: nginx container on Aeza only (`proxyness-admin`, port 8081:80). Deployed via `admin-*` tags. Image built locally on Aeza from `admin/Dockerfile` (until GHCR CI is wired).
 - **WireGuard tunnel** between the two VPSs: interface `wgpn0`, subnet `10.88.0.0/24`, Aeza=`10.88.0.1` listens on `51820/udp`, Timeweb=`10.88.0.2` is the initiator with `PersistentKeepalive=25`. Configs in `/etc/wireguard/wgpn0.conf` (mode 600). `10.8.0.0/24` is already used by Timeweb's OpenVPN — do not reuse. Named `wgpn0` (not `wg0`) to avoid clashing with Amnezia's userspace `wg0`.
 - **Postgres 16** (pgdg repo) on Aeza only, bound to `127.0.0.1,10.88.0.1:5432` — NOT public. Cluster `16/main`, restart with `systemctl restart postgresql@16-main`. DB `proxyness` owned by role `proxyness` (not superuser). `pg_hba.conf` allows `10.88.0.2/32` + `127.0.0.1/32` via `scram-sha-256`. Connection URL lives in `/etc/proxyness/db.env` (mode 600) on both VPSs as `PROXYNESS_DB_URL=postgres://proxyness:<pw>@10.88.0.1:5432/proxyness?sslmode=disable`. `sslmode=disable` is deliberate — the WG link already encrypts, TLS on top would double-encrypt. Schema source of truth: `server/internal/db/pg/schema.sql` — apply as `proxyness` role (use `SET ROLE proxyness` before `\i schema.sql` if connecting as `postgres`) so tables end up owned by the app role, not `postgres`.
 - **One-off SQLite→Postgres migrator**: `server/cmd/migrate-pg/`. Reads a SQLite snapshot, inserts every row into Postgres preserving IDs via `pgx.CopyFrom`, then `setval`s each identity sequence to `MAX(id)`. Filters orphan FK rows (traffic_stats/site_domains/user_sites all have dangling references in Aeza's SQLite — SQLite ran with `PRAGMA foreign_keys=OFF`). Supports `--truncate` to wipe target tables first (used at cutover to capture last-minute SQLite writes). The proxy-server runtime does NOT use this tool — it's a one-time migration. **As of 2026-04-16 (server-2.0.0 deploy)**: proxy containers on both VPSs write and read Postgres via the WG tunnel; SQLite `/data/data.db` on each VPS is a stale snapshot (kept as insurance until 2026-04-30, then delete the files).
@@ -201,3 +212,42 @@ Client App ─────────┤                                       
 - **Server picker is a dynamic const, not a hook**: `App.tsx` declares `const SERVERS = [{ id, label, addr }, ...]` at module scope and a `serverAddrFor(id)` helper. Inside the component, `SERVER` is a plain `const SERVER = serverAddrFor(serverId)` — recomputed every render from the `serverId` useState, not memoized. Any `useCallback` that closes over `SERVER` must list it in its dep array (startReconnect, handleTransportChange, the tray-connect useEffect) so the captured closure sees the user's latest pick. Regular function bodies in the component (handleModeChange, connectWithKey, JSX event handlers) just work because they close over current-render values. Don't hoist SERVER to `useMemo` — it's a 1-line lookup, the memo would add more noise than it saves, and the dep-array pattern above already handles staleness.
 - **Aeza ↔ Timeweb DB divergence is accepted, not synced**: Both VPSs run the same proxy container with the same schema (`devices`, `users`, `traffic_stats`), but there is no live replication between their SQLite files. Devices/keys created on one after the initial Aeza→Timeweb seed (done manually via `sqlite3 .backup` + `scp`) don't appear on the other until someone repeats the seed. For the test phase that's fine — the user has the same device key registered on both from the seed. Long-term, per-user binding + traffic accounting would need either periodic export/import or a shared Postgres; don't paper over this with dual-writes in the server binary, they'd have to handle split-brain on network partition. When a user's key works on one VPS but not the other, "DB drift" is the first suspect, not auth/machine-id.
 - **Server picker triggers reconnect via explicit disconnect+connect, not a daemon restart**: `handleServerChange` in `App.tsx` saves the new server id to `localStorage["proxyness-server"]`, updates React state, then — if the user is currently connected — calls `tunDisconnect()` → 300 ms sleep → `tunConnect(nextAddr, key)` (or the socks5 equivalent). The 300 ms delay exists so the daemon's SOCKS5 listener fully unbinds before the new `connect` call tries to re-bind; without it the listener occasionally held the port for another ~100 ms and the new `/connect` returned 409 against itself. If the user isn't connected, the picker just persists the choice silently — next manual connect picks it up.
+
+<!-- code-review-graph MCP tools -->
+## MCP Tools: code-review-graph
+
+**IMPORTANT: This project has a knowledge graph. ALWAYS use the
+code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
+the codebase.** The graph is faster, cheaper (fewer tokens), and gives
+you structural context (callers, dependents, test coverage) that file
+scanning cannot.
+
+### When to use graph tools FIRST
+
+- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
+- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
+- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
+- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
+- **Architecture questions**: `get_architecture_overview` + `list_communities`
+
+Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+
+### Key Tools
+
+| Tool | Use when |
+|------|----------|
+| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
+| `get_review_context` | Need source snippets for review — token-efficient |
+| `get_impact_radius` | Understanding blast radius of a change |
+| `get_affected_flows` | Finding which execution paths are impacted |
+| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
+| `semantic_search_nodes` | Finding functions/classes by name or keyword |
+| `get_architecture_overview` | Understanding high-level codebase structure |
+| `refactor_tool` | Planning renames, finding dead code |
+
+### Workflow
+
+1. The graph auto-updates on file changes (via hooks).
+2. Use `detect_changes` for code review.
+3. Use `get_affected_flows` to understand impact.
+4. Use `query_graph` pattern="tests_for" to check coverage.

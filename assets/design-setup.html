@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Setup Screen Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@300;400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fd:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+    --fb:'Figtree',system-ui,sans-serif;
+    --fm:'Barlow',system-ui,sans-serif;
+    --bg0:oklch(0.12 0.014 250);--bg1:oklch(0.155 0.016 250);--bg2:oklch(0.19 0.018 250);
+    --bg3:oklch(0.23 0.016 250);
+    --b1:oklch(0.24 0.013 250);--b2:oklch(0.30 0.014 250);
+    --t1:oklch(0.93 0.006 250);--t2:oklch(0.60 0.012 250);--t3:oklch(0.40 0.01 250);
+    --am:oklch(0.78 0.155 75);--amd:oklch(0.55 0.09 75);--amb:oklch(0.19 0.035 75);
+    --bl:oklch(0.68 0.12 235);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--fb);background:#060608;color:#ccc;min-height:100vh;-webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;align-items:center;gap:48px;padding:40px 20px}
+
+  .label{font:600 11px var(--fd);color:var(--t3);letter-spacing:2px;text-transform:uppercase;text-align:center;margin-bottom:6px}
+  .desc{font:400 11px var(--fb);color:oklch(0.35 0.008 250);text-align:center;margin-bottom:20px;line-height:1.5;max-width:500px}
+
+  .win{width:800px;height:520px;background:var(--bg0);border-radius:10px;overflow:hidden;position:relative;
+    box-shadow:0 1px 0 var(--b1),0 20px 40px -8px rgba(0,0,0,0.5)}
+  .tbar{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;position:absolute;top:0;left:0;right:0;z-index:10}
+  .tbar-id{font:600 11px var(--fd);color:oklch(0.25 0.01 250);letter-spacing:0.5px;text-transform:uppercase}
+  .tbar-id span{font-weight:400;text-transform:none;letter-spacing:0}
+  .tc{display:flex;gap:2px}
+  .tb{width:26px;height:26px;border-radius:5px;background:transparent;border:none;color:var(--t3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+  input[type="password"]{outline:none}
+  input[type="password"]::placeholder{color:var(--t3)}
+
+
+  /* ====== A: Full video bg, centered form ====== */
+  .va .video-bg{position:absolute;inset:0;z-index:0}
+  .va .video-bg video{width:100%;height:100%;object-fit:cover;filter:brightness(0.3) saturate(1.2)}
+  .va .overlay{position:absolute;inset:0;z-index:1;
+    background:radial-gradient(ellipse at 50% 40%,transparent 20%,oklch(0.12 0.014 250/0.6) 70%),
+    linear-gradient(to bottom,oklch(0.12 0.014 250/0.4),oklch(0.12 0.014 250/0.85) 100%)}
+
+  .va .form-area{
+    position:relative;z-index:5;
+    height:100%;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    padding:0 40px;
+  }
+  .va .logo{font:700 28px var(--fd);color:var(--t1);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px}
+  .va .tagline{font:400 13px var(--fb);color:var(--t3);margin-bottom:40px}
+  .va .input-wrap{width:100%;max-width:360px;position:relative}
+  .va .input-label{font:600 10px var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+  .va input{
+    width:100%;padding:12px 16px;
+    background:oklch(0.12 0.014 250/0.6);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    border:1px solid var(--b1);border-radius:6px;
+    color:var(--t1);font:400 14px var(--fb);
+    transition:border-color 0.15s;
+  }
+  .va input:focus{border-color:var(--am)}
+  .va .hint{font:400 11px var(--fb);color:var(--t3);margin-top:12px;text-align:center}
+
+
+  /* ====== B: Split — video left, form right ====== */
+  .vb .layout{display:flex;height:100%}
+  .vb .left{width:340px;flex-shrink:0;position:relative;overflow:hidden}
+  .vb .left video{width:100%;height:100%;object-fit:cover;filter:brightness(0.35) saturate(1.3)}
+  .vb .left-overlay{position:absolute;inset:0;background:linear-gradient(to right,transparent 50%,var(--bg0) 100%)}
+  .vb .left-content{
+    position:absolute;bottom:0;left:0;right:0;z-index:5;
+    padding:32px 28px;
+    background:linear-gradient(to top,oklch(0.12 0.014 250/0.9),transparent);
+  }
+  .vb .left-brand{font:700 24px var(--fd);color:var(--t1);letter-spacing:1.5px;text-transform:uppercase;line-height:1;margin-bottom:8px}
+  .vb .left-desc{font:400 12px var(--fb);color:var(--t3);line-height:1.6}
+
+  .vb .right{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 48px;border-left:1px solid var(--b1)}
+  .vb .r-title{font:700 18px var(--fd);color:var(--t1);letter-spacing:0.5px;margin-bottom:4px}
+  .vb .r-desc{font:400 12px var(--fb);color:var(--t3);margin-bottom:32px;line-height:1.6}
+  .vb .r-label{font:600 10px var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+  .vb input{
+    width:100%;padding:10px 14px;
+    background:var(--bg2);border:1px solid var(--b1);border-radius:5px;
+    color:var(--t1);font:400 14px var(--fb);
+    transition:border-color 0.15s;
+  }
+  .vb input:focus{border-color:var(--am)}
+  .vb .r-hint{font:400 11px var(--fb);color:var(--t3);margin-top:10px}
+
+
+  /* ====== C: Minimal, no video — just typography ====== */
+  .vc .form-area{
+    height:100%;display:flex;flex-direction:column;
+    padding:0 0 0 64px;justify-content:center;
+  }
+  .vc .brand-large{font:300 42px var(--fd);color:var(--t1);letter-spacing:3px;text-transform:uppercase;line-height:1;margin-bottom:4px}
+  .vc .brand-sub{font:600 14px var(--fd);color:var(--amd);letter-spacing:4px;text-transform:uppercase;margin-bottom:48px}
+  .vc .input-group{max-width:320px}
+  .vc .c-label{font:600 10px var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+  .vc input{
+    width:100%;padding:10px 14px;
+    background:var(--bg1);border:1px solid var(--b1);border-radius:5px;
+    color:var(--t1);font:400 14px var(--fb);
+    transition:border-color 0.15s;
+  }
+  .vc input:focus{border-color:var(--am)}
+  .vc .c-hint{font:400 11px var(--fb);color:var(--t3);margin-top:10px}
+  .vc .corner-ver{position:absolute;bottom:16px;right:20px;font:400 10px var(--fm);color:var(--t3)}
+
+
+  /* ====== D: Video top strip + form below ====== */
+  .vd .video-strip{height:200px;position:relative;overflow:hidden}
+  .vd .video-strip video{width:100%;height:300px;object-fit:cover;margin-top:-50px;filter:brightness(0.35) saturate(1.2)}
+  .vd .strip-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,oklch(0.12 0.014 250/0.2),oklch(0.12 0.014 250/0.95) 90%)}
+  .vd .strip-content{
+    position:absolute;inset:0;z-index:5;
+    display:flex;flex-direction:column;justify-content:flex-end;
+    padding:0 48px 24px;
+  }
+  .vd .strip-brand{font:700 26px var(--fd);color:var(--t1);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px}
+  .vd .strip-desc{font:400 13px var(--fb);color:var(--t3);line-height:1.5}
+
+  .vd .form-area{
+    flex:1;display:flex;flex-direction:column;justify-content:center;
+    padding:0 48px;max-width:420px;
+  }
+  .vd .d-label{font:600 10px var(--fd);color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px}
+  .vd input{
+    width:100%;padding:10px 14px;
+    background:var(--bg2);border:1px solid var(--b1);border-radius:5px;
+    color:var(--t1);font:400 14px var(--fb);
+    transition:border-color 0.15s;
+  }
+  .vd input:focus{border-color:var(--am)}
+  .vd .d-hint{font:400 11px var(--fb);color:var(--t3);margin-top:10px}
+</style>
+</head>
+<body>
+
+<!-- A: Full video background -->
+<div class="label">A &mdash; Full Video</div>
+<div class="desc">Земля вращается на фоне. Форма по центру поверх. Первое впечатление — кинематографичное.</div>
+<div class="win va">
+  <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="video-bg"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video></div>
+  <div class="overlay"></div>
+  <div class="form-area">
+    <div class="logo">Proxyness</div>
+    <div class="tagline">Secure proxy for apps and browsers</div>
+    <div class="input-wrap">
+      <div class="input-label">Access Key</div>
+      <input type="password" placeholder="Paste your access key" />
+      <div class="hint">Paste the key you received — connection starts automatically</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- B: Split layout -->
+<div class="label">B &mdash; Split</div>
+<div class="desc">Видео слева как визуальный якорь, форма справа. Брендинг на фоне видео, форма на чистом фоне.</div>
+<div class="win vb">
+  <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="layout">
+    <div class="left">
+      <video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video>
+      <div class="left-overlay"></div>
+      <div class="left-content">
+        <div class="left-brand">Proxyness</div>
+        <div class="left-desc">System-level proxy<br>for apps and browsers</div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="r-title">Welcome</div>
+      <div class="r-desc">Enter the access key to connect this device to the proxy server.</div>
+      <div class="r-label">Access Key</div>
+      <input type="password" placeholder="Paste your access key" />
+      <div class="r-hint">Paste the key — connection starts automatically</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- C: Minimal typography -->
+<div class="label">C &mdash; Minimal</div>
+<div class="desc">Без видео. Крупная типографика, левое выравнивание. Серьёзный, сдержанный, как приборная панель.</div>
+<div class="win vc">
+  <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="form-area">
+    <div class="brand-large">Proxyness</div>
+    <div class="brand-sub">Secure Connection</div>
+    <div class="input-group">
+      <div class="c-label">Access Key</div>
+      <input type="password" placeholder="Paste your access key" />
+      <div class="c-hint">Paste the key — connection starts automatically</div>
+    </div>
+  </div>
+  <div class="corner-ver">v1.31.0</div>
+</div>
+
+
+<!-- D: Video top strip -->
+<div class="label">D &mdash; Video Strip</div>
+<div class="desc">Видео-полоса сверху (как в основном UI), брендинг поверх. Форма ниже — знакомый паттерн для тех кто уже видел главный экран.</div>
+<div class="win vd">
+  <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="video-strip">
+    <video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video>
+    <div class="strip-overlay"></div>
+    <div class="strip-content">
+      <div class="strip-brand">Proxyness</div>
+      <div class="strip-desc">Secure system-level proxy for apps and browsers</div>
+    </div>
+  </div>
+  <div class="form-area">
+    <div class="d-label">Access Key</div>
+    <input type="password" placeholder="Paste your access key" />
+    <div class="d-hint">Paste the key you received — connection starts automatically</div>
+  </div>
+</div>
+
+</body>
+</html>

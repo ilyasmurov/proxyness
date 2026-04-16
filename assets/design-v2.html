@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Design v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --text-xs: 0.6875rem;
+    --text-sm: 0.8125rem;
+    --text-base: 0.9375rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.375rem;
+    --text-2xl: 1.75rem;
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+    --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+    --dur-fast: 120ms;
+    --fd: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+    --fb: 'Figtree', system-ui, sans-serif;
+    --fm: 'Barlow', system-ui, sans-serif;
+
+    /* Dark palette */
+    --bg-0: oklch(0.12 0.014 250);
+    --bg-1: oklch(0.155 0.016 250);
+    --bg-2: oklch(0.19 0.018 250);
+    --bg-3: oklch(0.23 0.016 250);
+    --bg-hover: oklch(0.26 0.015 250);
+    --brd-1: oklch(0.24 0.013 250);
+    --brd-2: oklch(0.30 0.014 250);
+    --t1: oklch(0.93 0.006 250);
+    --t2: oklch(0.60 0.012 250);
+    --t3: oklch(0.40 0.01 250);
+    --amber: oklch(0.78 0.155 75);
+    --amber-dim: oklch(0.55 0.09 75);
+    --amber-bg: oklch(0.19 0.035 75);
+    --blue: oklch(0.68 0.12 235);
+    --blue-dim: oklch(0.48 0.07 235);
+    --blue-bg: oklch(0.18 0.028 235);
+    --red: oklch(0.62 0.19 25);
+    --red-bg: oklch(0.17 0.03 25);
+    --green: oklch(0.72 0.15 150);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--fb); background: #080808; color: #ccc; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+  /* Page chrome */
+  .tabs {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; justify-content: center; gap: var(--sp-1);
+    padding: var(--sp-3) var(--sp-5);
+    background: rgba(8,8,8,0.94); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .tabs button {
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid rgba(255,255,255,0.07); border-radius: 5px;
+    background: transparent; color: #555;
+    font: 500 var(--text-sm) var(--fb); cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .tabs button:hover { color: #999; border-color: rgba(255,255,255,0.12); }
+  .tabs button.on { background: rgba(255,255,255,0.06); color: #ddd; }
+  .vs { display: none; padding: 28px 0 60px; }
+  .vs.on { display: block; }
+  .lbl { text-align: center; font: 600 var(--text-xs) var(--fd); color: #383838; letter-spacing: 2px; text-transform: uppercase; padding-bottom: 6px; }
+  .note { text-align: center; max-width: 520px; margin: 0 auto 28px; font-size: var(--text-sm); color: #484848; line-height: 1.6; }
+  .fr { display: flex; justify-content: center; padding: 0 20px 44px; }
+
+  /* Window */
+  .win {
+    width: 840px; height: 580px; background: var(--bg-0);
+    border-radius: 10px; overflow: hidden; position: relative;
+    box-shadow: 0 1px 0 var(--brd-1), 0 20px 40px -8px rgba(0,0,0,0.5);
+  }
+  .tbar {
+    height: 36px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 var(--sp-3); background: var(--bg-1); border-bottom: 1px solid var(--brd-1);
+  }
+  .tbar-id { font: 600 var(--text-xs) var(--fd); color: var(--t3); letter-spacing: 0.5px; text-transform: uppercase; }
+  .tbar-id span { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .tbar-ctrls { display: flex; gap: 2px; }
+  .tb {
+    width: 26px; height: 26px; border-radius: 5px; background: transparent;
+    border: none; color: var(--t3); font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .tb:hover { background: var(--bg-hover); color: var(--t1); }
+
+  /* App icon */
+  .ai { border-radius: 6px; display: flex; align-items: center; justify-content: center; font: 700 var(--text-xs) var(--fd); color: #fff; flex-shrink: 0; }
+  .ic-tg{background:#2AABEE}.ic-dc{background:#5865F2}.ic-cl{background:#D97757}.ic-cu{background:#00B4D8}
+  .ic-sl{background:#611f69}.ic-yt{background:#FF0000}.ic-ig{background:#C13584}.ic-x{background:oklch(0.35 0 0)}
+
+  /* Toggle */
+  .tog { width: 32px; height: 18px; border-radius: 9px; background: var(--bg-3); position: relative; cursor: pointer; transition: background var(--dur-fast); flex-shrink: 0; }
+  .tog.on { background: var(--blue); }
+  .tog .k { width: 14px; height: 14px; border-radius: 50%; background: var(--t1); position: absolute; top: 2px; left: 2px; transition: transform var(--dur-fast); box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+  .tog.on .k { transform: translateX(14px); }
+
+
+  /* =======================================================
+     VARIANT 1 — "Instrument"
+     Two-panel: narrow left status strip + wide right content
+     ======================================================= */
+  .v1 .body { height: calc(100% - 36px); display: flex; }
+
+  /* Left strip — always visible status */
+  .v1 .strip {
+    width: 200px; flex-shrink: 0;
+    background: var(--bg-1);
+    border-right: 1px solid var(--brd-1);
+    display: flex; flex-direction: column;
+    padding: var(--sp-5) var(--sp-4);
+  }
+  .v1 .strip-brand {
+    font: 700 var(--text-lg) var(--fd);
+    color: var(--t1); letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: var(--sp-7);
+    line-height: 1.1;
+  }
+  .v1 .strip-brand small {
+    display: block; font: 400 var(--text-xs) var(--fb);
+    color: var(--t3); text-transform: none;
+    letter-spacing: 0; margin-top: 2px;
+  }
+
+  .v1 .gauge { margin-bottom: var(--sp-5); }
+  .v1 .gauge-label {
+    font: 500 var(--text-xs) var(--fd);
+    color: var(--t3); letter-spacing: 1.5px;
+    text-transform: uppercase; margin-bottom: 3px;
+  }
+  .v1 .gauge-value {
+    font: 600 var(--text-base) var(--fm);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .v1 .gauge-value.connected { color: var(--amber); }
+  .v1 .gauge-value.dl { color: var(--green); }
+  .v1 .gauge-value.ul { color: var(--blue); }
+  .v1 .gauge-value.neutral { color: var(--t2); }
+  .v1 .gauge-value.off { color: var(--t3); }
+
+  .v1 .strip-btn {
+    margin-top: auto;
+    font: 600 var(--text-sm) var(--fd);
+    letter-spacing: 0.5px;
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: 5px; cursor: pointer;
+    text-align: center; transition: all var(--dur-fast) var(--ease-out);
+  }
+  .v1 .strip-btn.disc {
+    background: var(--red-bg); border: 1px solid oklch(from var(--red) l c h / 0.18);
+    color: var(--red);
+  }
+  .v1 .strip-btn.conn {
+    background: var(--amber-bg); border: 1px solid oklch(from var(--amber) l c h / 0.2);
+    color: var(--amber);
+  }
+
+  /* Right panel */
+  .v1 .panel {
+    flex: 1; display: flex; flex-direction: column;
+    padding: var(--sp-4) var(--sp-5);
+    overflow: hidden;
+  }
+
+  /* Mode selector — horizontal row */
+  .v1 .modes {
+    display: flex; gap: var(--sp-1); margin-bottom: var(--sp-4);
+    padding-bottom: var(--sp-4);
+    border-bottom: 1px solid var(--brd-1);
+  }
+  .v1 .mo {
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: 5px; cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+    background: transparent;
+  }
+  .v1 .mo:hover { background: var(--bg-2); }
+  .v1 .mo.on { background: var(--bg-2); }
+  .v1 .mo-name { font: 600 var(--text-sm) var(--fd); color: var(--t2); letter-spacing: 0.3px; }
+  .v1 .mo.on .mo-name { color: var(--t1); }
+  .v1 .mo-desc { font: 400 var(--text-xs) var(--fb); color: var(--t3); margin-top: 1px; }
+
+  /* Content — scrollable */
+  .v1 .cont { flex: 1; overflow-y: auto; min-height: 0; }
+  .v1 .cont::-webkit-scrollbar { width: 3px; }
+  .v1 .cont::-webkit-scrollbar-thumb { background: var(--brd-1); border-radius: 2px; }
+
+  /* Section header */
+  .sec-hdr {
+    font: 600 var(--text-xs) var(--fd);
+    color: var(--t3); letter-spacing: 1.5px;
+    text-transform: uppercase; margin-bottom: var(--sp-3);
+  }
+  .sec-hdr:not(:first-child) { margin-top: var(--sp-5); }
+
+  /* Apps grid — tiles */
+  .app-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--sp-2);
+  }
+  .app-tile {
+    display: flex; align-items: center; gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--bg-1);
+    border: 1px solid var(--brd-1);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .app-tile:hover { background: var(--bg-2); border-color: var(--brd-2); }
+  .app-tile.on { border-color: oklch(from var(--blue) l c h / 0.3); background: var(--blue-bg); }
+  .app-tile .ai { width: 24px; height: 24px; font-size: 9px; }
+  .app-tile .tn { font: 500 var(--text-sm) var(--fb); color: var(--t1); }
+  .app-tile.off .tn { color: var(--t3); }
+
+  /* Sites list — compact rows */
+  .site-list { display: flex; flex-direction: column; gap: 2px; }
+  .site-row {
+    display: flex; align-items: center; gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-2);
+    border-radius: 5px; cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+  }
+  .site-row:hover { background: var(--bg-2); }
+  .site-domain { font: 400 var(--text-sm) var(--fm); color: var(--t2); flex: 1; font-variant-numeric: tabular-nums; }
+  .site-row.on .site-domain { color: var(--t1); }
+
+  /* Empty */
+  .emp { padding: var(--sp-7) 0; }
+  .emp-title { font: 600 var(--text-base) var(--fd); color: var(--t2); letter-spacing: 0.3px; margin-bottom: var(--sp-1); }
+  .emp-desc { font: 400 var(--text-sm) var(--fb); color: var(--t3); line-height: 1.6; }
+
+
+  /* =======================================================
+     VARIANT 2 — "Horizon"
+     Full-width bands. Status compact at top. Modes as tabs.
+     Apps as icon row. Sites as tag chips.
+     ======================================================= */
+  .v2 .body { height: calc(100% - 36px); display: flex; flex-direction: column; }
+
+  /* Status band */
+  .v2 .status-band {
+    display: flex; align-items: center; gap: var(--sp-4);
+    padding: var(--sp-3) var(--sp-5);
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--brd-1);
+  }
+  .v2 .sb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+  .v2 .sb-label { font: 600 var(--text-sm) var(--fd); color: var(--t1); letter-spacing: 0.3px; }
+  .v2 .sb-server { font: 400 var(--text-xs) var(--fb); color: var(--t3); }
+  .v2 .sb-transport {
+    font: 600 9px var(--fd); color: var(--amber-dim);
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 1px 5px; background: var(--amber-bg); border-radius: 3px;
+  }
+  .v2 .sb-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-4); }
+  .v2 .sb-metric { font: 500 var(--text-xs) var(--fm); font-variant-numeric: tabular-nums; }
+  .v2 .sb-metric.dl { color: var(--green); }
+  .v2 .sb-metric.ul { color: var(--blue); }
+  .v2 .sb-uptime { font: 400 var(--text-xs) var(--fm); color: var(--t3); font-variant-numeric: tabular-nums; }
+  .v2 .sb-btn {
+    font: 600 var(--text-xs) var(--fd); letter-spacing: 0.5px;
+    padding: var(--sp-1) var(--sp-3);
+    background: var(--red-bg); border: 1px solid oklch(from var(--red) l c h / 0.15);
+    border-radius: 4px; color: var(--red); cursor: pointer;
+  }
+
+  /* Mode tabs */
+  .v2 .mode-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--brd-1);
+  }
+  .v2 .mt {
+    padding: var(--sp-3) var(--sp-5);
+    font: 500 var(--text-sm) var(--fd);
+    color: var(--t3); cursor: pointer;
+    letter-spacing: 0.3px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .v2 .mt:hover { color: var(--t2); }
+  .v2 .mt.on { color: var(--amber); border-bottom-color: var(--amber); font-weight: 600; }
+
+  /* Content */
+  .v2 .cont {
+    flex: 1; overflow-y: auto; padding: var(--sp-5);
+  }
+  .v2 .cont::-webkit-scrollbar { width: 3px; }
+  .v2 .cont::-webkit-scrollbar-thumb { background: var(--brd-1); border-radius: 2px; }
+
+  /* Apps as icon tiles in a row */
+  .v2 .app-row {
+    display: flex; gap: var(--sp-3); flex-wrap: wrap;
+  }
+  .v2 .app-block {
+    display: flex; flex-direction: column; align-items: center; gap: var(--sp-1);
+    width: 64px; padding: var(--sp-2) 0;
+    border-radius: 6px; cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+    position: relative;
+  }
+  .v2 .app-block:hover { background: var(--bg-2); }
+  .v2 .app-block .ai { width: 36px; height: 36px; border-radius: 8px; font-size: 12px; }
+  .v2 .app-block .ab-name { font: 500 var(--text-xs) var(--fb); color: var(--t2); text-align: center; line-height: 1.2; }
+  .v2 .app-block.off .ai { opacity: 0.35; }
+  .v2 .app-block.off .ab-name { color: var(--t3); }
+  .v2 .app-block .ab-dot {
+    position: absolute; top: 4px; right: 10px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--blue); opacity: 0;
+  }
+  .v2 .app-block.on .ab-dot { opacity: 1; }
+
+  /* Sites as chips */
+  .v2 .site-chips { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+  .v2 .chip {
+    display: inline-flex; align-items: center; gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-2);
+    border: 1px solid var(--brd-1); border-radius: 16px;
+    font: 400 var(--text-sm) var(--fm); color: var(--t2);
+    cursor: pointer; transition: all var(--dur-fast) var(--ease-out);
+  }
+  .v2 .chip:hover { background: var(--bg-2); border-color: var(--brd-2); }
+  .v2 .chip.on { border-color: oklch(from var(--blue) l c h / 0.3); background: var(--blue-bg); color: var(--t1); }
+  .v2 .chip .cd { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+  .v2 .chip.off .cd { background: var(--t3); }
+
+  .v2 .emp { padding: var(--sp-7) 0 0 0; }
+
+
+  /* =======================================================
+     VARIANT 3 — "Console"
+     Dense. Status + mode in one line. Content uses full space.
+     Apps as horizontal scroll. Sites as compact table.
+     ======================================================= */
+  .v3 .body { height: calc(100% - 36px); display: flex; flex-direction: column; }
+
+  /* Combined header — status + mode in one dense bar */
+  .v3 .header {
+    display: flex; align-items: center; gap: var(--sp-4);
+    padding: var(--sp-3) var(--sp-5);
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--brd-1);
+  }
+  .v3 .h-status {
+    display: flex; align-items: center; gap: var(--sp-2);
+  }
+  .v3 .h-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+  .v3 .h-label { font: 600 var(--text-sm) var(--fd); color: var(--t1); }
+  .v3 .h-server { font: 400 var(--text-xs) var(--fb); color: var(--t3); }
+  .v3 .h-sep { width: 1px; height: 16px; background: var(--brd-1); }
+
+  .v3 .h-modes { display: flex; gap: 2px; padding: 2px; background: var(--bg-0); border-radius: 5px; }
+  .v3 .hm {
+    padding: 3px var(--sp-3); border-radius: 4px;
+    font: 500 var(--text-xs) var(--fd); color: var(--t3);
+    cursor: pointer; transition: all var(--dur-fast); letter-spacing: 0.3px;
+  }
+  .v3 .hm:hover { color: var(--t2); }
+  .v3 .hm.on { background: var(--bg-2); color: var(--t1); }
+
+  .v3 .h-right { margin-left: auto; display: flex; align-items: center; gap: var(--sp-3); }
+  .v3 .h-metric { font: 500 var(--text-xs) var(--fm); font-variant-numeric: tabular-nums; }
+  .v3 .h-metric.dl { color: var(--green); }
+  .v3 .h-metric.ul { color: var(--blue); }
+  .v3 .h-time { font: 400 var(--text-xs) var(--fm); color: var(--t3); font-variant-numeric: tabular-nums; }
+  .v3 .h-btn {
+    font: 600 var(--text-xs) var(--fd);
+    padding: 3px var(--sp-3);
+    background: var(--red-bg); border: 1px solid oklch(from var(--red) l c h / 0.15);
+    border-radius: 4px; color: var(--red); cursor: pointer; letter-spacing: 0.3px;
+  }
+
+  /* Content full area */
+  .v3 .cont {
+    flex: 1; overflow-y: auto;
+    padding: var(--sp-5);
+  }
+  .v3 .cont::-webkit-scrollbar { width: 3px; }
+  .v3 .cont::-webkit-scrollbar-thumb { background: var(--brd-1); border-radius: 2px; }
+
+  /* Apps — horizontal scroll strip */
+  .v3 .app-strip {
+    display: flex; gap: var(--sp-2);
+    overflow-x: auto; padding-bottom: var(--sp-2);
+  }
+  .v3 .app-strip::-webkit-scrollbar { height: 2px; }
+  .v3 .app-strip::-webkit-scrollbar-thumb { background: var(--brd-1); border-radius: 1px; }
+
+  .v3 .app-pill {
+    display: flex; align-items: center; gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+    background: var(--bg-1); border: 1px solid var(--brd-1);
+    border-radius: 6px; cursor: pointer; flex-shrink: 0;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .v3 .app-pill:hover { background: var(--bg-2); }
+  .v3 .app-pill.on { border-color: oklch(from var(--blue) l c h / 0.25); background: var(--blue-bg); }
+  .v3 .app-pill.off { opacity: 0.45; }
+  .v3 .app-pill .ai { width: 22px; height: 22px; font-size: 8px; border-radius: 5px; }
+  .v3 .app-pill .pn { font: 500 var(--text-sm) var(--fb); color: var(--t1); white-space: nowrap; }
+  .v3 .app-pill.off .pn { color: var(--t3); }
+
+  /* Sites — table-like dense rows */
+  .v3 .site-table { display: flex; flex-direction: column; }
+  .v3 .site-tr {
+    display: flex; align-items: center;
+    padding: var(--sp-2) var(--sp-1);
+    border-bottom: 1px solid oklch(from var(--brd-1) l c h / 0.4);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+  }
+  .v3 .site-tr:hover { background: var(--bg-2); }
+  .v3 .site-tr:last-child { border-bottom: none; }
+  .v3 .st-domain { font: 400 var(--text-sm) var(--fm); color: var(--t2); flex: 1; }
+  .v3 .site-tr.on .st-domain { color: var(--t1); }
+  .v3 .st-status {
+    font: 600 9px var(--fd); letter-spacing: 1px; text-transform: uppercase;
+    padding: 1px 6px; border-radius: 3px;
+    margin-right: var(--sp-3);
+  }
+  .v3 .st-status.proxy { color: var(--blue); background: var(--blue-bg); }
+  .v3 .st-status.direct { color: var(--t3); background: var(--bg-2); }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <button class="on" onclick="sw('v1s')">1: Instrument — Selected</button>
+  <button onclick="sw('v1a')">1: All Traffic</button>
+  <button onclick="sw('v2s')">2: Horizon — Selected</button>
+  <button onclick="sw('v2a')">2: All Traffic</button>
+  <button onclick="sw('v3s')">3: Console — Selected</button>
+  <button onclick="sw('v3a')">3: All Traffic</button>
+</div>
+
+
+<!-- ====== V1: INSTRUMENT — Selected ====== -->
+<div class="vs v1 on" id="v1s">
+  <div class="lbl">1: Instrument &mdash; Selected</div>
+  <div class="note">Приборная панель слева, контент справа. Приложения плитками, сайты списком.</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tbar-ctrls"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="strip">
+        <div class="strip-brand">Proxyness<small>v1.31.0</small></div>
+        <div class="gauge"><div class="gauge-label">Status</div><div class="gauge-value connected">Connected</div></div>
+        <div class="gauge"><div class="gauge-label">Server</div><div class="gauge-value neutral">95.181.162.242</div></div>
+        <div class="gauge"><div class="gauge-label">Transport</div><div class="gauge-value connected">UDP</div></div>
+        <div class="gauge"><div class="gauge-label">Uptime</div><div class="gauge-value neutral">02:14:37</div></div>
+        <div class="gauge"><div class="gauge-label">Down</div><div class="gauge-value dl">&#8595; 2.4 KB/s</div></div>
+        <div class="gauge"><div class="gauge-label">Up</div><div class="gauge-value ul">&#8593; 559 B/s</div></div>
+        <div class="strip-btn disc">Disconnect</div>
+      </div>
+      <div class="panel">
+        <div class="modes">
+          <div class="mo"><div class="mo-name">All traffic</div><div class="mo-desc">Everything proxied</div></div>
+          <div class="mo on"><div class="mo-name">Selected</div><div class="mo-desc">Pick apps &amp; sites</div></div>
+          <div class="mo"><div class="mo-name">Browsers</div><div class="mo-desc">SOCKS5 only</div></div>
+        </div>
+        <div class="cont">
+          <div class="sec-hdr">Applications</div>
+          <div class="app-tiles">
+            <div class="app-tile on"><div class="ai ic-tg">T</div><div class="tn">Telegram</div></div>
+            <div class="app-tile on"><div class="ai ic-dc">D</div><div class="tn">Discord</div></div>
+            <div class="app-tile on"><div class="ai ic-cl">C</div><div class="tn">Claude</div></div>
+            <div class="app-tile on"><div class="ai ic-cu">Cu</div><div class="tn">Cursor</div></div>
+            <div class="app-tile off"><div class="ai ic-sl">S</div><div class="tn">Slack</div></div>
+            <div class="app-tile off"><div class="ai ic-yt">Y</div><div class="tn">YouTube</div></div>
+          </div>
+          <div class="sec-hdr">Sites</div>
+          <div class="site-list">
+            <div class="site-row on"><div class="site-domain">claude.ai</div><div class="tog on"><div class="k"></div></div></div>
+            <div class="site-row on"><div class="site-domain">chat.openai.com</div><div class="tog on"><div class="k"></div></div></div>
+            <div class="site-row on"><div class="site-domain">github.com</div><div class="tog on"><div class="k"></div></div></div>
+            <div class="site-row"><div class="site-domain">youtube.com</div><div class="tog"><div class="k"></div></div></div>
+            <div class="site-row"><div class="site-domain">instagram.com</div><div class="tog"><div class="k"></div></div></div>
+            <div class="site-row"><div class="site-domain">x.com</div><div class="tog"><div class="k"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- V1: All Traffic -->
+<div class="vs v1" id="v1a">
+  <div class="lbl">1: Instrument &mdash; All Traffic</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tbar-ctrls"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="strip">
+        <div class="strip-brand">Proxyness<small>v1.31.0</small></div>
+        <div class="gauge"><div class="gauge-label">Status</div><div class="gauge-value connected">Connected</div></div>
+        <div class="gauge"><div class="gauge-label">Server</div><div class="gauge-value neutral">95.181.162.242</div></div>
+        <div class="gauge"><div class="gauge-label">Transport</div><div class="gauge-value connected">UDP</div></div>
+        <div class="gauge"><div class="gauge-label">Uptime</div><div class="gauge-value neutral">02:14:37</div></div>
+        <div class="gauge"><div class="gauge-label">Down</div><div class="gauge-value dl">&#8595; 12.8 KB/s</div></div>
+        <div class="gauge"><div class="gauge-label">Up</div><div class="gauge-value ul">&#8593; 1.2 KB/s</div></div>
+        <div class="strip-btn disc">Disconnect</div>
+      </div>
+      <div class="panel">
+        <div class="modes">
+          <div class="mo on"><div class="mo-name">All traffic</div><div class="mo-desc">Everything proxied</div></div>
+          <div class="mo"><div class="mo-name">Selected</div><div class="mo-desc">Pick apps &amp; sites</div></div>
+          <div class="mo"><div class="mo-name">Browsers</div><div class="mo-desc">SOCKS5 only</div></div>
+        </div>
+        <div class="cont">
+          <div class="emp">
+            <div class="emp-title">All system traffic routed through proxy</div>
+            <div class="emp-desc">Every connection goes through the server.<br>Switch to Selected to choose specific apps and sites.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+
+<!-- ====== V2: HORIZON — Selected ====== -->
+<div class="vs v2" id="v2s">
+  <div class="lbl">2: Horizon &mdash; Selected</div>
+  <div class="note">Компактный статус сверху. Приложения как иконки с точкой. Сайты как чипсы/теги.</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tbar-ctrls"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="status-band">
+        <div class="sb-dot"></div>
+        <div class="sb-label">Connected</div>
+        <div class="sb-server">95.181.162.242</div>
+        <div class="sb-transport">UDP</div>
+        <div class="sb-right">
+          <div class="sb-metric dl">&#8595; 2.4 KB/s</div>
+          <div class="sb-metric ul">&#8593; 559 B/s</div>
+          <div class="sb-uptime">02:14:37</div>
+          <button class="sb-btn">Disconnect</button>
+        </div>
+      </div>
+      <div class="mode-tabs">
+        <div class="mt">All traffic</div>
+        <div class="mt on">Selected</div>
+        <div class="mt">Browsers</div>
+      </div>
+      <div class="cont">
+        <div class="sec-hdr">Applications</div>
+        <div class="app-row">
+          <div class="app-block on"><div class="ab-dot"></div><div class="ai ic-tg">T</div><div class="ab-name">Telegram</div></div>
+          <div class="app-block on"><div class="ab-dot"></div><div class="ai ic-dc">D</div><div class="ab-name">Discord</div></div>
+          <div class="app-block on"><div class="ab-dot"></div><div class="ai ic-cl">C</div><div class="ab-name">Claude</div></div>
+          <div class="app-block on"><div class="ab-dot"></div><div class="ai ic-cu">Cu</div><div class="ab-name">Cursor</div></div>
+          <div class="app-block off"><div class="ab-dot"></div><div class="ai ic-sl">S</div><div class="ab-name">Slack</div></div>
+          <div class="app-block off"><div class="ab-dot"></div><div class="ai ic-yt">Y</div><div class="ab-name">YouTube</div></div>
+          <div class="app-block off"><div class="ab-dot"></div><div class="ai ic-ig">I</div><div class="ab-name">Instagram</div></div>
+        </div>
+
+        <div class="sec-hdr">Sites</div>
+        <div class="site-chips">
+          <div class="chip on"><div class="cd"></div>claude.ai</div>
+          <div class="chip on"><div class="cd"></div>chat.openai.com</div>
+          <div class="chip on"><div class="cd"></div>github.com</div>
+          <div class="chip on"><div class="cd"></div>anthropic.com</div>
+          <div class="chip off"><div class="cd"></div>youtube.com</div>
+          <div class="chip off"><div class="cd"></div>instagram.com</div>
+          <div class="chip off"><div class="cd"></div>x.com</div>
+          <div class="chip off"><div class="cd"></div>reddit.com</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- V2: All Traffic -->
+<div class="vs v2" id="v2a">
+  <div class="lbl">2: Horizon &mdash; All Traffic</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tbar-ctrls"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="status-band">
+        <div class="sb-dot"></div>
+        <div class="sb-label">Connected</div>
+        <div class="sb-server">95.181.162.242</div>
+        <div class="sb-transport">UDP</div>
+        <div class="sb-right">
+          <div class="sb-metric dl">&#8595; 12.8 KB/s</div>
+          <div class="sb-metric ul">&#8593; 1.2 KB/s</div>
+          <div class="sb-uptime">02:14:37</div>
+          <button class="sb-btn">Disconnect</button>
+        </div>
+      </div>
+      <div class="mode-tabs">
+        <div class="mt on">All traffic</div>
+        <div class="mt">Selected</div>
+        <div class="mt">Browsers</div>
+      </div>
+      <div class="cont">
+        <div class="emp">
+          <div class="emp-title">All system traffic routed through proxy</div>
+          <div class="emp-desc">Every connection goes through the server.<br>Switch to Selected to choose specific apps and sites.</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+
+<!-- ====== V3: CONSOLE — Selected ====== -->
+<div class="vs v3" id="v3s">
+  <div class="lbl">3: Console &mdash; Selected</div>
+  <div class="note">Максимально плотный. Статус + режим в одной строке. Приложения горизонтально, сайты таблицей.</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tbar-ctrls"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="header">
+        <div class="h-status">
+          <div class="h-dot"></div>
+          <div class="h-label">Connected</div>
+          <div class="h-server">95.181.162.242</div>
+        </div>
+        <div class="h-sep"></div>
+        <div class="h-modes">
+          <div class="hm">All</div>
+          <div class="hm on">Selected</div>
+          <div class="hm">Browsers</div>
+        </div>
+        <div class="h-right">
+          <div class="h-metric dl">&#8595; 2.4 KB/s</div>
+          <div class="h-metric ul">&#8593; 559 B/s</div>
+          <div class="h-time">02:14:37</div>
+          <button class="h-btn">Disconnect</button>
+        </div>
+      </div>
+      <div class="cont">
+        <div class="sec-hdr">Applications</div>
+        <div class="app-strip">
+          <div class="app-pill on"><div class="ai ic-tg">T</div><div class="pn">Telegram</div></div>
+          <div class="app-pill on"><div class="ai ic-dc">D</div><div class="pn">Discord</div></div>
+          <div class="app-pill on"><div class="ai ic-cl">C</div><div class="pn">Claude</div></div>
+          <div class="app-pill on"><div class="ai ic-cu">Cu</div><div class="pn">Cursor</div></div>
+          <div class="app-pill off"><div class="ai ic-sl">S</div><div class="pn">Slack</div></div>
+          <div class="app-pill off"><div class="ai ic-yt">Y</div><div class="pn">YouTube</div></div>
+          <div class="app-pill off"><div class="ai ic-ig">I</div><div class="pn">Instagram</div></div>
+        </div>
+
+        <div class="sec-hdr">Sites</div>
+        <div class="site-table">
+          <div class="site-tr on"><div class="st-domain">claude.ai</div><div class="st-status proxy">Proxy</div><div class="tog on"><div class="k"></div></div></div>
+          <div class="site-tr on"><div class="st-domain">chat.openai.com</div><div class="st-status proxy">Proxy</div><div class="tog on"><div class="k"></div></div></div>
+          <div class="site-tr on"><div class="st-domain">github.com</div><div class="st-status proxy">Proxy</div><div class="tog on"><div class="k"></div></div></div>
+          <div class="site-tr on"><div class="st-domain">anthropic.com</div><div class="st-status proxy">Proxy</div><div class="tog on"><div class="k"></div></div></div>
+          <div class="site-tr"><div class="st-domain">youtube.com</div><div class="st-status direct">Direct</div><div class="tog"><div class="k"></div></div></div>
+          <div class="site-tr"><div class="st-domain">instagram.com</div><div class="st-status direct">Direct</div><div class="tog"><div class="k"></div></div></div>
+          <div class="site-tr"><div class="st-domain">x.com</div><div class="st-status direct">Direct</div><div class="tog"><div class="k"></div></div></div>
+          <div class="site-tr"><div class="st-domain">reddit.com</div><div class="st-status direct">Direct</div><div class="tog"><div class="k"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- V3: All Traffic -->
+<div class="vs v3" id="v3a">
+  <div class="lbl">3: Console &mdash; All Traffic</div>
+  <div class="fr"><div class="win">
+    <div class="tbar"><div class="tbar-id">Proxyness <span>v1.31.0</span></div><div class="tbar-ctrls"><button class="tb">&#9881;</button><button class="tb">&minus;</button><button class="tb">&#10005;</button></div></div>
+    <div class="body">
+      <div class="header">
+        <div class="h-status">
+          <div class="h-dot"></div>
+          <div class="h-label">Connected</div>
+          <div class="h-server">95.181.162.242</div>
+        </div>
+        <div class="h-sep"></div>
+        <div class="h-modes">
+          <div class="hm on">All</div>
+          <div class="hm">Selected</div>
+          <div class="hm">Browsers</div>
+        </div>
+        <div class="h-right">
+          <div class="h-metric dl">&#8595; 12.8 KB/s</div>
+          <div class="h-metric ul">&#8593; 1.2 KB/s</div>
+          <div class="h-time">02:14:37</div>
+          <button class="h-btn">Disconnect</button>
+        </div>
+      </div>
+      <div class="cont">
+        <div class="emp">
+          <div class="emp-title">All system traffic routed through proxy</div>
+          <div class="emp-desc">Every connection goes through the server.<br>Switch to Selected to choose specific apps and sites.</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+
+<script>
+function sw(id) {
+  document.querySelectorAll('.vs').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  event.target.classList.add('on');
+}
+</script>
+
+</body>
+</html>

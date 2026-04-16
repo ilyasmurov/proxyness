@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Impeccable Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* =============================================
+     DESIGN TOKENS
+     ============================================= */
+  :root {
+    /* Type scale (fixed rem — app UI, not marketing) */
+    --text-xs: 0.6875rem;    /* 11px */
+    --text-sm: 0.8125rem;    /* 13px */
+    --text-base: 0.9375rem;  /* 15px */
+    --text-lg: 1.125rem;     /* 18px */
+    --text-xl: 1.375rem;     /* 22px */
+
+    /* Spacing (4pt scale) */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-7: 48px;
+
+    /* Timing */
+    --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --dur-fast: 120ms;
+    --dur-med: 250ms;
+
+    /* Fonts */
+    --font-display: 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif;
+    --font-body: 'Figtree', system-ui, sans-serif;
+    --font-data: 'Barlow', system-ui, sans-serif;
+  }
+
+  /* DARK THEME (default) */
+  [data-theme="dark"] {
+    --bg-base: oklch(0.135 0.012 250);
+    --bg-surface: oklch(0.165 0.014 250);
+    --bg-raised: oklch(0.20 0.016 250);
+    --bg-hover: oklch(0.24 0.015 250);
+
+    --border-subtle: oklch(0.24 0.012 250);
+    --border-default: oklch(0.30 0.013 250);
+
+    --text-1: oklch(0.92 0.006 250);
+    --text-2: oklch(0.60 0.01 250);
+    --text-3: oklch(0.42 0.008 250);
+
+    --amber: oklch(0.78 0.155 75);
+    --amber-dim: oklch(0.55 0.09 75);
+    --amber-surface: oklch(0.20 0.03 75);
+
+    --blue: oklch(0.68 0.12 235);
+    --blue-dim: oklch(0.48 0.07 235);
+    --blue-surface: oklch(0.19 0.025 235);
+
+    --red: oklch(0.62 0.19 25);
+    --red-surface: oklch(0.18 0.03 25);
+
+    --green: oklch(0.72 0.15 150);
+  }
+
+  /* LIGHT THEME */
+  [data-theme="light"] {
+    --bg-base: oklch(0.955 0.006 250);
+    --bg-surface: oklch(0.985 0.003 250);
+    --bg-raised: oklch(0.935 0.008 250);
+    --bg-hover: oklch(0.91 0.01 250);
+
+    --border-subtle: oklch(0.88 0.008 250);
+    --border-default: oklch(0.82 0.01 250);
+
+    --text-1: oklch(0.20 0.015 250);
+    --text-2: oklch(0.48 0.012 250);
+    --text-3: oklch(0.65 0.008 250);
+
+    --amber: oklch(0.62 0.17 75);
+    --amber-dim: oklch(0.50 0.12 75);
+    --amber-surface: oklch(0.92 0.04 75);
+
+    --blue: oklch(0.52 0.14 235);
+    --blue-dim: oklch(0.58 0.08 235);
+    --blue-surface: oklch(0.93 0.025 235);
+
+    --red: oklch(0.55 0.2 25);
+    --red-surface: oklch(0.94 0.03 25);
+
+    --green: oklch(0.55 0.16 150);
+  }
+
+  /* =============================================
+     BASE
+     ============================================= */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font-body);
+    background: #0a0a0a;
+    color: #ccc;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Page layout */
+  .page-header {
+    display: flex; justify-content: center; gap: var(--sp-2);
+    padding: var(--sp-4) var(--sp-5);
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,10,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .page-header button {
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px; background: transparent;
+    color: #666; font: 500 var(--text-sm) var(--font-body);
+    cursor: pointer; transition: all var(--dur-fast) var(--ease-out);
+  }
+  .page-header button:hover { color: #aaa; border-color: rgba(255,255,255,0.15); }
+  .page-header button.on { background: rgba(255,255,255,0.07); color: #eee; font-weight: 600; }
+
+  .scene { display: none; padding: 32px 0 64px; }
+  .scene.on { display: block; }
+  .scene-label {
+    text-align: center; padding: 0 20px 6px;
+    font: 500 var(--text-xs) var(--font-display);
+    color: #444; letter-spacing: 2px; text-transform: uppercase;
+  }
+  .scene-note {
+    text-align: center; max-width: 500px; margin: 0 auto var(--sp-6);
+    font-size: var(--text-sm); color: #555; line-height: 1.6;
+  }
+  .frame { display: flex; justify-content: center; padding: 0 20px 48px; }
+
+  /* =============================================
+     WINDOW
+     ============================================= */
+  .win {
+    width: 840px; height: 580px;
+    background: var(--bg-base);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      0 1px 0 0 var(--border-subtle),
+      0 24px 48px -12px rgba(0,0,0,0.5);
+  }
+
+  /* Titlebar */
+  .tbar {
+    height: 36px;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--sp-3);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    user-select: none;
+  }
+  .tbar-id {
+    font: 600 var(--text-xs) var(--font-display);
+    color: var(--text-3);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .tbar-id span { font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .tbar-controls { display: flex; gap: 2px; }
+  .tbar-btn {
+    width: 26px; height: 26px; border-radius: 5px;
+    background: transparent; border: none;
+    color: var(--text-3); font-size: 12px;
+    cursor: pointer; display: flex;
+    align-items: center; justify-content: center;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .tbar-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+
+  /* =============================================
+     MAIN LAYOUT — two zones, no cards
+     ============================================= */
+  .body {
+    height: calc(100% - 36px);
+    display: flex;
+    flex-direction: column;
+    padding: var(--sp-5) var(--sp-6) var(--sp-4);
+  }
+
+  /* STATUS ZONE */
+  .status {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-5);
+    padding-bottom: var(--sp-5);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .status-left { flex: 1; }
+
+  .status-indicator {
+    display: flex; align-items: center; gap: var(--sp-3);
+    margin-bottom: var(--sp-2);
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot.on {
+    background: var(--amber);
+    box-shadow: 0 0 0 3px oklch(from var(--amber) l c h / 0.15);
+  }
+  .status-dot.off {
+    background: var(--text-3);
+  }
+  .status-label {
+    font: 700 var(--text-xl) var(--font-display);
+    color: var(--text-1);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .status-transport {
+    font: 600 var(--text-xs) var(--font-display);
+    color: var(--amber-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    background: var(--amber-surface);
+    border-radius: 3px;
+  }
+
+  .status-server {
+    font: 400 var(--text-sm) var(--font-body);
+    color: var(--text-2);
+    margin-top: var(--sp-1);
+    line-height: 1.5;
+  }
+
+  .status-metrics {
+    display: flex; gap: var(--sp-6);
+    margin-top: var(--sp-4);
+  }
+  .metric { }
+  .metric-value {
+    font: 600 var(--text-base) var(--font-data);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .metric-value.dl { color: var(--green); }
+  .metric-value.ul { color: var(--blue); }
+  .metric-value.time { color: var(--text-2); }
+  .metric-label {
+    font: 500 var(--text-xs) var(--font-display);
+    color: var(--text-3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  .status-right {
+    display: flex; flex-direction: column;
+    align-items: flex-end;
+    gap: var(--sp-3);
+    padding-top: var(--sp-1);
+  }
+
+  .btn-disconnect {
+    font: 600 var(--text-sm) var(--font-display);
+    letter-spacing: 0.5px;
+    padding: var(--sp-2) var(--sp-5);
+    background: var(--red-surface);
+    border: 1px solid oklch(from var(--red) l c h / 0.2);
+    border-radius: 5px;
+    color: var(--red);
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .btn-disconnect:hover { background: oklch(from var(--red) l c h / 0.12); }
+
+  .btn-connect {
+    font: 600 var(--text-sm) var(--font-display);
+    letter-spacing: 0.5px;
+    padding: var(--sp-2) var(--sp-5);
+    background: var(--amber-surface);
+    border: 1px solid oklch(from var(--amber) l c h / 0.2);
+    border-radius: 5px;
+    color: var(--amber);
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .btn-connect:hover { background: oklch(from var(--amber) l c h / 0.12); }
+
+  /* MODE SELECTOR */
+  .modes {
+    display: flex;
+    gap: 0;
+    padding: var(--sp-4) 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .mode-option {
+    flex: 1;
+    padding: var(--sp-3) var(--sp-4);
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+    position: relative;
+    border-radius: 6px;
+  }
+  .mode-option:hover { background: var(--bg-hover); }
+  .mode-option.active { background: var(--bg-raised); }
+
+  .mode-option.active::after {
+    content: "";
+    position: absolute;
+    top: var(--sp-3);
+    left: 0;
+    width: 3px;
+    height: calc(100% - var(--sp-3) * 2);
+    background: var(--amber);
+    border-radius: 0 2px 2px 0;
+  }
+
+  .mode-name {
+    font: 600 var(--text-sm) var(--font-display);
+    color: var(--text-2);
+    letter-spacing: 0.3px;
+    line-height: 1;
+    margin-bottom: 3px;
+  }
+  .mode-option.active .mode-name { color: var(--text-1); }
+
+  .mode-desc {
+    font: 400 var(--text-xs) var(--font-body);
+    color: var(--text-3);
+    line-height: 1.3;
+  }
+
+  /* CONTENT AREA */
+  .content-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-top: var(--sp-4);
+  }
+  .content-area::-webkit-scrollbar { width: 4px; }
+  .content-area::-webkit-scrollbar-track { background: transparent; }
+  .content-area::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 2px;
+  }
+
+  /* Empty state */
+  .empty {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding-left: var(--sp-4);
+  }
+  .empty-text {
+    font: 400 var(--text-sm) var(--font-body);
+    color: var(--text-3);
+    line-height: 1.7;
+  }
+  .empty-text strong {
+    display: block;
+    font: 600 var(--text-base) var(--font-display);
+    color: var(--text-2);
+    letter-spacing: 0.3px;
+    margin-bottom: var(--sp-1);
+  }
+
+  /* APP LIST — flat, no cards */
+  .app-list-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 var(--sp-1) var(--sp-3);
+  }
+  .app-list-title {
+    font: 600 var(--text-xs) var(--font-display);
+    color: var(--text-3);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .app-list-count {
+    font: 400 var(--text-xs) var(--font-body);
+    color: var(--text-3);
+  }
+
+  .app-list { display: flex; flex-direction: column; }
+
+  .app-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-2);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+  }
+  .app-item:hover { background: var(--bg-hover); }
+
+  .app-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font: 700 var(--text-xs) var(--font-display);
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .app-info { flex: 1; min-width: 0; }
+  .app-name {
+    font: 500 var(--text-sm) var(--font-body);
+    color: var(--text-1);
+    line-height: 1.2;
+  }
+  .app-domain {
+    font: 400 var(--text-xs) var(--font-body);
+    color: var(--text-3);
+    line-height: 1.3;
+  }
+
+  /* Toggle */
+  .toggle {
+    width: 36px; height: 20px;
+    border-radius: 10px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border-subtle);
+    position: relative;
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-in-out);
+    flex-shrink: 0;
+  }
+  .toggle.on {
+    background: var(--blue);
+    border-color: oklch(from var(--blue) l c h / 0.3);
+  }
+  .toggle .knob {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--text-1);
+    position: absolute;
+    top: 1px; left: 1px;
+    transition: transform var(--dur-fast) var(--ease-in-out);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .toggle.on .knob { transform: translateX(16px); }
+
+  /* Disconnected state adjustments */
+  .status-label.off { color: var(--text-3); }
+  .status-hint {
+    font: 400 var(--text-sm) var(--font-body);
+    color: var(--text-3);
+    margin-top: var(--sp-1);
+  }
+
+  /* =============================================
+     APP COLORS (brand-accurate)
+     ============================================= */
+  .ic-tg  { background: #2AABEE; }
+  .ic-dc  { background: #5865F2; }
+  .ic-cl  { background: #D97757; }
+  .ic-cu  { background: #00B4D8; }
+  .ic-sl  { background: #611f69; }
+  .ic-yt  { background: #FF0000; }
+  .ic-ig  { background: #C13584; }
+  .ic-x   { background: oklch(0.35 0 0); }
+  .ic-li  { background: #0A66C2; }
+  .ic-fb  { background: #0866FF; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <button class="on" onclick="showScene('dark-sel')">Dark — Selected</button>
+  <button onclick="showScene('dark-all')">Dark — All Traffic</button>
+  <button onclick="showScene('dark-browser')">Dark — Browsers</button>
+  <button onclick="showScene('dark-off')">Dark — Disconnected</button>
+  <button onclick="showScene('light-sel')">Light — Selected</button>
+  <button onclick="showScene('light-all')">Light — All Traffic</button>
+  <button onclick="showScene('light-off')">Light — Disconnected</button>
+</div>
+
+
+<!-- ==========================================
+     DARK — SELECTED MODE
+     ========================================== -->
+<div class="scene on" id="dark-sel">
+  <div class="scene-label">Dark theme &mdash; Selected mode</div>
+  <div class="scene-note">Primary view. User picks which apps and sites go through proxy.</div>
+  <div class="frame">
+    <div class="win" data-theme="dark">
+      <div class="tbar">
+        <div class="tbar-id">Proxyness <span>v1.31.0</span></div>
+        <div class="tbar-controls">
+          <button class="tbar-btn">&#9881;</button>
+          <button class="tbar-btn">&minus;</button>
+          <button class="tbar-btn">&#10005;</button>
+        </div>
+      </div>
+      <div class="body">
+
+        <div class="status">
+          <div class="status-left">
+            <div class="status-indicator">
+              <div class="status-dot on"></div>
+              <div class="status-label">Connected</div>
+              <div class="status-transport">UDP</div>
+            </div>
+            <div class="status-server">95.181.162.242</div>
+            <div class="status-metrics">
+              <div class="metric">
+                <div class="metric-value dl">&#8595; 2.4 KB/s</div>
+                <div class="metric-label">Down</div>
+              </div>
+              <div class="metric">
+                <div class="metric-value ul">&#8593; 559 B/s</div>
+                <div class="metric-label">Up</div>
+              </div>
+              <div class="metric">
+                <div class="metric-value time">02:14:37</div>
+                <div class="metric-label">Uptime</div>
+              </div>
+            </div>
+          </div>
+          <div class="status-right">
+            <button class="btn-disconnect">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="modes">
+          <div class="mode-option">
+            <div class="mode-name">All traffic</div>
+            <div class="mode-desc">Everything through proxy</div>
+          </div>
+          <div class="mode-option active">
+            <div class="mode-name">Selected</div>
+            <div class="mode-desc">Pick apps &amp; sites</div>
+          </div>
+          <div class="mode-option">
+            <div class="mode-name">Browsers</div>
+            <div class="mode-desc">SOCKS5 only</div>
+          </div>
+        </div>
+
+        <div class="content-area">
+          <div class="app-list-header">
+            <div class="app-list-title">Apps &amp; Sites</div>
+            <div class="app-list-count">4 of 8 proxied</div>
+          </div>
+          <div class="app-list">
+            <div class="app-item"><div class="app-icon ic-tg">T</div><div class="app-info"><div class="app-name">Telegram</div><div class="app-domain">telegram.org</div></div><div class="toggle on"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-dc">D</div><div class="app-info"><div class="app-name">Discord</div><div class="app-domain">discord.com</div></div><div class="toggle on"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-cl">C</div><div class="app-info"><div class="app-name">Claude</div><div class="app-domain">claude.ai</div></div><div class="toggle on"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-cu">Cu</div><div class="app-info"><div class="app-name">Cursor</div><div class="app-domain">cursor.com</div></div><div class="toggle on"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-sl">S</div><div class="app-info"><div class="app-name">Slack</div><div class="app-domain">slack.com</div></div><div class="toggle"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-yt">Y</div><div class="app-info"><div class="app-name">YouTube</div><div class="app-domain">youtube.com</div></div><div class="toggle"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-ig">I</div><div class="app-info"><div class="app-name">Instagram</div><div class="app-domain">instagram.com</div></div><div class="toggle"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-x">X</div><div class="app-info"><div class="app-name">X</div><div class="app-domain">x.com</div></div><div class="toggle"><div class="knob"></div></div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- DARK — ALL TRAFFIC -->
+<div class="scene" id="dark-all">
+  <div class="scene-label">Dark theme &mdash; All Traffic</div>
+  <div class="scene-note">Everything proxied. No configuration needed, no list to show.</div>
+  <div class="frame">
+    <div class="win" data-theme="dark">
+      <div class="tbar">
+        <div class="tbar-id">Proxyness <span>v1.31.0</span></div>
+        <div class="tbar-controls"><button class="tbar-btn">&#9881;</button><button class="tbar-btn">&minus;</button><button class="tbar-btn">&#10005;</button></div>
+      </div>
+      <div class="body">
+        <div class="status">
+          <div class="status-left">
+            <div class="status-indicator">
+              <div class="status-dot on"></div>
+              <div class="status-label">Connected</div>
+              <div class="status-transport">UDP</div>
+            </div>
+            <div class="status-server">95.181.162.242</div>
+            <div class="status-metrics">
+              <div class="metric"><div class="metric-value dl">&#8595; 12.8 KB/s</div><div class="metric-label">Down</div></div>
+              <div class="metric"><div class="metric-value ul">&#8593; 1.2 KB/s</div><div class="metric-label">Up</div></div>
+              <div class="metric"><div class="metric-value time">02:14:37</div><div class="metric-label">Uptime</div></div>
+            </div>
+          </div>
+          <div class="status-right"><button class="btn-disconnect">Disconnect</button></div>
+        </div>
+        <div class="modes">
+          <div class="mode-option active"><div class="mode-name">All traffic</div><div class="mode-desc">Everything through proxy</div></div>
+          <div class="mode-option"><div class="mode-name">Selected</div><div class="mode-desc">Pick apps &amp; sites</div></div>
+          <div class="mode-option"><div class="mode-name">Browsers</div><div class="mode-desc">SOCKS5 only</div></div>
+        </div>
+        <div class="content-area">
+          <div class="empty">
+            <div class="empty-text">
+              <strong>All system traffic routed through proxy</strong>
+              Every connection from this device goes through the server.<br>
+              Switch to Selected to choose specific apps.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- DARK — BROWSERS -->
+<div class="scene" id="dark-browser">
+  <div class="scene-label">Dark theme &mdash; Browsers only</div>
+  <div class="scene-note">SOCKS5 for browsers. Apps connect directly.</div>
+  <div class="frame">
+    <div class="win" data-theme="dark">
+      <div class="tbar">
+        <div class="tbar-id">Proxyness <span>v1.31.0</span></div>
+        <div class="tbar-controls"><button class="tbar-btn">&#9881;</button><button class="tbar-btn">&minus;</button><button class="tbar-btn">&#10005;</button></div>
+      </div>
+      <div class="body">
+        <div class="status">
+          <div class="status-left">
+            <div class="status-indicator">
+              <div class="status-dot on"></div>
+              <div class="status-label">Connected</div>
+              <div class="status-transport">SOCKS5</div>
+            </div>
+            <div class="status-server">95.181.162.242</div>
+            <div class="status-metrics">
+              <div class="metric"><div class="metric-value dl">&#8595; 1.2 KB/s</div><div class="metric-label">Down</div></div>
+              <div class="metric"><div class="metric-value ul">&#8593; 340 B/s</div><div class="metric-label">Up</div></div>
+              <div class="metric"><div class="metric-value time">02:14:37</div><div class="metric-label">Uptime</div></div>
+            </div>
+          </div>
+          <div class="status-right"><button class="btn-disconnect">Disconnect</button></div>
+        </div>
+        <div class="modes">
+          <div class="mode-option"><div class="mode-name">All traffic</div><div class="mode-desc">Everything through proxy</div></div>
+          <div class="mode-option"><div class="mode-name">Selected</div><div class="mode-desc">Pick apps &amp; sites</div></div>
+          <div class="mode-option active"><div class="mode-name">Browsers</div><div class="mode-desc">SOCKS5 only</div></div>
+        </div>
+        <div class="content-area">
+          <div class="empty">
+            <div class="empty-text">
+              <strong>Browser traffic only</strong>
+              System SOCKS5 proxy handles browser requests.<br>
+              Applications connect directly — no TUN device, no per-app routing.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- DARK — DISCONNECTED -->
+<div class="scene" id="dark-off">
+  <div class="scene-label">Dark theme &mdash; Disconnected</div>
+  <div class="scene-note">Ready to connect. Mode pre-selected for when connection starts.</div>
+  <div class="frame">
+    <div class="win" data-theme="dark">
+      <div class="tbar">
+        <div class="tbar-id">Proxyness <span>v1.31.0</span></div>
+        <div class="tbar-controls"><button class="tbar-btn">&#9881;</button><button class="tbar-btn">&minus;</button><button class="tbar-btn">&#10005;</button></div>
+      </div>
+      <div class="body">
+        <div class="status">
+          <div class="status-left">
+            <div class="status-indicator">
+              <div class="status-dot off"></div>
+              <div class="status-label off">Disconnected</div>
+            </div>
+            <div class="status-hint">Select a mode and connect</div>
+          </div>
+          <div class="status-right"><button class="btn-connect">Connect</button></div>
+        </div>
+        <div class="modes">
+          <div class="mode-option active"><div class="mode-name">All traffic</div><div class="mode-desc">Everything through proxy</div></div>
+          <div class="mode-option"><div class="mode-name">Selected</div><div class="mode-desc">Pick apps &amp; sites</div></div>
+          <div class="mode-option"><div class="mode-name">Browsers</div><div class="mode-desc">SOCKS5 only</div></div>
+        </div>
+        <div class="content-area"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ==========================================
+     LIGHT THEME
+     ========================================== -->
+
+<!-- LIGHT — SELECTED -->
+<div class="scene" id="light-sel">
+  <div class="scene-label">Light theme &mdash; Selected mode</div>
+  <div class="scene-note">Same layout, light palette. Amber and blue stay recognizable.</div>
+  <div class="frame">
+    <div class="win" data-theme="light" style="box-shadow: 0 1px 0 0 var(--border-subtle), 0 24px 48px -12px rgba(0,0,0,0.12);">
+      <div class="tbar">
+        <div class="tbar-id">Proxyness <span>v1.31.0</span></div>
+        <div class="tbar-controls"><button class="tbar-btn">&#9881;</button><button class="tbar-btn">&minus;</button><button class="tbar-btn">&#10005;</button></div>
+      </div>
+      <div class="body">
+        <div class="status">
+          <div class="status-left">
+            <div class="status-indicator">
+              <div class="status-dot on"></div>
+              <div class="status-label">Connected</div>
+              <div class="status-transport">UDP</div>
+            </div>
+            <div class="status-server">95.181.162.242</div>
+            <div class="status-metrics">
+              <div class="metric"><div class="metric-value dl">&#8595; 2.4 KB/s</div><div class="metric-label">Down</div></div>
+              <div class="metric"><div class="metric-value ul">&#8593; 559 B/s</div><div class="metric-label">Up</div></div>
+              <div class="metric"><div class="metric-value time">02:14:37</div><div class="metric-label">Uptime</div></div>
+            </div>
+          </div>
+          <div class="status-right"><button class="btn-disconnect">Disconnect</button></div>
+        </div>
+        <div class="modes">
+          <div class="mode-option"><div class="mode-name">All traffic</div><div class="mode-desc">Everything through proxy</div></div>
+          <div class="mode-option active"><div class="mode-name">Selected</div><div class="mode-desc">Pick apps &amp; sites</div></div>
+          <div class="mode-option"><div class="mode-name">Browsers</div><div class="mode-desc">SOCKS5 only</div></div>
+        </div>
+        <div class="content-area">
+          <div class="app-list-header">
+            <div class="app-list-title">Apps &amp; Sites</div>
+            <div class="app-list-count">4 of 8 proxied</div>
+          </div>
+          <div class="app-list">
+            <div class="app-item"><div class="app-icon ic-tg">T</div><div class="app-info"><div class="app-name">Telegram</div><div class="app-domain">telegram.org</div></div><div class="toggle on"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-dc">D</div><div class="app-info"><div class="app-name">Discord</div><div class="app-domain">discord.com</div></div><div class="toggle on"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-cl">C</div><div class="app-info"><div class="app-name">Claude</div><div class="app-domain">claude.ai</div></div><div class="toggle on"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-cu">Cu</div><div class="app-info"><div class="app-name">Cursor</div><div class="app-domain">cursor.com</div></div><div class="toggle on"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-sl">S</div><div class="app-info"><div class="app-name">Slack</div><div class="app-domain">slack.com</div></div><div class="toggle"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-yt">Y</div><div class="app-info"><div class="app-name">YouTube</div><div class="app-domain">youtube.com</div></div><div class="toggle"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-ig">I</div><div class="app-info"><div class="app-name">Instagram</div><div class="app-domain">instagram.com</div></div><div class="toggle"><div class="knob"></div></div></div>
+            <div class="app-item"><div class="app-icon ic-x">X</div><div class="app-info"><div class="app-name">X</div><div class="app-domain">x.com</div></div><div class="toggle"><div class="knob"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- LIGHT — ALL TRAFFIC -->
+<div class="scene" id="light-all">
+  <div class="scene-label">Light theme &mdash; All Traffic</div>
+  <div class="frame">
+    <div class="win" data-theme="light" style="box-shadow: 0 1px 0 0 var(--border-subtle), 0 24px 48px -12px rgba(0,0,0,0.12);">
+      <div class="tbar">
+        <div class="tbar-id">Proxyness <span>v1.31.0</span></div>
+        <div class="tbar-controls"><button class="tbar-btn">&#9881;</button><button class="tbar-btn">&minus;</button><button class="tbar-btn">&#10005;</button></div>
+      </div>
+      <div class="body">
+        <div class="status">
+          <div class="status-left">
+            <div class="status-indicator">
+              <div class="status-dot on"></div>
+              <div class="status-label">Connected</div>
+              <div class="status-transport">UDP</div>
+            </div>
+            <div class="status-server">95.181.162.242</div>
+            <div class="status-metrics">
+              <div class="metric"><div class="metric-value dl">&#8595; 12.8 KB/s</div><div class="metric-label">Down</div></div>
+              <div class="metric"><div class="metric-value ul">&#8593; 1.2 KB/s</div><div class="metric-label">Up</div></div>
+              <div class="metric"><div class="metric-value time">02:14:37</div><div class="metric-label">Uptime</div></div>
+            </div>
+          </div>
+          <div class="status-right"><button class="btn-disconnect">Disconnect</button></div>
+        </div>
+        <div class="modes">
+          <div class="mode-option active"><div class="mode-name">All traffic</div><div class="mode-desc">Everything through proxy</div></div>
+          <div class="mode-option"><div class="mode-name">Selected</div><div class="mode-desc">Pick apps &amp; sites</div></div>
+          <div class="mode-option"><div class="mode-name">Browsers</div><div class="mode-desc">SOCKS5 only</div></div>
+        </div>
+        <div class="content-area">
+          <div class="empty">
+            <div class="empty-text">
+              <strong>All system traffic routed through proxy</strong>
+              Every connection from this device goes through the server.<br>
+              Switch to Selected to choose specific apps.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- LIGHT — DISCONNECTED -->
+<div class="scene" id="light-off">
+  <div class="scene-label">Light theme &mdash; Disconnected</div>
+  <div class="frame">
+    <div class="win" data-theme="light" style="box-shadow: 0 1px 0 0 var(--border-subtle), 0 24px 48px -12px rgba(0,0,0,0.12);">
+      <div class="tbar">
+        <div class="tbar-id">Proxyness <span>v1.31.0</span></div>
+        <div class="tbar-controls"><button class="tbar-btn">&#9881;</button><button class="tbar-btn">&minus;</button><button class="tbar-btn">&#10005;</button></div>
+      </div>
+      <div class="body">
+        <div class="status">
+          <div class="status-left">
+            <div class="status-indicator">
+              <div class="status-dot off"></div>
+              <div class="status-label off">Disconnected</div>
+            </div>
+            <div class="status-hint">Select a mode and connect</div>
+          </div>
+          <div class="status-right"><button class="btn-connect">Connect</button></div>
+        </div>
+        <div class="modes">
+          <div class="mode-option active"><div class="mode-name">All traffic</div><div class="mode-desc">Everything through proxy</div></div>
+          <div class="mode-option"><div class="mode-name">Selected</div><div class="mode-desc">Pick apps &amp; sites</div></div>
+          <div class="mode-option"><div class="mode-name">Browsers</div><div class="mode-desc">SOCKS5 only</div></div>
+        </div>
+        <div class="content-area"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+function showScene(id) {
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.page-header button').forEach(b => b.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  event.target.classList.add('on');
+}
+</script>
+
+</body>
+</html>

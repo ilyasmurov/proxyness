@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROXYNESS — Planet Variants</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800;900&family=Urbanist:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:oklch(0.11 0.013 250);--bg2:oklch(0.155 0.015 250);--bg3:oklch(0.22 0.016 250);
+    --t1:oklch(0.94 0.005 250);--t2:oklch(0.55 0.010 250);--t3:oklch(0.36 0.008 250);
+    --am:oklch(0.78 0.16 75);--am-d:oklch(0.62 0.14 75);--am-dim:oklch(0.78 0.16 75 / 0.25);
+    --pl:oklch(0.25 0.022 250);--pl-hi:oklch(0.32 0.018 250);--pl-sh:oklch(0.18 0.020 250);
+    --lt:oklch(0.965 0.004 250);--lt1:oklch(0.14 0.013 250);--lt-am:oklch(0.50 0.14 75);
+    --lp:oklch(0.86 0.010 250);--lp-hi:oklch(0.90 0.008 250);--lp-sh:oklch(0.80 0.012 250);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--t1);font-family:'Outfit',system-ui;-webkit-font-smoothing:antialiased}
+  .p{max-width:1300px;margin:0 auto;padding:48px 36px 120px}
+  .hl{font-family:'Geist Mono',monospace;font-size:10px;font-weight:500;letter-spacing:3px;color:var(--am);margin-bottom:6px}
+  .ht{font-size:26px;font-weight:300;margin-bottom:4px}.ht b{font-weight:800}
+  .hs{font-size:12.5px;color:var(--t2);margin-bottom:48px}
+  .concept{margin-bottom:60px}
+  .ch{display:flex;align-items:baseline;gap:14px;margin-bottom:4px}
+  .cn{font-family:'Geist Mono',monospace;font-size:10px;font-weight:500;color:var(--am-d);letter-spacing:1.5px}
+  .ct{font-size:16px;font-weight:700}
+  .cd{font-size:12px;color:var(--t2);max-width:64ch;line-height:1.7;margin-bottom:22px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .card{background:var(--bg2);border-radius:14px;padding:28px 32px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:190px;position:relative;flex:1;min-width:320px}
+  .card.lt{background:var(--lt)}
+  .tag{position:absolute;top:10px;left:14px;font-family:'Geist Mono',monospace;font-size:8px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3)}
+  .card.lt .tag{color:oklch(0.58 0.008 250)}
+  .wm{display:flex;align-items:center;gap:13px}
+  .wmt{font-family:'Outfit';font-size:22px;font-weight:700;letter-spacing:3px;color:var(--t1)}
+  .card.lt .wmt{color:var(--lt1)}
+  .icons{display:flex;align-items:center;gap:14px}
+  .sz{font-family:'Geist Mono',monospace;font-size:7.5px;color:var(--t3);text-align:center;margin-top:3px}
+  .card.lt .sz{color:oklch(0.58 0.008 250)}
+</style>
+</head>
+<body>
+<div class="p">
+
+<div class="hl">PLANET VARIATIONS</div>
+<div class="ht"><b>PROXYNESS</b> — Planet Icon Explorations</div>
+<div class="hs">8 вариаций планеты. Кольца, орби��ы, щиты, атмосферы.</div>
+
+<!-- ═══════════ 01: SATURN CLASSIC ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">01</span><span class="ct">Saturn Classic</span></div>
+  <div class="cd">Классический Сатурн — сфера с наклонённым кольцом. Кольцо проходит перед и за планетой. Amber-кольцо = прокси-оболочка. Чистая, узнаваемая форма.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
+          <!-- Ring behind -->
+          <ellipse cx="20" cy="19" rx="18" ry="5.5" transform="rotate(-25 20 19)" stroke="var(--am)" stroke-width="2" fill="none" stroke-dasharray="0" style="clip-path:polygon(0 0,100% 0,100% 48%,0 48%)"/>
+          <!-- Planet -->
+          <circle cx="20" cy="18" r="10" fill="var(--pl)"/>
+          <clipPath id="pc1"><circle cx="20" cy="18" r="10"/></clipPath>
+          <circle cx="25" cy="14" r="10" fill="var(--pl-sh)" clip-path="url(#pc1)"/>
+          <circle cx="16" cy="14" r="5" fill="var(--pl-hi)" opacity="0.35"/>
+          <!-- Ring front -->
+          <ellipse cx="20" cy="19" rx="18" ry="5.5" transform="rotate(-25 20 19)" stroke="var(--am)" stroke-width="2.2" fill="none" style="clip-path:polygon(0 52%,100% 52%,100% 100%,0 100%)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <ellipse cx="32" cy="33" rx="28" ry="8" transform="rotate(-25 32 33)" stroke="var(--am-dim)" stroke-width="2.5" fill="none"/>
+          <circle cx="32" cy="30" r="16" fill="var(--pl)"/>
+          <path d="M32 14 A16 16 0 0 1 48 30 A16 16 0 0 1 32 46" fill="var(--pl-sh)"/>
+          <circle cx="26" cy="22" r="6" fill="var(--pl-hi)" opacity="0.3"/>
+          <path d="M4 40 Q14 28 24 33 Q30 36 32 34" stroke="var(--am)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+          <path d="M32 34 Q34 32 40 30 Q50 26 60 20" stroke="var(--am)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="30" r="17" fill="var(--pl)"/>
+          <path d="M32 13 A17 17 0 0 1 49 30 A17 17 0 0 1 32 47" fill="var(--pl-sh)"/>
+          <path d="M4 42 Q16 28 28 34 Q32 36 36 34 Q44 28 60 18" stroke="var(--am)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="30" r="18" fill="var(--pl)"/>
+          <path d="M2 44 Q16 26 30 34 Q34 36 38 34 Q48 26 62 16" stroke="var(--am)" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
+          <circle cx="20" cy="18" r="10" fill="var(--lp)"/>
+          <path d="M20 8 A10 10 0 0 1 30 18 A10 10 0 0 1 20 28" fill="var(--lp-sh)"/>
+          <circle cx="16" cy="14" r="4" fill="var(--lp-hi)" opacity="0.5"/>
+          <path d="M3 26 Q10 18 17 20 Q20 21 20 20" stroke="var(--lt-am)" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+          <path d="M20 20 Q20 19 23 18 Q30 14 37 10" stroke="var(--lt-am)" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/>
+          <circle cx="32" cy="30" r="16" fill="var(--lp)"/>
+          <path d="M32 14 A16 16 0 0 1 48 30 A16 16 0 0 1 32 46" fill="var(--lp-sh)"/>
+          <circle cx="26" cy="22" r="5" fill="var(--lp-hi)" opacity="0.4"/>
+          <path d="M4 42 Q16 28 28 34 Q32 36 36 34 Q44 28 60 18" stroke="var(--lt-am)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/>
+          <circle cx="32" cy="30" r="17" fill="var(--lp)"/>
+          <path d="M4 42 Q16 28 28 34 Q32 36 36 34 Q44 28 60 18" stroke="var(--lt-am)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/>
+          <circle cx="32" cy="30" r="18" fill="var(--lp)"/>
+          <path d="M2 44 Q16 26 30 34 Q34 36 38 34 Q48 26 62 16" stroke="var(--lt-am)" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 02: ORBIT ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">02</span><span class="ct">Orbit</span></div>
+  <div class="cd">Планета с орбитальным спутником. Точка-спутник на эллиптической орбите = трафик огибает. Amber-орбита + amber-точка. Динамичнее чем кольцо.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="40" height="38" viewBox="0 0 40 38" fill="none">
+          <ellipse cx="20" cy="19" rx="18" ry="8" transform="rotate(-30 20 19)" stroke="var(--am)" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <circle cx="20" cy="19" r="10" fill="var(--pl)"/>
+          <path d="M20 9 A10 10 0 0 1 30 19 A10 10 0 0 1 20 29" fill="var(--pl-sh)"/>
+          <circle cx="16" cy="15" r="4" fill="var(--pl-hi)" opacity="0.3"/>
+          <!-- Satellite -->
+          <circle cx="36" cy="10" r="3" fill="var(--am)"/>
+          <circle cx="36.8" cy="9.2" r="1" fill="oklch(0.92 0.08 75)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <ellipse cx="32" cy="32" rx="28" ry="12" transform="rotate(-30 32 32)" stroke="var(--am)" stroke-width="1.8" fill="none" opacity="0.35"/>
+          <circle cx="32" cy="32" r="15" fill="var(--pl)"/>
+          <path d="M32 17 A15 15 0 0 1 47 32 A15 15 0 0 1 32 47" fill="var(--pl-sh)"/>
+          <circle cx="26" cy="24" r="5" fill="var(--pl-hi)" opacity="0.25"/>
+          <circle cx="54" cy="14" r="5" fill="var(--am)"/>
+          <circle cx="55.3" cy="12.7" r="1.5" fill="oklch(0.92 0.08 75)"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <ellipse cx="32" cy="32" rx="28" ry="12" transform="rotate(-30 32 32)" stroke="var(--am)" stroke-width="2.2" fill="none" opacity="0.3"/>
+          <circle cx="32" cy="32" r="16" fill="var(--pl)"/>
+          <path d="M32 16 A16 16 0 0 1 48 32 A16 16 0 0 1 32 48" fill="var(--pl-sh)"/>
+          <circle cx="54" cy="14" r="6" fill="var(--am)"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="30" cy="34" r="18" fill="var(--pl)"/>
+          <circle cx="52" cy="12" r="8" fill="var(--am)"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="40" height="38" viewBox="0 0 40 38" fill="none">
+          <ellipse cx="20" cy="19" rx="18" ry="8" transform="rotate(-30 20 19)" stroke="var(--lt-am)" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <circle cx="20" cy="19" r="10" fill="var(--lp)"/>
+          <path d="M20 9 A10 10 0 0 1 30 19 A10 10 0 0 1 20 29" fill="var(--lp-sh)"/>
+          <circle cx="36" cy="10" r="3" fill="var(--lt-am)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><ellipse cx="32" cy="32" rx="28" ry="12" transform="rotate(-30 32 32)" stroke="var(--lt-am)" stroke-width="1.8" fill="none" opacity="0.3"/><circle cx="32" cy="32" r="15" fill="var(--lp)"/><path d="M32 17 A15 15 0 0 1 47 32 A15 15 0 0 1 32 47" fill="var(--lp-sh)"/><circle cx="54" cy="14" r="5" fill="var(--lt-am)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="16" fill="var(--lp)"/><circle cx="54" cy="14" r="6" fill="var(--lt-am)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="30" cy="34" r="18" fill="var(--lp)"/><circle cx="52" cy="12" r="8" fill="var(--lt-am)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 03: SHIELD AURA ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">03</span><span class="ct">Shield Aura</span></div>
+  <div class="cd">Планета окутана amber-аурой/щитом — тонкое свечение вокруг. Не кольцо, а сплошная оболочка. Защита = прокси. Атмосфера горит на закате. Как earth-bg видео.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <!-- Aura glow -->
+          <circle cx="18" cy="18" r="16" fill="oklch(0.78 0.16 75 / 0.06)"/>
+          <circle cx="18" cy="18" r="14" fill="oklch(0.78 0.16 75 / 0.06)"/>
+          <!-- Thin aura ring -->
+          <circle cx="18" cy="18" r="15" stroke="var(--am)" stroke-width="0.8" fill="none" opacity="0.5"/>
+          <!-- Planet -->
+          <circle cx="18" cy="18" r="10" fill="var(--pl)"/>
+          <path d="M18 8 A10 10 0 0 1 28 18 A10 10 0 0 1 18 28" fill="var(--pl-sh)"/>
+          <circle cx="14" cy="14" r="4" fill="var(--pl-hi)" opacity="0.3"/>
+          <!-- Atmosphere glow at edge -->
+          <circle cx="18" cy="18" r="10.5" stroke="var(--am)" stroke-width="1.2" fill="none" opacity="0.6"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="26" fill="oklch(0.78 0.16 75 / 0.04)"/>
+          <circle cx="32" cy="32" r="23" fill="oklch(0.78 0.16 75 / 0.04)"/>
+          <circle cx="32" cy="32" r="24" stroke="var(--am)" stroke-width="1" fill="none" opacity="0.4"/>
+          <circle cx="32" cy="32" r="16" fill="var(--pl)"/>
+          <path d="M32 16 A16 16 0 0 1 48 32 A16 16 0 0 1 32 48" fill="var(--pl-sh)"/>
+          <circle cx="26" cy="24" r="6" fill="var(--pl-hi)" opacity="0.25"/>
+          <circle cx="32" cy="32" r="17" stroke="var(--am)" stroke-width="1.5" fill="none" opacity="0.5"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="25" fill="oklch(0.78 0.16 75 / 0.06)"/>
+          <circle cx="32" cy="32" r="17" fill="var(--pl)"/>
+          <path d="M32 15 A17 17 0 0 1 49 32 A17 17 0 0 1 32 49" fill="var(--pl-sh)"/>
+          <circle cx="32" cy="32" r="18" stroke="var(--am)" stroke-width="2" fill="none" opacity="0.5"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="26" fill="oklch(0.78 0.16 75 / 0.08)"/>
+          <circle cx="32" cy="32" r="17" fill="var(--pl)"/>
+          <circle cx="32" cy="32" r="20" stroke="var(--am)" stroke-width="3" fill="none" opacity="0.5"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="16" fill="oklch(0.50 0.14 75 / 0.05)"/>
+          <circle cx="18" cy="18" r="15" stroke="var(--lt-am)" stroke-width="0.8" fill="none" opacity="0.4"/>
+          <circle cx="18" cy="18" r="10" fill="var(--lp)"/>
+          <path d="M18 8 A10 10 0 0 1 28 18 A10 10 0 0 1 18 28" fill="var(--lp-sh)"/>
+          <circle cx="18" cy="18" r="10.5" stroke="var(--lt-am)" stroke-width="1.2" fill="none" opacity="0.5"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="26" fill="oklch(0.50 0.14 75 / 0.04)"/><circle cx="32" cy="32" r="16" fill="var(--lp)"/><path d="M32 16 A16 16 0 0 1 48 32 A16 16 0 0 1 32 48" fill="var(--lp-sh)"/><circle cx="32" cy="32" r="17" stroke="var(--lt-am)" stroke-width="1.5" fill="none" opacity="0.45"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="25" fill="oklch(0.50 0.14 75 / 0.05)"/><circle cx="32" cy="32" r="17" fill="var(--lp)"/><circle cx="32" cy="32" r="18" stroke="var(--lt-am)" stroke-width="2" fill="none" opacity="0.45"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="17" fill="var(--lp)"/><circle cx="32" cy="32" r="20" stroke="var(--lt-am)" stroke-width="3" fill="none" opacity="0.5"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 04: DOUBLE RING ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">04</span><span class="ct">Double Ring</span></div>
+  <div class="cd">Два пересекающихся кольца под разными углами — как гироскоп. Планета внутри. Кольца = два слоя прокси (TLS + UDP транспорт). Сложнее, технологичнее.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="40" height="38" viewBox="0 0 40 38" fill="none">
+          <ellipse cx="20" cy="19" rx="18" ry="6" transform="rotate(-25 20 19)" stroke="oklch(0.55 0.01 250)" stroke-width="1.5" fill="none"/>
+          <ellipse cx="20" cy="19" rx="18" ry="6" transform="rotate(25 20 19)" stroke="var(--am)" stroke-width="1.5" fill="none" opacity="0.6"/>
+          <circle cx="20" cy="19" r="8" fill="var(--pl)"/>
+          <path d="M20 11 A8 8 0 0 1 28 19 A8 8 0 0 1 20 27" fill="var(--pl-sh)"/>
+          <circle cx="17" cy="16" r="3" fill="var(--pl-hi)" opacity="0.3"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <ellipse cx="32" cy="32" rx="28" ry="9" transform="rotate(-25 32 32)" stroke="oklch(0.45 0.01 250)" stroke-width="2" fill="none"/>
+          <ellipse cx="32" cy="32" rx="28" ry="9" transform="rotate(25 32 32)" stroke="var(--am)" stroke-width="2" fill="none" opacity="0.5"/>
+          <circle cx="32" cy="32" r="13" fill="var(--pl)"/>
+          <path d="M32 19 A13 13 0 0 1 45 32 A13 13 0 0 1 32 45" fill="var(--pl-sh)"/>
+          <circle cx="27" cy="26" r="4.5" fill="var(--pl-hi)" opacity="0.25"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <ellipse cx="32" cy="32" rx="28" ry="9" transform="rotate(-25 32 32)" stroke="oklch(0.45 0.01 250)" stroke-width="2.5" fill="none"/>
+          <ellipse cx="32" cy="32" rx="28" ry="9" transform="rotate(25 32 32)" stroke="var(--am)" stroke-width="2.5" fill="none" opacity="0.5"/>
+          <circle cx="32" cy="32" r="13" fill="var(--pl)"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <ellipse cx="32" cy="32" rx="28" ry="10" transform="rotate(-25 32 32)" stroke="oklch(0.45 0.01 250)" stroke-width="4" fill="none"/>
+          <ellipse cx="32" cy="32" rx="28" ry="10" transform="rotate(25 32 32)" stroke="var(--am)" stroke-width="4" fill="none" opacity="0.5"/>
+          <circle cx="32" cy="32" r="12" fill="var(--pl)"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="40" height="38" viewBox="0 0 40 38" fill="none">
+          <ellipse cx="20" cy="19" rx="18" ry="6" transform="rotate(-25 20 19)" stroke="oklch(0.70 0.008 250)" stroke-width="1.5" fill="none"/>
+          <ellipse cx="20" cy="19" rx="18" ry="6" transform="rotate(25 20 19)" stroke="var(--lt-am)" stroke-width="1.5" fill="none" opacity="0.6"/>
+          <circle cx="20" cy="19" r="8" fill="var(--lp)"/>
+          <path d="M20 11 A8 8 0 0 1 28 19 A8 8 0 0 1 20 27" fill="var(--lp-sh)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><ellipse cx="32" cy="32" rx="28" ry="9" transform="rotate(-25 32 32)" stroke="oklch(0.75 0.006 250)" stroke-width="2" fill="none"/><ellipse cx="32" cy="32" rx="28" ry="9" transform="rotate(25 32 32)" stroke="var(--lt-am)" stroke-width="2" fill="none" opacity="0.5"/><circle cx="32" cy="32" r="13" fill="var(--lp)"/><path d="M32 19 A13 13 0 0 1 45 32 A13 13 0 0 1 32 45" fill="var(--lp-sh)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><ellipse cx="32" cy="32" rx="28" ry="9" transform="rotate(-25 32 32)" stroke="oklch(0.75 0.006 250)" stroke-width="2.5" fill="none"/><ellipse cx="32" cy="32" rx="28" ry="9" transform="rotate(25 32 32)" stroke="var(--lt-am)" stroke-width="2.5" fill="none" opacity="0.5"/><circle cx="32" cy="32" r="13" fill="var(--lp)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><ellipse cx="32" cy="32" rx="28" ry="10" transform="rotate(-25 32 32)" stroke="oklch(0.75 0.006 250)" stroke-width="4" fill="none"/><ellipse cx="32" cy="32" rx="28" ry="10" transform="rotate(25 32 32)" stroke="var(--lt-am)" stroke-width="4" fill="none" opacity="0.5"/><circle cx="32" cy="32" r="12" fill="var(--lp)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 05: ECLIPSE ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">05</span><span class="ct">Eclipse</span></div>
+  <div class="cd">Затмение — тёмный диск перед светящимся amber-источником. Корона сияет из-за краёв. Красиво, драматично, запоминается. Прокси скрывает, но свет прорывается.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <!-- Corona glow -->
+          <circle cx="18" cy="18" r="14" fill="oklch(0.78 0.16 75 / 0.08)"/>
+          <circle cx="18" cy="18" r="12" fill="oklch(0.78 0.16 75 / 0.08)"/>
+          <circle cx="18" cy="18" r="11.5" stroke="var(--am)" stroke-width="1" fill="none" opacity="0.5"/>
+          <!-- Dark planet on top -->
+          <circle cx="18" cy="18" r="9" fill="oklch(0.10 0.015 250)"/>
+          <!-- Corona visible at edges -->
+          <circle cx="18" cy="18" r="9.8" stroke="var(--am)" stroke-width="1.5" fill="none" opacity="0.8"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="24" fill="oklch(0.78 0.16 75 / 0.05)"/>
+          <circle cx="32" cy="32" r="20" fill="oklch(0.78 0.16 75 / 0.06)"/>
+          <circle cx="32" cy="32" r="18" stroke="var(--am)" stroke-width="1.2" fill="none" opacity="0.4"/>
+          <circle cx="32" cy="32" r="14" fill="oklch(0.08 0.015 250)"/>
+          <circle cx="32" cy="32" r="15.5" stroke="var(--am)" stroke-width="2" fill="none" opacity="0.7"/>
+          <circle cx="32" cy="32" r="16.8" stroke="var(--am)" stroke-width="0.8" fill="none" opacity="0.3"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="22" fill="oklch(0.78 0.16 75 / 0.06)"/>
+          <circle cx="32" cy="32" r="15" fill="oklch(0.08 0.015 250)"/>
+          <circle cx="32" cy="32" r="16.5" stroke="var(--am)" stroke-width="2.5" fill="none" opacity="0.7"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="24" fill="oklch(0.78 0.16 75 / 0.08)"/>
+          <circle cx="32" cy="32" r="16" fill="oklch(0.08 0.015 250)"/>
+          <circle cx="32" cy="32" r="18" stroke="var(--am)" stroke-width="3.5" fill="none" opacity="0.7"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="14" fill="oklch(0.50 0.14 75 / 0.06)"/>
+          <circle cx="18" cy="18" r="11.5" stroke="var(--lt-am)" stroke-width="1" fill="none" opacity="0.4"/>
+          <circle cx="18" cy="18" r="9" fill="oklch(0.30 0.015 250)"/>
+          <circle cx="18" cy="18" r="9.8" stroke="var(--lt-am)" stroke-width="1.5" fill="none" opacity="0.7"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="22" fill="oklch(0.50 0.14 75 / 0.04)"/><circle cx="32" cy="32" r="14" fill="oklch(0.25 0.015 250)"/><circle cx="32" cy="32" r="15.5" stroke="var(--lt-am)" stroke-width="2" fill="none" opacity="0.6"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="15" fill="oklch(0.25 0.015 250)"/><circle cx="32" cy="32" r="16.5" stroke="var(--lt-am)" stroke-width="2.5" fill="none" opacity="0.6"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="16" fill="oklch(0.25 0.015 250)"/><circle cx="32" cy="32" r="18" stroke="var(--lt-am)" stroke-width="3.5" fill="none" opacity="0.6"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 06: WORMHOLE ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">06</span><span class="ct">Wormhole</span></div>
+  <div class="cd">Две планеты/точки соединены изогнутой amber-линией — кротовая нора. ��рафик "телепортируется" от источника к назначению через прокси. Sci-fi, перекликается с earth-bg.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="42" height="34" viewBox="0 0 42 34" fill="none">
+          <!-- Small origin planet -->
+          <circle cx="8" cy="22" r="5" fill="var(--pl)"/>
+          <circle cx="7" cy="21" r="2" fill="var(--pl-hi)" opacity="0.3"/>
+          <!-- Wormhole curve -->
+          <path d="M13 22 Q21 4 29 12" stroke="var(--am)" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <!-- Large destination planet -->
+          <circle cx="33" cy="16" r="7" fill="var(--pl)"/>
+          <path d="M33 9 A7 7 0 0 1 40 16 A7 7 0 0 1 33 23" fill="var(--pl-sh)"/>
+          <circle cx="30" cy="13" r="3" fill="var(--pl-hi)" opacity="0.3"/>
+          <!-- Glow dots at curve ends -->
+          <circle cx="13" cy="22" r="1.5" fill="var(--am)"/>
+          <circle cx="29" cy="12" r="1.5" fill="var(--am)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="16" cy="42" r="8" fill="var(--pl)"/>
+          <circle cx="14" cy="40" r="3" fill="var(--pl-hi)" opacity="0.3"/>
+          <path d="M24 42 Q36 8 48 22" stroke="var(--am)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <circle cx="44" cy="26" r="12" fill="var(--pl)"/>
+          <path d="M44 14 A12 12 0 0 1 56 26 A12 12 0 0 1 44 38" fill="var(--pl-sh)"/>
+          <circle cx="39" cy="20" r="4.5" fill="var(--pl-hi)" opacity="0.25"/>
+          <circle cx="24" cy="42" r="2.5" fill="var(--am)"/>
+          <circle cx="48" cy="22" r="2.5" fill="var(--am)"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="16" cy="44" r="9" fill="var(--pl)"/>
+          <path d="M25 44 Q38 8 50 24" stroke="var(--am)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+          <circle cx="44" cy="26" r="13" fill="var(--pl)"/>
+          <circle cx="25" cy="44" r="3" fill="var(--am)"/>
+          <circle cx="50" cy="24" r="3" fill="var(--am)"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="16" cy="46" r="10" fill="var(--pl)"/>
+          <path d="M26 46 Q40 6 52 24" stroke="var(--am)" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <circle cx="44" cy="26" r="14" fill="var(--pl)"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="42" height="34" viewBox="0 0 42 34" fill="none">
+          <circle cx="8" cy="22" r="5" fill="var(--lp)"/>
+          <path d="M13 22 Q21 4 29 12" stroke="var(--lt-am)" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="33" cy="16" r="7" fill="var(--lp)"/>
+          <path d="M33 9 A7 7 0 0 1 40 16 A7 7 0 0 1 33 23" fill="var(--lp-sh)"/>
+          <circle cx="13" cy="22" r="1.5" fill="var(--lt-am)"/>
+          <circle cx="29" cy="12" r="1.5" fill="var(--lt-am)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="16" cy="42" r="8" fill="var(--lp)"/><path d="M24 42 Q36 8 48 22" stroke="var(--lt-am)" stroke-width="2.5" fill="none" stroke-linecap="round"/><circle cx="44" cy="26" r="12" fill="var(--lp)"/><path d="M44 14 A12 12 0 0 1 56 26 A12 12 0 0 1 44 38" fill="var(--lp-sh)"/><circle cx="24" cy="42" r="2.5" fill="var(--lt-am)"/><circle cx="48" cy="22" r="2.5" fill="var(--lt-am)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="16" cy="44" r="9" fill="var(--lp)"/><path d="M25 44 Q38 8 50 24" stroke="var(--lt-am)" stroke-width="3.5" fill="none" stroke-linecap="round"/><circle cx="44" cy="26" r="13" fill="var(--lp)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="16" cy="46" r="10" fill="var(--lp)"/><path d="M26 46 Q40 6 52 24" stroke="var(--lt-am)" stroke-width="5" fill="none" stroke-linecap="round"/><circle cx="44" cy="26" r="14" fill="var(--lp)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 07: AMBER EARTH ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">07</span><span class="ct">Amber Earth</span></div>
+  <div class="cd">Стилизованная Земля целиком в amber-тонах. Контуры континентов намечены линиями. Золотая планета = "весь мир доступен через прокси". Тёплый, премиальный.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="14" fill="oklch(0.78 0.16 75 / 0.1)" stroke="var(--am)" stroke-width="1.5"/>
+          <!-- Stylized continents -->
+          <path d="M12 10 Q14 8 18 9 Q20 10 19 14 Q18 16 15 15 Q12 14 12 10Z" fill="oklch(0.78 0.16 75 / 0.3)"/>
+          <path d="M22 12 Q25 11 26 14 Q27 18 24 20 Q22 20 22 17 Z" fill="oklch(0.78 0.16 75 / 0.25)"/>
+          <path d="M14 20 Q16 18 18 20 Q20 23 18 26 Q15 27 13 24 Q12 22 14 20Z" fill="oklch(0.78 0.16 75 / 0.3)"/>
+          <path d="M23 22 Q26 22 27 25 Q26 27 24 26 Q22 25 23 22Z" fill="oklch(0.78 0.16 75 / 0.2)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="22" fill="oklch(0.78 0.16 75 / 0.08)" stroke="var(--am)" stroke-width="2"/>
+          <path d="M22 18 Q26 14 32 16 Q36 18 34 24 Q32 28 28 26 Q22 24 22 18Z" fill="oklch(0.78 0.16 75 / 0.25)"/>
+          <path d="M38 20 Q42 18 44 22 Q46 28 42 32 Q38 32 38 28 Z" fill="oklch(0.78 0.16 75 / 0.2)"/>
+          <path d="M26 34 Q30 30 34 34 Q36 40 32 44 Q28 46 24 42 Q22 38 26 34Z" fill="oklch(0.78 0.16 75 / 0.25)"/>
+          <path d="M40 36 Q44 36 46 40 Q44 44 42 42 Q38 40 40 36Z" fill="oklch(0.78 0.16 75 / 0.18)"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="22" fill="oklch(0.78 0.16 75 / 0.1)" stroke="var(--am)" stroke-width="2.5"/>
+          <path d="M22 18 Q28 14 34 18 Q36 22 32 26 Q26 26 22 18Z" fill="oklch(0.78 0.16 75 / 0.3)"/>
+          <path d="M38 22 Q44 20 44 28 Q40 32 38 26Z" fill="oklch(0.78 0.16 75 / 0.25)"/>
+          <path d="M26 34 Q32 30 36 36 Q34 44 28 44 Q22 40 26 34Z" fill="oklch(0.78 0.16 75 / 0.3)"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="22" fill="oklch(0.78 0.16 75 / 0.12)" stroke="var(--am)" stroke-width="4"/>
+          <path d="M22 18 Q30 12 36 20 Q34 28 24 26Z" fill="oklch(0.78 0.16 75 / 0.35)"/>
+          <path d="M26 34 Q34 30 38 38 Q32 46 24 42Z" fill="oklch(0.78 0.16 75 / 0.35)"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+          <circle cx="18" cy="18" r="14" fill="oklch(0.50 0.14 75 / 0.08)" stroke="var(--lt-am)" stroke-width="1.5"/>
+          <path d="M12 10 Q14 8 18 9 Q20 10 19 14 Q18 16 15 15 Q12 14 12 10Z" fill="oklch(0.50 0.14 75 / 0.25)"/>
+          <path d="M22 12 Q25 11 26 14 Q27 18 24 20 Q22 20 22 17 Z" fill="oklch(0.50 0.14 75 / 0.2)"/>
+          <path d="M14 20 Q16 18 18 20 Q20 23 18 26 Q15 27 13 24 Q12 22 14 20Z" fill="oklch(0.50 0.14 75 / 0.25)"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="22" fill="oklch(0.50 0.14 75 / 0.06)" stroke="var(--lt-am)" stroke-width="2"/><path d="M22 18 Q26 14 32 16 Q36 18 34 24 Q32 28 28 26 Q22 24 22 18Z" fill="oklch(0.50 0.14 75 / 0.2)"/><path d="M38 20 Q42 18 44 22 Q46 28 42 32 Q38 32 38 28Z" fill="oklch(0.50 0.14 75 / 0.15)"/><path d="M26 34 Q30 30 34 34 Q36 40 32 44 Q28 46 24 42 Q22 38 26 34Z" fill="oklch(0.50 0.14 75 / 0.2)"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="22" fill="oklch(0.50 0.14 75 / 0.08)" stroke="var(--lt-am)" stroke-width="2.5"/><path d="M22 18 Q28 14 34 18 Q36 22 32 26 Q26 26 22 18Z" fill="oklch(0.50 0.14 75 / 0.25)"/><path d="M26 34 Q32 30 36 36 Q34 44 28 44 Q22 40 26 34Z" fill="oklch(0.50 0.14 75 / 0.25)"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="22" fill="oklch(0.50 0.14 75 / 0.1)" stroke="var(--lt-am)" stroke-width="4"/><path d="M22 18 Q30 12 36 20 Q34 28 24 26Z" fill="oklch(0.50 0.14 75 / 0.3)"/><path d="M26 34 Q34 30 38 38 Q32 46 24 42Z" fill="oklch(0.50 0.14 75 / 0.3)"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 08: MINIMAL GLOBE ═══════════ -->
+<div class="concept">
+  <div class="ch"><span class="cn">08</span><span class="ct">Minimal Globe</span></div>
+  <div class="cd">Круг + одна вертикальная дуга + одна горизонтальная дуга = глобус. Максимальный минимализм. Amber-меридиан — маршрут прок��и. Чистый, иконичный, не устареет.</div>
+  <div class="row">
+    <div class="card"><span class="tag">Dark</span>
+      <div class="wm">
+        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+          <circle cx="17" cy="17" r="13" stroke="oklch(0.60 0.008 250)" stroke-width="2" fill="none"/>
+          <!-- Horizontal arc -->
+          <ellipse cx="17" cy="17" rx="13" ry="5" stroke="oklch(0.45 0.008 250)" stroke-width="1.5" fill="none"/>
+          <!-- Vertical arc (the proxy route) -->
+          <ellipse cx="17" cy="17" rx="5" ry="13" stroke="var(--am)" stroke-width="2" fill="none"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="20" stroke="oklch(0.55 0.008 250)" stroke-width="2.5" fill="none"/>
+          <ellipse cx="32" cy="32" rx="20" ry="7.5" stroke="oklch(0.40 0.008 250)" stroke-width="2" fill="none"/>
+          <ellipse cx="32" cy="32" rx="7.5" ry="20" stroke="var(--am)" stroke-width="2.5" fill="none"/>
+        </svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="20" stroke="oklch(0.55 0.008 250)" stroke-width="3" fill="none"/>
+          <ellipse cx="32" cy="32" rx="20" ry="7.5" stroke="oklch(0.40 0.008 250)" stroke-width="2.5" fill="none"/>
+          <ellipse cx="32" cy="32" rx="7.5" ry="20" stroke="var(--am)" stroke-width="3" fill="none"/>
+        </svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--bg2)"/>
+          <circle cx="32" cy="32" r="20" stroke="oklch(0.55 0.008 250)" stroke-width="5" fill="none"/>
+          <ellipse cx="32" cy="32" rx="8" ry="20" stroke="var(--am)" stroke-width="5" fill="none"/>
+        </svg><div class="sz">16</div></div>
+      </div>
+    </div>
+    <div class="card lt"><span class="tag">Light</span>
+      <div class="wm">
+        <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+          <circle cx="17" cy="17" r="13" stroke="oklch(0.55 0.010 250)" stroke-width="2" fill="none"/>
+          <ellipse cx="17" cy="17" rx="13" ry="5" stroke="oklch(0.72 0.006 250)" stroke-width="1.5" fill="none"/>
+          <ellipse cx="17" cy="17" rx="5" ry="13" stroke="var(--lt-am)" stroke-width="2" fill="none"/>
+        </svg>
+        <span class="wmt">PROXYNESS</span>
+      </div>
+      <div class="icons">
+        <div><svg width="64" height="64" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="20" stroke="oklch(0.60 0.008 250)" stroke-width="2.5" fill="none"/><ellipse cx="32" cy="32" rx="20" ry="7.5" stroke="oklch(0.75 0.006 250)" stroke-width="2" fill="none"/><ellipse cx="32" cy="32" rx="7.5" ry="20" stroke="var(--lt-am)" stroke-width="2.5" fill="none"/></svg><div class="sz">64</div></div>
+        <div><svg width="32" height="32" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="20" stroke="oklch(0.60 0.008 250)" stroke-width="3" fill="none"/><ellipse cx="32" cy="32" rx="7.5" ry="20" stroke="var(--lt-am)" stroke-width="3" fill="none"/></svg><div class="sz">32</div></div>
+        <div><svg width="16" height="16" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="14" fill="var(--lt)"/><circle cx="32" cy="32" r="20" stroke="oklch(0.60 0.008 250)" stroke-width="5" fill="none"/><ellipse cx="32" cy="32" rx="8" ry="20" stroke="var(--lt-am)" stroke-width="5" fill="none"/></svg><div class="sz">16</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

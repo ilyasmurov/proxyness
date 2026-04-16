@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proxyness — Notifications in Context</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@300;400;500;600;700&family=Barlow:wght@400;500;600;700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fd:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;
+    --fb:'Figtree',system-ui,sans-serif;
+    --fm:'Barlow',system-ui,sans-serif;
+    --bg0:oklch(0.12 0.014 250);--bg1:oklch(0.155 0.016 250);--bg2:oklch(0.19 0.018 250);
+    --b1:oklch(0.24 0.013 250);--b2:oklch(0.30 0.014 250);
+    --t1:oklch(0.93 0.006 250);--t2:oklch(0.60 0.012 250);--t3:oklch(0.40 0.01 250);
+    --am:oklch(0.78 0.155 75);--amd:oklch(0.55 0.09 75);--amb:oklch(0.19 0.035 75);
+    --bl:oklch(0.68 0.12 235);--gn:oklch(0.72 0.15 150);
+    --rd:oklch(0.62 0.19 25);--rdb:oklch(0.17 0.03 25);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--fb);background:#060608;color:#ccc;min-height:100vh;-webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;align-items:center;gap:40px;padding:40px 20px}
+
+  .label{font:600 11px var(--fd);color:var(--t3);letter-spacing:2px;text-transform:uppercase;text-align:center;margin-bottom:4px}
+  .desc{font:400 11px var(--fb);color:oklch(0.30 0.008 250);text-align:center;margin-bottom:16px;line-height:1.5;max-width:500px}
+
+  /* Full window mockup */
+  .win{width:800px;height:520px;background:var(--bg0);border-radius:10px;overflow:hidden;position:relative;
+    box-shadow:0 1px 0 var(--b1),0 20px 40px -8px rgba(0,0,0,0.5)}
+  .tbar{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;position:absolute;top:0;left:0;right:0;z-index:10}
+  .tbar-id{font:600 11px var(--fd);color:oklch(0.25 0.01 250);letter-spacing:0.5px;text-transform:uppercase}
+  .tc{display:flex;gap:2px}
+  .tb{width:26px;height:26px;border-radius:5px;background:transparent;border:none;color:var(--t3);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+  /* Video header */
+  .vheader{position:relative;overflow:hidden;background:var(--bg1);border-bottom:1px solid var(--b1)}
+  .vheader video{position:absolute;inset:0;width:100%;height:300%;object-fit:cover;margin-top:-60px;filter:brightness(0.35) saturate(1.2)}
+  .vheader .grad{position:absolute;inset:0;background:linear-gradient(to bottom,oklch(0.12 0.014 250/0.3),oklch(0.12 0.014 250/0.85) 70%,oklch(0.12 0.014 250/0.95))}
+  .status{position:relative;z-index:5;height:100px;display:flex;align-items:center;padding:30px 24px 0;gap:16px}
+  .st-dot{width:8px;height:8px;border-radius:50%;background:var(--am);flex-shrink:0}
+  .st-left{display:flex;flex-direction:column;gap:2px}
+  .st-label{font:700 22px var(--fd);color:var(--t1);letter-spacing:0.3px;line-height:1}
+  .st-sub{display:flex;align-items:center;gap:8px}
+  .st-server{font:400 12px var(--fb);color:var(--t3)}
+  .st-badge{font:600 9px var(--fd);letter-spacing:1px;text-transform:uppercase;color:var(--amd);padding:1px 5px;background:var(--amb);border-radius:3px}
+  .st-right{margin-left:auto;display:flex;align-items:center;gap:20px}
+  .metric-col{display:flex;flex-direction:column;gap:1px;text-align:right}
+
+  .tabs{position:relative;z-index:5;display:flex;padding:0 24px;border-top:1px solid oklch(0.24 0.013 250/0.5)}
+  .tab{padding:8px 16px;font:500 13px var(--fd);letter-spacing:0.3px}
+  .tab.on{color:var(--am);font-weight:600;border-bottom:2px solid var(--am);margin-bottom:-1px}
+  .tab.off{color:var(--t3)}
+
+  /* Content placeholder */
+  .content{padding:16px 24px}
+  .cnt-title{font:600 15px var(--fd);color:var(--t2);letter-spacing:0.3px;margin-bottom:4px}
+  .cnt-desc{font:400 13px var(--fb);color:var(--t3);line-height:1.6}
+
+
+  /* ====== Notification styles ====== */
+
+  /* A: Inline Bar */
+  .notif-a{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 12px;border-radius:6px;
+    margin:20px 24px 0;
+  }
+  .notif-a.t-update{background:oklch(0.15 0.02 235);border:1px solid oklch(0.68 0.12 235/0.15)}
+  .notif-a.t-migration{background:oklch(0.15 0.025 25);border:1px solid oklch(0.62 0.19 25/0.15)}
+  .notif-a .na-icon{flex-shrink:0}
+  .notif-a .na-body{flex:1;min-width:0}
+  .notif-a .na-title{font:600 12px var(--fb);color:var(--t1)}
+  .notif-a .na-msg{font:400 11px var(--fb);color:var(--t3);margin-top:1px}
+  .notif-a .na-btn{
+    padding:4px 12px;border-radius:4px;font:600 11px var(--fd);letter-spacing:0.3px;
+    cursor:pointer;flex-shrink:0;transition:all 0.1s;
+  }
+  .notif-a.t-update .na-btn{background:oklch(0.68 0.12 235/0.15);border:1px solid oklch(0.68 0.12 235/0.25);color:var(--bl)}
+  .notif-a.t-migration .na-btn{background:oklch(0.62 0.19 25/0.15);border:1px solid oklch(0.62 0.19 25/0.25);color:var(--rd)}
+  .notif-a .na-close{background:none;border:none;color:var(--t3);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;flex-shrink:0}
+
+  /* B: Compact Pill */
+  .notif-b{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 10px;border-radius:5px;
+    margin:20px 24px 0;
+  }
+  .notif-b.t-update{background:oklch(0.15 0.02 235);border:1px solid oklch(0.68 0.12 235/0.12)}
+  .notif-b.t-migration{background:oklch(0.15 0.025 25);border:1px solid oklch(0.62 0.19 25/0.12)}
+  .notif-b .nb-type{
+    font:700 8px var(--fd);letter-spacing:1px;text-transform:uppercase;
+    padding:2px 6px;border-radius:3px;flex-shrink:0;
+  }
+  .notif-b.t-update .nb-type{color:var(--bl);background:oklch(0.68 0.12 235/0.12)}
+  .notif-b.t-migration .nb-type{color:var(--rd);background:oklch(0.62 0.19 25/0.12)}
+  .notif-b .nb-title{font:500 12px var(--fb);color:var(--t1);flex:1}
+  .notif-b .nb-btn{
+    padding:3px 10px;border-radius:3px;font:600 10px var(--fd);letter-spacing:0.3px;
+    cursor:pointer;flex-shrink:0;
+  }
+  .notif-b.t-update .nb-btn{background:oklch(0.68 0.12 235/0.12);border:1px solid oklch(0.68 0.12 235/0.2);color:var(--bl)}
+  .notif-b.t-migration .nb-btn{background:oklch(0.62 0.19 25/0.12);border:1px solid oklch(0.62 0.19 25/0.2);color:var(--rd)}
+  .notif-b .nb-close{background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;padding:0 2px;line-height:1;flex-shrink:0}
+
+  /* C: Minimal Line */
+  .notif-c{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 24px;margin-top:20px;
+  }
+  .notif-c .nc-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+  .notif-c.t-update .nc-dot{background:var(--bl)}
+  .notif-c.t-migration .nc-dot{background:var(--rd)}
+  .notif-c .nc-title{font:500 12px var(--fb);color:var(--t2);flex:1}
+  .notif-c .nc-title strong{font-weight:600;color:var(--t1)}
+  .notif-c .nc-btn{
+    font:600 11px var(--fd);letter-spacing:0.3px;cursor:pointer;
+    background:none;border:none;text-decoration:underline;text-underline-offset:2px;flex-shrink:0;
+  }
+  .notif-c.t-update .nc-btn{color:var(--bl)}
+  .notif-c.t-migration .nc-btn{color:var(--rd)}
+  .notif-c .nc-close{background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;padding:0 2px;line-height:1;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- ====== A: Inline Bar — Update ====== -->
+<div class="label">A: Inline Bar &mdash; Update notification</div>
+<div class="win">
+  <div class="tbar"><div class="tbar-id">Proxyness</div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="vheader"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video><div class="grad"></div>
+    <div class="status"><div class="st-dot"></div><div class="st-left"><div class="st-label">Connected</div><div class="st-sub"><span class="st-server">95.181.162.242</span><span class="st-badge">UDP</span></div></div>
+      <div class="st-right">
+        <div class="metric-col"><span style="font:600 13px var(--fm);color:var(--gn)">↓ 2.4 KB/s</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Down</span></div>
+        <div class="metric-col"><span style="font:600 13px var(--fm);color:var(--bl)">↑ 559 B/s</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Up</span></div>
+        <button style="font:600 11px var(--fd);padding:5px 14px;border-radius:4px;background:var(--rdb);border:1px solid oklch(0.62 0.19 25/0.15);color:var(--rd);cursor:pointer">Disconnect</button>
+      </div>
+    </div>
+    <div class="tabs"><div class="tab on">All traffic</div><div class="tab off">Selected</div><div class="tab off">Browsers</div></div>
+  </div>
+  <div class="notif-a t-update">
+    <svg class="na-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.68 0.12 235)" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    <div class="na-body"><div class="na-title">Version 1.32.0 available</div><div class="na-msg">Bug fixes and performance improvements</div></div>
+    <button class="na-btn">Update</button>
+    <button class="na-close">×</button>
+  </div>
+  <div class="content" style="margin-top:4px"><div class="cnt-title">All system traffic routed through proxy</div><div class="cnt-desc">Every connection goes through the server.</div></div>
+</div>
+
+<!-- ====== A: Inline Bar — Migration ====== -->
+<div class="label">A: Inline Bar &mdash; Migration alert</div>
+<div class="win">
+  <div class="tbar"><div class="tbar-id">Proxyness</div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="vheader"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video><div class="grad"></div>
+    <div class="status"><div class="st-dot"></div><div class="st-left"><div class="st-label">Connected</div><div class="st-sub"><span class="st-server">95.181.162.242</span><span class="st-badge">UDP</span></div></div>
+      <div class="st-right"><button style="font:600 11px var(--fd);padding:5px 14px;border-radius:4px;background:var(--rdb);border:1px solid oklch(0.62 0.19 25/0.15);color:var(--rd);cursor:pointer">Disconnect</button></div>
+    </div>
+    <div class="tabs"><div class="tab on">All traffic</div><div class="tab off">Selected</div><div class="tab off">Browsers</div></div>
+  </div>
+  <div class="notif-a t-migration">
+    <svg class="na-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(0.62 0.19 25)" stroke-width="2.5" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div class="na-body"><div class="na-title">Server is moving to a new address</div><div class="na-msg">Reconnect to continue using the proxy</div></div>
+    <button class="na-btn">Reconnect</button>
+    <button class="na-close">×</button>
+  </div>
+  <div class="content" style="margin-top:4px"><div class="cnt-title">All system traffic routed through proxy</div><div class="cnt-desc">Every connection goes through the server.</div></div>
+</div>
+
+
+<!-- ====== B: Compact Pill — Update ====== -->
+<div class="label">B: Compact Pill &mdash; Update</div>
+<div class="win">
+  <div class="tbar"><div class="tbar-id">Proxyness</div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="vheader"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video><div class="grad"></div>
+    <div class="status"><div class="st-dot"></div><div class="st-left"><div class="st-label">Connected</div><div class="st-sub"><span class="st-server">95.181.162.242</span><span class="st-badge">UDP</span></div></div>
+      <div class="st-right">
+        <div class="metric-col"><span style="font:600 13px var(--fm);color:var(--gn)">↓ 2.4 KB/s</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Down</span></div>
+        <div class="metric-col"><span style="font:600 13px var(--fm);color:var(--bl)">↑ 559 B/s</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Up</span></div>
+        <button style="font:600 11px var(--fd);padding:5px 14px;border-radius:4px;background:var(--rdb);border:1px solid oklch(0.62 0.19 25/0.15);color:var(--rd);cursor:pointer">Disconnect</button>
+      </div>
+    </div>
+    <div class="tabs"><div class="tab on">All traffic</div><div class="tab off">Selected</div><div class="tab off">Browsers</div></div>
+  </div>
+  <div class="notif-b t-update">
+    <span class="nb-type">Update</span>
+    <span class="nb-title">Version 1.32.0 available — bug fixes and performance</span>
+    <button class="nb-btn">Update</button>
+    <button class="nb-close">×</button>
+  </div>
+  <div class="content" style="margin-top:4px"><div class="cnt-title">All system traffic routed through proxy</div><div class="cnt-desc">Every connection goes through the server.</div></div>
+</div>
+
+<!-- ====== B: Compact Pill — Migration ====== -->
+<div class="label">B: Compact Pill &mdash; Migration</div>
+<div class="win">
+  <div class="tbar"><div class="tbar-id">Proxyness</div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="vheader"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video><div class="grad"></div>
+    <div class="status"><div class="st-dot"></div><div class="st-left"><div class="st-label">Connected</div><div class="st-sub"><span class="st-server">95.181.162.242</span><span class="st-badge">UDP</span></div></div>
+      <div class="st-right"><button style="font:600 11px var(--fd);padding:5px 14px;border-radius:4px;background:var(--rdb);border:1px solid oklch(0.62 0.19 25/0.15);color:var(--rd);cursor:pointer">Disconnect</button></div>
+    </div>
+    <div class="tabs"><div class="tab on">All traffic</div><div class="tab off">Selected</div><div class="tab off">Browsers</div></div>
+  </div>
+  <div class="notif-b t-migration">
+    <span class="nb-type">Alert</span>
+    <span class="nb-title">Server is moving — reconnect to continue</span>
+    <button class="nb-btn">Reconnect</button>
+    <button class="nb-close">×</button>
+  </div>
+  <div class="content" style="margin-top:4px"><div class="cnt-title">All system traffic routed through proxy</div><div class="cnt-desc">Every connection goes through the server.</div></div>
+</div>
+
+
+<!-- ====== C: Minimal Line — Update ====== -->
+<div class="label">C: Minimal Line &mdash; Update</div>
+<div class="win">
+  <div class="tbar"><div class="tbar-id">Proxyness</div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="vheader"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video><div class="grad"></div>
+    <div class="status"><div class="st-dot"></div><div class="st-left"><div class="st-label">Connected</div><div class="st-sub"><span class="st-server">95.181.162.242</span><span class="st-badge">UDP</span></div></div>
+      <div class="st-right">
+        <div class="metric-col"><span style="font:600 13px var(--fm);color:var(--gn)">↓ 2.4 KB/s</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Down</span></div>
+        <div class="metric-col"><span style="font:600 13px var(--fm);color:var(--bl)">↑ 559 B/s</span><span style="font:500 8px var(--fd);color:var(--t3);letter-spacing:1px;text-transform:uppercase">Up</span></div>
+        <button style="font:600 11px var(--fd);padding:5px 14px;border-radius:4px;background:var(--rdb);border:1px solid oklch(0.62 0.19 25/0.15);color:var(--rd);cursor:pointer">Disconnect</button>
+      </div>
+    </div>
+    <div class="tabs"><div class="tab on">All traffic</div><div class="tab off">Selected</div><div class="tab off">Browsers</div></div>
+  </div>
+  <div class="notif-c t-update">
+    <div class="nc-dot"></div>
+    <span class="nc-title"><strong>v1.32.0</strong> available — bug fixes and performance</span>
+    <button class="nc-btn">Update</button>
+    <button class="nc-close">×</button>
+  </div>
+  <div class="content" style="margin-top:4px"><div class="cnt-title">All system traffic routed through proxy</div><div class="cnt-desc">Every connection goes through the server.</div></div>
+</div>
+
+<!-- ====== C: Minimal Line — Migration ====== -->
+<div class="label">C: Minimal Line &mdash; Migration</div>
+<div class="win">
+  <div class="tbar"><div class="tbar-id">Proxyness</div><div class="tc"><button class="tb">&minus;</button><button class="tb">✕</button></div></div>
+  <div class="vheader"><video autoplay loop muted playsinline><source src="1.mp4" type="video/mp4"></video><div class="grad"></div>
+    <div class="status"><div class="st-dot"></div><div class="st-left"><div class="st-label">Connected</div><div class="st-sub"><span class="st-server">95.181.162.242</span><span class="st-badge">UDP</span></div></div>
+      <div class="st-right"><button style="font:600 11px var(--fd);padding:5px 14px;border-radius:4px;background:var(--rdb);border:1px solid oklch(0.62 0.19 25/0.15);color:var(--rd);cursor:pointer">Disconnect</button></div>
+    </div>
+    <div class="tabs"><div class="tab on">All traffic</div><div class="tab off">Selected</div><div class="tab off">Browsers</div></div>
+  </div>
+  <div class="notif-c t-migration">
+    <div class="nc-dot"></div>
+    <span class="nc-title"><strong>Server moving</strong> — reconnect to continue</span>
+    <button class="nc-btn">Reconnect</button>
+    <button class="nc-close">×</button>
+  </div>
+  <div class="content" style="margin-top:4px"><div class="cnt-title">All system traffic routed through proxy</div><div class="cnt-desc">Every connection goes through the server.</div></div>
+</div>
+
+</body>
+</html>
