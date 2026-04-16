@@ -3,11 +3,13 @@ package admin
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"proxyness/server/internal/db"
 	"proxyness/server/internal/stats"
@@ -49,6 +51,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir, confi
 	mux.HandleFunc("GET /admin/api/changelog", h.auth(h.listChangelog))
 	mux.HandleFunc("GET /admin/api/changelog/unseen-count", h.auth(h.changelogUnseenCount))
 	mux.HandleFunc("GET /admin/api/logs", h.auth(h.listLogs))
+	mux.HandleFunc("GET /admin/api/stats/stream", h.auth(h.statsStream))
 
 	// Public endpoints (no auth, device key for identification)
 	mux.HandleFunc("POST /api/report-version", h.reportVersion)
@@ -88,8 +91,20 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, downloadsDir, confi
 	return h
 }
 
-// ServeHTTP implements http.Handler.
+// ServeHTTP implements http.Handler with CORS for the admin dashboard.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if origin == "https://admin.proxyness.smurov.com" || origin == "http://localhost:5173" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Max-Age", "3600")
+	}
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	h.mux.ServeHTTP(w, r)
 }
 
@@ -341,6 +356,45 @@ func (h *Handler) statsTraffic(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) statsRate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(h.tracker.Rates())
+}
+
+func (h *Handler) statsStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	ctx := r.Context()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			active := h.tracker.Active()
+			if active == nil {
+				active = []stats.ConnInfo{}
+			}
+			activeJSON, _ := json.Marshal(active)
+			fmt.Fprintf(w, "event: active\ndata: %s\n\n", activeJSON)
+
+			rates := h.tracker.Rates()
+			if rates == nil {
+				rates = []stats.DeviceRate{}
+			}
+			ratesJSON, _ := json.Marshal(rates)
+			fmt.Fprintf(w, "event: rate\ndata: %s\n\n", ratesJSON)
+
+			flusher.Flush()
+		}
+	}
 }
 
 func (h *Handler) statsTrafficDaily(w http.ResponseWriter, r *http.Request) {
