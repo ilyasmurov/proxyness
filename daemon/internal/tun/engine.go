@@ -1056,7 +1056,12 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPat
 func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16, appPath string) {
 	stream, err := tr.OpenStream(0x01, dstAddr, dstPort)
 	if err != nil {
-		e.streamOpenFailures.Add(1)
+		// Only count transport-level failures (timeout, closed) toward D3.
+		// "connect rejected" means the server successfully received our request
+		// and the destination refused — the transport is healthy.
+		if !strings.Contains(err.Error(), "connect rejected") {
+			e.streamOpenFailures.Add(1)
+		}
 		log.Printf("[tun] open TCP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
 			e.mu.Lock()
@@ -1237,7 +1242,9 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16) {
 	stream, err := tr.OpenStream(0x02, dstAddr, dstPort)
 	if err != nil {
-		e.streamOpenFailures.Add(1)
+		if !strings.Contains(err.Error(), "connect rejected") {
+			e.streamOpenFailures.Add(1)
+		}
 		log.Printf("[tun] open UDP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
 			e.mu.Lock()
