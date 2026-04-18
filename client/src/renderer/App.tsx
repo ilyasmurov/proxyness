@@ -44,7 +44,7 @@ if (typeof localStorage !== "undefined" && localStorage.getItem("proxyness-mode"
 
 const SERVERS = [
   { id: "aeza",    label: "Aeza NL",    addr: "95.181.162.242:443" },
-  { id: "timeweb", label: "Timeweb NL", addr: "82.97.246.65:443"   },
+  { id: "timeweb", label: "Timeweb NL", addr: "82.97.246.65:8443" },
 ];
 const STORAGE_KEY = "proxyness-key";
 const SERVER_STORAGE_KEY = "proxyness-server";
@@ -1085,7 +1085,7 @@ export function App() {
                 {isConnected ? (
                   <>
                     <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
-                      {SERVER.replace(":443", "")}
+                      {SERVER.replace(/:\d+$/, "")}
                     </span>
                     <span style={{
                       fontFamily: fd, fontSize: 9, fontWeight: 600, letterSpacing: 1,
