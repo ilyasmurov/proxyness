@@ -14,8 +14,32 @@ func TestExpandDomainsAddsWWWAndStarVariants(t *testing.T) {
 }
 
 func TestExpandDomainsSkipsWWWPrefixForExistingWWW(t *testing.T) {
+	// "www.X" input keeps just that one entry — generating www.www.X is
+	// redundant and *.www.X never matches anything real.
 	got := ExpandDomains([]string{"www.example.com"})
-	want := []string{"www.example.com", "*.www.example.com"}
+	want := []string{"www.example.com"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestExpandDomainsNormalizesStarPrefixToBase(t *testing.T) {
+	// "*.X" input is the same as just "X" — the literal "*." variant is
+	// dead in PAC (no real hostname starts with "*"), so treat it as the
+	// user's intent "proxy everything under X".
+	got := ExpandDomains([]string{"*.adguard.com"})
+	want := []string{"adguard.com", "www.adguard.com", "*.adguard.com"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestExpandDomainsDedupsStarAndBareInput(t *testing.T) {
+	// Daemon cache can legitimately have both "example.com" and
+	// "*.example.com" for the same site; after normalization they must
+	// collapse to a single set of expansions.
+	got := ExpandDomains([]string{"*.example.com", "example.com"})
+	want := []string{"example.com", "www.example.com", "*.example.com"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
