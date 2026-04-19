@@ -5,8 +5,6 @@
 [![Downloads](https://img.shields.io/github/downloads/ilyasmurov/proxyness/total?style=flat-square&color=22c55e)](https://github.com/ilyasmurov/proxyness/releases)
 [![Last commit](https://img.shields.io/github/last-commit/ilyasmurov/proxyness?style=flat-square)](https://github.com/ilyasmurov/proxyness/commits/main)
 
-> A proxy that looks like the rest of the web.
-
 Proxyness carries your traffic through a single TLS stream on port 443. To any network or DPI box between you and the server, it is indistinguishable from a normal HTTPS web server — same SNI, same Let's Encrypt certificate, same ALPN. No protocol fingerprint to match on.
 
 **Landing & downloads:** https://proxyness.smurov.com
