@@ -85,12 +85,15 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string, 
 	// Landing page (reverse proxy to standalone landing container on port 80).
 	// Uses Docker bridge IP because the server runs in its own container —
 	// 127.0.0.1 is its own loopback, not the host. Same pattern as configAddr.
-	// Catch-all GET so landing static assets (1.mp4, favicons, etc.) reach the
-	// landing container too — more specific admin/api routes still win per
-	// Go 1.22 ServeMux longest-match precedence.
+	// Pattern is "/" (no method) — matches every unclaimed path so landing
+	// static assets (1.mp4, favicons, etc.) reach the landing container.
+	// Must NOT be "GET /": that conflicts with method-less patterns like
+	// "/api/admin/notifications" (neither is strictly more specific — one
+	// wins on method, the other on path) and Go 1.22 ServeMux panics at
+	// registration, killing the server on boot.
 	landingTarget, _ := url.Parse("http://172.17.0.1:80")
 	landingProxy := httputil.NewSingleHostReverseProxy(landingTarget)
-	mux.Handle("GET /", landingProxy)
+	mux.Handle("/", landingProxy)
 
 	// Peer VPS stats proxy: /admin/api/stats/stream/timeweb proxies SSE
 	// from a peer server over the WG tunnel. The admin dashboard connects
