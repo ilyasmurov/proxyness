@@ -1,5 +1,26 @@
 [
   {
+    "id": "2b5f8d8a-4b3b-4e2a-9e69-bb93759730f8",
+    "title": "Reconnect immediately when you change Transport Protocol in Settings",
+    "description": "Previously the new auto/UDP/TLS choice only took effect on the next manual Connect. Now the tunnel cycles in place so you can feel the new transport right away.",
+    "type": "improvement",
+    "createdAt": "2026-04-19T21:36:12.056363+00:00"
+  },
+  {
+    "id": "3bd67b5c-6aef-434b-bc02-4b95b6321c9a",
+    "title": "Remember the Transport Protocol choice across restarts",
+    "description": "The daemon used to reset to Auto every time it restarted (client relaunch, helper respawn, self-update), so a user who picked UDP would silently end up back on Auto. The setting is now persisted to disk.",
+    "type": "fix",
+    "createdAt": "2026-04-19T21:36:12.056561+00:00"
+  },
+  {
+    "id": "984bf05d-a310-49a6-a663-92ab225232cf",
+    "title": "Selected-sites routing when domain was entered with a leading \"*.\"",
+    "description": "Sites entered as \"*.example.com\" produced PAC entries that never matched anything real, so the site was effectively not proxied. The daemon now normalises these to the base domain.",
+    "type": "fix",
+    "createdAt": "2026-04-19T21:36:12.056568+00:00"
+  },
+  {
     "id": "49b12f28-6e66-4add-8fd8-dae71b7706a4",
     "title": "Settings page gained staggered content animations and Arrow-key navigation in the sidebar",
     "description": "Each section (General, Extension, Account, Diagnostics) now cascades its content in on section change — title, subtitle, field labels and value rows all animate in with a stagger using the same smurov-blur-* vocabulary the hero zone and mode bar already use. The sidebar nav items are real buttons now (were div+onClick), so Tab reaches them and screen readers announce them properly. Once focused, ArrowDown and ArrowUp cycle between sections with wrap-around, following the standard tablist keyboard pattern.",
@@ -1377,61 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-06T08:19:17.816174+00:00"
-  },
-  {
-    "id": "52334868-51c1-4b0c-9200-7d632af1caee",
-    "title": "UDP dead timeout too aggressive (5s → 20s)",
-    "description": "Two lost keepalive packets would kill the session. Now tolerates up to 6 lost packets.",
-    "type": "fix",
-    "createdAt": "2026-04-06T07:25:36.936424+00:00"
-  },
-  {
-    "id": "ff3f77e7-24c5-4e1a-8821-cf2488ecc030",
-    "title": "Landing page download links now fetch latest release from GitHub API",
-    "description": "Direct download URLs instead of broken local file scan.",
-    "type": "fix",
-    "createdAt": "2026-04-06T07:25:36.936576+00:00"
-  },
-  {
-    "id": "37e09403-ebbe-4ead-a6ba-5458fdde5f52",
-    "title": "Benchmark Test 10: SmurovProxy UDP vs TLS head-to-head on same server",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-06T07:15:19.911815+00:00"
-  },
-  {
-    "id": "a5e3d8cd-7670-49b0-97ec-131426cf0194",
-    "title": "Benchmark Test 9: SmurovProxy UDP v1.24.0 vs WireGuard head-to-head comparison",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T22:51:56.132342+00:00"
-  },
-  {
-    "id": "e50dbeec-023f-451b-b2dc-f5463664776f",
-    "title": "Auto-reconnect on transport loss",
-    "description": "Daemon automatically retries connection up to 5 times when server restarts, no manual reconnect needed.",
-    "type": "feature",
-    "createdAt": "2026-04-05T22:36:31.575141+00:00"
-  },
-  {
-    "id": "92021653-8d7b-4ea2-b74c-fe6ea094eabc",
-    "title": "UDP device tracking in admin dashboard",
-    "description": "UDP sessions now show as online connections with live speed in the admin panel.",
-    "type": "feature",
-    "createdAt": "2026-04-05T22:36:31.575347+00:00"
-  },
-  {
-    "id": "b9f6109e-ab05-41c9-acbc-9a2c093f5446",
-    "title": "Reduce maxRetransmits 50→15 to cut head-of-line blocking on lossy paths",
-    "description": "Rate-limit immediate ACKs (5ms min interval) to prevent ACK spam on out-of-order packets\nAdd 200ms time threshold for idle detection to prevent false STARTUP re-entry on brief pauses\nGuard HandleData/HandleAck after Close() to prevent crash on freed structures",
-    "type": "fix",
-    "createdAt": "2026-04-05T22:10:01.860253+00:00"
-  },
-  {
-    "id": "99151af3-becf-4555-9d6e-a4337bd299c4",
-    "title": "UDP throughput: download 0.7→5.0 MB/s, upload 1.0→5.0 MB/s — benchmark Test 8",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-05T21:58:14.296964+00:00"
   }
 ]

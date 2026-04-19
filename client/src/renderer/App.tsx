@@ -743,18 +743,32 @@ export function App() {
   );
 
   // Handle transport mode change from the StatusBar badge dropdown.
-  // Persist the transport mode on the daemon. The new mode takes effect on
-  // the next manual Connect — no automatic reconnect.
+  // Persist the new mode on the daemon, then — if currently connected —
+  // cycle the tunnel so the running transport is replaced with one of
+  // the new kind. Same disconnect→300ms→reconnect pattern as the server
+  // picker; the 300ms gives the SOCKS5 listener time to fully unbind
+  // before the next /connect tries to re-bind (without it the new call
+  // occasionally races itself on port 1080 and returns 409).
   const handleTransportChange = useCallback(
     async (mode: string) => {
       try {
         await (window as any).transport?.setMode(mode);
         setTransportMode(mode);
       } catch {
-        /* ignore */
+        return;
+      }
+      if (!key || !isConnected) return;
+      if (proxyMode === "tun") {
+        await tunDisconnect();
+        await new Promise((r) => setTimeout(r, 300));
+        await tunConnect(SERVER, key);
+      } else {
+        await disconnect();
+        await new Promise((r) => setTimeout(r, 300));
+        await connect(SERVER, key);
       }
     },
-    [],
+    [key, isConnected, proxyMode, SERVER, tunConnect, tunDisconnect, connect, disconnect],
   );
 
   // Update tray icon based on connection status
