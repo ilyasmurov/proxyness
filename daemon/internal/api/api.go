@@ -35,6 +35,7 @@ type Server struct {
 	tokenStore      *sites.TokenStore
 	pacSites        *PacSites
 	transportMode   string              // "auto", "udp", or "tls"
+	transportPath   string              // file the mode is persisted to (empty = don't persist, for tests)
 	activeTransport transport.Transport  // current transport instance
 	sitesTestClient *http.Client        // dials through the local SOCKS5 tunnel
 }
@@ -54,6 +55,9 @@ type StatusResponse struct {
 func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string, meter *dstats.RateMeter) *Server {
 	b := make([]byte, 16)
 	rand.Read(b)
+	// Load the persisted transport-mode preference. A missing/corrupt file
+	// falls back to ModeAuto inside LoadMode — the daemon always starts.
+	modePath := transport.DefaultModePath()
 	return &Server{
 		tunnel:        t,
 		tunEngine:     te,
@@ -61,7 +65,8 @@ func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string, meter *dstats.Rate
 		meter:         meter,
 		sessionID:     hex.EncodeToString(b),
 		pacSites:      NewPacSites(),
-		transportMode: transport.ModeAuto,
+		transportMode: transport.LoadMode(modePath),
+		transportPath: modePath,
 	}
 }
 
@@ -493,7 +498,18 @@ func (s *Server) handleTransportSet(w http.ResponseWriter, r *http.Request) {
 	case transport.ModeAuto, transport.ModeUDP, transport.ModeTLS:
 		s.mu.Lock()
 		s.transportMode = req.Mode
+		path := s.transportPath
 		s.mu.Unlock()
+		// Persist best-effort. Log on failure but don't fail the request —
+		// the in-memory change has already taken effect and the user would
+		// be confused by an error for a "successful" UI click. Next daemon
+		// restart will just fall back to the last-good persisted value
+		// (or ModeAuto if nothing was ever saved).
+		if path != "" {
+			if err := transport.SaveMode(path, req.Mode); err != nil {
+				log.Printf("[api] persist transport mode: %v", err)
+			}
+		}
 	default:
 		http.Error(w, fmt.Sprintf("invalid mode: %q (expected auto, udp, or tls)", req.Mode), http.StatusBadRequest)
 		return
