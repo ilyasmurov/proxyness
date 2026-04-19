@@ -5,76 +5,632 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Proxyness — Secure TLS proxy</title>
 <meta name="description" content="Fast, private, undetectable TLS proxy. System-wide VPN or browser-only mode. macOS and Windows.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@300;400;500;600;700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { background: #07080f; color: #e6e8ef; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; -webkit-font-smoothing: antialiased; line-height: 1.5; }
-a { color: inherit; text-decoration: none; }
-.wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+/* ── Reset ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* Hero */
-.hero { position: relative; padding: 96px 0 72px; text-align: center; overflow: hidden; }
-.hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.18), transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(16,185,129,0.12), transparent 55%); pointer-events: none; }
-.hero > * { position: relative; }
-.eyebrow { display: inline-block; font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; color: #6b7280; padding: 6px 12px; border: 1px solid #1f2433; border-radius: 999px; margin-bottom: 24px; }
-h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin-bottom: 20px; background: linear-gradient(135deg, #60a5fa 0%, #34d399 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.lede { max-width: 620px; margin: 0 auto 40px; color: #9aa3b2; font-size: 1.15rem; }
-.downloads { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 18px; }
-.download-btn { display: inline-flex; align-items: center; gap: 12px; padding: 14px 22px; border-radius: 12px; font-size: 0.98rem; font-weight: 600; transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s; background: #10131e; border: 1px solid #232838; color: #fff; }
-.download-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.4); border-color: #3b82f6; }
-.download-btn .icon { font-size: 1.3rem; }
-.download-btn .badge { font-size: 0.72rem; background: #1b2030; padding: 3px 8px; border-radius: 6px; color: #8c95a8; }
-.hint { color: #5b6476; font-size: 0.85rem; }
+:root {
+  --bg:             oklch(0.12 0.014 250);
+  --surface:        oklch(0.155 0.016 250);
+  --border:         oklch(0.24 0.013 250);
+  --text-primary:   oklch(0.93 0.006 250);
+  --text-secondary: oklch(0.60 0.012 250);
+  --text-muted:     oklch(0.40 0.01 250);
+  --amber:          oklch(0.78 0.155 75);
+  --amber-dim:      oklch(0.55 0.09 75);
+  --amber-bg:       oklch(0.19 0.035 75);
+  --blue:           oklch(0.68 0.12 235);
+  --green:          oklch(0.72 0.15 150);
 
-/* Language switcher */
-.lang { position: fixed; top: 20px; right: 20px; display: inline-flex; padding: 3px; background: rgba(13,16,26,0.85); backdrop-filter: blur(8px); border: 1px solid #1f2433; border-radius: 999px; z-index: 10; }
-.lang button { background: transparent; border: none; color: #6b7280; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; transition: color 0.15s, background 0.15s; }
-.lang button.active { background: #1a3a5c; color: #fff; }
+  --font-display: 'Barlow Semi Condensed', sans-serif;
+  --font-body:    'Figtree', sans-serif;
 
-/* Sections */
-section { padding: 72px 0; }
-.section-title { text-align: center; font-size: 2rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 14px; }
-.section-sub { text-align: center; color: #7b8494; max-width: 560px; margin: 0 auto 48px; }
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+}
 
-/* Feature grid */
-.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-.feature { background: linear-gradient(180deg, #0d101a 0%, #0a0d16 100%); border: 1px solid #1a1f2e; border-radius: 16px; padding: 24px; transition: border-color 0.2s, transform 0.2s; }
-.feature:hover { border-color: #2a3347; transform: translateY(-2px); }
-.feature .ico { width: 40px; height: 40px; border-radius: 10px; background: rgba(59,130,246,0.12); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 1.2rem; }
-.feature h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; color: #e6e8ef; }
-.feature p { color: #8b93a4; font-size: 0.92rem; line-height: 1.55; }
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-/* Stats strip */
-.stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 56px; padding: 28px 24px; margin: 0 auto; max-width: 860px; border-top: 1px solid #12161f; border-bottom: 1px solid #12161f; }
-.stat { text-align: center; }
-.stat .num { font-size: 1.6rem; font-weight: 800; background: linear-gradient(135deg, #60a5fa, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.stat .lbl { font-size: 0.78rem; color: #6b7280; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  line-height: 1.6;
+}
 
-/* Benchmarks */
-.bench { overflow-x: auto; border: 1px solid #1a1f2e; border-radius: 16px; background: #0b0e18; }
-.bench table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-.bench th, .bench td { padding: 14px 18px; text-align: left; border-bottom: 1px solid #12161f; }
-.bench th { color: #8b93a4; font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.8px; background: #0d101a; }
-.bench td:first-child { color: #e6e8ef; font-weight: 500; }
-.bench td.win { color: #34d399; font-weight: 700; }
-.bench td.loss { color: #6b7280; }
-.bench tr:last-child td { border-bottom: none; }
-.bench-note { text-align: center; color: #5b6476; font-size: 0.82rem; margin-top: 14px; }
+/* ── Fade-in on scroll ── */
+.fade-in {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+}
+.fade-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
 
-/* How */
-.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; counter-reset: step; }
-.step { background: #0b0e18; border: 1px solid #1a1f2e; border-radius: 16px; padding: 28px 24px; position: relative; }
-.step::before { counter-increment: step; content: counter(step); position: absolute; top: -14px; left: 24px; width: 32px; height: 32px; background: linear-gradient(135deg, #3b82f6, #10b981); color: #06080f; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.95rem; }
-.step h4 { font-size: 1rem; font-weight: 700; margin: 6px 0 8px; }
-.step p { color: #8b93a4; font-size: 0.9rem; }
+@media (prefers-reduced-motion: reduce) {
+  .fade-in {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
 
-/* Footer */
-footer { padding: 48px 0 64px; text-align: center; color: #4a5263; font-size: 0.85rem; border-top: 1px solid #12161f; margin-top: 40px; }
-footer a { color: #6b7687; }
-footer a:hover { color: #9aa3b2; }
+/* ── LANGUAGE SWITCHER ── */
+.lang {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: inline-flex;
+  padding: 3px;
+  background: oklch(0.12 0.014 250 / 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  z-index: 10;
+  font-family: var(--font-display);
+}
+.lang button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+.lang button:hover { color: var(--text-primary); }
+.lang button.active {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
 
-@media (max-width: 640px) {
-  .hero { padding: 64px 0 48px; }
-  section { padding: 56px 0; }
+/* ── HERO ── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.hero-video-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.hero-video-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hero-video-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg,
+      oklch(0.12 0.014 250 / 0.35) 0%,
+      oklch(0.12 0.014 250 / 0.15) 40%,
+      oklch(0.12 0.014 250 / 0.50) 75%,
+      oklch(0.12 0.014 250 / 0.95) 100%
+    );
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 clamp(24px, 5vw, 80px);
+  padding-top: 20vh;
+}
+
+.hero-brand {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(3.2rem, 8vw, 7.5rem);
+  letter-spacing: 0.12em;
+  line-height: 1;
+  color: var(--text-primary);
+  margin-bottom: 24px;
+}
+
+.hero-tagline {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: clamp(1.05rem, 2.2vw, 1.55rem);
+  color: var(--amber);
+  max-width: 520px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.hero-sub {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: clamp(0.9rem, 1.4vw, 1.1rem);
+  color: var(--text-secondary);
+  max-width: 480px;
+  line-height: 1.6;
+  margin-bottom: 48px;
+}
+
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bg);
+  background: var(--amber);
+  border: none;
+  padding: 16px 40px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+}
+
+.hero-cta:hover {
+  background: oklch(0.84 0.16 75);
+  transform: translateY(-2px);
+}
+
+.hero-cta svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.hero-scroll-hint {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-scroll-hint .scroll-line {
+  width: 1px;
+  height: 40px;
+  background: linear-gradient(180deg, var(--text-muted), transparent);
+  animation: scroll-pulse 2s ease-in-out infinite;
+}
+
+@keyframes scroll-pulse {
+  0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
+  50% { opacity: 1; transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-scroll-hint .scroll-line {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* ── Content layer (sits above fixed video) ── */
+.content-layer {
+  position: relative;
+  z-index: 1;
+}
+
+.content-layer > *:not(.hero) {
+  background: var(--bg);
+}
+
+/* ── FEATURES ── */
+.features {
+  padding: clamp(80px, 12vw, 160px) clamp(24px, 5vw, 80px);
+  padding-bottom: clamp(60px, 10vw, 120px);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--amber-dim);
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: clamp(2rem, 4.5vw, 3.4rem);
+  letter-spacing: 0.03em;
+  color: var(--text-primary);
+  line-height: 1.15;
+  margin-bottom: clamp(48px, 6vw, 80px);
+  max-width: 680px;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(32px, 4vw, 64px);
+}
+
+.feature-item {
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.feature-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 24px;
+  color: var(--amber);
+}
+
+.feature-icon svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.feature-name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.1rem, 1.6vw, 1.35rem);
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.feature-desc {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  max-width: 320px;
+}
+
+/* ── HOW IT WORKS ── */
+.how-it-works {
+  padding: clamp(80px, 10vw, 140px) clamp(24px, 5vw, 80px);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.steps-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(24px, 3vw, 48px);
+  position: relative;
+  margin-top: clamp(48px, 6vw, 80px);
+}
+
+.steps-row::before {
+  content: '';
+  position: absolute;
+  top: 32px;
+  left: calc(100% / 6);
+  right: calc(100% / 6);
+  height: 1px;
+  background: var(--border);
+}
+
+.step {
+  text-align: center;
+  position: relative;
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 1.5rem;
+  color: var(--amber);
+  margin-bottom: 28px;
+  position: relative;
+  z-index: 1;
+}
+
+.step-title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.05rem, 1.5vw, 1.25rem);
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.step-desc {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 260px;
+  margin: 0 auto;
+}
+
+/* ── SUPPORTED APPS ── */
+.apps {
+  padding: clamp(100px, 12vw, 180px) clamp(24px, 5vw, 80px);
+  padding-bottom: clamp(80px, 10vw, 140px);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: clamp(20px, 3vw, 40px);
+  margin-top: clamp(48px, 6vw, 80px);
+  max-width: 900px;
+}
+
+.app-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 28px 16px;
+  border: 1px solid transparent;
+  transition: border-color 0.3s var(--ease-out);
+}
+
+.app-item:hover {
+  border-color: var(--border);
+}
+
+.app-icon {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.app-name {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  transition: color 0.3s var(--ease-out);
+}
+
+.app-item:hover .app-name {
+  color: var(--text-primary);
+}
+
+/* ── DOWNLOAD CTA ── */
+.download {
+  padding: clamp(80px, 10vw, 140px) clamp(24px, 5vw, 80px);
+  padding-bottom: clamp(100px, 12vw, 160px);
+  text-align: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.download .section-title {
+  max-width: none;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.download .section-label {
+  text-align: center;
+}
+
+.download-sub {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  margin-bottom: clamp(40px, 5vw, 64px);
+  max-width: 460px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+
+.download-buttons {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 18px 36px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    background 0.25s var(--ease-out),
+    border-color 0.25s var(--ease-out),
+    transform 0.25s var(--ease-out);
+}
+
+.dl-btn:hover {
+  background: oklch(0.19 0.018 250);
+  border-color: var(--amber-dim);
+  transform: translateY(-2px);
+}
+
+.dl-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.dl-btn--primary {
+  background: var(--amber);
+  color: var(--bg);
+  border-color: var(--amber);
+}
+
+.dl-btn--primary:hover {
+  background: oklch(0.84 0.16 75);
+  border-color: oklch(0.84 0.16 75);
+}
+
+.download-note {
+  margin-top: clamp(32px, 4vw, 48px);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.download-note a {
+  color: var(--amber-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.download-note a:hover {
+  color: var(--amber);
+  border-color: var(--amber-dim);
+}
+
+/* ── FOOTER ── */
+.footer {
+  border-top: 1px solid var(--border);
+  padding: 40px clamp(24px, 5vw, 80px);
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--bg);
+  position: relative;
+  z-index: 1;
+}
+
+.footer-brand {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.footer-links {
+  display: flex;
+  gap: 24px;
+}
+
+.footer-links a {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover {
+  color: var(--text-secondary);
+}
+
+/* ── Footer background ── */
+.footer-wrap {
+  background: var(--bg);
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .steps-row {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .steps-row::before {
+    display: none;
+  }
+
+  .apps-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .download-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .dl-btn {
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
+  }
+
+  .hero-brand {
+    letter-spacing: 0.08em;
+  }
+}
+
+@media (max-width: 480px) {
+  .apps-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>
 </head>
@@ -85,128 +641,282 @@ footer a:hover { color: #9aa3b2; }
   <button type="button" data-lang="ru">RU</button>
 </div>
 
-<section class="hero">
-  <div class="wrap">
-    <span class="eyebrow" data-en="Custom stack · macOS · Windows" data-ru="Собственный стек · macOS · Windows">Custom stack · macOS · Windows</span>
-    <h1 data-en="A proxy that looks&lt;br&gt;like the rest of the web" data-ru="Прокси, которого&lt;br&gt;не видно в сети">A proxy that looks<br>like the rest of the web</h1>
-    <p class="lede" data-en="Flexible setup, no reconnects." data-ru="Гибкая настройка без переподключений.">Flexible setup, no reconnects.</p>
-    <div class="downloads"></div>
-  </div>
-</section>
+<div class="content-layer">
 
-<section>
-  <div class="wrap">
-    <h2 class="section-title" data-en="Only what you need — through the proxy. Any time." data-ru="Только то, что нужно — через прокси. В любой момент.">Only what you need — through the proxy. Any time.</h2>
-    <p class="section-sub" data-en="A full custom stack — not a wrapper around an off-the-shelf tunnel." data-ru="Полностью свой стек — не обёртка над готовым решением.">A full custom stack — not another wrapper around an off-the-shelf tunnel.</p>
-    <div class="features">
-      <div class="feature">
-        <div class="ico">&#128737;</div>
-        <h3 data-en="Invisible on port 443" data-ru="Невидим на порту 443">Invisible on port 443</h3>
-        <p data-en="Everything rides a single TLS stream on the standard HTTPS port. To any network or DPI box in between, it looks exactly like a normal web server." data-ru="Весь трафик идёт одним TLS-потоком через стандартный HTTPS-порт. Для любой сети и любого DPI по пути это обычный веб-сервер.">Everything rides a single TLS stream on the standard HTTPS port. To any network or DPI box in between, it looks exactly like a normal web server.</p>
+  <!-- ═══════ HERO ═══════ -->
+  <section class="hero">
+    <div class="hero-video-wrap">
+      <video autoplay muted loop playsinline>
+        <source src="1.mp4" type="video/mp4">
+      </video>
+    </div>
+
+    <div class="hero-content">
+      <h1 class="hero-brand">PROXYNESS</h1>
+      <p class="hero-tagline"
+         data-en="Access without borders. Full control."
+         data-ru="Доступ без границ. Полный контроль.">Access without borders. Full control.</p>
+      <p class="hero-sub"
+         data-en="A proxy service for people who need stable access to Telegram, Discord, Claude, YouTube and dozens of other services. Setup in under 30 seconds."
+         data-ru="Прокси-сервис для тех, кому нужен стабильный доступ к Telegram, Discord, Claude, YouTube и десяткам других сервисов. Настройка за 30 секунд.">A proxy service for people who need stable access to Telegram, Discord, Claude, YouTube and dozens of other services. Setup in under 30 seconds.</p>
+      <a href="#download" class="hero-cta">
+        <span data-en="Get started" data-ru="Начать">Get started</span>
+        <svg viewBox="0 0 20 20"><path d="M5 10h10M11 6l4 4-4 4"/></svg>
+      </a>
+    </div>
+
+    <div class="hero-scroll-hint">
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+
+  <!-- ═══════ FEATURES ═══════ -->
+  <section class="features">
+    <div class="fade-in">
+      <p class="section-label" data-en="Features" data-ru="Возможности">Features</p>
+      <h2 class="section-title"
+          data-en="Three modes. One click to connect."
+          data-ru="Три режима работы. Один клик для подключения.">Three modes. One click to connect.</h2>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-item fade-in">
+        <div class="feature-icon">
+          <svg viewBox="0 0 40 40">
+            <rect x="4" y="4" width="14" height="14" rx="2"/>
+            <rect x="22" y="4" width="14" height="14" rx="2"/>
+            <rect x="4" y="22" width="14" height="14" rx="2"/>
+            <path d="M29 22v14M22 29h14"/>
+          </svg>
+        </div>
+        <h3 class="feature-name"
+            data-en="Per-app routing"
+            data-ru="Маршрутизация по приложениям">Per-app routing</h3>
+        <p class="feature-desc"
+           data-en="Choose which apps go through the proxy and which stay direct. System-level TUN mode intercepts traffic per process."
+           data-ru="Выбирайте, какие приложения идут через прокси, а какие напрямую. TUN-режим на уровне системы перехватывает трафик каждого процесса отдельно.">Choose which apps go through the proxy and which stay direct. System-level TUN mode intercepts traffic per process.</p>
       </div>
-      <div class="feature">
-        <div class="ico">&#9889;</div>
-        <h3 data-en="AutoTransport — UDP or TLS" data-ru="AutoTransport — UDP или TLS">AutoTransport — UDP or TLS</h3>
-        <p data-en="Two transports, picked automatically. Custom UDP with ARQ and BBR/CUBIC congestion control for 1.5–2× faster TTFB; TLS when heavy downloads benefit from kernel TCP. No tuning, no toggles." data-ru="Два транспорта с автоматическим выбором. Свой UDP с ARQ и congestion-control BBR/CUBIC даёт TTFB в 1.5–2 раза быстрее; TLS выигрывает на тяжёлых загрузках. Без настроек и тумблеров.">Two transports, picked automatically. Custom UDP with ARQ and BBR/CUBIC congestion control for 1.5–2× faster TTFB; TLS when heavy downloads benefit from kernel TCP. No tuning, no toggles.</p>
+
+      <div class="feature-item fade-in">
+        <div class="feature-icon">
+          <svg viewBox="0 0 40 40">
+            <circle cx="20" cy="20" r="14"/>
+            <path d="M14 20h12M20 14v12"/>
+            <circle cx="20" cy="20" r="5"/>
+          </svg>
+        </div>
+        <h3 class="feature-name"
+            data-en="Browser SOCKS5"
+            data-ru="Браузерный SOCKS5">Browser SOCKS5</h3>
+        <p class="feature-desc"
+           data-en="A local SOCKS5 proxy for browsers. Runs alongside TUN, bypasses QUIC, and maintains full compatibility with web services."
+           data-ru="Локальный SOCKS5-прокси для браузеров. Работает параллельно с TUN, обходит QUIC и обеспечивает максимальную совместимость с веб-сервисами.">A local SOCKS5 proxy for browsers. Runs alongside TUN, bypasses QUIC, and maintains full compatibility with web services.</p>
       </div>
-      <div class="feature">
-        <div class="ico">&#127760;</div>
-        <h3 data-en="Hybrid TUN + Browser" data-ru="Гибридный TUN + Браузер">Hybrid TUN + Browser</h3>
-        <p data-en="In TUN mode, apps go through the tunnel while browsers ride a local SOCKS5 — avoiding QUIC headaches. Or flip to Browser-only when that is all you need." data-ru="В режиме TUN приложения идут через тоннель, а браузеры — через локальный SOCKS5 (чтобы не упираться в QUIC). Или включи режим «только браузер», если этого достаточно.">In TUN mode, apps go through the tunnel while browsers ride a local SOCKS5 — avoiding QUIC headaches. Or flip to Browser-only when that is all you need.</p>
-      </div>
-      <div class="feature">
-        <div class="ico">&#128230;</div>
-        <h3 data-en="Per-app split tunneling" data-ru="Раздельный тоннель по приложениям">Per-app split tunneling</h3>
-        <p data-en="Pick exactly which apps go through the tunnel. Telegram and Discord over the proxy, games direct — your call." data-ru="Выбирай, какие приложения идут через тоннель. Telegram и Discord — через прокси, игры — напрямую. Ты решаешь.">Pick exactly which apps go through the tunnel. Telegram and Discord over the proxy, games direct — your call.</p>
-      </div>
-      <div class="feature">
-        <div class="ico">&#128721;</div>
-        <h3 data-en="Kill Switch built in" data-ru="Kill Switch из коробки">Kill Switch built in</h3>
-        <p data-en="Three independent health detectors watch the tunnel in real time. If it drops, traffic is blocked instantly — your real IP never leaks. When the link recovers, traffic resumes on its own." data-ru="Три независимых детектора следят за состоянием тоннеля в реальном времени. При обрыве весь трафик мгновенно блокируется — реальный IP не утекает. После восстановления связь возобновляется сама.">Three independent health detectors watch the tunnel in real time. If it drops, traffic is blocked instantly — your real IP never leaks. When the link recovers, traffic resumes on its own.</p>
-      </div>
-      <div class="feature">
-        <div class="ico">&#128274;</div>
-        <h3 data-en="Hardware-bound access" data-ru="Привязка к устройству">Hardware-bound access</h3>
-        <p data-en="Your key pairs with your machine on first use. Nobody else can walk off with your access — even if they get the key." data-ru="При первом подключении ключ привязывается к твоей машине. Никто чужой не уйдёт с твоим доступом — даже если получит ключ.">Your key pairs with your machine on first use. Nobody else can walk off with your access — even if they get the key.</p>
+
+      <div class="feature-item fade-in">
+        <div class="feature-icon">
+          <svg viewBox="0 0 40 40">
+            <path d="M8 20h6l4-8 4 16 4-8h6"/>
+            <circle cx="8" cy="20" r="2"/>
+            <circle cx="32" cy="20" r="2"/>
+          </svg>
+        </div>
+        <h3 class="feature-name"
+            data-en="Split tunneling"
+            data-ru="Раздельное туннелирование">Split tunneling</h3>
+        <p class="feature-desc"
+           data-en="Two modes: proxy everything except selected apps, or proxy only the selected ones. Fine-grained control per application."
+           data-ru="Два режима: проксировать все, кроме выбранных, или проксировать только выбранные. Гибкая настройка для каждого приложения.">Two modes: proxy everything except selected apps, or proxy only the selected ones. Fine-grained control per application.</p>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section>
-  <div class="wrap">
-    <h2 class="section-title" data-en="Benchmarks" data-ru="Тесты">Benchmarks</h2>
-    <p class="section-sub" data-en="Real benchmarks from the same network, same server region, same time of day." data-ru="Реальные замеры на одной сети, одном регионе сервера, в одно и то же время.">Real benchmarks from the same network, same server region, same time of day.</p>
-    <div class="bench">
-      <table>
-        <thead>
-          <tr>
-            <th data-en="Metric" data-ru="Метрика">Metric</th>
-            <th>Proxyness</th>
-            <th>WireGuard</th>
-            <th>Outline</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td data-en="Ping 8.8.8.8" data-ru="Пинг 8.8.8.8">Ping 8.8.8.8</td><td class="win">61 ms</td><td class="loss">100 ms</td><td class="loss">&mdash;</td></tr>
-          <tr><td data-en="DNS (avg)" data-ru="DNS (среднее)">DNS (avg)</td><td class="win">63 ms</td><td class="loss">104 ms</td><td class="loss">&mdash;</td></tr>
-          <tr><td data-en="TTFB github.com" data-ru="TTFB github.com">TTFB github.com</td><td class="win">0.38 s</td><td class="loss">0.49 s</td><td class="loss">timeout</td></tr>
-          <tr><td data-en="TTFB telegram.org" data-ru="TTFB telegram.org">TTFB telegram.org</td><td class="win">0.43 s</td><td class="loss">0.70 s</td><td class="loss">timeout</td></tr>
-          <tr><td data-en="Download" data-ru="Загрузка">Download</td><td class="win">5.0 MB/s</td><td class="loss">2.6 MB/s</td><td class="loss">~12 KB/s</td></tr>
-          <tr><td data-en="Upload" data-ru="Отдача">Upload</td><td class="loss">4.6 MB/s</td><td class="win">6.3 MB/s</td><td class="loss">&mdash;</td></tr>
-        </tbody>
-      </table>
+  <!-- ═══════ HOW IT WORKS ═══════ -->
+  <section class="how-it-works">
+    <div class="fade-in">
+      <p class="section-label" data-en="How it works" data-ru="Как это работает">How it works</p>
+      <h2 class="section-title"
+          data-en="Three steps to full access"
+          data-ru="Три шага до полного доступа">Three steps to full access</h2>
     </div>
-    <p class="bench-note" data-en="Outline on Shadowsocks times out on HTTPS under Russian ISPs in 2026. Proxyness uses real TLS on 443 — it looks like a web server." data-ru="Outline на Shadowsocks в 2026 году таймаутится на HTTPS у российских провайдеров. Proxyness использует настоящий TLS на 443 — выглядит как обычный веб-сервер.">Outline on Shadowsocks times out on HTTPS under Russian ISPs in 2026. Proxyness uses real TLS on 443 — it looks like a web server.</p>
-  </div>
-</section>
 
-<section>
-  <div class="wrap">
-    <h2 class="section-title" data-en="Three steps to online" data-ru="Три шага до подключения">Three steps to online</h2>
-    <p class="section-sub" data-en="No configuration files, no command line, no browser extensions required." data-ru="Без конфигов, без командной строки, без расширений для браузера.">No configuration files, no command line, no browser extensions required.</p>
-    <div class="steps">
-      <div class="step">
-        <h4 data-en="Install the app" data-ru="Установи приложение">Install the app</h4>
-        <p data-en="Grab the installer for your platform above and run it. Takes less than a minute." data-ru="Скачай установщик для своей системы выше и запусти. Занимает меньше минуты.">Grab the installer for your platform above and run it. Takes less than a minute.</p>
+    <div class="steps-row">
+      <div class="step fade-in">
+        <div class="step-number">01</div>
+        <h3 class="step-title"
+            data-en="Download the client"
+            data-ru="Скачайте клиент">Download the client</h3>
+        <p class="step-desc"
+           data-en="Installer for macOS and Windows. Native app, no browser extensions required."
+           data-ru="Установщик для macOS и Windows. Нативное приложение, без браузерных расширений.">Installer for macOS and Windows. Native app, no browser extensions required.</p>
       </div>
-      <div class="step">
-        <h4 data-en="Enter your access key" data-ru="Введи ключ доступа">Enter your access key</h4>
-        <p data-en="Paste the key you were given. It binds to your device automatically on first connect." data-ru="Вставь выданный ключ. При первом подключении он автоматически привяжется к твоему устройству.">Paste the key you were given. It binds to your device automatically on first connect.</p>
+
+      <div class="step fade-in">
+        <div class="step-number">02</div>
+        <h3 class="step-title"
+            data-en="Enter your key"
+            data-ru="Введите ключ">Enter your key</h3>
+        <p class="step-desc"
+           data-en="Paste your personal access key. Device binding happens automatically on first connect."
+           data-ru="Вставьте ваш персональный ключ доступа. Привязка к устройству происходит автоматически.">Paste your personal access key. Device binding happens automatically on first connect.</p>
       </div>
-      <div class="step">
-        <h4 data-en="Click Connect" data-ru="Нажми Connect">Click Connect</h4>
-        <p data-en="That's it. Your traffic is now flowing through the tunnel. Change modes any time from the header." data-ru="Готово. Трафик идёт через тоннель. Режим можно переключить в любой момент из шапки приложения.">That's it. Your traffic is now flowing through the tunnel. Change modes any time from the header.</p>
+
+      <div class="step fade-in">
+        <div class="step-number">03</div>
+        <h3 class="step-title"
+            data-en="Connect"
+            data-ru="Подключитесь">Connect</h3>
+        <p class="step-desc"
+           data-en="One click — all traffic flows through a secure TLS tunnel. Server in the Netherlands."
+           data-ru="Один клик — и весь трафик идёт через защищённый канал TLS. Сервер в Нидерландах.">One click — all traffic flows through a secure TLS tunnel. Server in the Netherlands.</p>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<footer>
-  <div class="wrap">Proxyness</div>
-</footer>
+  <!-- ═══════ SUPPORTED APPS ═══════ -->
+  <section class="apps">
+    <div class="fade-in">
+      <p class="section-label" data-en="Compatibility" data-ru="Совместимость">Compatibility</p>
+      <h2 class="section-title"
+          data-en="Works with the services you need"
+          data-ru="Работает с сервисами, которые вам нужны">Works with the services you need</h2>
+    </div>
+
+    <div class="apps-grid">
+      <!-- Telegram -->
+      <div class="app-item fade-in">
+        <div class="app-icon">
+          <svg viewBox="0 0 48 48">
+            <path fill="#29B6F6" d="M5.8 22.4L40 8.6c1.5-.6 2.8.8 2.3 2.3l-6.3 28.4c-.5 1.5-2 2-3.2 1.2l-8.5-5.8-4.2 4c-.5.5-1.4.3-1.5-.4l-.8-7.3L5.5 25c-1.2-.8-1.1-2.1.3-2.6z"/>
+            <path fill="#fff" d="M19.5 33.2l.5-7.5 13.5-12.2c.6-.5-.1-.8-.9-.3L16 25l-7.8-2.5c-1.2-.4-1.2-1.2.3-1.8l30.4-11.7c1-.4 2 .3 1.6 1.8l-5.2 23.2c-.3 1.5-1.3 1.9-2.6 1.2l-7.2-5.3-3.5 3.4c-.4.4-1 .2-1.1-.3l-1.4-4.8"/>
+          </svg>
+        </div>
+        <span class="app-name">Telegram</span>
+      </div>
+
+      <!-- Discord -->
+      <div class="app-item fade-in">
+        <div class="app-icon">
+          <svg viewBox="0 0 48 48">
+            <path fill="#5865F2" d="M38.3 11.2A33.4 33.4 0 0030 8.5a.1.1 0 00-.1 0 23.3 23.3 0 00-1 2.2 30.9 30.9 0 00-9.8 0 22 22 0 00-1-2.2.1.1 0 00-.1 0 33.3 33.3 0 00-8.3 2.7C4.1 19.5 2.7 27.5 3.4 35.4a.1.1 0 000 .1 33.6 33.6 0 0010.3 5.3.1.1 0 00.1 0 24.3 24.3 0 002.1-3.5.1.1 0 000-.1 22 22 0 01-3.5-1.7.1.1 0 010-.2l.7-.6a.1.1 0 01.1 0 24 24 0 0020.6 0 .1.1 0 01.1 0l.7.6a.1.1 0 010 .2 21 21 0 01-3.5 1.7.1.1 0 000 .1 23.8 23.8 0 002.1 3.5.1.1 0 00.1 0 33.5 33.5 0 0010.3-5.3.1.1 0 000-.1c.8-9-1.4-16.8-5.8-23.7zM17.2 30.8c-2 0-3.6-1.9-3.6-4.2s1.6-4.2 3.6-4.2 3.6 1.9 3.6 4.2-1.6 4.2-3.6 4.2zm13.6 0c-2 0-3.6-1.9-3.6-4.2s1.6-4.2 3.6-4.2 3.6 1.9 3.6 4.2-1.6 4.2-3.6 4.2z"/>
+          </svg>
+        </div>
+        <span class="app-name">Discord</span>
+      </div>
+
+      <!-- Claude -->
+      <div class="app-item fade-in">
+        <div class="app-icon">
+          <svg viewBox="0 0 48 48">
+            <rect width="48" height="48" rx="8" fill="#D4A574"/>
+            <path d="M15 32l6-16h2l6 16h-2.5l-1.5-4.2h-6.5L17.5 32H15zm5-6.5h5L22.5 18h-.5l-2 7.5z" fill="#fff"/>
+          </svg>
+        </div>
+        <span class="app-name">Claude</span>
+      </div>
+
+      <!-- Cursor -->
+      <div class="app-item fade-in">
+        <div class="app-icon">
+          <svg viewBox="0 0 48 48">
+            <rect width="48" height="48" rx="8" fill="#1a1a2e"/>
+            <path d="M14 14l20 10-20 10V14z" fill="#fff" opacity="0.9"/>
+          </svg>
+        </div>
+        <span class="app-name">Cursor</span>
+      </div>
+
+      <!-- YouTube -->
+      <div class="app-item fade-in">
+        <div class="app-icon">
+          <svg viewBox="0 0 48 48">
+            <path fill="#F44336" d="M43.2 15.5s-.4-2.8-1.6-4c-1.5-1.6-3.2-1.6-4-1.7C32 9.4 24 9.4 24 9.4s-8 0-13.6.4c-.8.1-2.5.1-4 1.7-1.2 1.2-1.6 4-1.6 4S4.4 18.7 4.4 22v3.1c0 3.3.4 6.5.4 6.5s.4 2.8 1.6 4c1.5 1.6 3.5 1.5 4.4 1.7C14 37.6 24 37.7 24 37.7s8 0 13.6-.4c.8-.1 2.5-.1 4-1.7 1.2-1.2 1.6-4 1.6-4s.4-3.2.4-6.5V22c0-3.3-.4-6.5-.4-6.5z"/>
+            <path fill="#fff" d="M20 30V18l10.5 6L20 30z"/>
+          </svg>
+        </div>
+        <span class="app-name">YouTube</span>
+      </div>
+
+      <!-- Instagram -->
+      <div class="app-item fade-in">
+        <div class="app-icon">
+          <svg viewBox="0 0 48 48">
+            <defs>
+              <linearGradient id="ig" x1="0" y1="48" x2="48" y2="0" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#FFC107"/>
+                <stop offset=".5" stop-color="#F44336"/>
+                <stop offset="1" stop-color="#9C27B0"/>
+              </linearGradient>
+            </defs>
+            <rect width="48" height="48" rx="12" fill="url(#ig)"/>
+            <circle cx="24" cy="24" r="8" fill="none" stroke="#fff" stroke-width="2.5"/>
+            <circle cx="35" cy="13" r="2.2" fill="#fff"/>
+            <rect x="8" y="8" width="32" height="32" rx="8" fill="none" stroke="#fff" stroke-width="2.5"/>
+          </svg>
+        </div>
+        <span class="app-name">Instagram</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ DOWNLOAD CTA ═══════ -->
+  <section class="download" id="download">
+    <div class="fade-in">
+      <p class="section-label" data-en="Download" data-ru="Скачать">Download</p>
+      <h2 class="section-title"
+          data-en="Install the client and get connected in under a minute"
+          data-ru="Установите клиент и подключитесь за минуту">Install the client and get connected in under a minute</h2>
+      <p class="download-sub"
+         data-en="Native app for macOS and Windows. Auto-updates, minimal setup."
+         data-ru="Нативное приложение для macOS и Windows. Автоматические обновления, минимальная настройка.">Native app for macOS and Windows. Auto-updates, minimal setup.</p>
+    </div>
+
+    <div class="download-buttons fade-in"></div>
+
+    <p class="download-note fade-in"
+       data-en='Need a device key? The service is in closed beta — email <a href="mailto:ilya@smurov.com">ilya@smurov.com</a> and I will send you a free key for one device.'
+       data-ru='Нужен ключ доступа? Сервис в закрытой бете — напишите на <a href="mailto:ilya@smurov.com">ilya@smurov.com</a>, и я вышлю бесплатный ключ на одно устройство.'>Need a device key? The service is in closed beta — email <a href="mailto:ilya@smurov.com">ilya@smurov.com</a> and I will send you a free key for one device.</p>
+  </section>
+
+  <!-- ═══════ FOOTER ═══════ -->
+  <div class="footer-wrap">
+    <footer class="footer">
+      <span class="footer-brand">PROXYNESS</span>
+      <div class="footer-links">
+        <a href="https://github.com/ilyasmurov/proxyness">GitHub</a>
+        <a href="mailto:ilya@smurov.com">ilya@smurov.com</a>
+      </div>
+    </footer>
+  </div>
+
+</div>
 
 <script>
-(function(){
+(function() {
+  // ── Dynamic download buttons from GitHub Releases ──
   var repo = "ilyasmurov/proxyness";
-  var container = document.querySelector(".downloads");
+  var container = document.querySelector(".download-buttons");
   var fallback = "https://github.com/" + repo + "/releases/latest";
-  var iconApple = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.536c-.02-2.09 1.71-3.095 1.789-3.145-.974-1.424-2.494-1.62-3.035-1.644-1.293-.13-2.524.76-3.182.76-.658 0-1.672-.74-2.75-.72-1.414.02-2.72.822-3.447 2.088-1.47 2.55-.376 6.324 1.057 8.396.7 1.013 1.535 2.152 2.633 2.111 1.058-.04 1.457-.684 2.735-.684 1.278 0 1.637.684 2.754.664 1.138-.02 1.858-1.03 2.554-2.048.805-1.176 1.135-2.316 1.155-2.376-.025-.012-2.215-.85-2.263-3.402zM15.02 6.37c.584-.706.978-1.688.87-2.664-.84.034-1.858.56-2.462 1.266-.54.626-1.013 1.626-.886 2.584.94.072 1.893-.478 2.478-1.186z"/></svg>';
-  var iconWin = '<svg width="18" height="18" viewBox="-14 -14 116 116" fill="currentColor"><path d="M0 12.402 35.687 7.51v34.422H0zm0 63.195L35.687 80.49V46.507H0zm39.6 5.432L87.6 87.6V46.506H39.6zm0-73.63v35.99H87.6V0z"/></svg>';
+  var iconApple = '<svg viewBox="0 0 20 20"><path d="M14.4 3.3C13.6 4.3 12.3 5 11.2 5c-.2-1.2.4-2.5 1.1-3.3C13.1.7 14.5.1 15.5 0c.1 1.3-.4 2.5-1.1 3.3zM15.5 5.2c-1.6-.1-3 .9-3.8.9s-2-.9-3.3-.9C6.3 5.3 4 7.2 4 11.2c0 2.5 1 5.1 2.2 6.8.9 1.5 1.8 2.9 3.1 2.9s1.7-.9 3.2-.9 1.9.9 3.2.9 2-1.3 2.8-2.6c.5-.8.9-1.6 1.1-2.1-2.1-.8-2.5-4.2-.3-5.5-.9-1.1-2.2-1.8-3.4-1.8-.7 0-1.5.3-2.4.3-.7 0-1.5-.3-2.3-.3"/></svg>';
+  var iconWin  = '<svg viewBox="0 0 20 20"><path d="M1 3.5l7.4-1v7.2H1V3.5zm0 13l7.4 1v-7.1H1v6.1zm8.3 1.1L19 19V9.7H9.3v7.9zM9.3 2.4v7.3H19V1L9.3 2.4z"/></svg>';
 
-  function render(files) {
-    container.innerHTML = files.map(function(f) {
-      return '<a href="' + f.url + '" class="download-btn ' + f.cls + '">' +
-        '<span class="icon">' + f.icon + '</span> ' +
-        '<span data-en="Download for ' + f.label + '" data-ru="\u0421\u043A\u0430\u0447\u0430\u0442\u044C \u0434\u043B\u044F ' + f.label + '">Download for ' + f.label + '</span> ' +
-        '<span class="badge">' + f.badge + '</span></a>';
+  function render(files, primaryIdx) {
+    container.innerHTML = files.map(function(f, i) {
+      var cls = "dl-btn" + (i === primaryIdx ? " dl-btn--primary" : "");
+      return '<a href="' + f.url + '" class="' + cls + '">' +
+        f.icon +
+        '<span>' + f.label + '</span></a>';
     }).join("");
+    // Re-run fade-in observer on new nodes
+    document.querySelectorAll(".download-buttons.fade-in").forEach(function(el) {
+      if (!el.classList.contains("visible")) el.classList.add("visible");
+    });
   }
 
   render([
-    {url: fallback, label: "macOS Apple Silicon", cls: "mac", icon: iconApple, badge: ".pkg"},
-    {url: fallback, label: "Windows", cls: "win", icon: iconWin, badge: ".exe"}
-  ]);
+    {url: fallback, label: "macOS",   icon: iconApple},
+    {url: fallback, label: "Windows", icon: iconWin}
+  ], 0);
 
   fetch("https://api.github.com/repos/" + repo + "/releases/latest")
     .then(function(r){ return r.json(); })
@@ -215,20 +925,63 @@ footer a:hover { color: #9aa3b2; }
       (rel.assets || []).forEach(function(a){
         var name = a.name.toLowerCase();
         if (name.endsWith(".pkg") && name.indexOf("arm64") >= 0)
-          files.push({url: a.browser_download_url, label: "macOS Apple Silicon", cls: "mac", icon: iconApple, badge: ".pkg"});
+          files.push({url: a.browser_download_url, label: "macOS",   icon: iconApple});
         if (name.endsWith(".exe") && name.indexOf("setup") >= 0)
-          files.push({url: a.browser_download_url, label: "Windows", cls: "win", icon: iconWin, badge: ".exe"});
+          files.push({url: a.browser_download_url, label: "Windows", icon: iconWin});
       });
-      if (files.length > 0) render(files);
+      if (files.length > 0) render(files, 0);
     })
     .catch(function(){});
 })();
 </script>
+
+<script>
+(function() {
+  // ── IntersectionObserver fade-in ──
+  var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!prefersReduced) {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, {
+      threshold: 0.12,
+      rootMargin: '0px 0px -40px 0px'
+    });
+
+    document.querySelectorAll('.fade-in').forEach(function(el) {
+      observer.observe(el);
+    });
+  } else {
+    document.querySelectorAll('.fade-in').forEach(function(el) {
+      el.classList.add('visible');
+    });
+  }
+
+  // ── Stagger animation delays for grid children ──
+  document.querySelectorAll('.features-grid .fade-in, .steps-row .fade-in, .apps-grid .fade-in').forEach(function(el) {
+    var parent = el.parentElement;
+    var siblings = Array.from(parent.children).filter(function(c) {
+      return c.classList.contains('fade-in');
+    });
+    var index = siblings.indexOf(el);
+    if (index > 0) {
+      el.style.transitionDelay = (index * 0.1) + 's';
+    }
+  });
+})();
+</script>
+
 <script>
 (function(){
+  // ── i18n: EN default, RU toggle, persisted in localStorage ──
   var saved = localStorage.getItem("lang");
-  var lang = saved || (navigator.language && navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en");
-  function apply(l){
+  var lang = saved || "en";
+  function apply(l) {
     document.documentElement.lang = l;
     document.querySelectorAll("[data-en]").forEach(function(el){
       var v = el.getAttribute("data-" + l);

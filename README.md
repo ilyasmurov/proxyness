@@ -73,12 +73,6 @@ Lives at `admin.proxyness.smurov.com`, behind Basic Auth. Communicates with the 
 
 ![Admin dashboard — releases](docs/screenshots/admin-releases.png)
 
-### Tray icons
-
-Ghost silhouette with a transparent eye cutout — open eye when connected, closed eye when idle. Template images on macOS so the menu bar auto-inverts for light/dark themes.
-
-![Tray icon states](docs/screenshots/tray-icons.png)
-
 ---
 
 ## How it works
@@ -242,7 +236,3 @@ Most of the source was generated using Anthropic's Claude under my direction —
 - [wireguard-go/tun](https://github.com/WireGuard/wireguard-go) — the TUN device abstraction on macOS.
 - [wintun](https://www.wintun.net/) — the corresponding TUN driver on Windows.
 - [Electron](https://www.electronjs.org/), [Vite](https://vitejs.dev/), [React](https://react.dev/) — the client stack.
-
----
-
-Made in RU, hosted in NL.

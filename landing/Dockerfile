@@ -1,4 +1,5 @@
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY index.html /usr/share/nginx/html/
+COPY 1.mp4 /usr/share/nginx/html/
 EXPOSE 80
