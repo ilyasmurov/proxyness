@@ -1064,6 +1064,7 @@ func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAd
 		}
 		log.Printf("[tun] open TCP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
+			log.Printf("[tun] DEVICE BINDING CONFLICT: server reports this key is bound to a different machine fingerprint — stopping engine. (dst=%s:%d)", dstAddr, dstPort)
 			e.mu.Lock()
 			e.lastError = "Device is bound to a different machine"
 			e.stopLocked()
@@ -1117,10 +1118,12 @@ func (e *Engine) proxyTCPLegacy(local net.Conn, dstAddr string, dstPort uint16) 
 
 	fp := machineid.Fingerprint()
 	if err := proto.WriteMachineID(tlsConn, fp); err != nil {
+		log.Printf("[tun/legacy] machine id write failed: %v", err)
 		return
 	}
 	ok, err = proto.ReadResult(tlsConn)
 	if err != nil || !ok {
+		log.Printf("[tun/legacy] DEVICE BINDING CONFLICT: server rejected machine fingerprint (ok=%v err=%v) — stopping engine", ok, err)
 		e.mu.Lock()
 		e.lastError = "Device is bound to a different machine"
 		e.stopLocked()
@@ -1247,6 +1250,7 @@ func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAd
 		}
 		log.Printf("[tun] open UDP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
+			log.Printf("[tun] DEVICE BINDING CONFLICT: server reports this key is bound to a different machine fingerprint — stopping engine. (dst=%s:%d UDP)", dstAddr, dstPort)
 			e.mu.Lock()
 			e.lastError = "Device is bound to a different machine"
 			e.stopLocked()

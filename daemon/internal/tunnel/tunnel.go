@@ -751,6 +751,7 @@ func (t *Tunnel) handleSOCKSTransport(conn net.Conn, tr transport.Transport, add
 				t.setConnected()
 				return // recovered — caller will retry via new SOCKS5 request
 			}
+			log.Printf("[tunnel] DEVICE BINDING CONFLICT: fresh transport also rejected — server says this key is bound to a different machine fingerprint. Stopping tunnel.")
 			t.mu.Lock()
 			t.lastError = "Device is bound to a different machine"
 			t.stopLocked()
@@ -802,7 +803,7 @@ func (t *Tunnel) handleSOCKSLegacy(conn net.Conn, addr string, port uint16, targ
 	ok, err = proto.ReadResult(tlsConn)
 	if err != nil || !ok {
 		socks5.SendFailure(conn)
-		log.Printf("[tunnel] machine id rejected")
+		log.Printf("[tunnel/legacy] DEVICE BINDING CONFLICT: server rejected machine fingerprint (ok=%v err=%v) — stopping tunnel", ok, err)
 		t.mu.Lock()
 		t.lastError = "Device is bound to a different machine"
 		t.stopLocked()

@@ -190,6 +190,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	// Lock device on server before connecting
 	if err := lockDevice(req.ServerAddr, req.Key, s.sessionID); err != nil {
+		log.Printf("[api] /connect rejected (409) for key=%s: %v", shortKey(req.Key), err)
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
@@ -288,18 +289,31 @@ func lockDevice(serverAddr, key, sessionID string) error {
 	data := fmt.Sprintf(`{"key":%q,"session_id":%q}`, key, sessionID)
 	resp, err := serverHTTPClient().Post("https://"+serverAddr+"/api/lock-device", "application/json", strings.NewReader(data))
 	if err != nil {
-		return nil // server unreachable, allow connection anyway
+		log.Printf("[api] lockDevice: server %s unreachable (%v) — allowing connection anyway", serverAddr, err)
+		return nil
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusConflict {
 		var body struct{ Error string `json:"error"` }
 		json.NewDecoder(resp.Body).Decode(&body)
-		if body.Error != "" {
-			return fmt.Errorf("%s", body.Error)
+		msg := body.Error
+		if msg == "" {
+			msg = "device already in use"
 		}
-		return fmt.Errorf("device already in use")
+		log.Printf("[api] lockDevice REJECTED by %s: %q (key=%s session=%s) — another session holds the lock", serverAddr, msg, shortKey(key), sessionID)
+		return fmt.Errorf("%s", msg)
+	}
+	if resp.StatusCode >= 400 {
+		log.Printf("[api] lockDevice unexpected status %d from %s (key=%s)", resp.StatusCode, serverAddr, shortKey(key))
 	}
 	return nil
+}
+
+func shortKey(k string) string {
+	if len(k) <= 8 {
+		return k
+	}
+	return k[:4] + "…" + k[len(k)-4:]
 }
 
 func unlockDevice(serverAddr, key, sessionID string) {
