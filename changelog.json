@@ -1,5 +1,19 @@
 [
   {
+    "id": "2082ed43-5195-400a-84cb-9aa2e779488d",
+    "title": "Spurious kill-switch \"stall\" on Windows when browser is idle but a TUN app is active",
+    "description": "The SOCKS5 tunnel's D3 stall detector would fire a false positive whenever the browser had been sitting on a loaded page for >30 seconds and then made a new background request. Reason: the byte-flow meter is shared between the TUN engine and the SOCKS5 tunnel, but bypassed TUN connections (everything in the \"Selected\" mode with `proxy=false`) don't feed the meter. So with no SOCKS5 activity and only bypass TUN traffic, the meter looked stale. The arriving request refreshed activeHosts but not the meter, tripping D3 within a second. D3 now seeds the meter at request arrival so \"request just landed, response on the way\" isn't mistaken for a stall.",
+    "type": "fix",
+    "createdAt": "2026-04-24T19:34:56.633893+00:00"
+  },
+  {
+    "id": "0814d761-5471-40e0-889c-c8152aaaafeb",
+    "title": "Noisy `[socks5] handshake failed: unsupported SOCKS version: 4` and `: 72` in Windows daemon log",
+    "description": "Two sources. First, the PAC file listed `SOCKS 127.0.0.1:1080` (SOCKS4) as a middle fallback between SOCKS5 and DIRECT — but the daemon never served SOCKS4. On Windows, whenever the kill switch briefly returned SOCKS5 REP=1 during a reconnect, Chrome/WinHTTP dutifully retried against the SOCKS4 entry and produced the error. Removed the SOCKS4 entry — nothing ever used it successfully. Second, the handshake-failure log no longer screams at every unknown-first-byte probe (HTTP prober sending 'H' = 72, legacy SOCKS4 clients, etc.) — those aren't our bugs and flooded the log for no reason.",
+    "type": "fix",
+    "createdAt": "2026-04-24T19:34:56.634053+00:00"
+  },
+  {
     "id": "f809e3f2-c2d7-41d1-880e-789e723f35fe",
     "title": "Proxy stuck in \"Reconnecting…\" for 60s on Mac after WiFi flaps or laptop wake",
     "description": "The fast-retry loop in the TUN engine and SOCKS5 tunnel would spin 20 times × 3 seconds against a stale macOS neighbor cache — every attempt returning ENETUNREACH without even a SYN — before handing off to the slow-poll that calls RefreshRoutes via the helper. Meanwhile the user saw a full 60s of \"Disconnected\" and usually hit Reconnect manually. The refresh is now also called mid-budget inside fast-retry: first time after 2 consecutive ENETUNREACH (≈6s), then every 5 more. Typical WiFi-flap recovery drops from ~60s to ~10s. Windows was never affected — the stale-ifscope quirk is darwin-specific.",
@@ -1384,19 +1398,5 @@
     "description": "First entry: full graceful reload design (option C — SIGUSR2 fork-exec + FD inheritance + UDP session handover). Deferred until usage patterns justify the 4-7 day effort.",
     "type": "improvement",
     "createdAt": "2026-04-07T08:32:13.010367+00:00"
-  },
-  {
-    "id": "6ea1958a-0e71-4747-98a4-53da8a8e03d6",
-    "title": "Fix dead UDP session after macOS sleep/wake — engine now detects transport death and reconnects automatically",
-    "description": "Three fixes: AutoTransport now exposes DoneChan so the health loop sees UDP session death; healthCheck validates the actual active transport instead of a separate TCP/TLS dial; Electron client listens for powerMonitor 'resume' and forces a clean reconnect on wake.",
-    "type": "fix",
-    "createdAt": "2026-04-07T07:48:20.142909+00:00"
-  },
-  {
-    "id": "64980b66-e796-4c51-85ee-0e2cf93755b7",
-    "title": "Reduce CPU usage on Windows — retransmit interval 10ms→50ms, process table cache 500ms→2s",
-    "description": "SendBuffer.Expired() now reuses buffer to avoid allocations on hot path.",
-    "type": "fix",
-    "createdAt": "2026-04-06T08:44:55.185259+00:00"
   }
 ]
