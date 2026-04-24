@@ -735,11 +735,28 @@ func (t *Tunnel) handleSOCKS(conn net.Conn) {
 
 	req, err := socks5.Handshake(conn)
 	if err != nil {
-		log.Printf("[socks5] handshake failed: %v", err)
+		// `unsupported SOCKS version: N` fires whenever a local process
+		// probes port 1080 with something that isn't SOCKS5 — legacy
+		// SOCKS4 clients, HTTP probes, accidental browser fall-through
+		// when kill switch has just returned REP=1. Not our bug, not
+		// actionable, and extremely noisy in the log. Drop it silently
+		// and keep only real parser/network errors that indicate a
+		// broken SOCKS5 client.
+		if !strings.Contains(err.Error(), "unsupported SOCKS version") {
+			log.Printf("[socks5] handshake failed: %v", err)
+		}
 		return
 	}
 	target := fmt.Sprintf("%s:%d", req.Addr, req.Port)
 	log.Printf("[tunnel] new request: %s", target)
+	// Seed the meter so D3 stall detection doesn't false-positive when a
+	// SOCKS5 request arrives after a long idle window: touchHost refreshes
+	// activeHosts immediately but no bytes flow until the response does,
+	// which can race the 30s stall check. Seed matches what byte relay
+	// would do on the first chunk and keeps stall semantics honest.
+	if t.meter != nil {
+		t.meter.SeedLastByteAt()
+	}
 
 	// Kill switch: while reconnecting, refuse new SOCKS5 requests so the
 	// browser cannot fall back to a native dialer. The browser sees a

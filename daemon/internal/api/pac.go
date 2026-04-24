@@ -38,7 +38,15 @@ func (p *PacSites) GeneratePAC() string {
 	b.WriteString("function FindProxyForURL(url, host) {\n")
 	b.WriteString(`  if (host === "127.0.0.1" || host === "localhost") return "DIRECT";` + "\n")
 
-	proxy := `"SOCKS5 127.0.0.1:1080; SOCKS 127.0.0.1:1080; DIRECT"`
+	// SOCKS5 only. Previously this listed `SOCKS 127.0.0.1:1080` (SOCKS4)
+	// as a middle fallback — but the daemon never served SOCKS4, so on
+	// Windows every killswitch-driven SOCKS5 REP=1 reply caused Chrome /
+	// WinHTTP to dutifully retry against SOCKS4 and log
+	// `[socks5] handshake failed: unsupported SOCKS version: 4`. Pure
+	// noise, never did anything useful. `DIRECT` stays as a last-resort
+	// fallback for when the daemon is actually down; in-session killswitch
+	// is enforced at the TUN layer, not through PAC.
+	proxy := `"SOCKS5 127.0.0.1:1080; DIRECT"`
 
 	if p.proxyAll {
 		b.WriteString(fmt.Sprintf("  return %s;\n", proxy))
