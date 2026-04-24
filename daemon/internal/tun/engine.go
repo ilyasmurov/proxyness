@@ -715,6 +715,16 @@ func (e *Engine) tryReconnectOnce() error {
 // reconnectDelay). Returns nil on success, errReconnectStopped if stop
 // was requested, or the last attempt's error on exhaustion or
 // unrecoverable failure (auth/machine-id rejection).
+//
+// When the attempts are failing with ENETUNREACH (darwin stale ifscope /
+// neighbor cache after WiFi flap, laptop wake, Docker vmnetd re-creating
+// interfaces) the socket-only retry loop cannot recover: the kernel keeps
+// returning ENETUNREACH without even a SYN. We mid-budget call
+// RefreshRoutes() to delete+re-add the server-host / ifscope bypass routes
+// via the helper, which is the same fix waitForNetwork already applies on
+// each slow-poll tick. Without this, fast retries spin uselessly for the
+// full 60s before control hands off to waitForNetwork; with it, a typical
+// darwin WiFi flap recovers in ~10s.
 func (e *Engine) reconnectTransport() error {
 	e.mu.Lock()
 	if e.transport != nil {
@@ -732,6 +742,8 @@ func (e *Engine) reconnectTransport() error {
 	const reconnectDelay = 3 * time.Second
 
 	var lastErr error
+	consecutiveUnreach := 0
+	nextRefreshAt := fastRetryFirstRefreshAt
 	for attempt := 1; attempt <= maxReconnects; attempt++ {
 		select {
 		case <-e.stopHealth:
@@ -741,6 +753,16 @@ func (e *Engine) reconnectTransport() error {
 
 		if attempt > 1 {
 			time.Sleep(reconnectDelay)
+		}
+
+		if consecutiveUnreach >= nextRefreshAt {
+			log.Printf("[tun] reconnect: %d consecutive ENETUNREACH, refreshing routes via helper", consecutiveUnreach)
+			if err := e.RefreshRoutes(); err != nil {
+				log.Printf("[tun] reconnect: route refresh failed: %v", err)
+			} else {
+				log.Printf("[tun] reconnect: routes refreshed")
+			}
+			nextRefreshAt = consecutiveUnreach + fastRetryRefreshEvery
 		}
 
 		log.Printf("[tun] reconnect attempt %d/%d", attempt, maxReconnects)
@@ -753,9 +775,27 @@ func (e *Engine) reconnectTransport() error {
 		if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
 			return err
 		}
+		if transport.IsNetworkUnreachable(err) {
+			consecutiveUnreach++
+		} else {
+			consecutiveUnreach = 0
+			nextRefreshAt = fastRetryFirstRefreshAt
+		}
 	}
 	return lastErr
 }
+
+// fastRetryFirstRefreshAt / fastRetryRefreshEvery control when
+// reconnectTransport calls RefreshRoutes mid-budget. First refresh fires
+// after 2 consecutive ENETUNREACH (≈6s downtime) so a single racy read
+// at WiFi-flap moment doesn't trigger helper work; subsequent refreshes
+// re-fire every 5 consecutive ENETUNREACH to give the fix a few chances
+// within the 60s budget without hammering the helper. Shared between
+// tun.Engine and tunnel.Tunnel reconnectTransport.
+const (
+	fastRetryFirstRefreshAt = 2
+	fastRetryRefreshEvery   = 5
+)
 
 // slowPollSchedule is the per-attempt wait before the next reconnect try in
 // waitForNetwork. The ramp starts tight (3s) because a real incident on

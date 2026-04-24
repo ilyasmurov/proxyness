@@ -589,15 +589,24 @@ func (t *Tunnel) tryReconnectOnce() error {
 // reconnectTransport runs the fast retry budget. Returns nil on success,
 // errReconnectStopped on stop, or the last attempt's error on exhaustion
 // / unrecoverable failure (auth or machine-id rejection).
+//
+// Mid-budget RefreshRoutes mirrors the engine.go fix: on darwin the
+// socket retry loop can spin the full 60s against a stale ifscope
+// neighbor cache before waitForNetwork takes over. Refreshing routes
+// through the helper every few consecutive ENETUNREACH gives the
+// typical WiFi-flap case a ~10s recovery instead of 60s.
 func (t *Tunnel) reconnectTransport() error {
 	t.mu.Lock()
 	if t.transport != nil {
 		t.transport.Close()
 		t.transport = nil
 	}
+	refresh := t.refreshRoutesFn
 	t.mu.Unlock()
 
 	var lastErr error
+	consecutiveUnreach := 0
+	nextRefreshAt := fastRetryFirstRefreshAt
 	for attempt := 1; attempt <= maxReconnects; attempt++ {
 		select {
 		case <-t.stopHealth:
@@ -607,6 +616,16 @@ func (t *Tunnel) reconnectTransport() error {
 
 		if attempt > 1 {
 			time.Sleep(reconnectDelay)
+		}
+
+		if refresh != nil && consecutiveUnreach >= nextRefreshAt {
+			log.Printf("[tunnel] reconnect: %d consecutive ENETUNREACH, refreshing routes via helper", consecutiveUnreach)
+			if err := refresh(); err != nil {
+				log.Printf("[tunnel] reconnect: route refresh failed: %v", err)
+			} else {
+				log.Printf("[tunnel] reconnect: routes refreshed")
+			}
+			nextRefreshAt = consecutiveUnreach + fastRetryRefreshEvery
 		}
 
 		log.Printf("[tunnel] reconnect attempt %d/%d", attempt, maxReconnects)
@@ -619,9 +638,23 @@ func (t *Tunnel) reconnectTransport() error {
 		if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
 			return err
 		}
+		if transport.IsNetworkUnreachable(err) {
+			consecutiveUnreach++
+		} else {
+			consecutiveUnreach = 0
+			nextRefreshAt = fastRetryFirstRefreshAt
+		}
 	}
 	return lastErr
 }
+
+// fastRetryFirstRefreshAt / fastRetryRefreshEvery mirror the same
+// constants in tun/engine.go — kept in both packages to avoid a shared
+// helper module for two ints. See the engine.go comment for rationale.
+const (
+	fastRetryFirstRefreshAt = 2
+	fastRetryRefreshEvery   = 5
+)
 
 // slowPollSchedule — see tun/engine.go for the full rationale. Same ramp
 // (3,5,7,10,15,20,30,30 = 120s) is used here so both health loops behave
