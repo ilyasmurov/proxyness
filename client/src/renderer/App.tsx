@@ -43,12 +43,17 @@ if (typeof localStorage !== "undefined" && localStorage.getItem("proxyness-mode"
 }
 
 const SERVERS = [
-  { id: "aeza",    label: "Aeza NL",    addr: "95.181.162.242:443" },
-  { id: "timeweb", label: "Timeweb NL", addr: "82.97.246.65:8443" },
+  { id: "aeza", label: "Aeza NL", addr: "95.181.162.242:443" },
 ];
 const STORAGE_KEY = "proxyness-key";
 const SERVER_STORAGE_KEY = "proxyness-server";
-const defaultServerId = () => localStorage.getItem(SERVER_STORAGE_KEY) || "timeweb";
+// Migrate legacy "timeweb" pick to "aeza" — the Timeweb VPS was decommissioned in 1.45.5.
+// Without this, on a stale localStorage value the picker would show empty and serverAddrFor
+// would silently fall through to Aeza, but the persisted value would still read "timeweb".
+if (typeof localStorage !== "undefined" && localStorage.getItem(SERVER_STORAGE_KEY) === "timeweb") {
+  localStorage.setItem(SERVER_STORAGE_KEY, "aeza");
+}
+const defaultServerId = () => localStorage.getItem(SERVER_STORAGE_KEY) || "aeza";
 const serverAddrFor = (id: string) => SERVERS.find((s) => s.id === id)?.addr || SERVERS[0].addr;
 
 // ---------------------------------------------------------------------------
@@ -202,31 +207,35 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
 
             {animatedDivider(0.23)}
 
-            {fieldLabel("Proxy Server", 0.27)}
-            <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content", marginBottom: 4, animation: anim("light", 0.3) }}>
-              {servers.map((s) => {
-                const active = serverId === s.id;
-                const activeColor = isConnected ? c.am : c.t2;
-                const activeBg = isConnected ? c.amb : c.bg2;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => onServerChange(s.id)}
-                    style={{
-                      padding: "5px 14px", borderRadius: 4, border: "none",
-                      fontFamily: fd, fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
-                      cursor: "pointer", transition: "all 0.1s",
-                      background: active ? activeBg : "transparent",
-                      color: active ? activeColor : c.t3,
-                    }}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
-            </div>
+            {servers.length > 1 && (
+              <>
+                {fieldLabel("Proxy Server", 0.27)}
+                <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content", marginBottom: 4, animation: anim("light", 0.3) }}>
+                  {servers.map((s) => {
+                    const active = serverId === s.id;
+                    const activeColor = isConnected ? c.am : c.t2;
+                    const activeBg = isConnected ? c.amb : c.bg2;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => onServerChange(s.id)}
+                        style={{
+                          padding: "5px 14px", borderRadius: 4, border: "none",
+                          fontFamily: fd, fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
+                          cursor: "pointer", transition: "all 0.1s",
+                          background: active ? activeBg : "transparent",
+                          color: active ? activeColor : c.t3,
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
 
-            {animatedDivider(0.35)}
+                {animatedDivider(0.35)}
+              </>
+            )}
 
             {fieldLabel("Transport Protocol", 0.4)}
             <div style={{ display: "flex", gap: 2, padding: 2, background: c.bg1, borderRadius: 5, width: "fit-content", animation: anim("light", 0.45) }}>
