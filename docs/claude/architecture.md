@@ -56,7 +56,7 @@ Electron 33 + React 19 + TypeScript + Vite. Custom frameless window. Spawns daem
 
 **Hybrid TUN+SOCKS5 mode**: In TUN mode, also starts SOCKS5 tunnel + enables system proxy. Apps (Telegram, Discord, etc.) go through TUN; browsers use SOCKS5 (avoids QUIC issues).
 
-**Server picker**: Settings → General → Proxy Server. User chooses between Aeza NL (default) and Timeweb NL. Driven by a `SERVERS` const + `serverAddrFor(id)` helper in `App.tsx`; selection persists in `localStorage["proxyness-server"]`. Switching triggers a reconnect through the newly-picked server. Both hosts share the same Postgres on Aeza (via WG tunnel), so the same device key works on either.
+**Server picker**: A `SERVERS` const + `serverAddrFor(id)` helper in `App.tsx` survives from the dual-VPS era. Currently `SERVERS.length === 1` (Aeza only) and the Settings → General "Proxy Server" segmented switch hides itself in that case; the row reappears automatically the day a second entry is added back. `localStorage["proxyness-server"]` still persists the choice; legacy `"timeweb"` values are silently migrated to `"aeza"` at module load.
 
 Main process: `src/main/` (daemon lifecycle + log capture in `daemon.ts`, system proxy in `sysproxy.ts`, installed apps detection in `apps.ts`).
 Renderer: `src/renderer/` (React UI with `App.tsx`, curated app list in `AppRules.tsx`, mode selector in `ModeSelector.tsx`, notification banner with dismiss in `NotificationBanner.tsx`).

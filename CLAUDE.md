@@ -55,7 +55,7 @@ Client App ─────────┤                                       
 The detailed sections live in their own files and are loaded into Claude's context via `@` imports:
 
 - **@docs/claude/architecture.md** — module layout: Server, Daemon (TUN engine, SOCKS5), Helper, Client (Electron), Admin Dashboard, Browser Extension, Config Service.
-- **@docs/claude/deploy.md** — tag-triggered deploys, VPS topology (Aeza + Timeweb), shared infra on Aeza (nginx SNI router, WireGuard, Postgres).
+- **@docs/claude/deploy.md** — tag-triggered deploys, single-VPS Aeza topology (nginx SNI router, Postgres).
 - **@docs/claude/decisions.md** — load-bearing design decisions and gotchas: UDP transport, device-key cache, health-loop detectors (D1–D4), ENETUNREACH slow-poll recovery, UI amber/muted rule, and more. Read these before touching the matching code paths.
 
 ## MCP Tools: code-review-graph

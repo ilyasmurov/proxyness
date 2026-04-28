@@ -67,11 +67,6 @@ export function Dashboard() {
                             v{device.version}
                           </span>
                         )}
-                        {device.server && (
-                          <span style={{ color: "#6366f1", marginLeft: 8, fontSize: 11, fontWeight: 500 }}>
-                            {device.server}
-                          </span>
-                        )}
                       </div>
                       <span style={{ color: "#888", fontSize: 13 }}>
                         {formatBytes(device.total_bytes)} total · {device.connections} conn

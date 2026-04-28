@@ -1,7 +1,6 @@
 package admin
 
 import (
-	cryptotls "crypto/tls"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -27,7 +26,7 @@ type Handler struct {
 }
 
 // NewHandler creates and wires up the admin HTTP handler.
-func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string, peerAddrs ...string) *Handler {
+func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string) *Handler {
 	h := &Handler{db: d, tracker: tr, user: user, password: password}
 	h.deviceAuth = NewDeviceAuth(d)
 	mux := http.NewServeMux()
@@ -94,40 +93,6 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string, 
 	landingTarget, _ := url.Parse("http://172.17.0.1:80")
 	landingProxy := httputil.NewSingleHostReverseProxy(landingTarget)
 	mux.Handle("/", landingProxy)
-
-	// Peer VPS stats proxy: /admin/api/stats/stream/timeweb proxies SSE
-	// from a peer server over the WG tunnel. The admin dashboard connects
-	// here (valid TLS cert on Aeza) instead of directly to the peer
-	// (whose cert doesn't match the domain the browser expects).
-	for i, addr := range peerAddrs {
-		if addr == "" {
-			continue
-		}
-		peerTarget, _ := url.Parse(addr)
-		peerProxy := httputil.NewSingleHostReverseProxy(peerTarget)
-		// Peer uses self-signed TLS — skip verification over WG tunnel
-		peerProxy.Transport = &http.Transport{
-			TLSClientConfig: &cryptotls.Config{InsecureSkipVerify: true},
-		}
-		peerProxy.ModifyResponse = func(resp *http.Response) error {
-			resp.Header.Del("Access-Control-Allow-Origin")
-			resp.Header.Del("Access-Control-Allow-Methods")
-			resp.Header.Del("Access-Control-Allow-Headers")
-			resp.Header.Del("Access-Control-Allow-Credentials")
-			resp.Header.Del("Access-Control-Max-Age")
-			return nil
-		}
-		suffix := "timeweb"
-		if i > 0 {
-			suffix = fmt.Sprintf("peer%d", i)
-		}
-		mux.HandleFunc("GET /admin/api/stats/stream/"+suffix, h.auth(func(w http.ResponseWriter, r *http.Request) {
-			// Rewrite path to what the peer server expects
-			r2 := r.Clone(r.Context())
-			r2.URL.Path = "/admin/api/stats/stream"
-			peerProxy.ServeHTTP(w, r2)
-		}))
-	}
 
 	h.mux = mux
 	return h

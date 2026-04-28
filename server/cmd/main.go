@@ -33,7 +33,6 @@ func main() {
 	keyFile := flag.String("keyfile", "key.pem", "TLS private key file")
 	udpAddr := flag.String("udp-addr", ":8443", "UDP listen address")
 	configAddr := flag.String("config", "", "config service address (default http://127.0.0.1:8443)")
-	peerAddr := flag.String("peer", "", "peer VPS stats proxy address (e.g. https://10.88.0.2:443)")
 	flag.Parse()
 
 	if *adminUser == "" {
@@ -81,11 +80,7 @@ func main() {
 	}
 	log.Printf("server listening on %s", *addr)
 
-	var peerAddrs []string
-	if *peerAddr != "" {
-		peerAddrs = []string{*peerAddr}
-	}
-	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, *configAddr, peerAddrs...)
+	adminHandler := admin.NewHandler(database, tracker, *adminUser, *adminPass, *configAddr)
 
 	// Start UDP listener on port 8443 (ISP blocks UDP 443 entirely)
 	udpConn, err := net.ListenPacket("udp", *udpAddr)
