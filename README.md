@@ -236,3 +236,5 @@ Most of the source was generated using Anthropic's Claude under my direction —
 - [wireguard-go/tun](https://github.com/WireGuard/wireguard-go) — the TUN device abstraction on macOS.
 - [wintun](https://www.wintun.net/) — the corresponding TUN driver on Windows.
 - [Electron](https://www.electronjs.org/), [Vite](https://vitejs.dev/), [React](https://react.dev/) — the client stack.
+
+Peace!
