@@ -16,15 +16,22 @@ server/admin-ui/dist/
 server/internal/admin/static/
 !server/internal/admin/static/.gitkeep
 
-# TLS certs
+# TLS certs / SSH keys
 cert.pem
 key.pem
+*.pem
 
 # Superpowers
 .superpowers/
 
 # Changelog
 CHANGELOG.new.md
+
+# Local design previews / mockups — kept on disk for reference but not
+# tracked in git. Includes assets/*.html (client, landing, extension,
+# logo variants) and docs/*-preview.html (tray/settings previews).
+assets/*.html
+docs/*-preview.html
 
 # OS
 .DS_Store
