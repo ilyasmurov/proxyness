@@ -43,20 +43,23 @@ if (typeof localStorage !== "undefined" && localStorage.getItem("proxyness-mode"
 }
 
 const SERVERS = [
-  { id: "aeza", label: "Aeza NL", addr: "95.181.162.242:443" },
+  { id: "serverspace", label: "Serverspace NL", addr: "188.227.86.205:443" },
 ];
 const STORAGE_KEY = "proxyness-key";
 const SERVER_STORAGE_KEY = "proxyness-server";
 const AUTOCONNECT_STORAGE_KEY = "proxyness-autoconnect-onstart";
 const autoConnectDefault = () =>
   typeof localStorage !== "undefined" && localStorage.getItem(AUTOCONNECT_STORAGE_KEY) !== "false";
-// Migrate legacy "timeweb" pick to "aeza" — the Timeweb VPS was decommissioned in 1.45.5.
-// Without this, on a stale localStorage value the picker would show empty and serverAddrFor
-// would silently fall through to Aeza, but the persisted value would still read "timeweb".
-if (typeof localStorage !== "undefined" && localStorage.getItem(SERVER_STORAGE_KEY) === "timeweb") {
-  localStorage.setItem(SERVER_STORAGE_KEY, "aeza");
+// Migrate any legacy persisted pick to the current exit. Timeweb was decommissioned in 1.45.5,
+// Aeza in 1.45.8 (migration to Serverspace). Without this, stale localStorage values would
+// fall through serverAddrFor to Serverspace but the persisted value would lie.
+if (typeof localStorage !== "undefined") {
+  const v = localStorage.getItem(SERVER_STORAGE_KEY);
+  if (v === "timeweb" || v === "aeza") {
+    localStorage.setItem(SERVER_STORAGE_KEY, "serverspace");
+  }
 }
-const defaultServerId = () => localStorage.getItem(SERVER_STORAGE_KEY) || "aeza";
+const defaultServerId = () => localStorage.getItem(SERVER_STORAGE_KEY) || "serverspace";
 const serverAddrFor = (id: string) => SERVERS.find((s) => s.id === id)?.addr || SERVERS[0].addr;
 
 // ---------------------------------------------------------------------------

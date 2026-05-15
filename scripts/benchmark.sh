@@ -24,7 +24,7 @@ echo ""
 # for that route always returns the physical iface — even when VPN is up
 # and the default route points at utun. If VPN is off the /32 route
 # doesn't exist and we fall back to the plain default route.
-PHYS_IF=$(route -n get 95.181.162.242 2>/dev/null | awk '/interface:/{print $2}')
+PHYS_IF=$(route -n get 188.227.86.205 2>/dev/null | awk '/interface:/{print $2}')
 case "$PHYS_IF" in ""|utun*)
   PHYS_IF=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
   ;;
