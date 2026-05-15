@@ -876,6 +876,11 @@ func (e *Engine) healthLoop() {
 	// 12 × 5s = 60s — matches the reconnectTransport budget above so
 	// both detectors give up at the same point.
 	const maxFailures = 12
+	// Consecutive failures before engaging kill switch. Mirrors the same
+	// constant in tunnel.go — TCP/443 blips would otherwise nuke every
+	// in-flight TCP/UDP conn on a single bad probe that auto-recovers
+	// on the next tick.
+	const killSwitchThreshold = 3
 	ticker := time.NewTicker(5 * time.Second) // was 30s — needed for fast D2 detection
 	defer ticker.Stop()
 
@@ -994,7 +999,7 @@ func (e *Engine) healthLoop() {
 			if err := e.healthCheck(); err != nil {
 				failures++
 				log.Printf("[tun] D2: health check failed (%d/%d): %v", failures, maxFailures, err)
-				if failures == 1 {
+				if failures == killSwitchThreshold {
 					e.setReconnecting()
 				}
 				if failures >= maxFailures {

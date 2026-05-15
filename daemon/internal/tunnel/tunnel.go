@@ -347,6 +347,16 @@ const (
 	maxReconnects = 20
 	// 12 × 5s = 60s D2 budget, matches reconnectTransport.
 	maxHealthFailures = 12
+	// Number of CONSECUTIVE D2 failures before engaging the kill switch.
+	// Previously kill switch fired on failures == 1 — every TCP/443 blip
+	// from TSPU / Aeza peering would close all in-flight SOCKS5 relays
+	// (browser tabs) for a single bad probe that auto-recovered on the
+	// next tick. With killSwitchThreshold=3 and healthInterval=5s we wait
+	// ~15s of continuous failure before disrupting active relays — long
+	// enough to skip transient blips, short enough that a real outage
+	// still flips the UI to Reconnecting before the user notices stalled
+	// pages.
+	killSwitchThreshold = 3
 )
 
 func (t *Tunnel) healthLoop() {
@@ -431,7 +441,7 @@ func (t *Tunnel) healthLoop() {
 			if healthErr != nil {
 				failures++
 				log.Printf("[tunnel] D2: health check failed (%d/%d): %v", failures, maxHealthFailures, healthErr)
-				if failures == 1 {
+				if failures == killSwitchThreshold {
 					t.setReconnecting()
 				}
 				if failures >= maxHealthFailures {

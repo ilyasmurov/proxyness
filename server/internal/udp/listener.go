@@ -310,26 +310,39 @@ func (l *Listener) checkMachineID(deviceID int, deviceName, machineID string) er
 }
 
 // sessionRetransmitLoop periodically triggers ARQ retransmissions for a session.
+//
+// Captures the ARQ controller pointer once at the start of the loop instead of
+// dereferencing sess.ARQ on every tick. Reason: SessionManager.Cleanup() calls
+// CloseAllStreams() which signals ARQ.Done() AND sets sess.ARQ = nil under
+// s.mu. If the ticker.C case wins the select race against <-done in the same
+// scheduling window, the loop body would then load sess.ARQ as nil and crash
+// in RetransmitTick(0x0). The local capture keeps a stable non-nil pointer for
+// the lifetime of the goroutine; the goroutine exits cleanly on <-done one
+// iteration later.
 func (l *Listener) sessionRetransmitLoop(sess *Session) {
+	arq := sess.ARQ
+	if arq == nil {
+		return
+	}
 	ticker := time.NewTicker(arqRetransmitInterval)
 	defer ticker.Stop()
 	statsTicker := time.NewTicker(2 * time.Second)
 	defer statsTicker.Stop()
-	done := sess.ARQ.Done()
+	done := arq.Done()
 	for {
 		select {
 		case <-done:
 			return
 		case <-ticker.C:
-			sess.ARQ.RetransmitTick()
+			arq.RetransmitTick()
 		case <-statsTicker.C:
-			cwnd, inFlight, slots, _ := sess.ARQ.CwndStats()
-			sendBuf := sess.ARQ.SendBufLen()
-			rto := sess.ARQ.RTOMillis()
-			maxBW, minRTT, bdp := sess.ARQ.BWEStats()
-			startup := sess.ARQ.InStartup()
-			probeRTT := sess.ARQ.InProbeRTT()
-			bweStable := sess.ARQ.BWEStable()
+			cwnd, inFlight, slots, _ := arq.CwndStats()
+			sendBuf := arq.SendBufLen()
+			rto := arq.RTOMillis()
+			maxBW, minRTT, bdp := arq.BWEStats()
+			startup := arq.InStartup()
+			probeRTT := arq.InProbeRTT()
+			bweStable := arq.BWEStable()
 			if inFlight > 0 || sendBuf > 0 {
 				log.Printf("udp: [%d] cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB startup=%v probeRTT=%v stable=%v",
 					sess.Token, cwnd, inFlight, slots, sendBuf, rto,
@@ -340,16 +353,22 @@ func (l *Listener) sessionRetransmitLoop(sess *Session) {
 }
 
 // sessionAckLoop periodically sends delayed ACKs for a session.
+//
+// Same race-safety pattern as sessionRetransmitLoop: capture sess.ARQ once.
 func (l *Listener) sessionAckLoop(sess *Session) {
+	arq := sess.ARQ
+	if arq == nil {
+		return
+	}
 	ticker := time.NewTicker(arqAckInterval)
 	defer ticker.Stop()
-	done := sess.ARQ.Done()
+	done := arq.Done()
 	for {
 		select {
 		case <-done:
 			return
 		case <-ticker.C:
-			sess.ARQ.AckTick()
+			arq.AckTick()
 		}
 	}
 }

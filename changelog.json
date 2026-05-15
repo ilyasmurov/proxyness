@@ -1,5 +1,33 @@
 [
   {
+    "id": "2b5d4f8c-8a3e-4d72-b9c1-5e7f9d3a4e21",
+    "title": "Server SIGSEGV in UDP ARQ retransmit/ack loops on session cleanup",
+    "description": "Race condition between SessionManager.Cleanup and sessionRetransmitLoop / sessionAckLoop on the server. Cleanup called s.ARQ.Close() (which signals the goroutines' done channel) and immediately set s.ARQ = nil under s.mu. If the ticker case won the Go runtime's select race against <-done in the same scheduling window, the loop body then loaded sess.ARQ as nil and crashed in (*Controller).RetransmitTick(0x0) with SIGSEGV at pkg/udp/arq/controller.go:246 — taking the whole proxy container down and wiping every active UDP session for every connected client. The exact same crash hit on 2026-05-10 00:55 UTC and 2026-05-15 08:24 UTC, same stack, same PC offset, ~5 days apart depending on how often a session-cleanup happened to land on the wrong side of the race. Fixed by capturing the *Controller pointer once at the start of each loop (`arq := sess.ARQ`) and using the local copy thereafter — Close() still signals done, the loop still exits cleanly on the next iteration, but the in-flight tick body never observes a half-torn-down session.",
+    "type": "fix",
+    "createdAt": "2026-05-15T13:00:00.000000+00:00"
+  },
+  {
+    "id": "9c4e8f2a-7b3d-4a91-8e6c-1d5f7a9b3c40",
+    "title": "Stop nuking browser tabs on every TCP/443 blip (D2 kill switch threshold)",
+    "description": "Both the SOCKS5 tunnel (tunnel.go) and the TUN engine (engine.go) used to engage the kill switch on the FIRST failed D2 health check — closing every in-flight relay (browser tabs, app connections) on a single bad probe. With TCP/443 to Aeza occasionally hitting 1-2 second blips from TSPU inspection or transit hiccups, this fired ~3 times per minute on Russian ISPs, manifesting as constant YouTube stutters and pages losing connection mid-load. Now both detectors require 3 consecutive failures (~15s of continuous unreachability) before engaging the kill switch. The `[tunnel]/[tun] D2: health check failed (1/12)` line still logs on every failure so transient blips remain visible in the daemon log, but the disruptive kill-switch + UI Reconnecting flip is reserved for actual outages. The 12-failure hard-disconnect budget is unchanged.",
+    "type": "fix",
+    "createdAt": "2026-05-15T13:05:00.000000+00:00"
+  },
+  {
+    "id": "f8a72e6c-1d4c-4f3e-a9b7-7e5e5d6c5b91",
+    "title": "Fix daily \"device is bound to a different machine\" popup that wiped the saved key on wake",
+    "description": "Triple fix for the morning papercut where opening the laptop lid would show \"device already taken\", wipe the saved key from localStorage, and dump you back on the setup screen demanding the key again. Root cause: on wake the client re-ran `/tun/start`, which re-called `ioreg` while IOKit was still warming up, which sometimes returned output without `IOPlatformUUID`, which made the daemon fall back to a `SHA256(\"unknown\"+\"proxyness\")` fingerprint that the server rightly rejected. (1) The daemon's `hardwareID()` now polls `ioreg` up to ~5 seconds (200ms backoff, 2s per-call timeout) until it gets a real UUID, so the rejection should no longer happen in the first place — and if it ever does, `daemon.log` will carry a `[machineid] WARNING: hardwareID empty` line you can grep for. (2) The renderer no longer treats `\"machine id rejected\"` / `\"invalid key\"` as cause to wipe the saved key: the error is surfaced on the main screen and the key stays put so you can hit Connect again. (3) Pasting/typing the key into the setup screen no longer auto-connects — Connect is always a deliberate click.",
+    "type": "fix",
+    "createdAt": "2026-05-15T12:25:00.000000+00:00"
+  },
+  {
+    "id": "1a4c8d7e-5e2f-4b3a-9c8d-2e6f7a8b9c10",
+    "title": "Settings → General → Auto-connect on start (default on)",
+    "description": "New toggle controls whether the client auto-connects to the proxy on cold start (app launch with a stored key) and after the laptop wakes from sleep. Default ON — same behaviour as before for anyone who doesn't touch settings. Turn it OFF if you'd rather click Connect explicitly each time, useful when you reconnect from different networks or want a hard kill-switch on launch.",
+    "type": "feature",
+    "createdAt": "2026-05-15T12:30:00.000000+00:00"
+  },
+  {
     "id": "63a308c5-bd45-49fd-b2b9-3530f68a9385",
     "title": "Per-stream TCP close logging for TUN-routed traffic",
     "description": "Every long-lived (≥10s) TUN stream now prints a single line on close with destination IP:port, SNI host, process name, duration, bytes up/down, and the first error that tore it down (download/upload side + message). Short-lived chatter stays silent. Grep `[tun] tcp close:` in the daemon log to see what actually killed a long streaming connection.",

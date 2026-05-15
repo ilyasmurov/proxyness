@@ -47,6 +47,9 @@ const SERVERS = [
 ];
 const STORAGE_KEY = "proxyness-key";
 const SERVER_STORAGE_KEY = "proxyness-server";
+const AUTOCONNECT_STORAGE_KEY = "proxyness-autoconnect-onstart";
+const autoConnectDefault = () =>
+  typeof localStorage !== "undefined" && localStorage.getItem(AUTOCONNECT_STORAGE_KEY) !== "false";
 // Migrate legacy "timeweb" pick to "aeza" — the Timeweb VPS was decommissioned in 1.45.5.
 // Without this, on a stale localStorage value the picker would show empty and serverAddrFor
 // would silently fall through to Aeza, but the persisted value would still read "timeweb".
@@ -69,7 +72,7 @@ const NOTIF_KEYS = {
 } as const;
 const notifDefault = (key: string) => localStorage.getItem(key) !== "false"; // enabled by default
 
-function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, onHelperError, isConnected, serverId, servers, onServerChange, c, fd, fb, fm }: {
+function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, onHelperError, isConnected, serverId, servers, onServerChange, autoConnectOnStart, onAutoConnectChange, c, fd, fb, fm }: {
   version: string;
   transportMode: string;
   onTransportChange: (mode: string) => void;
@@ -79,6 +82,8 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
   serverId: string;
   servers: { id: string; label: string; addr: string }[];
   onServerChange: (id: string) => void;
+  autoConnectOnStart: boolean;
+  onAutoConnectChange: (v: boolean) => void;
   c: Record<string, string>;
   fd: string; fb: string; fm: string;
 }) {
@@ -262,6 +267,32 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
                   </button>
                 );
               })}
+            </div>
+
+            {animatedDivider(0.5)}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, animation: anim("row", 0.55) }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: fd, fontSize: 13, fontWeight: 600, color: c.t1 }}>Auto-connect on start</div>
+                <div style={{ fontFamily: fb, fontSize: 11, color: c.t3, marginTop: 2 }}>Connect automatically when the app launches or the laptop wakes from sleep.</div>
+              </div>
+              <button
+                onClick={() => onAutoConnectChange(!autoConnectOnStart)}
+                style={{
+                  width: 36, height: 20, borderRadius: 10, border: "none", cursor: "pointer",
+                  background: autoConnectOnStart ? c.am : c.bg1,
+                  position: "relative" as const, transition: "background 0.15s",
+                  flexShrink: 0,
+                }}
+              >
+                <div style={{
+                  width: 14, height: 14, borderRadius: 7,
+                  background: autoConnectOnStart ? c.bg0 : c.t3,
+                  position: "absolute" as const, top: 3,
+                  left: autoConnectOnStart ? 19 : 3,
+                  transition: "left 0.15s, background 0.15s",
+                }} />
+              </button>
             </div>
           </>
         )}
@@ -479,6 +510,12 @@ export function App() {
   const [tunUptime, setTunUptime] = useState(0);
   const [tunLoading, setTunLoading] = useState(false);
   const [tunError, setTunError] = useState<string | null>(null);
+  const [autoConnectOnStart, setAutoConnectOnStart] = useState(autoConnectDefault);
+  const handleAutoConnectChange = (v: boolean) => {
+    setAutoConnectOnStart(v);
+    localStorage.setItem(AUTOCONNECT_STORAGE_KEY, String(v));
+  };
+
   const [reconnecting, setReconnecting] = useState(false);
   // reconnectingRef mirrors `reconnecting` state but is updated synchronously.
   // The state-only guard in startReconnect was racy: when the polling effect
@@ -562,6 +599,18 @@ export function App() {
     };
   }, []);
 
+  // Auto-connect on cold start. Guarded by a ref so we fire exactly once
+  // per mount even if state changes re-run the effect. Reads the toggle
+  // from localStorage directly to avoid racing the React state init.
+  const autoConnectFiredRef = useRef(false);
+  useEffect(() => {
+    if (autoConnectFiredRef.current) return;
+    if (!key) return;
+    if (!autoConnectDefault()) return;
+    autoConnectFiredRef.current = true;
+    startReconnect();
+  }, [key, startReconnect]);
+
   // Poll TUN status when in TUN mode
   useEffect(() => {
     if (proxyMode !== "tun") return;
@@ -582,11 +631,11 @@ export function App() {
           // while the daemon is still trying to reconnect on its own.
           if (wasConnected.current && !active && next !== "reconnecting" && s.error) {
             if (isKeyRejected(s.error)) {
+              // Surface the error but keep the stored key — user reconnects manually.
+              // Avoids the morning "machine id rejected" → setup-screen loop when
+              // ioreg races IOKit startup right after system wake.
               (window as any).sysproxy?.disable();
-              localStorage.removeItem(STORAGE_KEY);
-              setKey("");
-              setKeyError(s.error);
-              setShowSetup(true);
+              setTunError(s.error);
             } else {
               startReconnect();
             }
@@ -610,11 +659,8 @@ export function App() {
     if (proxyMode !== "socks5") return;
     if (socksError && !reconnecting && key) {
       if (isKeyRejected(socksError)) {
+        // Keep the stored key on machine-id / invalid-key errors; user retries manually.
         (window as any).sysproxy?.disable();
-        localStorage.removeItem(STORAGE_KEY);
-        setKey("");
-        setKeyError(socksError);
-        setShowSetup(true);
       } else {
         startReconnect();
       }
@@ -687,12 +733,12 @@ export function App() {
       if (result && !result.ok) {
         const err = result.error || "Failed to connect";
         if (isKeyRejected(err)) {
+          // Don't wipe the stored key on machine-id rejection — surface the
+          // error and let the user retry. ioreg races IOKit on cold wake;
+          // retrying a few seconds later usually succeeds.
           (window as any).sysproxy?.disable();
           disconnect();
-          localStorage.removeItem(STORAGE_KEY);
-          setKey("");
-          setKeyError(err);
-          setShowSetup(true);
+          setTunError(err);
           return;
         }
         setTunError(err);
@@ -806,26 +852,32 @@ export function App() {
     else if (current === "disconnected" && notifDefault(NOTIF_KEYS.disconnect)) notify("Proxyness", "Disconnected");
   }, [isConnected, daemonReconnecting, reconnecting]);
 
-  // On system wake, the daemon's UDP session is silently dead (server forgot
-  // us during sleep). Tear down the old state and reconnect instead of waiting
-  // for the keepalive timeout. Uses a ref for the "was connected" check so the
-  // resume handler always sees the latest value without re-subscribing on
-  // every status change.
+  // On system wake the daemon's UDP session is silently dead (server forgot
+  // us during sleep). Tear down old state and, when auto-connect is enabled,
+  // reconnect instead of waiting for the keepalive timeout. The ioreg race
+  // that previously caused a "machine id rejected" on wake is fixed at the
+  // daemon level (pkg/machineid/machineid_darwin.go retries until IOKit is
+  // ready), so it's safe to recompute the fingerprint via /tun/start here.
   const wasConnectedOnWakeRef = useRef(false);
+  const autoConnectOnStartRef = useRef(autoConnectOnStart);
   useEffect(() => {
     wasConnectedOnWakeRef.current = isConnected;
   }, [isConnected]);
+  useEffect(() => {
+    autoConnectOnStartRef.current = autoConnectOnStart;
+  }, [autoConnectOnStart]);
   useEffect(() => {
     const app = (window as any).appInfo;
     if (!app?.onSystemResumed) return;
     const cleanup = app.onSystemResumed(async () => {
       if (!wasConnectedOnWakeRef.current || !key) return;
-      console.log("[wake] system resumed, forcing reconnect");
+      console.log("[wake] system resumed");
       if (proxyMode === "tun") {
         await tunDisconnect();
       } else {
         await disconnect();
       }
+      if (!autoConnectOnStartRef.current) return;
       // Let the network stack settle before trying to reach the server.
       await new Promise((r) => setTimeout(r, 500));
       startReconnect();
@@ -882,11 +934,7 @@ export function App() {
     setKey(trimmed);
     setShowSetup(false);
     (window as any).updater?.storeKey(trimmed);
-    if (proxyMode === "tun") {
-      tunConnect(SERVER, trimmed);
-    } else {
-      connect(SERVER, trimmed);
-    }
+    // No auto-connect after key entry — user must press Connect explicitly.
   };
 
   const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
@@ -1380,6 +1428,8 @@ export function App() {
           serverId={serverId}
           servers={SERVERS}
           onServerChange={handleServerChange}
+          autoConnectOnStart={autoConnectOnStart}
+          onAutoConnectChange={handleAutoConnectChange}
           c={c} fd={fd} fb={fb} fm={fm}
         />
       ) : (
