@@ -600,3 +600,58 @@
 - **Upload**: TLS **1.2x быстрее** (5.6 vs 4.6 MB/s)
 - **Ping/DNS**: идентичны — оба через тот же сервер
 - **Вывод**: UDP оптимален для browsing (TTFB), TLS — для тяжёлых загрузок. AutoTransport выбирает UDP по умолчанию — правильное решение для типичного использования
+
+---
+
+## Test 6: Proxyness (Timeweb 82.97.246.65) — 2026-04-17
+
+Замер после мультисервер-пикера + Timeweb rollout, версия клиента 1.44.0.
+Новый формат скрипта: три направления (RU-ref / EU-ref / blocked) + прямое подключение для отношения, чтобы видеть реальный overhead прокси, а не TSPU-throttling.
+
+**External IP (VPN):** 82.97.246.65 (Timeweb NL)
+**External IP (direct):** 146.158.110.153 (RF ISP)
+
+### Ping (10 packets)
+| Target   | Min     | Avg     | Max     | Stddev  | Loss  |
+|----------|---------|---------|---------|---------|-------|
+| 8.8.8.8  | 62.8 ms | 65.0 ms | 72.9 ms | 3.1 ms  | 10%   |
+| 1.1.1.1  | —       | —       | —       | —       | 100%  |
+| ya.ru    | —       | —       | —       | —       | 100%  |
+
+> 1.1.1.1 / ya.ru 100% loss — ICMP через TUN доходит только туда, куда уже был TCP. Не регресс.
+
+### DNS Resolution
+| Domain       | Time  |
+|--------------|-------|
+| google.com   | 63 ms |
+| youtube.com  | 65 ms |
+| github.com   | 72 ms |
+| ya.ru        | 64 ms |
+| telegram.org | 63 ms |
+
+### HTTPS Latency (connect / TTFB / total)
+| URL                  | Connect | TTFB    | Total   |
+|----------------------|---------|---------|---------|
+| https://google.com   | 0.144 s | 2.376 s | 2.616 s |
+| https://youtube.com  | 0.143 s | 2.110 s | 2.618 s |
+| https://github.com   | 0.079 s | 0.932 s | 1.403 s |
+| https://ya.ru        | 0.005 s | 1.160 s | 1.161 s |
+| https://telegram.org | 0.069 s | 1.033 s | 1.046 s |
+
+### Download (avg of 3 runs, 10 MB range request)
+| Назначение            | VPN MB/s | Direct MB/s | Ratio  |
+|-----------------------|----------|-------------|--------|
+| RU (selectel SPb)     | **3.07** | 6.23        | 0.49×  |
+| EU (leaseweb DE)      | **4.22** | 5.02        | 0.84×  |
+| blocked (cloudflare)  | **3.87** | DPI'd       | —      |
+
+### Upload
+| Direction | Speed       | Notes                          |
+|-----------|-------------|--------------------------------|
+| Upload    | **8.08 MB/s** | Cloudflare, 50 MB в 6.19 s    |
+
+### Выводы
+- **EU (leaseweb) 0.84× прямого** — лучший ratio за всю историю тестов. Подтверждает тезис из CLAUDE.md о живом pan-EU peering у Timeweb.
+- **Upload 8.08 MB/s** — рост vs Test 5 (5.6 MB/s TLS на Aeza): Timeweb выдерживает и отдачу.
+- **Download CF 3.87 MB/s** — ниже прошлых Test 5 TLS (7.6 MB/s). Вероятная причина: сейчас UDP (AutoTransport по умолчанию), плюс разное время суток / TSPU нагрузка. TLS на Timeweb отдельно не измерен — next run.
+- **RU-ref 0.49×** — ожидаемый крюк RF→NL→RF для внутри-российского трафика. Для чего VPN и не используется — шум в данных.

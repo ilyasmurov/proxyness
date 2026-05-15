@@ -183,10 +183,12 @@ export function NotificationBanner() {
           style={{
             padding: "4px 12px", borderRadius: 4, cursor: "pointer", flexShrink: 0,
             fontFamily: "'Barlow Semi Condensed', system-ui, sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 0.3,
-            background: `${tc.accent}26`, border: `1px solid ${tc.accent}40`, color: tc.accent,
+            background: "oklch(0.78 0.155 75 / 0.12)", border: "1px solid oklch(0.78 0.155 75 / 0.3)", color: "oklch(0.78 0.155 75)",
             transition: "all 0.1s", whiteSpace: "nowrap" as const,
             animation: "pn-blur-badge 0.3s cubic-bezier(0.25,1,0.5,1) 0.25s both",
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "oklch(0.78 0.155 75 / 0.2)"; e.currentTarget.style.borderColor = "oklch(0.78 0.155 75 / 0.5)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "oklch(0.78 0.155 75 / 0.12)"; e.currentTarget.style.borderColor = "oklch(0.78 0.155 75 / 0.3)"; }}
         >
           {notif.action.label}
         </button>
