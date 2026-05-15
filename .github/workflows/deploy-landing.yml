@@ -50,11 +50,20 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
+            set -euo pipefail
             # Login to GitHub Container Registry
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
 
-            # Pull latest image
-            docker pull ghcr.io/${{ github.repository }}-landing:latest
+            # Pull with retries — see deploy.yml for rationale.
+            PULL_OK=0
+            for ATTEMPT in 1 2 3 4 5; do
+              echo "[pull] attempt $ATTEMPT/5..."
+              if docker pull ghcr.io/${{ github.repository }}-landing:latest; then
+                PULL_OK=1; break
+              fi
+              sleep 30
+            done
+            [ "$PULL_OK" -eq 1 ] || { echo "[pull] FAILED after 5 attempts" >&2; exit 1; }
 
             # Stop and remove old container
             docker stop proxyness-landing 2>/dev/null || true

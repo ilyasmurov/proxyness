@@ -48,8 +48,18 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
+            set -euo pipefail
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
-            docker pull ghcr.io/${{ github.repository }}-admin:latest
+            # Pull with retries — see deploy.yml for rationale.
+            PULL_OK=0
+            for ATTEMPT in 1 2 3 4 5; do
+              echo "[pull] attempt $ATTEMPT/5..."
+              if docker pull ghcr.io/${{ github.repository }}-admin:latest; then
+                PULL_OK=1; break
+              fi
+              sleep 30
+            done
+            [ "$PULL_OK" -eq 1 ] || { echo "[pull] FAILED after 5 attempts" >&2; exit 1; }
             docker stop proxyness-admin 2>/dev/null || true
             docker rm proxyness-admin 2>/dev/null || true
             docker run -d \

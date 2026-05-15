@@ -63,12 +63,38 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           script: |
+            set -euo pipefail
             if ! command -v docker &> /dev/null; then
               curl -fsSL https://get.docker.com | sh
             fi
             mkdir -p /opt/proxyness
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin
-            docker pull ghcr.io/${{ github.repository }}:latest
+
+            # Pull new image with retries. Without this the deploy used to
+            # "succeed" against a stale cached image whenever Aeza upstream
+            # blipped during pull (TLS handshake timeout / connection reset
+            # to ghcr.io) — `docker pull` failed, the script continued, and
+            # `docker run` happily restarted the OLD image. Now: 5 attempts
+            # with 30s backoff, and if all fail we exit non-zero so the
+            # workflow shows red and the stale-image regression is visible.
+            BEFORE_DIGEST=$(docker image inspect ghcr.io/${{ github.repository }}:latest --format '{{.Id}}' 2>/dev/null || echo "none")
+            PULL_OK=0
+            for ATTEMPT in 1 2 3 4 5; do
+              echo "[pull] attempt $ATTEMPT/5..."
+              if docker pull ghcr.io/${{ github.repository }}:latest; then
+                PULL_OK=1
+                break
+              fi
+              echo "[pull] attempt $ATTEMPT failed; sleeping 30s before retry"
+              sleep 30
+            done
+            if [ "$PULL_OK" -ne 1 ]; then
+              echo "[pull] FAILED after 5 attempts — refusing to deploy stale image" >&2
+              exit 1
+            fi
+            AFTER_DIGEST=$(docker image inspect ghcr.io/${{ github.repository }}:latest --format '{{.Id}}')
+            echo "[pull] image digest: $BEFORE_DIGEST -> $AFTER_DIGEST"
+
             # Stop old container — give it 5s to broadcast MsgSessionClose
             # to active UDP clients so they reconnect immediately instead of
             # hanging on the 20s keepalive timeout.
