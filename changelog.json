@@ -1,5 +1,12 @@
 [
   {
+    "id": "eef9f3d9-c530-4bef-afa7-12cff87e76a9",
+    "title": "Fix permanent \"network is unreachable\" on connect that only a reboot could clear",
+    "description": "After an ungraceful shutdown of the privileged helper (a crash, force-quit, or a hard sleep that skipped the normal teardown), macOS could leave the TUN's `0.0.0.0/1`+`128.0.0.0/1` split routes pointing at a utun device that no longer exists. Because the client dials the proxy server *before* re-creating the TUN, that stale route became the most-specific match for the server IP and every connection attempt failed with `transport connect: ... connect: network is unreachable` — permanently, since the normal mid-session route recovery only runs after a connection has already been established. The symptom was \"worked yesterday, today won't connect at all, and only a reboot fixes it\". The helper now flushes these orphaned split routes on startup, before creating a new TUN, and on demand — routes belonging to a live VPN (WireGuard, Tailscale) are never touched. The daemon also asks the helper to clean orphaned routes and retries once when the first connect fails this way, so it self-heals instead of looping forever.",
+    "type": "fix",
+    "createdAt": "2026-06-25T09:45:25.161438+00:00"
+  },
+  {
     "id": "2b5d4f8c-8a3e-4d72-b9c1-5e7f9d3a4e21",
     "title": "Server SIGSEGV in UDP ARQ retransmit/ack loops on session cleanup",
     "description": "Race condition between SessionManager.Cleanup and sessionRetransmitLoop / sessionAckLoop on the server. Cleanup called s.ARQ.Close() (which signals the goroutines' done channel) and immediately set s.ARQ = nil under s.mu. If the ticker case won the Go runtime's select race against <-done in the same scheduling window, the loop body then loaded sess.ARQ as nil and crashed in (*Controller).RetransmitTick(0x0) with SIGSEGV at pkg/udp/arq/controller.go:246 — taking the whole proxy container down and wiping every active UDP session for every connected client. The exact same crash hit on 2026-05-10 00:55 UTC and 2026-05-15 08:24 UTC, same stack, same PC offset, ~5 days apart depending on how often a session-cleanup happened to land on the wrong side of the race. Fixed by capturing the *Controller pointer once at the start of each loop (`arq := sess.ARQ`) and using the local copy thereafter — Close() still signals done, the loop still exits cleanly on the next iteration, but the in-flight tick body never observes a half-torn-down session.",
@@ -1391,40 +1398,5 @@
     "description": "Selected-apps mode now shows a 4-column grid of site tiles instead of the old collapsible list. The first tile is a wide \"All browsers\" card that toggles the wildcard proxy; when it's on, individual tiles dim to show they're overridden. Clicking any tile while All browsers is on switches to selected-sites mode and enables that tile. Tile colors come from the site's brand color, monochrome when disabled.",
     "type": "improvement",
     "createdAt": "2026-04-07T11:50:18.625415+00:00"
-  },
-  {
-    "id": "3aa37a92-0275-43cd-afa0-8290fa2d576b",
-    "title": "Add site modal with live favicon preview",
-    "description": "Click \"+ Add site\" in the Browser sites section to open a modal. Type a domain and the preview tile updates in real time: Google's S2 favicons API is used for the icon, with a letter-avatar fallback (gradient background, hashed hue per domain) when no favicon is available. Esc or clicking the backdrop closes the modal.",
-    "type": "feature",
-    "createdAt": "2026-04-07T11:50:18.625682+00:00"
-  },
-  {
-    "id": "d00b7ccc-ad61-420f-8c3f-cdead545187a",
-    "title": "Auto-update check now works on Windows — routed through system proxy via Electron net.fetch",
-    "description": "The previous implementation used Node's fetch and https modules, neither of which respect the system proxy. On macOS the direct github.com fetch somehow squeaked through the TUN routes, but on Windows it failed with \"Connection error\" because GitHub is blocked at the ISP level in Russia. Switched both the version check and the installer download to Electron's net module, which uses Chromium's networking stack and routes through the SOCKS5 system proxy SmurovProxy sets up in TUN mode.",
-    "type": "fix",
-    "createdAt": "2026-04-07T10:55:25.685576+00:00"
-  },
-  {
-    "id": "a38a4ba6-7815-4843-8c3b-91aa995076f6",
-    "title": "Redesigned status bar — wider window, inline Connect/Disconnect button, spinning globe indicator",
-    "description": "Doubled window width (420 → 840) and merged the old StatusBar + full-width ConnectionButton into a single row: animated wireframe Earth with scrolling continents when connected, red outlined circle when disconnected, spinner during connect/reconnect. \"Connected to <ip>\" now has the IP in grey, uptime pushed to the right next to the action button.",
-    "type": "improvement",
-    "createdAt": "2026-04-07T10:41:15.062555+00:00"
-  },
-  {
-    "id": "4b757ab9-227c-44a0-b4d1-c8466085b497",
-    "title": "Clickable transport badge to switch UDP/TLS/Auto on the fly",
-    "description": "Clicking the UDP/TLS badge in the status bar opens a dropdown with all three transport modes and instantly switches — daemon setMode + forced reconnect. The old Transport submenu in Settings is gone.",
-    "type": "feature",
-    "createdAt": "2026-04-07T10:41:15.062696+00:00"
-  },
-  {
-    "id": "df9bded8-5faa-40b8-ab8f-8044cc536762",
-    "title": "Deploy workflow: pass commit message via env var to avoid bash parse error on multi-line messages",
-    "description": "Previous commit directly interpolated the commit message into a bash expression, which broke when the message had newlines. Using an env var fixes that and also closes a shell injection vector.",
-    "type": "fix",
-    "createdAt": "2026-04-07T08:34:08.499221+00:00"
   }
 ]

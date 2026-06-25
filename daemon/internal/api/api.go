@@ -410,8 +410,30 @@ func (s *Server) handleTUNStart(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	fp := machineid.Fingerprint()
 	if err := tr.Connect(req.ServerAddr, req.Key, fp); err != nil {
-		http.Error(w, fmt.Sprintf("transport connect: %v", err), http.StatusInternalServerError)
-		return
+		// This first connect runs BEFORE the TUN is created, so it dials over
+		// the system route table. A helper that died ungracefully can leave
+		// orphaned 0.0.0.0/1+128.0.0.0/1 routes pointing at a dead utun, which
+		// become the most-specific match for the server IP and make this dial
+		// fail with ENETUNREACH on the IP_BOUND_IF-bound socket. The
+		// mid-session RefreshRoutes/waitForNetwork recovery can't help (engine
+		// not started yet), so ask the helper to flush orphan routes and retry
+		// once — otherwise the client retries /tun/start forever against the
+		// same dead route.
+		if transport.IsNetworkUnreachable(err) {
+			log.Printf("[api] TUN connect ENETUNREACH, cleaning orphan routes and retrying: %v", err)
+			if cerr := tun.CleanRoutes(req.HelperAddr); cerr != nil {
+				log.Printf("[api] clean orphan routes failed: %v", cerr)
+			}
+			tr.Close()
+			s.mu.Lock()
+			tr = s.createTransport()
+			s.mu.Unlock()
+			err = tr.Connect(req.ServerAddr, req.Key, fp)
+		}
+		if err != nil {
+			http.Error(w, fmt.Sprintf("transport connect: %v", err), http.StatusInternalServerError)
+			return
+		}
 	}
 	s.tunEngine.SetTransport(tr)
 	s.tunEngine.SetTransportFactory(func() transport.Transport {

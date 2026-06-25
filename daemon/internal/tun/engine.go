@@ -474,6 +474,25 @@ func (e *Engine) RefreshRoutes() error {
 	e.mu.Lock()
 	addr := e.helperAddr
 	e.mu.Unlock()
+	return sendHelperAction(addr, "refresh_routes")
+}
+
+// CleanRoutes asks the helper to flush split-tunnel routes orphaned by a
+// prior ungraceful exit (dead-utun 0.0.0.0/1 / 128.0.0.0/1). Unlike
+// RefreshRoutes it needs no live TUN device, so it is safe to call from
+// handleTUNStart *before* the engine starts — the recovery path for a first
+// connect that fails with ENETUNREACH because a stale route hijacked the dial.
+func CleanRoutes(helperAddr string) error {
+	return sendHelperAction(helperAddr, "clean_routes")
+}
+
+// sendHelperAction dials a fresh helper connection, sends a single
+// {"action": ...} control request and returns the parsed response error.
+// For one-shot actions only (refresh_routes / clean_routes) — never use it
+// on a connection that will enter packet-relay mode, where the trailing \n
+// would corrupt the binary framing (see connectAndCreate). The byte-by-byte
+// read mirrors that constraint.
+func sendHelperAction(addr, action string) error {
 	if addr == "" {
 		return errors.New("helper not connected")
 	}
@@ -484,7 +503,7 @@ func (e *Engine) RefreshRoutes() error {
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
-	req := map[string]string{"action": "refresh_routes"}
+	req := map[string]string{"action": action}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		return fmt.Errorf("write request: %w", err)
 	}

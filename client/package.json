@@ -1,6 +1,6 @@
 {
   "name": "proxyness",
-  "version": "1.45.8",
+  "version": "1.45.9",
   "private": true,
   "main": "dist-electron/main/index.js",
   "scripts": {

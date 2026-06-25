@@ -38,6 +38,13 @@ func createTUN(serverAddr string) Response {
 		return Response{TUNName: tunName, Error: "TUN already exists"}
 	}
 
+	// Flush any split routes left by a prior ungraceful exit before we add
+	// our own. Otherwise a stale `0.0.0.0/1 -interface <old-utun>` survives
+	// (macOS doesn't always drop it when the device dies) and our fresh
+	// `route add` collides / no-ops, silently black-holing traffic on the
+	// dead interface.
+	cleanOrphanRoutes()
+
 	dev, err := tun.CreateTUN("utun", 1500)
 	if err != nil {
 		return Response{Error: fmt.Sprintf("create tun: %v", err)}
@@ -338,4 +345,68 @@ func run(name string, args ...string) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.Printf("run %s %v: %v: %s", name, args, err, out)
 	}
+}
+
+// cleanOrphanRoutes deletes leftover 0.0.0.0/1 and 128.0.0.0/1 split-tunnel
+// routes whose utun interface no longer exists. These are orphans from a
+// helper that died ungracefully (SIGKILL / panic / system crash / hard sleep)
+// without running destroyTUN: macOS keeps the route entries around after the
+// utun device is gone. Because handleTUNStart dials the server BEFORE the new
+// TUN is created, such a stale route is the most-specific match for the server
+// IP and makes the dial fail with ENETUNREACH on the IP_BOUND_IF-bound socket
+// — observed as a permanent "network is unreachable" until reboot.
+//
+// Only routes pointing at a *non-existent* interface are removed, so a live
+// foreign split-tunnel VPN (WireGuard, Tailscale) is never touched. Safe to
+// call with no TUN of ours up (helper startup, createTUN entry, clean_routes).
+func cleanOrphanRoutes() {
+	out, err := exec.Command("netstat", "-rn", "-f", "inet").Output()
+	if err != nil {
+		log.Printf("clean orphan routes: netstat failed: %v", err)
+		return
+	}
+	for _, cidr := range orphanSplitRoutes(string(out), ifaceExists) {
+		run("route", "delete", "-net", cidr)
+		log.Printf("cleaned orphan split route %s (dead utun)", cidr)
+	}
+}
+
+func ifaceExists(name string) bool {
+	_, err := net.InterfaceByName(name)
+	return err == nil
+}
+
+// orphanSplitRoutes parses `netstat -rn -f inet` output and returns the
+// split-tunnel CIDRs (0.0.0.0/1, 128.0.0.0/1) installed via a utun interface
+// (Gateway column == utunN) whose interface no longer exists per ifExists.
+// Pure function — the column parsing is the fragile part, so it's unit tested
+// separately from the shell-out in cleanOrphanRoutes.
+//
+// Interface-scoped bypass routes (Gateway is the gateway IP, Netif en0) and
+// every non-utun route are skipped — only `route add -net 0.0.0.0/1
+// -interface utunN` entries match.
+func orphanSplitRoutes(netstatOut string, ifExists func(string) bool) []string {
+	var cidrs []string
+	for _, line := range strings.Split(netstatOut, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		dest, gw := fields[0], fields[1]
+		if dest != "0/1" && dest != "128.0/1" {
+			continue
+		}
+		if !strings.HasPrefix(gw, "utun") {
+			continue
+		}
+		if ifExists(gw) {
+			continue
+		}
+		if dest == "0/1" {
+			cidrs = append(cidrs, "0.0.0.0/1")
+		} else {
+			cidrs = append(cidrs, "128.0.0.0/1")
+		}
+	}
+	return cidrs
 }

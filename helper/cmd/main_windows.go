@@ -29,6 +29,9 @@ func createTUN(serverAddr string) Response {
 		return Response{TUNName: tunName, Error: "TUN already exists"}
 	}
 
+	// Drop split routes orphaned by a prior ungraceful exit before adding ours.
+	cleanOrphanRoutes()
+
 	dev, err := tun.CreateTUN("Proxyness", 1500)
 	if err != nil {
 		return Response{Error: fmt.Sprintf("create tun: %v", err)}
@@ -405,4 +408,63 @@ func run(name string, args ...string) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.Printf("run %s %v: %v: %s", name, args, err, out)
 	}
+}
+
+// cleanOrphanRoutes deletes leftover 0.0.0.0/128.0.0.0 split-tunnel routes
+// bound to our TUN adapter (which always carries 10.0.85.1) when no live
+// adapter currently holds that address — i.e. orphans from a prior helper
+// that exited without destroyTUN. Mirrors the macOS rationale in
+// main_darwin.go: handleTUNStart dials the server before the new TUN exists,
+// and a stale split route makes that dial fail with ENETUNREACH.
+//
+// The 10.0.85.1 marker keys strictly on *our* adapter, so a foreign VPN is
+// never touched. If a live tunnel of ours is up (10.0.85.1 present) we skip
+// entirely — its routes are legitimate.
+func cleanOrphanRoutes() {
+	if tunIPPresent() {
+		return
+	}
+	out, err := exec.Command("cmd", "/c", "route", "print", "-4").Output()
+	if err != nil {
+		log.Printf("clean orphan routes: route print failed: %v", err)
+		return
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) < 4 {
+			continue
+		}
+		dest, mask, iface := fields[0], fields[1], fields[3]
+		if mask != "128.0.0.0" {
+			continue
+		}
+		if dest != "0.0.0.0" && dest != "128.0.0.0" {
+			continue
+		}
+		if iface != "10.0.85.1" {
+			continue
+		}
+		run("route", "delete", dest, "mask", "128.0.0.0")
+		log.Printf("cleaned orphan split route %s mask 128.0.0.0 (dead TUN adapter)", dest)
+	}
+}
+
+// tunIPPresent reports whether any live interface carries our TUN address.
+func tunIPPresent() bool {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return false
+	}
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.String() == "10.0.85.1" {
+				return true
+			}
+		}
+	}
+	return false
 }

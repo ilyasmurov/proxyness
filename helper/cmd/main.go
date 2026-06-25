@@ -9,7 +9,7 @@ import (
 )
 
 type Request struct {
-	Action     string `json:"action"`      // "create", "destroy", or "refresh_routes"
+	Action     string `json:"action"`      // "create", "destroy", "refresh_routes", or "clean_routes"
 	ServerAddr string `json:"server_addr"` // server address for route exclusion (create only)
 }
 
@@ -22,6 +22,11 @@ type Response struct {
 func main() {
 	log.SetPrefix("[helper] ")
 	log.Printf("starting on %s/%s", runtime.GOOS, runtime.GOARCH)
+
+	// Flush split routes orphaned by a prior helper that died without
+	// destroyTUN. Done before accepting connections so the daemon's first
+	// /tun/start dial isn't hijacked by a stale route to a dead utun.
+	cleanOrphanRoutes()
 
 	ln, err := listenIPC()
 	if err != nil {
@@ -69,6 +74,9 @@ func handleConn(conn net.Conn) {
 	case "refresh_routes":
 		resp := refreshRoutes()
 		writeResponse(conn, resp)
+	case "clean_routes":
+		cleanOrphanRoutes()
+		writeResponse(conn, Response{})
 	default:
 		writeResponse(conn, Response{Error: fmt.Sprintf("unknown action: %s", req.Action)})
 	}
