@@ -898,6 +898,18 @@ function setupIpc() {
     }
   });
 
+  // Nudge the daemon to rebuild its (post-sleep, stale) transports without
+  // tearing down TUN. The daemon no-ops unless actually connected, so it's
+  // safe to fire on every system resume. See handleTUNWake / WakeReconnect.
+  ipcMain.handle("tun-wake", async () => {
+    try {
+      await fetch("http://127.0.0.1:9090/tun/wake", { method: "POST" });
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  });
+
   ipcMain.handle("tun-status", async () => {
     try {
       const res = await fetch("http://127.0.0.1:9090/tun/status");

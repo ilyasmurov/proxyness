@@ -1,5 +1,12 @@
 [
   {
+    "id": "ad23fcb2-3629-4ed0-bbfe-b80cb693c33c",
+    "title": "Proxy no longer drops on sleep / lid-close and hangs until a manual reconnect",
+    "description": "On system wake the tunnel's connection to the server is silently dead — the server forgets the UDP session during sleep and any TLS connection goes stale. The old client behaviour made this worse: it fully tore the tunnel down on wake and then gave itself only ~25 seconds to get back before giving up, after which the proxy sat dead until you clicked Connect — and it skipped reconnecting entirely if you'd turned \"Auto-connect on start\" off, even though you were mid-session. Now the client just nudges the daemon to rebuild its stale connection in place: the TUN device and your app routes stay up while the tunnel heals through the existing route-refresh + slow-poll recovery (up to ~2 minutes, which comfortably rides out Wi-Fi reassociating after the lid opens). Restoring a live session is no longer tied to the auto-connect toggle, and a full restart remains the last-resort fallback if in-place recovery can't get there.",
+    "type": "fix",
+    "createdAt": "2026-07-02T14:32:30.513206+00:00"
+  },
+  {
     "id": "eef9f3d9-c530-4bef-afa7-12cff87e76a9",
     "title": "Fix permanent \"network is unreachable\" on connect that only a reboot could clear",
     "description": "After an ungraceful shutdown of the privileged helper (a crash, force-quit, or a hard sleep that skipped the normal teardown), macOS could leave the TUN's `0.0.0.0/1`+`128.0.0.0/1` split routes pointing at a utun device that no longer exists. Because the client dials the proxy server *before* re-creating the TUN, that stale route became the most-specific match for the server IP and every connection attempt failed with `transport connect: ... connect: network is unreachable` — permanently, since the normal mid-session route recovery only runs after a connection has already been established. The symptom was \"worked yesterday, today won't connect at all, and only a reboot fixes it\". The helper now flushes these orphaned split routes on startup, before creating a new TUN, and on demand — routes belonging to a live VPN (WireGuard, Tailscale) are never touched. The daemon also asks the helper to clean orphaned routes and retries once when the first connect fails this way, so it self-heals instead of looping forever.",
@@ -1391,12 +1398,5 @@
     "description": "handleSOCKS calls trackHost and untrackHost around the relay lifetime so the counter never leaks on errors.",
     "type": "fix",
     "createdAt": "2026-04-07T12:06:15.013840+00:00"
-  },
-  {
-    "id": "79228976-9bb8-485a-ae03-27fc648c02b6",
-    "title": "Browser sites picker redesigned as a grid of brand tiles",
-    "description": "Selected-apps mode now shows a 4-column grid of site tiles instead of the old collapsible list. The first tile is a wide \"All browsers\" card that toggles the wildcard proxy; when it's on, individual tiles dim to show they're overridden. Clicking any tile while All browsers is on switches to selected-sites mode and enables that tile. Tile colors come from the site's brand color, monochrome when disabled.",
-    "type": "improvement",
-    "createdAt": "2026-04-07T11:50:18.625415+00:00"
   }
 ]

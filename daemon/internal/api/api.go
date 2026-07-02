@@ -117,6 +117,7 @@ func (s *Server) Handler() http.Handler {
 	// TUN endpoints
 	mux.HandleFunc("POST /tun/start", s.handleTUNStart)
 	mux.HandleFunc("POST /tun/stop", s.handleTUNStop)
+	mux.HandleFunc("POST /tun/wake", s.handleTUNWake)
 	mux.HandleFunc("GET /tun/status", s.handleTUNStatus)
 	mux.HandleFunc("POST /tun/rules", s.handleTUNRulesUpdate)
 	mux.HandleFunc("GET /tun/rules", s.handleTUNRulesGet)
@@ -457,6 +458,18 @@ func (s *Server) handleTUNStop(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// handleTUNWake is called by the client on system resume (powerMonitor). It
+// nudges both the TUN engine and the embedded SOCKS5 tunnel to rebuild their
+// (now-stale) transports without tearing down the TUN device — see
+// tun.Engine.WakeReconnect / tunnel.Tunnel.WakeReconnect. Both are no-ops
+// unless the respective path is actively connected, so it is always safe to
+// call: the daemon decides whether recovery is warranted. Always 200.
+func (s *Server) handleTUNWake(w http.ResponseWriter, r *http.Request) {
+	s.tunEngine.WakeReconnect()
+	s.tunnel.WakeReconnect()
 	w.WriteHeader(http.StatusOK)
 }
 

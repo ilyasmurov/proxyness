@@ -855,38 +855,32 @@ export function App() {
     else if (current === "disconnected" && notifDefault(NOTIF_KEYS.disconnect)) notify("Proxyness", "Disconnected");
   }, [isConnected, daemonReconnecting, reconnecting]);
 
-  // On system wake the daemon's UDP session is silently dead (server forgot
-  // us during sleep). Tear down old state and, when auto-connect is enabled,
-  // reconnect instead of waiting for the keepalive timeout. The ioreg race
-  // that previously caused a "machine id rejected" on wake is fixed at the
-  // daemon level (pkg/machineid/machineid_darwin.go retries until IOKit is
-  // ready), so it's safe to recompute the fingerprint via /tun/start here.
-  const wasConnectedOnWakeRef = useRef(false);
-  const autoConnectOnStartRef = useRef(autoConnectOnStart);
-  useEffect(() => {
-    wasConnectedOnWakeRef.current = isConnected;
-  }, [isConnected]);
-  useEffect(() => {
-    autoConnectOnStartRef.current = autoConnectOnStart;
-  }, [autoConnectOnStart]);
+  // On system wake the daemon's transports are silently dead — the server-side
+  // UDP NAT forgot us during sleep and any TLS conn is stale — but the daemon
+  // may not notice for a full keepalive cycle (and if apps are idle, nothing
+  // dials to trip its stream-failure detector). We nudge it to rebuild its
+  // transports immediately via /tun/wake.
+  //
+  // Crucially we no longer stop the engine here: the daemon's WakeReconnect
+  // keeps the TUN device up and leans on its own RefreshRoutes + slow-poll
+  // recovery, which the logs show reliably rides out the wifi-reassoc after
+  // wake (the old full tunDisconnect() → 25s client retry defeated that and
+  // left the tunnel dead-until-manual when the network took longer to settle).
+  // The daemon no-ops unless actually connected, so this fires unconditionally:
+  // no autoConnect gate (restoring an active session ≠ auto-connect on launch)
+  // and no isConnected race. If the daemon ultimately can't recover it stops
+  // the engine, and the 2s status poll's hard-disconnect branch runs a full
+  // startReconnect as the last-resort fallback.
   useEffect(() => {
     const app = (window as any).appInfo;
     if (!app?.onSystemResumed) return;
-    const cleanup = app.onSystemResumed(async () => {
-      if (!wasConnectedOnWakeRef.current || !key) return;
-      console.log("[wake] system resumed");
-      if (proxyMode === "tun") {
-        await tunDisconnect();
-      } else {
-        await disconnect();
-      }
-      if (!autoConnectOnStartRef.current) return;
-      // Let the network stack settle before trying to reach the server.
-      await new Promise((r) => setTimeout(r, 500));
-      startReconnect();
+    const cleanup = app.onSystemResumed(() => {
+      if (!key) return;
+      console.log("[wake] system resumed → nudging daemon to rebuild transport");
+      (window as any).tunProxy?.wake?.();
     });
     return cleanup;
-  }, [key, proxyMode, tunDisconnect, disconnect, startReconnect]);
+  }, [key]);
 
   // Handle tray connect/disconnect clicks
   useEffect(() => {

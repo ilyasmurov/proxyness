@@ -277,6 +277,27 @@ func (t *Tunnel) GetStatus() Status {
 	return t.status
 }
 
+// WakeReconnect proactively rebuilds the transport after a system sleep/wake.
+// The embedded SOCKS5 tunnel largely self-heals (each new browser request
+// re-dials), but an idle tunnel holds a stale transport whose DoneChan may not
+// fire for a full keepalive cycle. Mirroring tun.Engine.WakeReconnect, we
+// Close() the live transport so its DoneChan fires → the health loop's D1 path
+// rebuilds it (with RefreshRoutes + slow-poll on ENETUNREACH). No-op unless
+// Connected: while already Reconnecting, D1/D3 own recovery; while Disconnected
+// there is nothing to wake. Close() is idempotent, so D1's own Close() is a safe
+// double-close.
+func (t *Tunnel) WakeReconnect() {
+	t.mu.Lock()
+	tr := t.transport
+	connected := t.status == Connected
+	t.mu.Unlock()
+	if !connected || tr == nil {
+		return
+	}
+	log.Printf("[tunnel] wake: transport assumed stale after sleep, forcing rebuild")
+	tr.Close() // fires DoneChan → healthLoop D1 → reconnectTransport
+}
+
 // setReconnecting flips status from Connected → Reconnecting and engages
 // the kill switch (closes all in-flight relays). Idempotent: calling twice
 // in the same state is a no-op. Caller must NOT hold t.mu.

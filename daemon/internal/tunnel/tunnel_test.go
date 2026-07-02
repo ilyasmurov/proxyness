@@ -7,12 +7,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"math/big"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	dstats "proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/transport"
 	"proxyness/pkg/auth"
 	"proxyness/pkg/proto"
 )
@@ -390,5 +393,88 @@ func TestHandleSOCKSRejectsDuringReconnecting(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("handleSOCKS did not return")
+	}
+}
+
+// wakeFakeTransport mirrors the one in the tun package: it records Close calls
+// and fires DoneChan on first Close, so we can assert WakeReconnect closed the
+// live transport (which drives the health loop's D1 rebuild).
+type wakeFakeTransport struct {
+	mu     sync.Mutex
+	closed bool
+	closeN int
+	done   chan struct{}
+}
+
+func newWakeFakeTransport() *wakeFakeTransport {
+	return &wakeFakeTransport{done: make(chan struct{})}
+}
+
+func (f *wakeFakeTransport) Connect(server, key string, machineID [16]byte) error { return nil }
+func (f *wakeFakeTransport) OpenStream(streamType byte, addr string, port uint16) (transport.Stream, error) {
+	return nil, errors.New("wakeFakeTransport: no streams")
+}
+func (f *wakeFakeTransport) Mode() string              { return "tls" }
+func (f *wakeFakeTransport) DoneChan() <-chan struct{} { return f.done }
+func (f *wakeFakeTransport) Close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closeN++
+	if !f.closed {
+		f.closed = true
+		close(f.done)
+	}
+	return nil
+}
+func (f *wakeFakeTransport) closeCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.closeN
+}
+
+func TestTunnelWakeReconnectClosesTransportWhenConnected(t *testing.T) {
+	tn := New(dstats.NewRateMeter())
+	ft := newWakeFakeTransport()
+	tn.mu.Lock()
+	tn.status = Connected
+	tn.transport = ft
+	tn.mu.Unlock()
+
+	tn.WakeReconnect()
+
+	select {
+	case <-ft.DoneChan():
+	case <-time.After(time.Second):
+		t.Fatalf("WakeReconnect should close the connected transport (DoneChan never fired)")
+	}
+}
+
+func TestTunnelWakeReconnectNoopWhenDisconnected(t *testing.T) {
+	tn := New(dstats.NewRateMeter())
+	ft := newWakeFakeTransport()
+	tn.mu.Lock()
+	tn.status = Disconnected
+	tn.transport = ft
+	tn.mu.Unlock()
+
+	tn.WakeReconnect()
+
+	if ft.closeCount() != 0 {
+		t.Fatalf("WakeReconnect must not touch the transport when disconnected, got %d Close calls", ft.closeCount())
+	}
+}
+
+func TestTunnelWakeReconnectNoopWhenReconnecting(t *testing.T) {
+	tn := New(dstats.NewRateMeter())
+	ft := newWakeFakeTransport()
+	tn.mu.Lock()
+	tn.status = Reconnecting
+	tn.transport = ft
+	tn.mu.Unlock()
+
+	tn.WakeReconnect()
+
+	if ft.closeCount() != 0 {
+		t.Fatalf("WakeReconnect must be a no-op while already reconnecting, got %d Close calls", ft.closeCount())
 	}
 }

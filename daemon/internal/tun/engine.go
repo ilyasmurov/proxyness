@@ -403,6 +403,38 @@ func (e *Engine) stopLocked() error {
 	return nil
 }
 
+// WakeReconnect proactively rebuilds the transport after a system sleep/wake.
+// Post-wake the old socket is silently dead — the server-side UDP NAT has
+// forgotten us and any TLS conn is stale — but transport.Alive()/DoneChan may
+// not notice for a full keepalive cycle, and if the user's apps are idle the D3
+// stream-failure detector never trips (nothing dials to fail). So the engine
+// can sit "active" for tens of seconds black-holing traffic until something
+// finally probes.
+//
+// Instead of the client tearing the whole engine down (/tun/stop) and racing a
+// short client-side retry — which also defeats the engine's own RefreshRoutes +
+// slow-poll recovery — we just Close() the live transport here. That fires its
+// DoneChan → the health loop's D1 path rebuilds the transport (with mid-budget
+// RefreshRoutes and, on ENETUNREACH, the 120s waitForNetwork slow-poll) WITHOUT
+// destroying the TUN device, so apps keep their routes while the tunnel heals.
+//
+// No-op unless actively connected: if the engine is already Reconnecting then
+// D1/D3 already own recovery (re-closing would be redundant), and if it is
+// Inactive there is nothing to wake — a fresh Start owns that path. Close() is
+// idempotent across all transports, so the redundant Close() inside
+// reconnectTransport is harmless.
+func (e *Engine) WakeReconnect() {
+	e.mu.Lock()
+	tr := e.transport
+	active := e.status == StatusActive
+	e.mu.Unlock()
+	if !active || tr == nil {
+		return
+	}
+	log.Printf("[tun] wake: transport assumed stale after sleep, forcing rebuild")
+	tr.Close() // fires DoneChan → healthLoop D1 → reconnectTransport
+}
+
 // connectAndCreate connects to helper, sends "create" with server address,
 // reads the JSON response, and returns the connection positioned at the
 // start of the relay stream.

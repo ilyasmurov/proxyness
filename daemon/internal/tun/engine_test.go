@@ -1,12 +1,101 @@
 package tun
 
 import (
+	"errors"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	dstats "proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/transport"
 )
+
+// wakeFakeTransport is a minimal transport.Transport that records Close calls
+// and exposes a DoneChan that fires on the first Close — enough to assert that
+// WakeReconnect closed the live transport (which is what triggers the health
+// loop's D1 rebuild path).
+type wakeFakeTransport struct {
+	mu     sync.Mutex
+	closed bool
+	closeN int
+	done   chan struct{}
+}
+
+func newWakeFakeTransport() *wakeFakeTransport {
+	return &wakeFakeTransport{done: make(chan struct{})}
+}
+
+func (f *wakeFakeTransport) Connect(server, key string, machineID [16]byte) error { return nil }
+func (f *wakeFakeTransport) OpenStream(streamType byte, addr string, port uint16) (transport.Stream, error) {
+	return nil, errors.New("wakeFakeTransport: no streams")
+}
+func (f *wakeFakeTransport) Mode() string { return "tls" }
+func (f *wakeFakeTransport) DoneChan() <-chan struct{} { return f.done }
+func (f *wakeFakeTransport) Close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closeN++
+	if !f.closed {
+		f.closed = true
+		close(f.done)
+	}
+	return nil
+}
+func (f *wakeFakeTransport) closeCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.closeN
+}
+
+func TestEngineWakeReconnectClosesTransportWhenActive(t *testing.T) {
+	e := NewEngine(dstats.NewRateMeter())
+	ft := newWakeFakeTransport()
+	e.mu.Lock()
+	e.status = StatusActive
+	e.transport = ft
+	e.mu.Unlock()
+
+	e.WakeReconnect()
+
+	// Closing the transport is what fires DoneChan → healthLoop D1.
+	select {
+	case <-ft.DoneChan():
+	case <-time.After(time.Second):
+		t.Fatalf("WakeReconnect should close the active transport (DoneChan never fired)")
+	}
+}
+
+func TestEngineWakeReconnectNoopWhenInactive(t *testing.T) {
+	e := NewEngine(dstats.NewRateMeter())
+	ft := newWakeFakeTransport()
+	e.mu.Lock()
+	e.status = StatusInactive
+	e.transport = ft
+	e.mu.Unlock()
+
+	e.WakeReconnect()
+
+	if ft.closeCount() != 0 {
+		t.Fatalf("WakeReconnect must not touch the transport when inactive, got %d Close calls", ft.closeCount())
+	}
+}
+
+func TestEngineWakeReconnectNoopWhenReconnecting(t *testing.T) {
+	// Already reconnecting → D1/D3 owns recovery; a wake must not re-trigger.
+	e := NewEngine(dstats.NewRateMeter())
+	ft := newWakeFakeTransport()
+	e.mu.Lock()
+	e.status = StatusReconnecting
+	e.transport = ft
+	e.mu.Unlock()
+
+	e.WakeReconnect()
+
+	if ft.closeCount() != 0 {
+		t.Fatalf("WakeReconnect must be a no-op while already reconnecting, got %d Close calls", ft.closeCount())
+	}
+}
 
 func TestEngineSetReconnectingOnlyFromActive(t *testing.T) {
 	e := NewEngine(dstats.NewRateMeter())
