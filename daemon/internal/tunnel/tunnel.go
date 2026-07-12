@@ -619,7 +619,7 @@ func (t *Tunnel) tryReconnectOnce() error {
 
 // reconnectTransport runs the fast retry budget. Returns nil on success,
 // errReconnectStopped on stop, or the last attempt's error on exhaustion
-// / unrecoverable failure (auth or machine-id rejection).
+// / unrecoverable failure (invalid key).
 //
 // Mid-budget RefreshRoutes mirrors the engine.go fix: on darwin the
 // socket retry loop can spin the full 60s against a stale ifscope
@@ -666,7 +666,10 @@ func (t *Tunnel) reconnectTransport() error {
 		}
 		log.Printf("[tunnel] reconnect attempt %d failed: %v", attempt, err)
 		lastErr = err
-		if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
+		// Only "invalid key" is unrecoverable. "machine id rejected" stays
+		// retryable — server restarts re-bind on the next connect, post-wake
+		// fingerprint blips heal via the machineid cache (see tun/engine.go).
+		if strings.Contains(err.Error(), "invalid key") {
 			return err
 		}
 		if transport.IsNetworkUnreachable(err) {

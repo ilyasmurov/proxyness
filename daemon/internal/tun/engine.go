@@ -435,6 +435,31 @@ func (e *Engine) WakeReconnect() {
 	tr.Close() // fires DoneChan → healthLoop D1 → reconnectTransport
 }
 
+// machineIDRejected handles a per-stream "machine id rejected" from the
+// server. This used to be treated as a fatal device-binding conflict and
+// stopped the engine — killing all traffic until a manual reconnect, which
+// took down everything behind the proxy (browser sessions, Claude, …). But
+// the rejection is usually transient: a server restart wiped the binding
+// table (the next successful connect simply re-binds), or the fingerprint
+// momentarily degraded right after wake. So instead of stopping we force a
+// transport rebuild — Close() fires DoneChan → healthLoop D1 → the full
+// retry ladder (fast retries → RefreshRoutes → slow-poll) keeps the engine
+// in Reconnecting. A genuine binding conflict keeps failing, exhausts the
+// D1 budget, and control passes to the client's own retry loop — the
+// engine never hard-stops on this error anymore. Mirrors WakeReconnect:
+// no-op unless Active (if already Reconnecting, D1 owns recovery).
+func (e *Engine) machineIDRejected(proto, dstAddr string, dstPort uint16) {
+	e.mu.Lock()
+	tr := e.transport
+	active := e.status == StatusActive
+	e.mu.Unlock()
+	if !active || tr == nil {
+		return
+	}
+	log.Printf("[tun] machine id rejected on %s stream to %s:%d — forcing transport rebuild instead of stopping", proto, dstAddr, dstPort)
+	tr.Close() // fires DoneChan → healthLoop D1 → reconnectTransport
+}
+
 // connectAndCreate connects to helper, sends "create" with server address,
 // reads the JSON response, and returns the connection positioned at the
 // start of the relay stream.
@@ -765,7 +790,7 @@ func (e *Engine) tryReconnectOnce() error {
 // reconnectTransport runs the fast retry budget (maxReconnects ×
 // reconnectDelay). Returns nil on success, errReconnectStopped if stop
 // was requested, or the last attempt's error on exhaustion or
-// unrecoverable failure (auth/machine-id rejection).
+// unrecoverable failure (invalid key).
 //
 // When the attempts are failing with ENETUNREACH (darwin stale ifscope /
 // neighbor cache after WiFi flap, laptop wake, Docker vmnetd re-creating
@@ -823,7 +848,12 @@ func (e *Engine) reconnectTransport() error {
 		}
 		log.Printf("[tun] reconnect attempt %d failed: %v", attempt, err)
 		lastErr = err
-		if strings.Contains(err.Error(), "invalid key") || strings.Contains(err.Error(), "machine id rejected") {
+		// Only "invalid key" (key revoked server-side) is unrecoverable.
+		// "machine id rejected" stays retryable: a server restart wipes the
+		// binding and the next connect re-binds, and a post-wake fingerprint
+		// blip heals via the machineid disk cache — bailing out here used to
+		// hard-stop the engine and kill all traffic until manual reconnect.
+		if strings.Contains(err.Error(), "invalid key") {
 			return err
 		}
 		if transport.IsNetworkUnreachable(err) {
@@ -1160,11 +1190,7 @@ func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAd
 		}
 		log.Printf("[tun] open TCP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
-			log.Printf("[tun] DEVICE BINDING CONFLICT: server reports this key is bound to a different machine fingerprint — stopping engine. (dst=%s:%d)", dstAddr, dstPort)
-			e.mu.Lock()
-			e.lastError = "Device is bound to a different machine"
-			e.stopLocked()
-			e.mu.Unlock()
+			e.machineIDRejected("TCP", dstAddr, dstPort)
 		}
 		return
 	}
@@ -1219,11 +1245,11 @@ func (e *Engine) proxyTCPLegacy(local net.Conn, dstAddr string, dstPort uint16) 
 	}
 	ok, err = proto.ReadResult(tlsConn)
 	if err != nil || !ok {
-		log.Printf("[tun/legacy] DEVICE BINDING CONFLICT: server rejected machine fingerprint (ok=%v err=%v) — stopping engine", ok, err)
-		e.mu.Lock()
-		e.lastError = "Device is bound to a different machine"
-		e.stopLocked()
-		e.mu.Unlock()
+		// Don't stop the engine — rejection is usually transient (server
+		// restart re-binds on the next connect; post-wake fingerprint blips
+		// heal via the machineid cache). Drop this connection and let the
+		// app retry; health detectors own recovery if it persists.
+		log.Printf("[tun/legacy] machine id rejected (ok=%v err=%v) — dropping connection, engine stays up", ok, err)
 		return
 	}
 
@@ -1346,11 +1372,7 @@ func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAd
 		}
 		log.Printf("[tun] open UDP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
-			log.Printf("[tun] DEVICE BINDING CONFLICT: server reports this key is bound to a different machine fingerprint — stopping engine. (dst=%s:%d UDP)", dstAddr, dstPort)
-			e.mu.Lock()
-			e.lastError = "Device is bound to a different machine"
-			e.stopLocked()
-			e.mu.Unlock()
+			e.machineIDRejected("UDP", dstAddr, dstPort)
 		}
 		return
 	}
