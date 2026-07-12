@@ -491,11 +491,14 @@ export function App() {
   const [keyValidating, setKeyValidating] = useState(false);
   const [helperError, setHelperError] = useState("");
 
-  // Fatal errors that mean the key/device can't connect — kick to setup
-  const isKeyRejected = (err: string) =>
-    err.includes("bound to a different machine") ||
-    err.includes("machine id rejected") ||
-    err.includes("invalid key");
+  // The only unrecoverable error: the key itself was revoked/deleted
+  // server-side. Everything else — including machine-id / device-binding
+  // rejections ("bound to a different machine", "machine id rejected") —
+  // goes through the reconnect loop: those rejections are transient in
+  // practice (ioreg racing IOKit after wake, server restart wiping the
+  // binding table) and hard-stopping on them used to kill all traffic
+  // until a manual reconnect, taking down everything behind the proxy.
+  const isKeyInvalid = (err: string) => err.includes("invalid key");
   const [version, setVersion] = useState("");
   const [activeTab, setActiveTab] = useState<"main" | "settings">("main");
   const [trafficMode, setTrafficMode] = useState<"all" | "selected">("all");
@@ -545,8 +548,16 @@ export function App() {
 
 
 
-  const maxRetries = 5;
+  // Fast phase: maxFastRetries × retryDelay, then the loop degrades to
+  // slowRetryDelay and keeps going FOREVER. It used to give up after 5
+  // attempts with "Server unavailable", which left the proxy dead until a
+  // manual reconnect — one long outage (or a transient device-binding
+  // rejection) and everything behind the proxy lost network for good.
+  // Only stopReconnect() (manual disconnect / mode change) or success
+  // exits the loop now.
+  const maxFastRetries = 5;
   const retryDelay = 5000;
+  const slowRetryDelay = 30000;
 
   const startReconnect = useCallback(() => {
     // Synchronous guard via ref (see comment on reconnectingRef above).
@@ -566,7 +577,7 @@ export function App() {
 
     const tryReconnect = async () => {
       attempt++;
-      console.log(`[reconnect] attempt ${attempt}/${maxRetries}`);
+      console.log(`[reconnect] attempt ${attempt}${attempt > maxFastRetries ? " (slow phase)" : `/${maxFastRetries}`}`);
       try {
         if (proxyMode === "tun") {
           // connect() returns false on non-ok (e.g. 409 from lockDevice race
@@ -583,12 +594,16 @@ export function App() {
           if (!ok) throw new Error("connect failed");
         }
         finish(null);
-      } catch {
-        if (attempt >= maxRetries) {
-          finish("Server unavailable");
-        } else {
-          reconnectRef.current = setTimeout(tryReconnect, retryDelay);
+      } catch (err) {
+        // Revoked key is the one genuinely unrecoverable case — surface it
+        // and stop instead of hammering the server forever.
+        const msg = err instanceof Error ? err.message : "";
+        if (isKeyInvalid(msg)) {
+          finish(msg);
+          return;
         }
+        const delay = attempt >= maxFastRetries ? slowRetryDelay : retryDelay;
+        reconnectRef.current = setTimeout(tryReconnect, delay);
       }
     };
 
@@ -633,13 +648,15 @@ export function App() {
           // Only fire client-side startReconnect on a HARD disconnect, not
           // while the daemon is still trying to reconnect on its own.
           if (wasConnected.current && !active && next !== "reconnecting" && s.error) {
-            if (isKeyRejected(s.error)) {
-              // Surface the error but keep the stored key — user reconnects manually.
-              // Avoids the morning "machine id rejected" → setup-screen loop when
-              // ioreg races IOKit startup right after system wake.
+            if (isKeyInvalid(s.error)) {
+              // Key revoked server-side — surface the error, keep the stored
+              // key visible on the main screen; user resolves manually.
               (window as any).sysproxy?.disable();
               setTunError(s.error);
             } else {
+              // Everything else — including device-binding rejections —
+              // stays in the reconnect loop until it heals or the user
+              // disconnects. Never strand the proxy dead on an error.
               startReconnect();
             }
           }
@@ -661,8 +678,8 @@ export function App() {
   useEffect(() => {
     if (proxyMode !== "socks5") return;
     if (socksError && !reconnecting && key) {
-      if (isKeyRejected(socksError)) {
-        // Keep the stored key on machine-id / invalid-key errors; user retries manually.
+      if (isKeyInvalid(socksError)) {
+        // Key revoked server-side — keep the stored key; user resolves manually.
         (window as any).sysproxy?.disable();
       } else {
         startReconnect();
@@ -735,16 +752,20 @@ export function App() {
       const result = await (window as any).tunProxy?.start(server, k);
       if (result && !result.ok) {
         const err = result.error || "Failed to connect";
-        if (isKeyRejected(err)) {
-          // Don't wipe the stored key on machine-id rejection — surface the
-          // error and let the user retry. ioreg races IOKit on cold wake;
-          // retrying a few seconds later usually succeeds.
+        if (isKeyInvalid(err)) {
+          // Key revoked server-side — the one case where retrying is
+          // pointless. Keep the stored key visible; user resolves manually.
           (window as any).sysproxy?.disable();
           disconnect();
           setTunError(err);
           return;
         }
+        // Any other failure (including a device-binding rejection — ioreg
+        // races IOKit on cold wake, server restarts wipe the binding table)
+        // goes into the endless reconnect loop instead of stranding the
+        // proxy dead on an error message.
         setTunError(err);
+        startReconnect();
       } else {
         setTunStatus("active");
       }
@@ -753,13 +774,18 @@ export function App() {
     } finally {
       setTunLoading(false);
     }
-  }, [connect]);
+  }, [connect, startReconnect]);
 
   const stopReconnect = useCallback(() => {
     if (reconnectRef.current) {
       clearTimeout(reconnectRef.current);
       reconnectRef.current = null;
     }
+    // Reset the synchronous guard too — without this, cancelling a loop
+    // that's waiting on its timer left reconnectingRef stuck at true and
+    // every future startReconnect() bounced off the guard until app
+    // restart (now fatal with the endless-retry loop).
+    reconnectingRef.current = false;
     setReconnecting(false);
     wasConnected.current = false;
   }, []);

@@ -168,3 +168,43 @@ func TestEngineSetReconnectingClosesAllConns(t *testing.T) {
 		t.Fatalf("expected tracked conn to be closed")
 	}
 }
+
+func TestEngineMachineIDRejectedForcesRebuildWhenActive(t *testing.T) {
+	// "machine id rejected" on a stream open must NOT stop the engine —
+	// it closes the transport so healthLoop D1 rebuilds it, keeping the
+	// engine in the reconnect ladder instead of dying to a fatal error.
+	e := NewEngine(dstats.NewRateMeter())
+	ft := newWakeFakeTransport()
+	e.mu.Lock()
+	e.status = StatusActive
+	e.transport = ft
+	e.mu.Unlock()
+
+	e.machineIDRejected("TCP", "example.com", 443)
+
+	select {
+	case <-ft.DoneChan():
+	case <-time.After(time.Second):
+		t.Fatalf("machineIDRejected should close the active transport (DoneChan never fired)")
+	}
+	if e.GetStatus() == StatusInactive {
+		t.Fatalf("machineIDRejected must not stop the engine")
+	}
+}
+
+func TestEngineMachineIDRejectedNoopWhenReconnecting(t *testing.T) {
+	// D1/D3 already own recovery — a concurrent stream rejection must not
+	// re-close the fresh transport being built.
+	e := NewEngine(dstats.NewRateMeter())
+	ft := newWakeFakeTransport()
+	e.mu.Lock()
+	e.status = StatusReconnecting
+	e.transport = ft
+	e.mu.Unlock()
+
+	e.machineIDRejected("UDP", "example.com", 443)
+
+	if ft.closeCount() != 0 {
+		t.Fatalf("machineIDRejected must be a no-op while reconnecting, got %d Close calls", ft.closeCount())
+	}
+}
