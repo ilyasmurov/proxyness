@@ -1,5 +1,12 @@
 [
   {
+    "id": "9b059971-48c6-4323-8fac-e01c396a4983",
+    "title": "Bandwidth page in the admin dashboard",
+    "description": "Shows what the uplink actually carries: throughput over the last 24 hours at five-minute resolution, daily volume for the past month, and peaks measured against the 50 Mbit/s plan limit. Traffic is split between the whole channel and the AmneziaWG tunnel. Counters come from vnstat on the host, so this covers everything leaving the machine, not just proxied connections.",
+    "type": "feature",
+    "createdAt": "2026-07-30T13:15:37.552692+00:00"
+  },
+  {
     "id": "925e4be2-0977-4d06-9d6b-8bd899d99db4",
     "title": "A transient “device bound to a different machine” error no longer kills the proxy until manual reconnect",
     "description": "After wake from sleep, macOS can take a few seconds before ioreg reports the machine's hardware UUID. If the daemon connected during that window it sent a degraded fingerprint, the server answered “machine id rejected”, and the whole stack treated that as a fatal device-binding conflict: the tunnel engine stopped dead, the client gave up on reconnecting, and every app behind the proxy lost network until you clicked Connect by hand — long-lived sessions (messengers, Claude, SSH) dropped and logged out. Three fixes: the hardware ID is now cached in memory and on disk, so the fingerprint can never regress after the first successful read; the daemon treats a machine-id rejection as retryable (a server restart re-binds on the next connect) and rebuilds the transport through the normal recovery ladder instead of stopping the engine; and the client's reconnect loop no longer gives up after 25 seconds — it retries fast for the first 5 attempts, then keeps trying every 30 seconds indefinitely, so the proxy visibly hangs in “Reconnecting…” instead of dying. Only a genuinely revoked key stops the loop. Also fixed a latent bug where cancelling a reconnect mid-wait left an internal guard flag stuck and silently blocked all future auto-reconnects until app restart.",
@@ -1391,19 +1398,5 @@
     "description": "Previously \"11 enabled\" was confusing when the wildcard was active. Now it reads \"all sites\" when the wildcard is on, and \"N enabled\" with the real count of explicitly selected sites otherwise.",
     "type": "fix",
     "createdAt": "2026-04-07T12:06:15.013828+00:00"
-  },
-  {
-    "id": "0b948769-e6c1-4909-be26-4f4a5b65fd01",
-    "title": "Daemon: per-host active-connection tracking in the tunnel",
-    "description": "Simple concurrent map[string]int of in-flight SOCKS5 connections, incremented/decremented in handleSOCKS. Exposed via the new GET /tunnel/active-hosts endpoint.",
-    "type": "improvement",
-    "createdAt": "2026-04-07T12:06:15.013834+00:00"
-  },
-  {
-    "id": "d5255d67-f525-4f3d-8e57-a831a4dd0f03",
-    "title": "Daemon deploys: server shutdown — tunnel now increments and decrements cleanly",
-    "description": "handleSOCKS calls trackHost and untrackHost around the relay lifetime so the counter never leaks on errors.",
-    "type": "fix",
-    "createdAt": "2026-04-07T12:06:15.013840+00:00"
   }
 ]
