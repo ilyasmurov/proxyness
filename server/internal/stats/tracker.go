@@ -43,6 +43,10 @@ type Tracker struct {
 // short-lived TCP connection, so there are natural gaps between requests.
 const devicePresenceTimeout = 60 // seconds
 
+// staleDeviceTimeout is how long a device with no activity at all is kept in
+// the presence/history maps before it is dropped entirely.
+const staleDeviceTimeout int64 = 3600 // seconds
+
 func New() *Tracker {
 	t := &Tracker{
 		conns:         make(map[int64]*ConnInfo),
@@ -106,11 +110,32 @@ func (t *Tracker) computeRates(prev map[int64][2]int64) {
 			t.deviceBuffers[deviceID] = buf
 		}
 		buf.Add(pkgstats.RatePoint{Timestamp: now, BytesIn: d.in, BytesOut: d.out})
+		// A device with live connections is active by definition. lastSeen is
+		// otherwise only written by Add/Remove, so a long-lived session (one
+		// UDP session = one tracker conn for hours) would be judged stale
+		// after an hour and have its history wiped mid-session.
+		if m := t.deviceMetas[deviceID]; m != nil {
+			m.lastSeen = now
+		}
+	}
+	// Devices still inside the presence window but with no live connection this
+	// tick get an explicit zero sample. Without it the ring buffer simply stops
+	// growing, so smoothRate keeps averaging the last real samples and the
+	// headline freezes at whatever rate the device had when it disconnected.
+	for deviceID, m := range t.deviceMetas {
+		if _, live := deltas[deviceID]; live {
+			continue
+		}
+		if now-m.lastSeen > devicePresenceTimeout {
+			continue
+		}
+		if buf := t.deviceBuffers[deviceID]; buf != nil {
+			buf.Add(pkgstats.RatePoint{Timestamp: now})
+		}
 	}
 	// Cleanup stale devices (no activity for 1 hour)
-	const staleTimeout int64 = 3600
 	for id, m := range t.deviceMetas {
-		if now-m.lastSeen > staleTimeout {
+		if now-m.lastSeen > staleDeviceTimeout {
 			delete(t.deviceMetas, id)
 			delete(t.deviceBuffers, id)
 		}

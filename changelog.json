@@ -1,5 +1,12 @@
 [
   {
+    "id": "9cc2e8a8-47eb-49a7-84cf-45d0acf87b55",
+    "title": "Disconnected devices no longer show a frozen download speed in the admin dashboard",
+    "description": "A device stays listed for 60 seconds after its last connection closes (that is deliberate — TLS connections are one per request). But its speed used to freeze at whatever it was when the connection died, so a device that had been gone for a minute still looked like it was pulling traffic. It now decays to zero. Long-running sessions also keep their full rate history instead of losing the graph after an hour.",
+    "type": "fix",
+    "createdAt": "2026-07-30T13:36:49.421637+00:00"
+  },
+  {
     "id": "9b059971-48c6-4323-8fac-e01c396a4983",
     "title": "Bandwidth page in the admin dashboard",
     "description": "Shows what the uplink actually carries: throughput over the last 24 hours at five-minute resolution, daily volume for the past month, and peaks measured against the 50 Mbit/s plan limit. Traffic is split between the whole channel and the AmneziaWG tunnel. Counters come from vnstat on the host, so this covers everything leaving the machine, not just proxied connections.",
@@ -1391,12 +1398,5 @@
     "description": "The tunnel now tracks every in-flight SOCKS5 connection by hostname and exposes a /tunnel/active-hosts endpoint. The client polls it every 2 seconds and lights up a pulsing LIVE label on every site tile whose primary domain or related CDN domains currently have open connections. Works across the YouTube + googlevideo + ytimg set and similar tracker families via the existing RELATED_DOMAINS table.",
     "type": "feature",
     "createdAt": "2026-04-07T12:06:15.013675+00:00"
-  },
-  {
-    "id": "c96cb19b-6d4c-4872-89a9-837b5493bc98",
-    "title": "Browser sites counter shows \"all sites\" instead of total count when All browsers is on",
-    "description": "Previously \"11 enabled\" was confusing when the wildcard was active. Now it reads \"all sites\" when the wildcard is on, and \"N enabled\" with the real count of explicitly selected sites otherwise.",
-    "type": "fix",
-    "createdAt": "2026-04-07T12:06:15.013828+00:00"
   }
 ]
