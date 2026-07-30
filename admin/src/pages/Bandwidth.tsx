@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ReferenceLine,
@@ -32,6 +33,17 @@ function label(name: string) {
   return LABELS[name] ?? name;
 }
 
+function isTunnel(name: string) {
+  return /^(awg|wg|tun|utun)/.test(name);
+}
+
+// Physical interfaces first: the uplink is what the plan caps and what the page
+// should open on, while a tunnel is a subset of the same traffic. vnstat lists
+// interfaces alphabetically, which would otherwise put awg0 ahead of enp0s5.
+function uplinkFirst(interfaces: BandwidthInterface[]) {
+  return [...interfaces].sort((a, b) => Number(isTunnel(a.name)) - Number(isTunnel(b.name)));
+}
+
 function mbps(value: number) {
   if (value >= 100) return `${Math.round(value)} Mbit/s`;
   if (value >= 10) return `${value.toFixed(1)} Mbit/s`;
@@ -50,6 +62,14 @@ function dayLabel(t: number) {
 
 function percentOfPlan(value: number) {
   return Math.round((value / PLAN_LIMIT_MBPS) * 100);
+}
+
+// Round the axis top to something a human would pick, so the last tick reads
+// "25 Mbit/s" instead of "23.629264911999996 Mbit/s".
+function niceMax(value: number) {
+  if (value <= 5) return Math.max(1, Math.ceil(value));
+  if (value <= 50) return Math.ceil(value / 5) * 5;
+  return Math.ceil(value / 25) * 25;
 }
 
 function Metric({ title, children, hint }: { title: string; children: React.ReactNode; hint?: string }) {
@@ -86,10 +106,12 @@ export function Bandwidth() {
     return () => clearInterval(interval);
   }, []);
 
+  const interfaces = useMemo(() => uplinkFirst(snap?.interfaces ?? []), [snap]);
+
   const iface: BandwidthInterface | null = useMemo(() => {
-    if (!snap || snap.interfaces.length === 0) return null;
-    return snap.interfaces.find((i) => i.name === selected) ?? snap.interfaces[0];
-  }, [snap, selected]);
+    if (interfaces.length === 0) return null;
+    return interfaces.find((i) => i.name === selected) ?? interfaces[0];
+  }, [interfaces, selected]);
 
   // The last five-minute bucket is still filling up, so its average reads low.
   // Use the one before it as "current".
@@ -99,6 +121,13 @@ export function Bandwidth() {
 
   const peakDown = iface ? Math.max(0, ...iface.fiveminute.map((p) => p.rx_mbps)) : 0;
   const peakUp = iface ? Math.max(0, ...iface.fiveminute.map((p) => p.tx_mbps)) : 0;
+  const peakOverall = Math.max(peakDown, peakUp);
+
+  // Scale to the data, not to the plan: pinning the axis at 50 would flatten a
+  // quiet day into a line along zero. The plan marker therefore only appears
+  // once traffic actually climbs near it — which is exactly when it matters.
+  const chartMax = niceMax(peakOverall * 1.15);
+  const showPlanLine = PLAN_LIMIT_MBPS <= chartMax;
   const monthBytes = iface ? iface.day.reduce((sum, p) => sum + p.rx + p.tx, 0) : 0;
 
   const dayData = useMemo(
@@ -142,7 +171,7 @@ export function Bandwidth() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">Bandwidth</h1>
         <div className="flex gap-1">
-          {snap.interfaces.map((i) => (
+          {interfaces.map((i) => (
             <button
               key={i.name}
               type="button"
@@ -171,7 +200,7 @@ export function Bandwidth() {
         </Card>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Metric title="Current" hint="Average over the last completed 5 minutes">
           <p className="text-2xl font-bold" style={{ color: DOWNLOAD_COLOR }}>
             ↓ {mbps(current?.rx_mbps ?? 0)}
@@ -180,7 +209,7 @@ export function Bandwidth() {
             ↑ {mbps(current?.tx_mbps ?? 0)}
           </p>
         </Metric>
-        <Metric title="Peak, last 24h" hint={`${percentOfPlan(Math.max(peakDown, peakUp))}% of the ${PLAN_LIMIT_MBPS} Mbit/s plan`}>
+        <Metric title="Peak, last 24h" hint={`${percentOfPlan(peakOverall)}% of the ${PLAN_LIMIT_MBPS} Mbit/s plan`}>
           <p className="text-2xl font-bold" style={{ color: DOWNLOAD_COLOR }}>
             ↓ {mbps(peakDown)}
           </p>
@@ -195,14 +224,16 @@ export function Bandwidth() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Last 24 hours</CardTitle>
+          <CardTitle>Last 24 hours · Mbit/s</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={iface.fiveminute}>
               <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
               <XAxis dataKey="t" tickFormatter={clockLabel} minTickGap={40} fontSize={12} />
-              <YAxis unit=" Mbit/s" width={80} fontSize={12} />
+              {/* Unit lives in the card title: repeating it on every tick eats a
+                  third of the chart width on a phone. */}
+              <YAxis width={44} fontSize={12} domain={[0, chartMax]} />
               <Tooltip
                 formatter={(value, name) => [
                   mbps(Number(value)),
@@ -210,12 +241,23 @@ export function Bandwidth() {
                 ]}
                 labelFormatter={(t) => clockLabel(Number(t))}
               />
-              <ReferenceLine
-                y={PLAN_LIMIT_MBPS}
-                stroke="#ef4444"
-                strokeDasharray="4 4"
-                label={{ value: `plan ${PLAN_LIMIT_MBPS}`, position: "insideTopRight", fontSize: 11 }}
+              <Legend
+                verticalAlign="top"
+                height={28}
+                formatter={(name) => (name === "rx_mbps" ? "Download" : "Upload")}
               />
+              {showPlanLine && (
+                <ReferenceLine
+                  y={PLAN_LIMIT_MBPS}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  label={{
+                    value: `plan ${PLAN_LIMIT_MBPS}`,
+                    position: "insideTopRight",
+                    fontSize: 11,
+                  }}
+                />
+              )}
               <Line
                 type="monotone"
                 dataKey="rx_mbps"
@@ -224,11 +266,14 @@ export function Bandwidth() {
                 dot={false}
                 isAnimationActive={false}
               />
+              {/* Dashed, because on a transit box rx and tx track each other almost
+                  exactly — a solid line would sit on top of download and hide it. */}
               <Line
                 type="monotone"
                 dataKey="tx_mbps"
                 stroke={UPLOAD_COLOR}
                 strokeWidth={1.5}
+                strokeDasharray="5 3"
                 dot={false}
                 isAnimationActive={false}
               />
@@ -243,7 +288,7 @@ export function Bandwidth() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Daily volume</CardTitle>
+          <CardTitle>Daily volume · GB</CardTitle>
         </CardHeader>
         <CardContent>
           {dayData.length === 0 ? (
@@ -253,7 +298,7 @@ export function Bandwidth() {
               <BarChart data={dayData}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                 <XAxis dataKey="t" tickFormatter={dayLabel} fontSize={12} />
-                <YAxis unit=" GB" width={70} fontSize={12} />
+                <YAxis width={44} fontSize={12} />
                 <Tooltip
                   formatter={(value) => [`${Number(value).toFixed(1)} GB`, "Total"]}
                   labelFormatter={(t) => dayLabel(Number(t))}
