@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh the vnstat export behind the admin Bandwidth page
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=vnstat-export.service
+
+[Install]
+WantedBy=timers.target

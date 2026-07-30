@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import { Dashboard } from "./pages/Dashboard";
+import { Bandwidth } from "./pages/Bandwidth";
 import { Users } from "./pages/Users";
 import { UserDetail } from "./pages/UserDetail";
 import { Sites } from "./pages/Sites";
@@ -78,6 +79,7 @@ function Nav() {
     <nav className="border-b px-6 py-3 flex items-center gap-4">
       <span className="font-bold text-lg mr-4">Proxyness</span>
       {link("/", "Dashboard")}
+      {link("/bandwidth", "Bandwidth")}
       {link("/users", "Users")}
       {link("/sites", "Sites")}
       {link("/notifications", "Notifications")}
@@ -100,6 +102,7 @@ export default function App() {
         <main className="p-6 max-w-5xl mx-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/bandwidth" element={<Bandwidth />} />
             <Route path="/users" element={<Users />} />
             <Route path="/users/:id" element={<UserDetail />} />
             <Route path="/sites" element={<Sites />} />

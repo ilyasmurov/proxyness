@@ -84,6 +84,29 @@ export interface DeviceRate {
   history: Array<{ t: number; down: number; up: number }>;
 }
 
+export interface BandwidthPoint {
+  t: number;
+  rx: number;
+  tx: number;
+  rx_mbps: number;
+  tx_mbps: number;
+}
+
+export interface BandwidthInterface {
+  name: string;
+  total_rx: number;
+  total_tx: number;
+  fiveminute: BandwidthPoint[];
+  hour: BandwidthPoint[];
+  day: BandwidthPoint[];
+}
+
+export interface BandwidthSnapshot {
+  updated_at: number;
+  stale: boolean;
+  interfaces: BandwidthInterface[];
+}
+
 export interface ChangelogEntry {
   id: string;
   title: string;
@@ -213,6 +236,7 @@ export const api = {
   trafficDaily: (deviceId: number): Promise<DailyTraffic[]> =>
     request(`/stats/traffic/${deviceId}/daily`),
   rate: (): Promise<DeviceRate[]> => request("/stats/rate"),
+  bandwidth: (): Promise<BandwidthSnapshot> => request("/bandwidth"),
   changelog: (page = 1, perPage = 10): Promise<ChangelogResponse> =>
     request(`/changelog?page=${page}&per_page=${perPage}`),
   logs: (limit = 200, offset = 0, level = ""): Promise<LogsResponse> =>

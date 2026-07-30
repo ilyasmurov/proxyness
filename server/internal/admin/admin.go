@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"proxyness/server/internal/bandwidth"
 	"proxyness/server/internal/db"
 	"proxyness/server/internal/stats"
 )
@@ -43,6 +45,7 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string) 
 	mux.HandleFunc("GET /admin/api/stats/traffic", h.auth(h.statsTraffic))
 	mux.HandleFunc("GET /admin/api/stats/traffic/{deviceId}/daily", h.auth(h.statsTrafficDaily))
 	mux.HandleFunc("GET /admin/api/stats/rate", h.auth(h.statsRate))
+	mux.HandleFunc("GET /admin/api/bandwidth", h.auth(h.bandwidth))
 	mux.HandleFunc("GET /admin/api/sites", h.auth(h.listSites))
 	mux.HandleFunc("GET /admin/api/sites/{id}", h.auth(h.getSite))
 	mux.HandleFunc("DELETE /admin/api/sites/{id}", h.auth(h.deleteSite))
@@ -445,6 +448,25 @@ func (h *Handler) listLogs(w http.ResponseWriter, r *http.Request) {
 		"entries": entries,
 		"total":   total,
 	})
+}
+
+// bandwidth serves host-level interface statistics.
+//
+// The counters come from vnstat running on the host: a timer drops its JSON
+// export into the shared data volume, which we read here. The container has no
+// view of the host's NIC, so there is nothing to measure locally.
+func (h *Handler) bandwidth(w http.ResponseWriter, r *http.Request) {
+	path := os.Getenv("PROXYNESS_VNSTAT_JSON")
+	if path == "" {
+		path = bandwidth.DefaultPath
+	}
+
+	snap, err := bandwidth.Load(path, time.Now())
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
 }
 
 // ---- Sites ----

@@ -1,0 +1,9 @@
+[Unit]
+Description=Export vnstat JSON into the proxyness data volume
+Documentation=https://github.com/ilyasmurov/proxy
+After=vnstat.service docker.service
+Wants=vnstat.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vnstat-export.sh
