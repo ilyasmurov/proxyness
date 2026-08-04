@@ -28,3 +28,20 @@ func IsNetworkUnreachable(err error) bool {
 	// wrappers that drop the underlying Unwrap).
 	return strings.Contains(err.Error(), "network is unreachable")
 }
+
+// IsSystemOffline reports whether err is the helper's verdict that the box
+// has no default route at all — i.e. the physical link is still down, so
+// there is nothing for refresh_routes to re-add yet. Both helper platforms
+// answer with the same "no default gateway (system offline)" string, which
+// reaches the daemon as `fmt.Errorf("helper: %s", resp.Error)` — a plain
+// string, never a wrapped errno, hence the substring match.
+//
+// Used by reconnectTransport to decide how soon to ask the helper again:
+// a failed refresh caused by a dead link deserves a retry on the very next
+// attempt, not the regular fastRetryRefreshEvery gap (see nextRefreshAfter).
+func IsSystemOffline(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "no default gateway")
+}

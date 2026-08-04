@@ -833,12 +833,13 @@ func (e *Engine) reconnectTransport() error {
 
 		if consecutiveUnreach >= nextRefreshAt {
 			log.Printf("[tun] reconnect: %d consecutive ENETUNREACH, refreshing routes via helper", consecutiveUnreach)
-			if err := e.RefreshRoutes(); err != nil {
-				log.Printf("[tun] reconnect: route refresh failed: %v", err)
+			refreshErr := e.RefreshRoutes()
+			if refreshErr != nil {
+				log.Printf("[tun] reconnect: route refresh failed: %v", refreshErr)
 			} else {
 				log.Printf("[tun] reconnect: routes refreshed")
 			}
-			nextRefreshAt = consecutiveUnreach + fastRetryRefreshEvery
+			nextRefreshAt = nextRefreshAfter(consecutiveUnreach, refreshErr)
 		}
 
 		log.Printf("[tun] reconnect attempt %d/%d", attempt, maxReconnects)
@@ -871,12 +872,36 @@ func (e *Engine) reconnectTransport() error {
 // after 2 consecutive ENETUNREACH (≈6s downtime) so a single racy read
 // at WiFi-flap moment doesn't trigger helper work; subsequent refreshes
 // re-fire every 5 consecutive ENETUNREACH to give the fix a few chances
-// within the 60s budget without hammering the helper. Shared between
+// within the 60s budget without hammering the helper.
+//
+// fastRetryOfflineRefreshEvery overrides that gap when the helper answered
+// "no default gateway (system offline)": there was no link to fix, so the
+// refresh cost nothing and the next one should go out on the very next
+// attempt (≈3s) rather than 5 attempts (≈15s) later. Shared between
 // tun.Engine and tunnel.Tunnel reconnectTransport.
 const (
-	fastRetryFirstRefreshAt = 2
-	fastRetryRefreshEvery   = 5
+	fastRetryFirstRefreshAt      = 2
+	fastRetryRefreshEvery        = 5
+	fastRetryOfflineRefreshEvery = 1
 )
+
+// nextRefreshAfter returns the consecutive-ENETUNREACH count at which
+// reconnectTransport should ask the helper to refresh routes again, given
+// how the refresh that just ran turned out.
+//
+// A refresh that failed with "system offline" is not a helper problem — the
+// link is simply still down — so it is retried on the next attempt. Any
+// other failure (no TUN device, helper unreachable) keeps the regular gap:
+// retrying those every 3s only spams a helper that cannot help.
+//
+// Incident 2026-08-04: a 37s outage spent 15s idle between a failed refresh
+// at attempt 7 and the next at attempt 12, with the gateway already back.
+func nextRefreshAfter(consecutiveUnreach int, refreshErr error) int {
+	if transport.IsSystemOffline(refreshErr) {
+		return consecutiveUnreach + fastRetryOfflineRefreshEvery
+	}
+	return consecutiveUnreach + fastRetryRefreshEvery
+}
 
 // slowPollSchedule is the per-attempt wait before the next reconnect try in
 // waitForNetwork. The ramp starts tight (3s) because a real incident on

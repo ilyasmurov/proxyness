@@ -478,3 +478,41 @@ func TestTunnelWakeReconnectNoopWhenReconnecting(t *testing.T) {
 		t.Fatalf("WakeReconnect must be a no-op while already reconnecting, got %d Close calls", ft.closeCount())
 	}
 }
+
+// TestNextRefreshAfter mirrors the engine-side test — the two packages carry
+// their own copy of the schedule, so the tests must not drift either.
+func TestNextRefreshAfter(t *testing.T) {
+	tests := []struct {
+		name        string
+		consecutive int
+		refreshErr  error
+		want        int
+	}{
+		{
+			name:        "refresh succeeded — back off the regular gap",
+			consecutive: 2,
+			refreshErr:  nil,
+			want:        2 + fastRetryRefreshEvery,
+		},
+		{
+			name:        "helper says system offline — retry on the next attempt",
+			consecutive: 2,
+			refreshErr:  errors.New("helper: no default gateway (system offline)"),
+			want:        2 + fastRetryOfflineRefreshEvery,
+		},
+		{
+			name:        "other helper failure — regular gap",
+			consecutive: 3,
+			refreshErr:  errors.New("helper: no TUN device"),
+			want:        3 + fastRetryRefreshEvery,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := nextRefreshAfter(tc.consecutive, tc.refreshErr)
+			if got != tc.want {
+				t.Errorf("nextRefreshAfter(%d, %v) = %d, want %d", tc.consecutive, tc.refreshErr, got, tc.want)
+			}
+		})
+	}
+}

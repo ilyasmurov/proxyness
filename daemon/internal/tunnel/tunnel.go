@@ -651,12 +651,13 @@ func (t *Tunnel) reconnectTransport() error {
 
 		if refresh != nil && consecutiveUnreach >= nextRefreshAt {
 			log.Printf("[tunnel] reconnect: %d consecutive ENETUNREACH, refreshing routes via helper", consecutiveUnreach)
-			if err := refresh(); err != nil {
-				log.Printf("[tunnel] reconnect: route refresh failed: %v", err)
+			refreshErr := refresh()
+			if refreshErr != nil {
+				log.Printf("[tunnel] reconnect: route refresh failed: %v", refreshErr)
 			} else {
 				log.Printf("[tunnel] reconnect: routes refreshed")
 			}
-			nextRefreshAt = consecutiveUnreach + fastRetryRefreshEvery
+			nextRefreshAt = nextRefreshAfter(consecutiveUnreach, refreshErr)
 		}
 
 		log.Printf("[tunnel] reconnect attempt %d/%d", attempt, maxReconnects)
@@ -682,13 +683,24 @@ func (t *Tunnel) reconnectTransport() error {
 	return lastErr
 }
 
-// fastRetryFirstRefreshAt / fastRetryRefreshEvery mirror the same
-// constants in tun/engine.go — kept in both packages to avoid a shared
-// helper module for two ints. See the engine.go comment for rationale.
+// fastRetryFirstRefreshAt / fastRetryRefreshEvery / fastRetryOfflineRefreshEvery
+// mirror the same constants in tun/engine.go — kept in both packages to avoid a
+// shared helper module for three ints. See the engine.go comment for rationale.
 const (
-	fastRetryFirstRefreshAt = 2
-	fastRetryRefreshEvery   = 5
+	fastRetryFirstRefreshAt      = 2
+	fastRetryRefreshEvery        = 5
+	fastRetryOfflineRefreshEvery = 1
 )
+
+// nextRefreshAfter mirrors the engine.go scheduler: a refresh that failed
+// because the box is offline retries on the next attempt, anything else
+// keeps the regular gap. See tun/engine.go for the full rationale.
+func nextRefreshAfter(consecutiveUnreach int, refreshErr error) int {
+	if transport.IsSystemOffline(refreshErr) {
+		return consecutiveUnreach + fastRetryOfflineRefreshEvery
+	}
+	return consecutiveUnreach + fastRetryRefreshEvery
+}
 
 // slowPollSchedule — see tun/engine.go for the full rationale. Same ramp
 // (3,5,7,10,15,20,30,30 = 120s) is used here so both health loops behave

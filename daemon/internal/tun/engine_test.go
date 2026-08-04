@@ -30,7 +30,7 @@ func (f *wakeFakeTransport) Connect(server, key string, machineID [16]byte) erro
 func (f *wakeFakeTransport) OpenStream(streamType byte, addr string, port uint16) (transport.Stream, error) {
 	return nil, errors.New("wakeFakeTransport: no streams")
 }
-func (f *wakeFakeTransport) Mode() string { return "tls" }
+func (f *wakeFakeTransport) Mode() string              { return "tls" }
 func (f *wakeFakeTransport) DoneChan() <-chan struct{} { return f.done }
 func (f *wakeFakeTransport) Close() error {
 	f.mu.Lock()
@@ -206,5 +206,51 @@ func TestEngineMachineIDRejectedNoopWhenReconnecting(t *testing.T) {
 
 	if ft.closeCount() != 0 {
 		t.Fatalf("machineIDRejected must be a no-op while reconnecting, got %d Close calls", ft.closeCount())
+	}
+}
+
+// TestNextRefreshAfter covers the mid-budget RefreshRoutes schedule. The
+// "system offline" case is the one that matters: on 2026-08-04 a 37s outage
+// spent 15 of those seconds asleep between a failed refresh at attempt 7 and
+// the next one at attempt 12, while the gateway had already come back.
+func TestNextRefreshAfter(t *testing.T) {
+	tests := []struct {
+		name        string
+		consecutive int
+		refreshErr  error
+		want        int
+	}{
+		{
+			name:        "refresh succeeded — back off the regular gap",
+			consecutive: 2,
+			refreshErr:  nil,
+			want:        2 + fastRetryRefreshEvery,
+		},
+		{
+			name:        "helper says system offline — retry on the next attempt",
+			consecutive: 2,
+			refreshErr:  errors.New("helper: no default gateway (system offline)"),
+			want:        2 + fastRetryOfflineRefreshEvery,
+		},
+		{
+			name:        "still offline later in the budget",
+			consecutive: 7,
+			refreshErr:  errors.New("helper: no default gateway (system offline)"),
+			want:        7 + fastRetryOfflineRefreshEvery,
+		},
+		{
+			name:        "other helper failure — regular gap, don't hammer it",
+			consecutive: 2,
+			refreshErr:  errors.New("helper: no TUN device"),
+			want:        2 + fastRetryRefreshEvery,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := nextRefreshAfter(tc.consecutive, tc.refreshErr)
+			if got != tc.want {
+				t.Errorf("nextRefreshAfter(%d, %v) = %d, want %d", tc.consecutive, tc.refreshErr, got, tc.want)
+			}
+		})
 	}
 }
