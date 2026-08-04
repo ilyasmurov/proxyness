@@ -1,5 +1,12 @@
 [
   {
+    "id": "6a1232ce-3bd6-4ba2-9999-cd94621883db",
+    "title": "Faster recovery when Wi-Fi drops mid-session",
+    "description": "When the network disappears under an active connection, the daemon asks the privileged helper to re-add its routes — that's usually what brings the tunnel back after the link returns. If the helper answered that the machine has no default gateway at all (the link is still down, so there is nothing to re-add), the daemon used to wait 15 seconds before asking again, even though that call cost nothing and the gateway could come back at any moment. It now asks again on the very next attempt, roughly every 3 seconds. On a laptop with a flaky access point this shaves the tail off the longer outages — one measured 37-second reconnect spent 15 of those seconds idle with the network already back.",
+    "type": "fix",
+    "createdAt": "2026-08-04T21:22:38.101530+00:00"
+  },
+  {
     "id": "9cc2e8a8-47eb-49a7-84cf-45d0acf87b55",
     "title": "Disconnected devices no longer show a frozen download speed in the admin dashboard",
     "description": "A device stays listed for 60 seconds after its last connection closes (that is deliberate — TLS connections are one per request). But its speed used to freeze at whatever it was when the connection died, so a device that had been gone for a minute still looked like it was pulling traffic. It now decays to zero. Long-running sessions also keep their full rate history instead of losing the graph after an hour.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-07T15:10:31.922513+00:00"
-  },
-  {
-    "id": "b807d464-4354-4937-9e04-8b800b5a062e",
-    "title": "LIVE indicators on browser site tiles — real active-connection tracking",
-    "description": "The tunnel now tracks every in-flight SOCKS5 connection by hostname and exposes a /tunnel/active-hosts endpoint. The client polls it every 2 seconds and lights up a pulsing LIVE label on every site tile whose primary domain or related CDN domains currently have open connections. Works across the YouTube + googlevideo + ytimg set and similar tracker families via the existing RELATED_DOMAINS table.",
-    "type": "feature",
-    "createdAt": "2026-04-07T12:06:15.013675+00:00"
   }
 ]
