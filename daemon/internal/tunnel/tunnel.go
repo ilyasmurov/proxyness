@@ -66,6 +66,10 @@ type Tunnel struct {
 	transportFactory TransportFactory
 	machineID        [16]byte
 
+	// udpRetry paces the walk back from the TLS fallback to UDP
+	// (see maybeUpgradeToUDP). It carries its own lock.
+	udpRetry transport.UDPRetryPlan
+
 	// Optional: called by waitForNetwork on each slow-poll tick to re-
 	// install physical routes via the helper. Wired in daemon main to
 	// engine.RefreshRoutes. Nil in tests — skipped silently in that case.
@@ -531,6 +535,13 @@ func (t *Tunnel) healthLoop() {
 				t.mu.Unlock()
 				return
 			}
+
+			if t.maybeUpgradeToUDP() {
+				// The old TLS transport is closed now and D1 is parked on
+				// its DoneChan — repoint at the new one, otherwise the dead
+				// channel fires an immediate, pointless rebuild.
+				doneCh = t.transportDone()
+			}
 		}
 	}
 }
@@ -586,6 +597,52 @@ func (t *Tunnel) tryFallbackToTLS() bool {
 		return false
 	}
 	log.Printf("[tunnel] D3: fell back to TLS successfully")
+
+	now := time.Now()
+	t.scheduleUDPRetry(now, t.udpRetry.Flapped(now))
+	return true
+}
+
+// scheduleUDPRetry arms the next TLS→UDP upgrade attempt.
+func (t *Tunnel) scheduleUDPRetry(now time.Time, backoff bool) {
+	log.Printf("[tunnel] next UDP upgrade attempt in %s", t.udpRetry.Schedule(now, backoff))
+}
+
+// maybeUpgradeToUDP walks an Auto transport back from the TLS fallback to UDP
+// once the retry delay has elapsed. Mirrors Engine.maybeUpgradeToUDP — without
+// it the SOCKS5 side stays on TLS until the next manual reconnect, even after
+// the condition that forced the fallback is long gone. Returns true when the
+// transport was swapped, so the caller can refresh its DoneChan.
+func (t *Tunnel) maybeUpgradeToUDP() bool {
+	t.mu.Lock()
+	tr := t.transport
+	serverAddr := t.serverAddr
+	key := t.key
+	mid := t.machineID
+	t.mu.Unlock()
+
+	auto, ok := tr.(*transport.AutoTransport)
+	if !ok || auto.Mode() != transport.ModeTLS {
+		return false
+	}
+	now := time.Now()
+	if !t.udpRetry.Armed() {
+		// Auto landed on TLS at connect time rather than via a fallback.
+		t.scheduleUDPRetry(now, false)
+		return false
+	}
+	if !t.udpRetry.Due(now) {
+		return false
+	}
+
+	if err := auto.TryUpgradeToUDP(serverAddr, key, mid); err != nil {
+		log.Printf("[tunnel] UDP upgrade failed, staying on TLS: %v", err)
+		t.scheduleUDPRetry(time.Now(), true)
+		return false
+	}
+
+	t.udpRetry.MarkUpgraded(time.Now())
+	log.Printf("[tunnel] transport upgraded back to UDP")
 	return true
 }
 

@@ -65,6 +65,10 @@ type Engine struct {
 	lastError        string
 	stopHealth       chan struct{}
 
+	// udpRetry paces the walk back from the TLS fallback to UDP
+	// (see maybeUpgradeToUDP). It carries its own lock.
+	udpRetry transport.UDPRetryPlan
+
 	connsMu sync.Mutex
 	conns   map[uint64]trackedConn
 	connSeq uint64
@@ -161,6 +165,12 @@ func (e *Engine) setConnected() {
 	}
 	e.status = StatusActive
 	e.mu.Unlock()
+
+	// The transport behind us is freshly built, so failures counted while the
+	// network was gone say nothing about it. Leaving them in place made the
+	// next health tick trip D3 within the same second as "→ active
+	// (recovered)" and force a pointless UDP→TLS fallback (PRXNS-15).
+	e.streamOpenFailures.Store(0)
 
 	if e.meter != nil {
 		e.meter.SeedLastByteAt()
@@ -755,6 +765,74 @@ func (e *Engine) tryFallbackToTLS() bool {
 		return false
 	}
 	log.Printf("[tun] D3: fell back to TLS successfully")
+
+	now := time.Now()
+	e.scheduleUDPRetry(now, e.udpRetry.Flapped(now))
+	return true
+}
+
+// noteStreamOpenFailure feeds D3's counter, skipping the two cases that say
+// nothing about transport health.
+func (e *Engine) noteStreamOpenFailure(err error) {
+	// "connect rejected" means the server received our request and the
+	// destination refused — the transport itself is fine.
+	if err != nil && strings.Contains(err.Error(), "connect rejected") {
+		return
+	}
+	// While reconnecting, every app in the system is re-dialling into a
+	// transport we already know is gone. Counting those made a recovered
+	// session inherit a threshold-crossing count (PRXNS-15).
+	if e.GetStatus() != StatusActive {
+		return
+	}
+	e.streamOpenFailures.Add(1)
+}
+
+// scheduleUDPRetry arms the next TLS→UDP upgrade attempt.
+func (e *Engine) scheduleUDPRetry(now time.Time, backoff bool) {
+	log.Printf("[tun] next UDP upgrade attempt in %s", e.udpRetry.Schedule(now, backoff))
+}
+
+// maybeUpgradeToUDP walks an Auto transport back from the TLS fallback to UDP
+// once the retry delay has elapsed. Without it a single network blip pins the
+// client to TLS until the next manual reconnect: D3 falls back and nothing
+// ever tries UDP again, even though UDP (:8443) bypasses the nginx SNI router
+// that TLS (:443) has to go through. Returns true when the transport was
+// swapped — the caller must refresh its DoneChan.
+func (e *Engine) maybeUpgradeToUDP() bool {
+	e.mu.Lock()
+	tr := e.transport
+	serverAddr := e.serverAddr
+	key := e.key
+	mid := e.machineID
+	e.mu.Unlock()
+
+	auto, ok := tr.(*transport.AutoTransport)
+	if !ok || auto.Mode() != transport.ModeTLS {
+		return false
+	}
+	now := time.Now()
+	if !e.udpRetry.Armed() {
+		// Auto landed on TLS at connect time (UDP blocked from the start)
+		// rather than via tryFallbackToTLS — start the clock now.
+		e.scheduleUDPRetry(now, false)
+		return false
+	}
+	if !e.udpRetry.Due(now) {
+		return false
+	}
+
+	if err := auto.TryUpgradeToUDP(serverAddr, key, mid); err != nil {
+		log.Printf("[tun] UDP upgrade failed, staying on TLS: %v", err)
+		e.scheduleUDPRetry(time.Now(), true)
+		return false
+	}
+
+	e.udpRetry.MarkUpgraded(time.Now())
+	// The swap closed the old TLS transport, so anything counted against it
+	// is stale.
+	e.streamOpenFailures.Store(0)
+	log.Printf("[tun] transport upgraded back to UDP")
 	return true
 }
 
@@ -783,6 +861,10 @@ func (e *Engine) tryReconnectOnce() error {
 	e.mu.Lock()
 	e.transport = tr
 	e.mu.Unlock()
+	// New transport, clean slate — see the note in setConnected. This covers
+	// the paths where the status never left Active, so setConnected is a
+	// no-op (PRXNS-15).
+	e.streamOpenFailures.Store(0)
 	log.Printf("[tun] reconnected via %s", tr.Mode())
 	return nil
 }
@@ -1123,6 +1205,13 @@ func (e *Engine) healthLoop() {
 				failures = 0
 				e.setConnected()
 			}
+
+			if e.maybeUpgradeToUDP() {
+				// The old TLS transport is closed now, and D1 is parked on
+				// its DoneChan — repoint at the new one, otherwise the dead
+				// channel fires an immediate, pointless rebuild.
+				doneCh = e.transportDone()
+			}
 		}
 	}
 }
@@ -1207,12 +1296,7 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPat
 func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16, appPath string) {
 	stream, err := tr.OpenStream(0x01, dstAddr, dstPort)
 	if err != nil {
-		// Only count transport-level failures (timeout, closed) toward D3.
-		// "connect rejected" means the server successfully received our request
-		// and the destination refused — the transport is healthy.
-		if !strings.Contains(err.Error(), "connect rejected") {
-			e.streamOpenFailures.Add(1)
-		}
+		e.noteStreamOpenFailure(err)
 		log.Printf("[tun] open TCP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
 			e.machineIDRejected("TCP", dstAddr, dstPort)
@@ -1392,9 +1476,7 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16) {
 	stream, err := tr.OpenStream(0x02, dstAddr, dstPort)
 	if err != nil {
-		if !strings.Contains(err.Error(), "connect rejected") {
-			e.streamOpenFailures.Add(1)
-		}
+		e.noteStreamOpenFailure(err)
 		log.Printf("[tun] open UDP stream failed for %s:%d: %v", dstAddr, dstPort, err)
 		if strings.Contains(err.Error(), "machine id rejected") {
 			e.machineIDRejected("UDP", dstAddr, dstPort)

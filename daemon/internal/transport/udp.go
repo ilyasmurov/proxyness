@@ -433,6 +433,12 @@ func (t *UDPTransport) Close() error {
 	t.streams = make(map[uint32]*udpStream)
 	t.mu.Unlock()
 
+	// conn is nil when Connect failed before dialling — TryUpgradeToUDP
+	// closes the candidate transport on every failure path, so this is a
+	// normal call, not a defensive nicety.
+	if t.conn == nil {
+		return nil
+	}
 	return t.conn.Close()
 }
 

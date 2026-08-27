@@ -1,5 +1,12 @@
 [
   {
+    "id": "fe876441-e52a-44d0-8161-69a52e86d38b",
+    "title": "No more getting stuck on the slow backup route after a network blip",
+    "description": "When the network vanished for a few seconds, the app reconnected — and then instantly demoted itself to the slower backup route, where it stayed until you reconnected by hand. That demotion was triggered by errors counted while the network was already gone, so it fired on practically every blip. Those stale errors are now discarded, and if the app does end up on the backup route it re-checks the fast one every few minutes and moves back on its own.",
+    "type": "fix",
+    "createdAt": "2026-08-27T11:12:00.765482+00:00"
+  },
+  {
     "id": "6a1232ce-3bd6-4ba2-9999-cd94621883db",
     "title": "Faster recovery when Wi-Fi drops mid-session",
     "description": "When the network disappears under an active connection, the daemon asks the privileged helper to re-add its routes — that's usually what brings the tunnel back after the link returns. If the helper answered that the machine has no default gateway at all (the link is still down, so there is nothing to re-add), the daemon used to wait 15 seconds before asking again, even though that call cost nothing and the gateway could come back at any moment. It now asks again on the very next attempt, roughly every 3 seconds. On a laptop with a flaky access point this shaves the tail off the longer outages — one measured 37-second reconnect spent 15 of those seconds idle with the network already back.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "fix",
     "createdAt": "2026-04-07T15:36:39.882839+00:00"
-  },
-  {
-    "id": "31fb938f-b1c2-4c82-ae7d-978ea34d5b27",
-    "title": "Reconnect detection + kill switch design spec",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-07T15:10:31.922513+00:00"
   }
 ]

@@ -254,3 +254,66 @@ func TestNextRefreshAfter(t *testing.T) {
 		})
 	}
 }
+
+// --- PRXNS-15: ложный D3 после реконнекта ---
+
+// After a reconnect the transport is brand new, so failures piled up while the
+// network was down must not carry over — otherwise the very next health tick
+// sees a stale count, declares UDP blocked and force-falls back to TLS.
+func TestEngineSetConnectedResetsStreamFailures(t *testing.T) {
+	e := NewEngine(dstats.NewRateMeter())
+	e.mu.Lock()
+	e.status = StatusReconnecting
+	e.mu.Unlock()
+	e.streamOpenFailures.Store(17)
+
+	e.setConnected()
+
+	if got := e.streamOpenFailures.Load(); got != 0 {
+		t.Fatalf("streamOpenFailures = %d, want 0 after recovery", got)
+	}
+}
+
+func TestEngineNoteStreamOpenFailure(t *testing.T) {
+	tests := []struct {
+		name   string
+		status Status
+		err    error
+		want   int32
+	}{
+		{"active counts", StatusActive, errors.New("i/o timeout"), 1},
+		{"reconnecting does not count", StatusReconnecting, errors.New("i/o timeout"), 0},
+		{"connect rejected does not count", StatusActive, errors.New("connect rejected"), 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := NewEngine(dstats.NewRateMeter())
+			e.mu.Lock()
+			e.status = tt.status
+			e.mu.Unlock()
+
+			e.noteStreamOpenFailure(tt.err)
+
+			if got := e.streamOpenFailures.Load(); got != tt.want {
+				t.Fatalf("streamOpenFailures = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// Only an Auto transport sitting on TLS is a candidate for the walk back to
+// UDP — a plain TLS or UDP transport must not even arm the retry plan.
+func TestEngineMaybeUpgradeToUDPSkipsNonAuto(t *testing.T) {
+	e := NewEngine(dstats.NewRateMeter())
+	e.mu.Lock()
+	e.status = StatusActive
+	e.transport = newWakeFakeTransport() // Mode() == "tls", not an AutoTransport
+	e.mu.Unlock()
+
+	if e.maybeUpgradeToUDP() {
+		t.Fatal("maybeUpgradeToUDP() = true for a non-Auto transport")
+	}
+	if e.udpRetry.Armed() {
+		t.Fatal("retry plan armed for a non-Auto transport")
+	}
+}

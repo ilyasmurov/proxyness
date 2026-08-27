@@ -1,9 +1,11 @@
 package transport
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"sync"
 	"time"
 
 	pkgudp "proxyness/pkg/udp"
@@ -18,9 +20,36 @@ const (
 
 const udpTimeout = 3 * time.Second
 
+// errNotOnTLS is returned by TryUpgradeToUDP when the transport isn't sitting
+// on the TLS fallback — there's nothing to upgrade from.
+var errNotOnTLS = errors.New("transport is not on TLS fallback")
+
 // AutoTransport tries UDP first, falls back to TLS.
+//
+// active is written by the health loop (FallbackToTLS / TryUpgradeToUDP) and
+// read by every proxy goroutine, so it lives behind mu. The swap itself is the
+// only thing that holds the lock: connecting and probing a candidate transport
+// happens outside it, otherwise a 5s probe would stall every OpenStream.
 type AutoTransport struct {
+	mu     sync.RWMutex
 	active Transport
+}
+
+// activeTransport returns the current underlying transport (nil if unset).
+func (a *AutoTransport) activeTransport() Transport {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.active
+}
+
+// swapActive publishes tr as the active transport and returns the previous
+// one so the caller can close it after the swap is visible.
+func (a *AutoTransport) swapActive(tr Transport) Transport {
+	a.mu.Lock()
+	old := a.active
+	a.active = tr
+	a.mu.Unlock()
+	return old
 }
 
 func NewAutoTransport() *AutoTransport {
@@ -47,7 +76,7 @@ func (a *AutoTransport) Connect(server, key string, machineID [16]byte) error {
 				log.Printf("[transport] UDP probe failed: %v, falling back to TLS", probeErr)
 				udp.Close()
 			} else {
-				a.active = udp
+				a.swapActive(udp)
 				log.Printf("[transport] connected via UDP (probe OK)")
 				return nil
 			}
@@ -64,30 +93,33 @@ func (a *AutoTransport) Connect(server, key string, machineID [16]byte) error {
 	if err := tls.Connect(server, key, machineID); err != nil {
 		return fmt.Errorf("both transports failed: %w", err)
 	}
-	a.active = tls
+	a.swapActive(tls)
 	log.Printf("[transport] connected via TLS")
 	return nil
 }
 
 func (a *AutoTransport) OpenStream(streamType byte, addr string, port uint16) (Stream, error) {
-	if a.active == nil {
+	active := a.activeTransport()
+	if active == nil {
 		return nil, fmt.Errorf("not connected")
 	}
-	return a.active.OpenStream(streamType, addr, port)
+	return active.OpenStream(streamType, addr, port)
 }
 
 func (a *AutoTransport) Close() error {
-	if a.active == nil {
+	active := a.activeTransport()
+	if active == nil {
 		return nil
 	}
-	return a.active.Close()
+	return active.Close()
 }
 
 func (a *AutoTransport) Mode() string {
-	if a.active == nil {
+	active := a.activeTransport()
+	if active == nil {
 		return ModeAuto
 	}
-	return a.active.Mode()
+	return active.Mode()
 }
 
 // DoneChan exposes the underlying transport's done channel so the engine's
@@ -96,10 +128,11 @@ func (a *AutoTransport) Mode() string {
 // assertion and blocks forever on a nil channel, leaving the engine unaware
 // that its transport has died (common after macOS sleep/wake).
 func (a *AutoTransport) DoneChan() <-chan struct{} {
-	if a.active == nil {
+	active := a.activeTransport()
+	if active == nil {
 		return nil
 	}
-	if d, ok := a.active.(interface{ DoneChan() <-chan struct{} }); ok {
+	if d, ok := active.(interface{ DoneChan() <-chan struct{} }); ok {
 		return d.DoneChan()
 	}
 	return nil
@@ -161,25 +194,71 @@ func (a *AutoTransport) probeUDP(udp *UDPTransport) error {
 // FallbackToTLS closes the current (presumably broken UDP) transport and
 // reconnects via TLS. Called by engine/tunnel D3 when streams fail on Auto+UDP.
 func (a *AutoTransport) FallbackToTLS(server, key string, machineID [16]byte) error {
-	if a.active != nil {
-		a.active.Close()
-		a.active = nil
-	}
+	// Connect first, swap second: if TLS can't be reached (network is down
+	// rather than UDP being blocked) the caller keeps the transport it had
+	// instead of being left with none.
 	tls := NewTLSTransport()
 	if err := tls.Connect(server, key, machineID); err != nil {
 		return fmt.Errorf("TLS fallback: %w", err)
 	}
-	a.active = tls
+	if old := a.swapActive(tls); old != nil {
+		old.Close()
+	}
 	log.Printf("[transport] fell back to TLS after UDP data failure")
+	return nil
+}
+
+// TryUpgradeToUDP attempts to move back from the TLS fallback to UDP. Without
+// it a single network blip pins the client to TLS until the next full
+// reconnect: D3 falls back to TLS and nothing ever tries UDP again — which
+// matters because UDP (:8443) goes straight to the container while TLS (:443)
+// runs through the nginx SNI router, the path with the DPI/SYN-drop history.
+//
+// The candidate is connected and probed before the swap, so a failed attempt
+// costs one handshake and leaves the working TLS session untouched. Only a
+// successful probe tears down TLS, which drops live streams — the caller is
+// responsible for spacing attempts out (see nextUDPRetryDelay in the engine).
+func (a *AutoTransport) TryUpgradeToUDP(server, key string, machineID [16]byte) error {
+	if a.Mode() != ModeTLS {
+		return errNotOnTLS
+	}
+
+	udp := NewUDPTransport()
+	done := make(chan error, 1)
+	go func() {
+		done <- udp.Connect(server, key, machineID)
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			udp.Close()
+			return fmt.Errorf("UDP upgrade handshake: %w", err)
+		}
+	case <-time.After(udpTimeout):
+		udp.Close()
+		return fmt.Errorf("UDP upgrade handshake: timeout after %s", udpTimeout)
+	}
+
+	if err := a.probeUDP(udp); err != nil {
+		udp.Close()
+		return fmt.Errorf("UDP upgrade probe: %w", err)
+	}
+
+	if old := a.swapActive(udp); old != nil {
+		old.Close()
+	}
+	log.Printf("[transport] upgraded back to UDP (probe OK)")
 	return nil
 }
 
 // Alive reports whether the underlying transport is still usable.
 func (a *AutoTransport) Alive() bool {
-	if a.active == nil {
+	active := a.activeTransport()
+	if active == nil {
 		return false
 	}
-	if al, ok := a.active.(interface{ Alive() bool }); ok {
+	if al, ok := active.(interface{ Alive() bool }); ok {
 		return al.Alive()
 	}
 	return true
