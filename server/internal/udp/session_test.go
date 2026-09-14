@@ -7,7 +7,7 @@ import (
 )
 
 func TestSessionManagerCreateAndLookup(t *testing.T) {
-	sm := NewSessionManager()
+	sm := NewSessionManager(nil)
 
 	key := make([]byte, 32)
 	rand.Read(key)
@@ -28,7 +28,7 @@ func TestSessionManagerCreateAndLookup(t *testing.T) {
 }
 
 func TestSessionManagerExpiry(t *testing.T) {
-	sm := NewSessionManager()
+	sm := NewSessionManager(nil)
 
 	key := make([]byte, 32)
 	rand.Read(key)
@@ -49,7 +49,7 @@ func TestSessionManagerExpiry(t *testing.T) {
 }
 
 func TestSessionManagerOpenCloseStream(t *testing.T) {
-	sm := NewSessionManager()
+	sm := NewSessionManager(nil)
 
 	key := make([]byte, 32)
 	rand.Read(key)

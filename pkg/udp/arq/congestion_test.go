@@ -137,27 +137,6 @@ func TestCongestionOnLossIsNoop(t *testing.T) {
 	}
 }
 
-func TestCongestionOnDrop(t *testing.T) {
-	cc := NewCongestionControl()
-	done := make(chan struct{})
-
-	// Acquire some slots
-	for i := 0; i < 5; i++ {
-		cc.AcquireSlot(done)
-	}
-
-	_, inFlight, _, _ := cc.Stats()
-	if inFlight != 5 {
-		t.Fatalf("expected inFlight=5, got %d", inFlight)
-	}
-
-	cc.OnDrop(3)
-	_, inFlight, _, _ = cc.Stats()
-	if inFlight != 2 {
-		t.Fatalf("expected inFlight=2 after drop, got %d", inFlight)
-	}
-}
-
 func TestCongestionProbeRTTEntersAndPinsCwnd(t *testing.T) {
 	cc := NewCongestionControl()
 	bwe := cc.BWE()

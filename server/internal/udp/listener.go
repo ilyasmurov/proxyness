@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"proxyness/pkg/auth"
@@ -26,7 +27,27 @@ type Listener struct {
 	db       *db.DB
 	tracker  *stats.Tracker
 	sessions *SessionManager
+
+	// tombstones remembers sessions killed by the retransmit limit for a
+	// short while. The MsgSessionClose sent at kill time goes to a client
+	// that is, by definition, unreachable right now; when it comes back it
+	// keeps talking to the dead session, and answering those packets lets
+	// it reconnect at once instead of sitting out its own 20s dead-timer
+	// (PRXNS-18).
+	tombMu     sync.Mutex
+	tombstones map[uint32]*tombstone
 }
+
+type tombstone struct {
+	key       []byte
+	expires   time.Time
+	lastReply time.Time
+}
+
+const (
+	tombstoneTTL           = 60 * time.Second
+	tombstoneReplyInterval = 500 * time.Millisecond
+)
 
 type inPacket struct {
 	data []byte
@@ -40,10 +61,11 @@ func NewListener(conn net.PacketConn, database *db.DB, tracker *stats.Tracker) *
 		uc.SetWriteBuffer(4 * 1024 * 1024)
 	}
 	return &Listener{
-		conn:     conn,
-		db:       database,
-		tracker:  tracker,
-		sessions: NewSessionManager(tracker),
+		conn:       conn,
+		db:         database,
+		tracker:    tracker,
+		sessions:   NewSessionManager(tracker),
+		tombstones: make(map[uint32]*tombstone),
 	}
 }
 
@@ -56,6 +78,7 @@ func (l *Listener) Serve() {
 		defer ticker.Stop()
 		for range ticker.C {
 			l.sessions.Cleanup(2 * time.Minute)
+			l.expireTombstones()
 		}
 	}()
 
@@ -101,6 +124,7 @@ func (l *Listener) handlePacket(data []byte, addr net.Addr) {
 
 	sess, ok := l.sessions.Get(connID)
 	if !ok {
+		l.replyTombstone(connID, addr)
 		return
 	}
 
@@ -332,6 +356,12 @@ func (l *Listener) sessionRetransmitLoop(sess *Session) {
 	for {
 		select {
 		case <-done:
+			// Closed by the session's own teardown — or by the controller
+			// itself, because a packet hit the retransmit limit. Only the
+			// latter needs us to take the session down (PRXNS-18).
+			if arq.Dead() {
+				l.killDeadSession(sess)
+			}
 			return
 		case <-ticker.C:
 			arq.RetransmitTick()
@@ -560,17 +590,80 @@ func (l *Listener) BroadcastSessionClose() {
 		if addr == nil || key == nil {
 			continue
 		}
-		pkt := &pkgudp.Packet{
-			ConnID: token,
-			Type:   pkgudp.MsgSessionClose,
-		}
-		data, err := pkgudp.EncodePacket(pkt, key)
-		if err != nil {
-			continue
-		}
-		if _, err := l.conn.WriteTo(data, addr); err == nil {
+		if err := l.sendSessionClose(token, key, addr); err == nil {
 			sent++
 		}
 	}
 	log.Printf("udp: broadcast session close sent to %d/%d sessions", sent, len(sessions))
+}
+
+// sendSessionClose tells a client its session is gone. Sent directly on the
+// socket, bypassing ARQ: either the server is exiting, or the session's
+// controller is already dead. Loss just means the client falls back to its
+// own dead-timer.
+func (l *Listener) sendSessionClose(token uint32, key []byte, addr net.Addr) error {
+	pkt := &pkgudp.Packet{ConnID: token, Type: pkgudp.MsgSessionClose}
+	data, err := pkgudp.EncodePacket(pkt, key)
+	if err != nil {
+		return err
+	}
+	_, err = l.conn.WriteTo(data, addr)
+	return err
+}
+
+// killDeadSession tears down a session whose ARQ controller hit the retransmit
+// limit: the client has been unreachable for seconds and the session can never
+// recover (see arq.Controller.markDead). Notify the client, leave a tombstone
+// so its late packets get the same answer, drop the session.
+func (l *Listener) killDeadSession(sess *Session) {
+	sess.mu.Lock()
+	addr := sess.ClientAddr
+	key := sess.SessionKey
+	token := sess.Token
+	streams := len(sess.streams)
+	sess.mu.Unlock()
+
+	log.Printf("udp: session %d dead (retransmit limit reached), closing %d streams, notifying %v", token, streams, addr)
+	if addr != nil && key != nil {
+		l.sendSessionClose(token, key, addr) //nolint:errcheck
+	}
+	l.addTombstone(token, key)
+	l.sessions.Remove(token)
+}
+
+func (l *Listener) addTombstone(token uint32, key []byte) {
+	if key == nil {
+		return
+	}
+	l.tombMu.Lock()
+	l.tombstones[token] = &tombstone{key: key, expires: time.Now().Add(tombstoneTTL)}
+	l.tombMu.Unlock()
+}
+
+// replyTombstone answers a packet addressed to a recently killed session with
+// a MsgSessionClose, at most once per tombstoneReplyInterval per session.
+// Reports whether a reply went out.
+func (l *Listener) replyTombstone(token uint32, addr net.Addr) bool {
+	now := time.Now()
+	l.tombMu.Lock()
+	tb, ok := l.tombstones[token]
+	if !ok || now.After(tb.expires) || now.Sub(tb.lastReply) < tombstoneReplyInterval {
+		l.tombMu.Unlock()
+		return false
+	}
+	tb.lastReply = now
+	key := tb.key
+	l.tombMu.Unlock()
+	return l.sendSessionClose(token, key, addr) == nil
+}
+
+func (l *Listener) expireTombstones() {
+	now := time.Now()
+	l.tombMu.Lock()
+	for token, tb := range l.tombstones {
+		if now.After(tb.expires) {
+			delete(l.tombstones, token)
+		}
+	}
+	l.tombMu.Unlock()
 }

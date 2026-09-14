@@ -263,3 +263,80 @@ func TestControllerMaxStreams(t *testing.T) {
 		t.Fatalf("re-create stream 1: %v", err)
 	}
 }
+
+// A packet that goes maxRetransmits rounds without an ACK means the peer is
+// unreachable. The controller must declare the session dead — not drop the
+// packet, which left the peer with a permanent hole in its cumulative ACK and
+// a session that crawled for hours (PRXNS-18).
+func TestControllerRetransmitLimitKillsSession(t *testing.T) {
+	sender := &mockSender{}
+	ctrl := New(0xABCD, make([]byte, 32), sender.send, func(uint32, []byte) {})
+	defer ctrl.Close()
+
+	if err := ctrl.Send(pkgudp.MsgStreamData, 1, 0, []byte("data")); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	p := ctrl.sendBuf.FirstUnacked()
+	if p == nil {
+		t.Fatal("should have an unacked packet")
+	}
+	ctrl.sendBuf.mu.Lock()
+	p.Retransmits = maxRetransmits
+	p.LastSentAt = time.Now().Add(-5 * time.Second)
+	ctrl.sendBuf.mu.Unlock()
+
+	ctrl.RetransmitTick()
+
+	select {
+	case <-ctrl.Done():
+	default:
+		t.Fatal("controller must close itself once a packet hits the retransmit limit")
+	}
+	if !ctrl.Dead() {
+		t.Fatal("Dead() must report the retransmit-limit close")
+	}
+	if ctrl.sendBuf.Get(p.PktNum) == nil {
+		t.Fatal("packet must stay in the send buffer — dropping it is what poisoned the peer's cumAck")
+	}
+}
+
+func TestControllerBelowRetransmitLimitKeepsSession(t *testing.T) {
+	sender := &mockSender{}
+	ctrl := New(0xABCD, make([]byte, 32), sender.send, func(uint32, []byte) {})
+	defer ctrl.Close()
+
+	if err := ctrl.Send(pkgudp.MsgStreamData, 1, 0, []byte("data")); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	p := ctrl.sendBuf.FirstUnacked()
+	if p == nil {
+		t.Fatal("should have an unacked packet")
+	}
+	ctrl.sendBuf.mu.Lock()
+	p.Retransmits = maxRetransmits - 1
+	p.LastSentAt = time.Now().Add(-5 * time.Second)
+	ctrl.sendBuf.mu.Unlock()
+	before := sender.count()
+
+	ctrl.RetransmitTick()
+
+	select {
+	case <-ctrl.Done():
+		t.Fatal("one retransmit short of the limit must not close the session")
+	default:
+	}
+	if ctrl.Dead() {
+		t.Fatal("Dead() must be false below the limit")
+	}
+	if got := sender.count() - before; got != 1 {
+		t.Fatalf("expected exactly one retransmit, got %d", got)
+	}
+}
+
+func TestControllerCloseIsNotDead(t *testing.T) {
+	ctrl := New(1, make([]byte, 32), (&mockSender{}).send, func(uint32, []byte) {})
+	ctrl.Close()
+	if ctrl.Dead() {
+		t.Fatal("a regular Close must not look like a retransmit-limit death")
+	}
+}

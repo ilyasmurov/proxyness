@@ -2,6 +2,7 @@ package arq
 
 import (
 	"fmt"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,6 +59,7 @@ type Controller struct {
 	mu     sync.Mutex
 	closed bool
 	done   chan struct{}
+	dead   atomic.Bool // set by markDead: closed because a packet hit the retransmit limit
 }
 
 // New creates a new Controller for the given connection with default config.
@@ -258,11 +260,16 @@ func (c *Controller) RetransmitTick() {
 	newLoss := false
 	for _, p := range expired {
 		if c.sendBuf.IsMaxRetransmits(p.PktNum) {
-			// Drop the packet and release the cwnd slot (without growing cwnd)
-			if c.sendBuf.Drop(p.PktNum) {
-				c.cwnd.OnDrop(1)
-			}
-			continue
+			// maxRetransmits rounds without an ACK is 6-7s at maxRTO: the
+			// peer is unreachable. This used to Drop the packet, which left
+			// a permanent hole in the peer's cumulative ACK — the receiver
+			// never skips a gap, so cumAck froze, the 256-bit SACK window
+			// filled, every later packet was retried to the limit and
+			// RTT/BW sampling stopped: the session lived on for hours at a
+			// crawl (PRXNS-18). Declare the session dead instead; the owner
+			// rebuilds the transport.
+			c.markDead(p.PktNum, p.Retransmits)
+			return
 		}
 
 		// Track whether this is a fresh loss (first retransmit) vs re-retransmit.
@@ -298,6 +305,25 @@ func (c *Controller) RetransmitTick() {
 		// not loss events. We still backoff RTO to avoid retransmit storms.
 		c.cwnd.OnLoss()
 	}
+}
+
+// markDead records that the session is unrecoverable and shuts the controller
+// down. Done() fires like on a regular Close(); owners check Dead() to tell
+// the two apart. The packet stays in the send buffer on purpose — dropping
+// it is exactly what poisoned the peer's cumulative ACK.
+func (c *Controller) markDead(pktNum uint32, retransmits int) {
+	if !c.dead.CompareAndSwap(false, true) {
+		return
+	}
+	log.Printf("arq: session %d dead: packet %d unacked after %d retransmits (rto=%s), closing",
+		c.connID, pktNum, retransmits, c.rtt.RTO())
+	c.Close()
+}
+
+// Dead reports whether the controller closed itself because a packet hit the
+// retransmit limit, as opposed to being closed by its owner.
+func (c *Controller) Dead() bool {
+	return c.dead.Load()
 }
 
 // AckTick sends a delayed ACK if enough packets have accumulated since the last

@@ -296,9 +296,24 @@ func (t *UDPTransport) retransmitLoop() {
 	defer ticker.Stop()
 	statsTicker := time.NewTicker(2 * time.Second)
 	defer statsTicker.Stop()
+	// The engine's transport and the tunnel's both write the same stats line;
+	// the local port is the only handle that tells them apart in daemon.log.
+	local := t.conn.LocalAddr().String()
+	arqDone := t.arq.Done()
 	for {
 		select {
 		case <-t.done:
+			return
+		case <-arqDone:
+			// The controller closed itself: a packet hit the retransmit limit,
+			// so the server has been unreachable for seconds and the session
+			// can never recover. Take the whole transport down — DoneChan fires
+			// and the owner's D1 path rebuilds it in place (PRXNS-18). A regular
+			// Close() lands here too, with Dead() false; nothing to do then.
+			if t.arq.Dead() && !t.closed.Load() {
+				log.Printf("udp: daemon[%s] session dead (retransmit limit reached), closing transport", local)
+				t.Close()
+			}
 			return
 		case <-ticker.C:
 			t.arq.RetransmitTick()
@@ -311,8 +326,8 @@ func (t *UDPTransport) retransmitLoop() {
 			probeRTT := t.arq.InProbeRTT()
 			bweStable := t.arq.BWEStable()
 			if inFlight > 0 || sendBuf > 0 {
-				log.Printf("udp: daemon cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB startup=%v probeRTT=%v stable=%v",
-					cwnd, inFlight, slots, sendBuf, rto,
+				log.Printf("udp: daemon[%s] cwnd=%d inFlight=%d slots=%d sendBuf=%d rto=%dms bw=%.1fMB/s rtt=%dms bdp=%.0fKB startup=%v probeRTT=%v stable=%v",
+					local, cwnd, inFlight, slots, sendBuf, rto,
 					maxBW/1024/1024, minRTT.Milliseconds(), bdp/1024, startup, probeRTT, bweStable)
 			}
 		}
@@ -442,8 +457,8 @@ func (t *UDPTransport) Close() error {
 	return t.conn.Close()
 }
 
-func (t *UDPTransport) Mode() string  { return ModeUDP }
-func (t *UDPTransport) Alive() bool       { return !t.closed.Load() }
+func (t *UDPTransport) Mode() string              { return ModeUDP }
+func (t *UDPTransport) Alive() bool               { return !t.closed.Load() }
 func (t *UDPTransport) DoneChan() <-chan struct{} { return t.done }
 
 // sendPacket is a helper to encode and send a packet on the shared connection.

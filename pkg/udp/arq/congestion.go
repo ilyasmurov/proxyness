@@ -110,11 +110,11 @@ type CongestionControl struct {
 	// cwnd of 512, draining to 4 over a 120ms RTT already eats ~270ms at
 	// the observed delivery rate, so counting duration from entry would
 	// exit before the queue has actually drained.
-	inProbeRTT       bool
-	probeRTTStart    time.Time
+	inProbeRTT        bool
+	probeRTTStart     time.Time
 	probeRTTDrainedAt time.Time
-	lastProbeRTTEnd  time.Time
-	probeRTTNext     time.Time
+	lastProbeRTTEnd   time.Time
+	probeRTTNext      time.Time
 }
 
 // NewCongestionControl creates a new rate-based CongestionControl.
@@ -317,28 +317,6 @@ func (cc *CongestionControl) enterStartup() {
 	cc.idleSeen = false
 	cc.idleStart = time.Time{}
 	cc.roundMaxInFlight = 0
-}
-
-// OnDrop releases n cwnd slots without growing the window (used when packets
-// are dropped after max retransmits).
-func (cc *CongestionControl) OnDrop(n int) {
-	cc.mu.Lock()
-	cc.inFlight -= n
-	if cc.inFlight < 0 {
-		cc.inFlight = 0
-	}
-	available := cc.cwnd - cc.inFlight
-	if available < 0 {
-		available = 0
-	}
-	cc.mu.Unlock()
-
-	for i := 0; i < available; i++ {
-		select {
-		case cc.notify <- struct{}{}:
-		default:
-		}
-	}
 }
 
 // OnLoss is a no-op in rate-based CC. Random packet loss on ISP paths is not
