@@ -1,5 +1,12 @@
 [
   {
+    "id": "bec8f8ff-87b6-48b6-ac74-e840956da334",
+    "title": "UDP sessions no longer crawl for hours after a short network drop",
+    "description": "A Wi-Fi hiccup of six seconds or more used to poison the UDP session for good. The sender gave up on a packet after 15 retries and threw it away, but the receiver never skips a gap in its cumulative ACK — so from that moment every packet was retried to the limit, the bandwidth and RTT estimates froze, and the tunnel limped along at a fraction of its speed until a manual reconnect. That was the \"switch Auto to UDP and it works again\" effect: the switch was just a reconnect. Now a packet left unacknowledged after 15 retries declares the session dead on both ends. The daemon rebuilds its transport in place through the usual reconnect path, and the server tells the client to reconnect right away instead of leaving it to time out.",
+    "type": "fix",
+    "createdAt": "2026-09-14T16:46:48.937717+00:00"
+  },
+  {
     "id": "fe876441-e52a-44d0-8161-69a52e86d38b",
     "title": "No more getting stuck on the slow backup route after a network blip",
     "description": "When the network vanished for a few seconds, the app reconnected — and then instantly demoted itself to the slower backup route, where it stayed until you reconnected by hand. That demotion was triggered by errors counted while the network was already gone, so it fired on practically every blip. Those stale errors are now discarded, and if the app does end up on the backup route it re-checks the fast one every few minutes and moves back on its own.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-07T15:36:55.038162+00:00"
-  },
-  {
-    "id": "1e26fd14-465e-4dce-8af7-f9d0bd267164",
-    "title": "LIVE-индикаторы сайтов в браузере фейдятся в течение 5 секунд после прекращения трафика, а не залипают из-за idle HTTP/2 коннектов",
-    "description": null,
-    "type": "fix",
-    "createdAt": "2026-04-07T15:36:39.882839+00:00"
   }
 ]
