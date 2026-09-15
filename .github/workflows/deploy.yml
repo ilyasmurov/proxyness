@@ -67,8 +67,11 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - { name: aeza, host: VPS2_HOST, key: VPS2_SSH_KEY, landing_port: 80 }
-          - { name: control, host: VPS3_HOST, key: VPS3_SSH_KEY, landing_port: 8082 }
+          # proxy_ports: an exit publishes TLS 4430 and UDP 8443 to the world; the
+          # control plane only needs 4430 for Caddy (172.17.0.1) and local checks —
+          # no public UDP, that port on the box is the RU bridge to Aeza (PRXNS-22).
+          - { name: aeza, host: VPS2_HOST, key: VPS2_SSH_KEY, landing_port: 80, proxy_ports: "-p 4430:443 -p 8443:8443/udp" }
+          - { name: control, host: VPS3_HOST, key: VPS3_SSH_KEY, landing_port: 8082, proxy_ports: "-p 127.0.0.1:4430:443 -p 172.17.0.1:4430:443" }
     name: ${{ matrix.target.name }}
     steps:
       - uses: actions/checkout@v4
@@ -120,8 +123,7 @@ jobs:
               --name proxyness \
               --restart unless-stopped \
               --ulimit nofile=32768:32768 \
-              -p 4430:443 \
-              -p 8443:8443/udp \
+              ${{ matrix.target.proxy_ports }} \
               -v proxyness-data:/data \
               --env-file /etc/proxyness/db.env \
               -e ADMIN_USER="${{ secrets.ADMIN_USER }}" \
