@@ -86,7 +86,10 @@ jobs:
             docker stop proxyness-config 2>/dev/null || true
             docker rm proxyness-config 2>/dev/null || true
 
-            # Start new container
+            # Start new container. -proxy goes straight to the proxy container:
+            # on the control plane :443 is Caddy, and an IP URL carries no SNI
+            # for it to route on. (Never put a comment inside the backslash
+            # continuation below — it ends the command and drops the flags after it.)
             docker run -d \
               --name proxyness-config \
               --restart unless-stopped \
@@ -97,6 +100,4 @@ jobs:
               -db /data/config.db \
               -admin-user "${{ secrets.ADMIN_USER }}" \
               -admin-pass "${{ secrets.ADMIN_PASSWORD }}" \
-              # straight to the proxy container: on the control plane :443 is
-              # Caddy, and an IP URL carries no SNI for it to route on
               -proxy "https://127.0.0.1:4430"
