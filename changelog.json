@@ -1,5 +1,12 @@
 [
   {
+    "id": "9f2d47ed-599e-4774-b67a-a0e0b53b8ed1",
+    "title": "The list of servers now comes from the service, not the app",
+    "description": "Adding an exit or a bridge, or retiring a dead one, no longer needs a new build: the app takes the server list from the config service (edited in the admin's new Servers page) on its regular poll, keeps a copy for offline starts, and falls back to the built-in list only when the service has none. Auto picks in the order the list is given.",
+    "type": "feature",
+    "createdAt": "2026-09-15T13:56:47.403057+00:00"
+  },
+  {
     "id": "b706995c-c97e-44f1-b8df-d3056c6bef65",
     "title": "A bridge server for networks that block the exit",
     "description": "Some home ISPs let a connection to our Amsterdam exit open and then drop every packet. The client now knows a bridge inside Russia that forwards traffic to the same exit, and Auto picks it when the direct route is dead. Serverspace is gone from the list: the host died on 15 September and only slowed down the first connect.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-07T15:42:55.294990+00:00"
-  },
-  {
-    "id": "2188086a-6ec7-4dea-a9e8-84f61b62b633",
-    "title": "Tunnel: новый статус Reconnecting с helper-методами для перехода",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-07T15:40:53.011046+00:00"
   }
 ]

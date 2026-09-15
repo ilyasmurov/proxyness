@@ -10,6 +10,7 @@ import { Releases } from "./pages/Releases";
 import { Changelog } from "./pages/Changelog";
 import { Logs } from "./pages/Logs";
 import { Notifications } from "./pages/Notifications";
+import { Servers } from "./pages/Servers";
 import { getCredentials, setCredentials } from "./lib/auth";
 
 function Login({ onLogin }: { onLogin: () => void }) {
@@ -83,6 +84,7 @@ function Nav() {
       {link("/users", "Users")}
       {link("/sites", "Sites")}
       {link("/notifications", "Notifications")}
+      {link("/servers", "Servers")}
       {link("/releases", "Releases")}
       {link("/changelog", "Changelog")}
       {link("/logs", "Logs")}
@@ -108,6 +110,7 @@ export default function App() {
             <Route path="/sites" element={<Sites />} />
             <Route path="/sites/:id" element={<SiteDetail />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/servers" element={<Servers />} />
             <Route path="/releases" element={<Releases />} />
             <Route path="/changelog" element={<Changelog />} />
             <Route path="/logs" element={<Logs />} />

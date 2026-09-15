@@ -55,14 +55,43 @@ if (typeof localStorage !== "undefined" && localStorage.getItem("proxyness-mode"
 // site. Crypto is end-to-end with Aeza either way. Serverspace
 // (188.227.86.205) was dropped in 1.46.1: the host died on 2026-09-15 and
 // only cost cold-start timeouts.
-const SERVERS = [
+//
+// PRXNS-21: this built-in list is only the fallback. The config service
+// (/api/client-config, cached on disk by the main process) carries the live
+// list under `servers`, edited on the admin "Servers" page — so an exit or
+// bridge changes without a release. A non-empty config list replaces this
+// one wholesale (order = Auto priority after the last live server).
+type ServerEntry = { id: string; label: string; addr: string };
+const BUILTIN_SERVERS: ServerEntry[] = [
   { id: "aeza", label: "Aeza NL", addr: "178.236.252.28:443" },
   { id: "aeza-ru", label: "Aeza via RU", addr: "157.22.194.55:4443" },
 ];
 const AUTO_SERVER_ID = "auto";
-const SERVER_CHOICES: { id: string; label: string; addr?: string }[] = [
+const MAX_CONFIG_SERVERS = 16;
+// normalizeServers keeps only well-formed entries from a config payload:
+// non-blank id/label, addr as host:port, unique ids and addrs. Returns []
+// when nothing usable is there so the caller keeps the built-in list.
+const normalizeServers = (raw: unknown): ServerEntry[] => {
+  if (!Array.isArray(raw)) return [];
+  const out: ServerEntry[] = [];
+  const ids = new Set<string>();
+  const addrs = new Set<string>();
+  for (const e of raw) {
+    if (!e || typeof e !== "object") continue;
+    const id = String((e as any).id ?? "").trim();
+    const label = String((e as any).label ?? "").trim();
+    const addr = String((e as any).addr ?? "").trim();
+    if (!id || !label || !/^[^\s:]+:\d{1,5}$/.test(addr)) continue;
+    if (ids.has(id) || addrs.has(addr)) continue;
+    ids.add(id); addrs.add(addr);
+    out.push({ id, label, addr });
+    if (out.length >= MAX_CONFIG_SERVERS) break;
+  }
+  return out;
+};
+const serverChoicesFor = (list: ServerEntry[]): { id: string; label: string; addr?: string }[] => [
   { id: AUTO_SERVER_ID, label: "Auto" },
-  ...SERVERS,
+  ...list,
 ];
 const STORAGE_KEY = "proxyness-key";
 // v2 key: the pre-1.46 "proxyness-server" only ever held the single server's
@@ -80,21 +109,21 @@ if (typeof localStorage !== "undefined") {
 }
 const defaultServerId = () => {
   const v = localStorage.getItem(SERVER_STORAGE_KEY);
-  return v && SERVER_CHOICES.some((s) => s.id === v) ? v : AUTO_SERVER_ID;
+  return v && serverChoicesFor(BUILTIN_SERVERS).some((s) => s.id === v) ? v : AUTO_SERVER_ID;
 };
 // serversFor is the dial list for a choice: the picked server alone, or every
 // server with the last one that worked first.
-const serversFor = (id: string, lastGood: string | null): string[] => {
+const serversFor = (list: ServerEntry[], id: string, lastGood: string | null): string[] => {
   if (id !== AUTO_SERVER_ID) {
-    const s = SERVERS.find((x) => x.id === id);
-    return [s?.addr ?? SERVERS[0].addr];
+    const s = list.find((x) => x.id === id);
+    return [s?.addr ?? list[0].addr];
   }
-  const addrs = SERVERS.map((s) => s.addr);
+  const addrs = list.map((s) => s.addr);
   if (lastGood && addrs.includes(lastGood)) return [lastGood, ...addrs.filter((a) => a !== lastGood)];
   return addrs;
 };
-const serverLabelFor = (addr: string) =>
-  SERVERS.find((s) => s.addr === addr)?.label ?? addr.replace(/:\d+$/, "");
+const serverLabelFor = (list: ServerEntry[], addr: string) =>
+  list.find((s) => s.addr === addr)?.label ?? addr.replace(/:\d+$/, "");
 
 // ---------------------------------------------------------------------------
 // Settings Page (sidebar nav variant)
@@ -519,11 +548,31 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
 export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [serverId, setServerId] = useState<string>(defaultServerId);
+  // Live server list: the config service's `servers` when it has one (cached
+  // on disk by main, so it survives offline starts), else the built-in list.
+  const [serverList, setServerList] = useState<ServerEntry[]>(BUILTIN_SERVERS);
+  useEffect(() => {
+    const apply = (cfg: any) => {
+      const list = normalizeServers(cfg?.servers);
+      if (list.length > 0) setServerList((prev) => (JSON.stringify(prev) === JSON.stringify(list) ? prev : list));
+    };
+    window.updater?.getConfig().then(apply).catch(() => {});
+    window.updater?.onConfigUpdated(apply);
+  }, []);
+  // A manual pick that is no longer in the list (exit retired remotely) falls
+  // back to Auto instead of pinning a server nobody can reach.
+  useEffect(() => {
+    if (serverId !== AUTO_SERVER_ID && !serverList.some((s) => s.id === serverId)) {
+      localStorage.setItem(SERVER_STORAGE_KEY, AUTO_SERVER_ID);
+      setServerId(AUTO_SERVER_ID);
+    }
+  }, [serverList, serverId]);
+  const serverChoices = useMemo(() => serverChoicesFor(serverList), [serverList]);
   // The exit the daemon is actually on (from /tun/status); persisted as the
   // Auto-mode starting point. Memoised so the dep arrays below see a stable
   // list — a fresh array per render would re-register every effect.
   const [liveServer, setLiveServer] = useState<string | null>(() => localStorage.getItem(LAST_SERVER_STORAGE_KEY));
-  const dialServers = useMemo(() => serversFor(serverId, liveServer), [serverId, liveServer]);
+  const dialServers = useMemo(() => serversFor(serverList, serverId, liveServer), [serverList, serverId, liveServer]);
   const [showSetup, setShowSetup] = useState(!key);
   const [keyError, setKeyError] = useState("");
   const [keyValidating, setKeyValidating] = useState(false);
@@ -851,7 +900,7 @@ export function App() {
       if (id === serverId) return;
       localStorage.setItem(SERVER_STORAGE_KEY, id);
       setServerId(id);
-      const next = serversFor(id, liveServer);
+      const next = serversFor(serverList, id, liveServer);
       if (!key) return;
       if (isConnected) {
         if (proxyMode === "tun") {
@@ -865,7 +914,7 @@ export function App() {
         }
       }
     },
-    [serverId, liveServer, isConnected, key, proxyMode, tunConnect, tunDisconnect, connect, disconnect],
+    [serverId, serverList, liveServer, isConnected, key, proxyMode, tunConnect, tunDisconnect, connect, disconnect],
   );
 
   // Handle transport mode change from the StatusBar badge dropdown.
@@ -984,7 +1033,7 @@ export function App() {
       // Ask every exit, preferred first: one being down must not block setup,
       // and a key accepted anywhere is a real key.
       let verdict: boolean | null = null;
-      for (const addr of serversFor(AUTO_SERVER_ID, liveServer)) {
+      for (const addr of serversFor(serverList, AUTO_SERVER_ID, liveServer)) {
         try {
           const res = await fetch(
             `http://127.0.0.1:9090/validate-key?server=${encodeURIComponent(addr)}&key=${encodeURIComponent(trimmed)}`
@@ -1234,7 +1283,7 @@ export function App() {
                 {isConnected ? (
                   <>
                     <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
-                      {serverLabelFor(liveServer ?? dialServers[0])}
+                      {serverLabelFor(serverList, liveServer ?? dialServers[0])}
                     </span>
                     <span style={{
                       fontFamily: fd, fontSize: 9, fontWeight: 600, letterSpacing: 1,
@@ -1504,7 +1553,7 @@ export function App() {
           onHelperError={setHelperError}
           isConnected={isConnected}
           serverId={serverId}
-          servers={SERVER_CHOICES}
+          servers={serverChoices}
           onServerChange={handleServerChange}
           autoConnectOnStart={autoConnectOnStart}
           onAutoConnectChange={handleAutoConnectChange}

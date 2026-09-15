@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,10 +38,64 @@ func New(d *db.DB, adminUser, adminPass, proxyAddr string) *Server {
 }
 
 type ClientConfigResponse struct {
-	ConfigURL     string            `json:"config_url"`
-	ProxyServer   string            `json:"proxy_server"`
-	RelayURL      string            `json:"relay_url,omitempty"`
+	ConfigURL   string `json:"config_url"`
+	ProxyServer string `json:"proxy_server"`
+	RelayURL    string `json:"relay_url,omitempty"`
+	// Servers is the exit list the client should dial, in Auto priority
+	// order (PRXNS-21). Empty = the client keeps its built-in list. Stored as
+	// a JSON string under service_config key "servers", edited from the
+	// admin "Servers" page. Lets an exit or bridge change without a release.
+	Servers       []ServerEntry     `json:"servers,omitempty"`
 	Notifications []db.Notification `json:"notifications"`
+}
+
+// ServerEntry mirrors the client's SERVERS shape: a stable id (persisted as
+// the user's manual pick), a label for the picker, and host:port to dial.
+type ServerEntry struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Addr  string `json:"addr"`
+}
+
+const maxServers = 16
+
+// parseServers validates the admin-supplied list. Empty input is a valid
+// "no override". Every entry needs a non-blank id and label and an
+// addr of the form host:port; ids and addrs must be unique. A bad list is
+// rejected on write so a typo cannot strand every client.
+func parseServers(raw string) ([]ServerEntry, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" || raw == "null" {
+		return nil, nil
+	}
+	var list []ServerEntry
+	if err := json.Unmarshal([]byte(raw), &list); err != nil {
+		return nil, fmt.Errorf("servers: not a JSON array: %w", err)
+	}
+	if len(list) > maxServers {
+		return nil, fmt.Errorf("servers: at most %d entries", maxServers)
+	}
+	seenID, seenAddr := map[string]bool{}, map[string]bool{}
+	out := make([]ServerEntry, 0, len(list))
+	for i, e := range list {
+		e.ID, e.Label, e.Addr = strings.TrimSpace(e.ID), strings.TrimSpace(e.Label), strings.TrimSpace(e.Addr)
+		if e.ID == "" || e.Label == "" || e.Addr == "" {
+			return nil, fmt.Errorf("servers[%d]: id, label and addr are required", i)
+		}
+		host, port, err := net.SplitHostPort(e.Addr)
+		if err != nil || host == "" {
+			return nil, fmt.Errorf("servers[%d]: addr must be host:port, got %q", i, e.Addr)
+		}
+		if p, err := strconv.Atoi(port); err != nil || p < 1 || p > 65535 {
+			return nil, fmt.Errorf("servers[%d]: bad port in %q", i, e.Addr)
+		}
+		if seenID[e.ID] || seenAddr[e.Addr] {
+			return nil, fmt.Errorf("servers[%d]: duplicate id or addr", i)
+		}
+		seenID[e.ID], seenAddr[e.Addr] = true, true
+		out = append(out, e)
+	}
+	return out, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -111,11 +167,20 @@ func (s *Server) handleClientConfig(w http.ResponseWriter, r *http.Request) {
 		notifs = append(notifs, n)
 	}
 
+	servers, err := parseServers(cfg["servers"])
+	if err != nil {
+		// Validated on write, so this only happens for a hand-edited DB;
+		// serve the rest of the config rather than nothing.
+		log.Printf("[config] stored servers list is invalid, omitting: %v", err)
+		servers = nil
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(ClientConfigResponse{
 		ConfigURL:     cfg["config_url"],
 		ProxyServer:   cfg["proxy_server"],
 		RelayURL:      cfg["relay_url"],
+		Servers:       servers,
 		Notifications: notifs,
 	})
 
@@ -251,6 +316,20 @@ func (s *Server) handleSetServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for k, v := range req {
+		if k == "servers" {
+			list, err := parseServers(v)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// store the canonical form so the client sees exactly what was validated
+			if list == nil {
+				v = ""
+			} else {
+				b, _ := json.Marshal(list)
+				v = string(b)
+			}
+		}
 		if err := s.db.SetServiceConfig(k, v); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

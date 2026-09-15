@@ -60,6 +60,9 @@ interface CachedConfig {
   config_url: string;
   proxy_server: string;
   relay_url: string;
+  // PRXNS-21: exit list in Auto priority order; the renderer prefers it over
+  // its built-in SERVERS when non-empty. Cached on disk with the rest.
+  servers?: { id: string; label: string; addr: string }[];
   notifications: ServerNotification[];
   fetched_at: number;
 }
