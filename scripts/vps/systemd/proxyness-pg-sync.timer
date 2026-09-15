@@ -1,0 +1,11 @@
+[Unit]
+Description=Keep this host's device table in step with the primary
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Unit=proxyness-pg-sync.service
+
+[Install]
+WantedBy=timers.target

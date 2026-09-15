@@ -39,14 +39,24 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    # Both exits get every deploy. fail-fast is off so a dead host (the
+    # 2026-09-15 Serverspace outage) cannot block the deploy to the other;
+    # the run stays red for the host that failed, which is the truth.
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: serverspace, host: VPS_HOST, key: VPS_SSH_KEY }
+          - { name: aeza, host: VPS2_HOST, key: VPS2_SSH_KEY }
+    name: ${{ matrix.target.name }}
     steps:
       - uses: actions/checkout@v4
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.VPS_HOST }}
+          host: ${{ secrets[matrix.target.host] }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key: ${{ secrets[matrix.target.key] }}
           script: |
             set -euo pipefail
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ secrets.GHCR_USER }} --password-stdin

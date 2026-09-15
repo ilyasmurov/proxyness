@@ -1,0 +1,16 @@
+[Unit]
+Description=CAKE ingress shaper (bufferbloat guard) on the uplink
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Keep this a notch below the provider's policer. 45Mbit matched the 50 Mbit/s
+# Serverspace plan; on a 1 Gbps Aeza box leave the unit disabled unless
+# ping-under-load shows bloat. Argument = bandwidth for cake.
+ExecStart=/usr/local/sbin/cake-ingress.sh 45Mbit
+ExecStop=/usr/local/sbin/cake-ingress.sh off
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+[Unit]
+Description=Pull users/devices/sites from the primary Proxyness host
+After=postgresql@16-main.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/proxyness-pg-sync.sh
