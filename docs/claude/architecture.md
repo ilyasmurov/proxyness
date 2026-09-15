@@ -67,7 +67,7 @@ Standalone React 19 + Vite + TypeScript SPA served by nginx. Deployed as its own
 - `src/lib/api.ts` — fetch wrapper, injects Basic Auth, base URL from `VITE_API_URL`
 - `src/hooks/useStatsStream.ts` — SSE client for live stats (fetch+ReadableStream, not EventSource, because native EventSource doesn't support custom headers)
 - `src/lib/auth.ts` — credentials in sessionStorage, login form on missing credentials
-- Pages: Dashboard (SSE-driven), Users, UserDetail, Sites, SiteDetail, Notifications, Releases, Changelog, Logs
+- Pages: Dashboard (SSE-driven), Users, UserDetail, Sites, SiteDetail, Notifications, **Servers** (exit list sent to clients: id/label/addr, kind exit|bridge, via; plus the Taskless egress proxy URL — PRXNS-21/23), **Topology** (live traffic map, PRXNS-23: polls `GET /admin/api/topology` every 15 s; the control plane's server probes exits/bridges over their admin API, the config service, Postgres, DNS and the egress proxy — see `server/internal/topology`), Releases, Changelog, Logs
 
 ## Browser Extension (`extension/`)
 Chrome MV3 extension. Popup (348px) + floating in-page panel (shadow DOM content script) + service worker. Pairs with desktop daemon via token stored in `chrome.storage.local`.

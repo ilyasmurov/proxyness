@@ -1,5 +1,12 @@
 [
   {
+    "id": "8bbd5d2d-674a-47c8-8960-3f4cd4247842",
+    "title": "Topology page in the admin: a live map of the traffic",
+    "description": "A diagram of how traffic flows — clients, bridges, exits, the control plane — with every link probed from the server every fifteen seconds: green with latency and how many devices ride that path, red with the error when a probe fails. Servers get a kind (exit or bridge) on the Servers page so the map draws itself from the list.",
+    "type": "feature",
+    "createdAt": "2026-09-15T14:38:52.637195+00:00"
+  },
+  {
     "id": "d892ac03-1cfd-47aa-a333-4c066a09ba2a",
     "title": "Auto no longer hangs on an exit that answers the handshake and then goes silent",
     "description": "On some ISPs the connection to an exit opens and then every packet is dropped. The app used to wait on that first server for minutes and never try the next one, so Auto sat on \"Connecting\" while picking the bridge by hand worked. TLS setup now gives up after ten seconds and moves on.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-07T15:47:33.739456+00:00"
-  },
-  {
-    "id": "3f612f91-af70-46d0-93e6-f8a1ef3f544f",
-    "title": "Tunnel: kill switch — отказ новых SOCKS5 запросов в Reconnecting",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-07T15:44:06.827123+00:00"
   }
 ]

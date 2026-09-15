@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"proxyness/server/internal/topology"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +27,7 @@ type Handler struct {
 	password   string
 	deviceAuth *DeviceAuth
 	mux        *http.ServeMux
+	topo       *topology.Prober
 }
 
 // NewHandler creates and wires up the admin HTTP handler.
@@ -32,6 +35,25 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string) 
 	h := &Handler{db: d, tracker: tr, user: user, password: password}
 	h.deviceAuth = NewDeviceAuth(d)
 	mux := http.NewServeMux()
+	if configAddr == "" {
+		configAddr = "http://127.0.0.1:8443"
+	}
+	// Live traffic map (PRXNS-23). Probes run lazily in this process while
+	// the admin Topology page keeps asking — only the control plane's admin
+	// is ever pointed at, so exits never probe.
+	h.topo = topology.New(topology.Source{
+		ConfigAddr: configAddr, AdminUser: user, AdminPass: password,
+		LocalDevices: func() (int, error) {
+			ov, err := d.GetOverview()
+			if err != nil {
+				return 0, err
+			}
+			return ov.TotalDevices, nil
+		},
+		DBPing:  func(ctx context.Context) error { return d.SQL().PingContext(ctx) },
+		DNSHost: "proxyness.smurov.com",
+	})
+	mux.HandleFunc("GET /admin/api/topology", h.auth(h.topology))
 
 	mux.HandleFunc("GET /admin/api/users", h.auth(h.listUsers))
 	mux.HandleFunc("POST /admin/api/users", h.auth(h.createUser))
@@ -329,6 +351,10 @@ func (h *Handler) deleteDevice(w http.ResponseWriter, r *http.Request) {
 
 // ---- Stats ----
 
+func (h *Handler) topology(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, h.topo.Snapshot())
+}
+
 func (h *Handler) statsOverview(w http.ResponseWriter, r *http.Request) {
 	ov, err := h.db.GetOverview()
 	if err != nil {
@@ -599,4 +625,3 @@ func (h *Handler) unlockDevice(w http.ResponseWriter, r *http.Request) {
 	// No-op: machine binding is permanent and managed by hardware fingerprint.
 	w.WriteHeader(http.StatusOK)
 }
-

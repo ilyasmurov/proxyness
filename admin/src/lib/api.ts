@@ -211,6 +211,26 @@ export interface NotificationDelivery {
   delivered_at: string;
 }
 
+// PRXNS-23: live traffic map from GET /admin/api/topology
+export type TopologyState = "ok" | "down" | "unknown";
+export interface TopologyCheck {
+  id: string; label: string; state: TopologyState; latency_ms: number; devices: number;
+  checked_at: string; detail?: string; error?: string;
+}
+export interface TopologyNode {
+  id: string; kind: "clients" | "bridge" | "exit" | "internet" | "control" | "source" | "egress";
+  label: string; sub?: string; addr?: string; via?: string; state: TopologyState;
+  latency_ms?: number; devices: number; total_devices?: number; error?: string; checks?: TopologyCheck[];
+}
+export interface TopologyEdge {
+  id: string; from: string; to: string; state: TopologyState; label: string;
+  latency_ms?: number; devices: number; error?: string;
+}
+export interface TopologySnapshot {
+  checked_at: string; interval_s: number; overall: TopologyState;
+  nodes: TopologyNode[]; edges: TopologyEdge[]; checks: TopologyCheck[];
+}
+
 export interface ServiceConfigMap {
   [key: string]: string;
 }
@@ -257,6 +277,7 @@ export const api = {
     configRequest(`/notifications/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   getDeliveries: (id: string): Promise<NotificationDelivery[]> =>
     configRequest(`/notifications/${id}/deliveries`),
+  topology: (): Promise<TopologySnapshot> => request("/topology"),
   getServices: (): Promise<ServiceConfigMap> => configRequest("/services"),
   setServices: (data: ServiceConfigMap) =>
     configRequest("/services", { method: "PUT", body: JSON.stringify(data) }),

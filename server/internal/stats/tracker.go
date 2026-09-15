@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,14 +10,18 @@ import (
 )
 
 type ConnInfo struct {
-	DeviceID   int       `json:"device_id"`
-	DeviceName string    `json:"device_name"`
-	UserName   string    `json:"user_name"`
-	Version    string    `json:"version,omitempty"`
-	TLS        bool      `json:"tls"`
-	StartedAt  time.Time `json:"started_at"`
-	BytesIn    int64     `json:"bytes_in"`
-	BytesOut   int64     `json:"bytes_out"`
+	DeviceID   int    `json:"device_id"`
+	DeviceName string `json:"device_name"`
+	UserName   string `json:"user_name"`
+	Version    string `json:"version,omitempty"`
+	TLS        bool   `json:"tls"`
+	// RemoteIP is the peer address the relay saw. The topology page uses it
+	// to tell devices that came through a bridge (its host IP) from direct
+	// ones (PRXNS-23).
+	RemoteIP  string    `json:"remote_ip,omitempty"`
+	StartedAt time.Time `json:"started_at"`
+	BytesIn   int64     `json:"bytes_in"`
+	BytesOut  int64     `json:"bytes_out"`
 }
 
 type deviceMeta struct {
@@ -252,6 +257,12 @@ func (t *Tracker) Rates() []DeviceRate {
 }
 
 func (t *Tracker) Add(deviceID int, deviceName, userName, version string, isTLS bool) int64 {
+	return t.AddRemote(deviceID, deviceName, userName, version, isTLS, "")
+}
+
+// AddRemote is Add with the peer's IP (host part of a net.Addr string);
+// see ConnInfo.RemoteIP.
+func (t *Tracker) AddRemote(deviceID int, deviceName, userName, version string, isTLS bool, remoteIP string) int64 {
 	id := atomic.AddInt64(&t.nextID, 1)
 	now := time.Now()
 	t.mu.Lock()
@@ -261,6 +272,7 @@ func (t *Tracker) Add(deviceID int, deviceName, userName, version string, isTLS 
 		UserName:   userName,
 		Version:    version,
 		TLS:        isTLS,
+		RemoteIP:   remoteIP,
 		StartedAt:  now,
 	}
 	t.mu.Unlock()
@@ -327,7 +339,7 @@ func (t *Tracker) Active() []ConnInfo {
 	for _, c := range t.conns {
 		result = append(result, ConnInfo{
 			DeviceID: c.DeviceID, DeviceName: c.DeviceName,
-			UserName: c.UserName, Version: c.Version, TLS: c.TLS, StartedAt: c.StartedAt,
+			UserName: c.UserName, Version: c.Version, TLS: c.TLS, RemoteIP: c.RemoteIP, StartedAt: c.StartedAt,
 			BytesIn: atomic.LoadInt64(&c.BytesIn), BytesOut: atomic.LoadInt64(&c.BytesOut),
 		})
 	}
@@ -351,4 +363,16 @@ func (t *Tracker) ActiveCount() int {
 		}
 	}
 	return n
+}
+
+// RemoteHost extracts the host part of a peer address for ConnInfo.RemoteIP;
+// nil or unparsable addresses give "".
+func RemoteHost(addr net.Addr) string {
+	if addr == nil {
+		return ""
+	}
+	if h, _, err := net.SplitHostPort(addr.String()); err == nil {
+		return h
+	}
+	return addr.String()
 }

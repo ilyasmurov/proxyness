@@ -12,6 +12,8 @@ interface ServerRow {
   id: string;
   label: string;
   addr: string;
+  kind: "exit" | "bridge";
+  via: string; // for bridges: id of the exit it forwards to
 }
 
 const ADDR_RE = /^[^\s:]+:\d{1,5}$/;
@@ -23,7 +25,13 @@ function parseRows(raw: string | undefined): ServerRow[] {
     if (!Array.isArray(list)) return [];
     return list
       .filter((e) => e && typeof e === "object")
-      .map((e) => ({ id: String(e.id ?? ""), label: String(e.label ?? ""), addr: String(e.addr ?? "") }));
+      .map((e) => ({
+        id: String(e.id ?? ""),
+        label: String(e.label ?? ""),
+        addr: String(e.addr ?? ""),
+        kind: e.kind === "bridge" ? ("bridge" as const) : ("exit" as const),
+        via: String(e.via ?? ""),
+      }));
   } catch {
     return [];
   }
@@ -41,6 +49,12 @@ function validate(rows: ServerRow[]): string | null {
     ids.add(r.id.trim());
     addrs.add(r.addr.trim());
   }
+  for (const [i, r] of rows.entries()) {
+    if (r.kind === "bridge") {
+      const target = rows.find((x) => x.id.trim() === r.via.trim());
+      if (!target || target.kind !== "exit") return `Row ${i + 1}: a bridge must point (via) at an exit in this list`;
+    }
+  }
   return null;
 }
 
@@ -51,6 +65,7 @@ export function Servers() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [egressProxy, setEgressProxy] = useState("");
 
   useEffect(() => {
     api
@@ -58,6 +73,7 @@ export function Servers() {
       .then((cfg) => {
         setConfig(cfg);
         setRows(parseRows((cfg as Record<string, string | undefined>).servers));
+        setEgressProxy((cfg as Record<string, string | undefined>).egress_proxy ?? "");
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -74,10 +90,16 @@ export function Servers() {
       return next;
     });
   const remove = (i: number) => setRows((prev) => prev.filter((_, j) => j !== i));
-  const add = () => setRows((prev) => [...prev, { id: "", label: "", addr: "" }]);
+  const add = () => setRows((prev) => [...prev, { id: "", label: "", addr: "", kind: "exit", via: "" }]);
 
   const save = async () => {
-    const trimmed = rows.map((r) => ({ id: r.id.trim(), label: r.label.trim(), addr: r.addr.trim() }));
+    const trimmed = rows.map((r) => ({
+      id: r.id.trim(),
+      label: r.label.trim(),
+      addr: r.addr.trim(),
+      kind: r.kind,
+      via: r.kind === "bridge" ? r.via.trim() : "",
+    }));
     const problem = validate(trimmed);
     if (problem) {
       setError(problem);
@@ -87,7 +109,11 @@ export function Servers() {
     setError(null);
     try {
       // Only the servers key is written; other service_config keys stay as they are.
-      await api.setServices({ servers: trimmed.length ? JSON.stringify(trimmed) : "" } as unknown as ServiceConfigMap);
+      const payload = trimmed.map((r) => (r.kind === "bridge" ? r : { id: r.id, label: r.label, addr: r.addr }));
+      await api.setServices({
+        servers: payload.length ? JSON.stringify(payload) : "",
+        egress_proxy: egressProxy.trim(),
+      } as unknown as ServiceConfigMap);
       setRows(trimmed);
       setSavedAt(new Date().toLocaleTimeString());
     } catch (e) {
@@ -116,8 +142,10 @@ export function Servers() {
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Clients dial these in order when set to Auto (after the last server that worked), and show them in
-            Settings → Proxy Server. Address is host:port. An empty list means clients keep the list built into
-            the app. Changes reach clients on their next config poll, within about five minutes.
+            Settings → Proxy Server. Address is host:port. Kind: an <b>exit</b> carries VPN traffic; a <b>bridge</b>
+            is a port-forwarding box in front of an exit (for ISPs that block the exit's subnet) and must name that
+            exit in <i>via</i>. An empty list means clients keep the list built into the app. Changes reach clients on
+            their next config poll, within about five minutes; the Topology page draws this list.
           </p>
 
           <Table>
@@ -127,13 +155,15 @@ export function Servers() {
                 <TableHead>id</TableHead>
                 <TableHead>label</TableHead>
                 <TableHead>address</TableHead>
+                <TableHead>kind</TableHead>
+                <TableHead>via</TableHead>
                 <TableHead className="w-40"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground text-sm">
+                  <TableCell colSpan={7} className="text-muted-foreground text-sm">
                     No servers configured — clients use the built-in list.
                   </TableCell>
                 </TableRow>
@@ -156,6 +186,32 @@ export function Servers() {
                     />
                   </TableCell>
                   <TableCell>
+                    <select
+                      value={r.kind}
+                      onChange={(e) => update(i, { kind: e.target.value === "bridge" ? "bridge" : "exit", via: "" })}
+                      className="bg-background border border-border rounded-md px-2 py-2 text-sm"
+                    >
+                      <option value="exit">exit</option>
+                      <option value="bridge">bridge</option>
+                    </select>
+                  </TableCell>
+                  <TableCell>
+                    {r.kind === "bridge" ? (
+                      <select
+                        value={r.via}
+                        onChange={(e) => update(i, { via: e.target.value })}
+                        className="bg-background border border-border rounded-md px-2 py-2 text-sm"
+                      >
+                        <option value="">— exit —</option>
+                        {rows.filter((x) => x.kind === "exit" && x.id.trim()).map((x) => (
+                          <option key={x.id} value={x.id.trim()}>{x.id.trim()}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <div className="flex gap-1 justify-end">
                       <Button variant="outline" size="sm" onClick={() => move(i, -1)} disabled={i === 0} title="Move up">↑</Button>
                       <Button variant="outline" size="sm" onClick={() => move(i, 1)} disabled={i === rows.length - 1} title="Move down">↓</Button>
@@ -166,6 +222,11 @@ export function Servers() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="space-y-1 max-w-xl">
+            <label className="text-xs text-muted-foreground block">Taskless egress proxy (shown on the Topology page; empty = hidden)</label>
+            <Input value={egressProxy} placeholder="http://178.236.252.28:3128" className="font-mono" onChange={(e) => setEgressProxy(e.target.value)} />
+          </div>
 
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={add}>Add server</Button>

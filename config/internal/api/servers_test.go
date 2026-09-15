@@ -37,3 +37,26 @@ func TestParseServersRejectsBadEntries(t *testing.T) {
 		}
 	}
 }
+
+func TestParseServersKindsAndVia(t *testing.T) {
+	got, err := parseServers(`[{"id":"aeza","label":"Aeza","addr":"1.2.3.4:443"},
+	  {"id":"ru","label":"via RU","addr":"5.6.7.8:4443","kind":"bridge","via":"aeza"}]`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got[0].Kind != "exit" || got[1].Kind != "bridge" || got[1].Via != "aeza" {
+		t.Fatalf("kinds not normalised: %+v", got)
+	}
+	bad := []string{
+		`[{"id":"a","label":"a","addr":"1.2.3.4:443","kind":"relay"}]`,                                                                                  // unknown kind
+		`[{"id":"a","label":"a","addr":"1.2.3.4:443","kind":"bridge"}]`,                                                                                 // bridge without via
+		`[{"id":"a","label":"a","addr":"1.2.3.4:443","kind":"bridge","via":"nope"}]`,                                                                    // via unknown
+		`[{"id":"a","label":"a","addr":"1.2.3.4:443","via":"a"}]`,                                                                                       // exit with via
+		`[{"id":"a","label":"a","addr":"1.2.3.4:443","kind":"bridge","via":"b"},{"id":"b","label":"b","addr":"1.2.3.5:443","kind":"bridge","via":"a"}]`, // bridge → bridge
+	}
+	for _, in := range bad {
+		if _, err := parseServers(in); err == nil {
+			t.Errorf("expected error for %s", in)
+		}
+	}
+}

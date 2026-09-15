@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"proxyness/server/internal/stats"
 	"sync"
 	"time"
 
@@ -15,7 +16,7 @@ const udpTimeout = 60 * time.Second
 const udpBufSize = 65535
 
 func (h *Handler) handleUDP(conn net.Conn, device *db.Device, isTLS bool) {
-	connID := h.Tracker.Add(device.ID, device.Name, device.UserName, device.Version, isTLS)
+	connID := h.Tracker.AddRemote(device.ID, device.Name, device.UserName, device.Version, isTLS, stats.RemoteHost(conn.RemoteAddr()))
 	var totalIn, totalOut int64
 	var mu sync.Mutex
 

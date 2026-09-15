@@ -261,7 +261,7 @@ func (l *Listener) handleHandshake(data []byte, addr net.Addr) {
 	sess.mu.Unlock()
 
 	// Register in stats tracker so device appears online in admin panel
-	sess.TrackerID = l.tracker.Add(device.ID, device.Name, device.UserName, device.Version, false)
+	sess.TrackerID = l.tracker.AddRemote(device.ID, device.Name, device.UserName, device.Version, false, stats.RemoteHost(addr))
 
 	// Initialize ARQ Controller for this session.
 	// sendFn uses a short write deadline so retransmit storms from dead sessions

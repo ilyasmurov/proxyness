@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"proxyness/server/internal/stats"
 	"time"
 
 	"proxyness/pkg/proto"
@@ -25,7 +26,7 @@ func (h *Handler) handleTCP(conn net.Conn, device *db.Device, isTLS bool) {
 	defer target.Close()
 	proto.WriteResult(conn, true)
 
-	connID := h.Tracker.Add(device.ID, device.Name, device.UserName, device.Version, isTLS)
+	connID := h.Tracker.AddRemote(device.ID, device.Name, device.UserName, device.Version, isTLS, stats.RemoteHost(conn.RemoteAddr()))
 	proto.CountingRelay(conn, target, func(in, out int64) {
 		h.Tracker.AddBytes(connID, in, out)
 	})

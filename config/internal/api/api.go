@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +56,12 @@ type ServerEntry struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 	Addr  string `json:"addr"`
+	// Kind is "exit" (default) or "bridge" — a port-forwarding box in front
+	// of an exit for ISPs that block the exit's subnet (PRXNS-22). Via names
+	// the exit a bridge forwards to. Only the topology page reads these;
+	// the client dials every entry the same way.
+	Kind string `json:"kind,omitempty"`
+	Via  string `json:"via,omitempty"`
 }
 
 const maxServers = 16
@@ -79,8 +86,22 @@ func parseServers(raw string) ([]ServerEntry, error) {
 	out := make([]ServerEntry, 0, len(list))
 	for i, e := range list {
 		e.ID, e.Label, e.Addr = strings.TrimSpace(e.ID), strings.TrimSpace(e.Label), strings.TrimSpace(e.Addr)
+		e.Kind, e.Via = strings.TrimSpace(e.Kind), strings.TrimSpace(e.Via)
 		if e.ID == "" || e.Label == "" || e.Addr == "" {
 			return nil, fmt.Errorf("servers[%d]: id, label and addr are required", i)
+		}
+		switch e.Kind {
+		case "", "exit":
+			e.Kind = "exit"
+			if e.Via != "" {
+				return nil, fmt.Errorf("servers[%d]: via is only for bridges", i)
+			}
+		case "bridge":
+			if e.Via == "" {
+				return nil, fmt.Errorf("servers[%d]: a bridge needs via = id of the exit it forwards to", i)
+			}
+		default:
+			return nil, fmt.Errorf("servers[%d]: kind must be exit or bridge, got %q", i, e.Kind)
 		}
 		host, port, err := net.SplitHostPort(e.Addr)
 		if err != nil || host == "" {
@@ -95,7 +116,24 @@ func parseServers(raw string) ([]ServerEntry, error) {
 		seenID[e.ID], seenAddr[e.Addr] = true, true
 		out = append(out, e)
 	}
+	for i, e := range out {
+		if e.Kind == "bridge" {
+			target, ok := byID(out, e.Via)
+			if !ok || target.Kind != "exit" {
+				return nil, fmt.Errorf("servers[%d]: via %q is not an exit in this list", i, e.Via)
+			}
+		}
+	}
 	return out, nil
+}
+
+func byID(list []ServerEntry, id string) (ServerEntry, bool) {
+	for _, e := range list {
+		if e.ID == id {
+			return e, true
+		}
+	}
+	return ServerEntry{}, false
 }
 
 func (s *Server) Handler() http.Handler {
@@ -316,6 +354,16 @@ func (s *Server) handleSetServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for k, v := range req {
+		if k == "egress_proxy" {
+			v = strings.TrimSpace(v)
+			if v != "" {
+				u, err := url.Parse(v)
+				if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+					http.Error(w, "egress_proxy must be an http(s)://host:port URL or empty", http.StatusBadRequest)
+					return
+				}
+			}
+		}
 		if k == "servers" {
 			list, err := parseServers(v)
 			if err != nil {
