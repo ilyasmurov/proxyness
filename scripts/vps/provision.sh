@@ -60,7 +60,7 @@ apt-get install -y -qq --no-install-recommends \
   ca-certificates curl gnupg lsb-release git jq openssl rsync \
   nginx libnginx-mod-stream certbot \
   vnstat sysstat iptables qrencode \
-  build-essential dkms pkg-config "linux-headers-$(uname -r)" \
+  build-essential dkms pkg-config "$(apt-cache show "linux-headers-$(uname -r)" >/dev/null 2>&1 && echo "linux-headers-$(uname -r)" || echo linux-headers-amd64)" \
   postgresql-common >/dev/null
 # Debian's default site listens on [::]:80 — crashes nginx on IPv4-only
 # hosts and would steal port 80 from the landing container anyway.

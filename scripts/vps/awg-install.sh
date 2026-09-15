@@ -8,7 +8,7 @@ export DEBIAN_FRONTEND=noninteractive
 SRC=/usr/local/src
 
 apt-get install -y -qq --no-install-recommends git build-essential dkms pkg-config \
-  "linux-headers-$(uname -r)" >/dev/null
+  "$(apt-cache show "linux-headers-$(uname -r)" >/dev/null 2>&1 && echo "linux-headers-$(uname -r)" || echo linux-headers-amd64)" >/dev/null
 
 if ! modinfo amneziawg >/dev/null 2>&1; then
   echo "==> amneziawg kernel module (dkms)"
