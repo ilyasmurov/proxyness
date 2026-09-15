@@ -1,5 +1,12 @@
 [
   {
+    "id": "5b315fb8-889e-4af0-9eb2-9abdfdd36814",
+    "title": "Topology map grouped by machine",
+    "description": "The traffic map now draws each physical server as a dashed frame with its parts inside — the bridge and the control plane on one, the exit, its database replica and the egress proxy on the other — so you see at a glance which box a broken link belongs to. Machines get names and extra rows (AmneziaWG, for example) on the Servers page. Link labels sit on their own pills and never hide behind a card; a failed link says why in a few words, with the full error in the checks table.",
+    "type": "improvement",
+    "createdAt": "2026-09-15T15:46:47.378171+00:00"
+  },
+  {
     "id": "8bbd5d2d-674a-47c8-8960-3f4cd4247842",
     "title": "Topology page in the admin: a live map of the traffic",
     "description": "A diagram of how traffic flows — clients, bridges, exits, the control plane — with every link probed from the server every fifteen seconds: green with latency and how many devices ride that path, red with the error when a probe fails. Servers get a kind (exit or bridge) on the Servers page so the map draws itself from the list.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-07T15:49:49.798097+00:00"
-  },
-  {
-    "id": "0f44b7de-20c7-4020-b7ad-e5515282cde1",
-    "title": "Tunnel: unit-тесты для state machine, детектора stall и kill switch",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-07T15:47:33.739456+00:00"
   }
 ]

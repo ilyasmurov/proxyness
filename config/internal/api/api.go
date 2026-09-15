@@ -127,6 +127,49 @@ func parseServers(raw string) ([]ServerEntry, error) {
 	return out, nil
 }
 
+// HostInfo is what the admin knows about one physical machine for the
+// Topology page (PRXNS-23): a label and optional informational rows that
+// have no probe (AmneziaWG, for example).
+type HostInfo struct {
+	Label  string   `json:"label"`
+	Extras []string `json:"extras,omitempty"`
+}
+
+const maxHosts = 16
+
+// parseHosts validates the hosts map: IP/host → {label, extras}. Empty input
+// is a valid "no labels".
+func parseHosts(raw string) (map[string]HostInfo, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "{}" || raw == "null" {
+		return nil, nil
+	}
+	var m map[string]HostInfo
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return nil, fmt.Errorf("hosts: not a JSON object: %w", err)
+	}
+	if len(m) > maxHosts {
+		return nil, fmt.Errorf("hosts: at most %d entries", maxHosts)
+	}
+	out := map[string]HostInfo{}
+	for k, v := range m {
+		k = strings.TrimSpace(k)
+		v.Label = strings.TrimSpace(v.Label)
+		if k == "" || v.Label == "" {
+			return nil, fmt.Errorf("hosts: every entry needs a host and a label")
+		}
+		extras := make([]string, 0, len(v.Extras))
+		for _, e := range v.Extras {
+			if e = strings.TrimSpace(e); e != "" {
+				extras = append(extras, e)
+			}
+		}
+		v.Extras = extras
+		out[k] = v
+	}
+	return out, nil
+}
+
 func byID(list []ServerEntry, id string) (ServerEntry, bool) {
 	for _, e := range list {
 		if e.ID == id {
@@ -362,6 +405,19 @@ func (s *Server) handleSetServices(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, "egress_proxy must be an http(s)://host:port URL or empty", http.StatusBadRequest)
 					return
 				}
+			}
+		}
+		if k == "hosts" {
+			m, err := parseHosts(v)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if m == nil {
+				v = ""
+			} else {
+				b, _ := json.Marshal(m)
+				v = string(b)
 			}
 		}
 		if k == "servers" {

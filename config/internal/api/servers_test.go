@@ -60,3 +60,18 @@ func TestParseServersKindsAndVia(t *testing.T) {
 		}
 	}
 }
+
+func TestParseHosts(t *testing.T) {
+	m, err := parseHosts(`{"157.22.194.55":{"label":" FirstVDS · Москва "},"178.236.252.28":{"label":"Aeza","extras":["AmneziaWG · 13337/udp",""]}}`)
+	if err != nil || len(m) != 2 || m["157.22.194.55"].Label != "FirstVDS · Москва" || len(m["178.236.252.28"].Extras) != 1 {
+		t.Fatalf("unexpected: %+v %v", m, err)
+	}
+	if m2, err := parseHosts(""); err != nil || m2 != nil {
+		t.Fatalf("empty must be nil,nil: %v %v", m2, err)
+	}
+	for _, bad := range []string{`[]`, `{"1.2.3.4":{"label":""}}`, `{"":{"label":"x"}}`} {
+		if _, err := parseHosts(bad); err == nil {
+			t.Errorf("expected error for %s", bad)
+		}
+	}
+}

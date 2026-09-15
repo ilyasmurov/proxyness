@@ -18,6 +18,32 @@ interface ServerRow {
 
 const ADDR_RE = /^[^\s:]+:\d{1,5}$/;
 
+// Machines for the Topology page: host (IP) → label + informational rows
+// that have no probe (e.g. "AmneziaWG · 13337/udp").
+interface HostRow {
+  host: string;
+  label: string;
+  extras: string; // comma-separated in the editor
+}
+
+function parseHosts(raw: string | undefined): HostRow[] {
+  if (!raw) return [];
+  try {
+    const m = JSON.parse(raw);
+    if (!m || typeof m !== "object" || Array.isArray(m)) return [];
+    return Object.entries(m).map(([host, v]) => {
+      const o = (v ?? {}) as { label?: unknown; extras?: unknown };
+      return {
+        host,
+        label: String(o.label ?? ""),
+        extras: Array.isArray(o.extras) ? (o.extras as string[]).join(", ") : "",
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 function parseRows(raw: string | undefined): ServerRow[] {
   if (!raw) return [];
   try {
@@ -66,6 +92,7 @@ export function Servers() {
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [egressProxy, setEgressProxy] = useState("");
+  const [hosts, setHosts] = useState<HostRow[]>([]);
 
   useEffect(() => {
     api
@@ -74,6 +101,7 @@ export function Servers() {
         setConfig(cfg);
         setRows(parseRows((cfg as Record<string, string | undefined>).servers));
         setEgressProxy((cfg as Record<string, string | undefined>).egress_proxy ?? "");
+        setHosts(parseHosts((cfg as Record<string, string | undefined>).hosts));
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -105,14 +133,28 @@ export function Servers() {
       setError(problem);
       return;
     }
+    const hostRows = hosts.map((h) => ({
+      host: h.host.trim(),
+      label: h.label.trim(),
+      extras: h.extras.split(",").map((x) => x.trim()).filter(Boolean),
+    }));
+    for (const [i, h] of hostRows.entries()) {
+      if (!h.host || !h.label) {
+        setError(`Machine ${i + 1}: host and label are required`);
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
-      // Only the servers key is written; other service_config keys stay as they are.
+      // Only the servers/egress/hosts keys are written; other service_config keys stay as they are.
       const payload = trimmed.map((r) => (r.kind === "bridge" ? r : { id: r.id, label: r.label, addr: r.addr }));
+      const hostsMap: Record<string, { label: string; extras?: string[] }> = {};
+      for (const h of hostRows) hostsMap[h.host] = { label: h.label, ...(h.extras.length ? { extras: h.extras } : {}) };
       await api.setServices({
         servers: payload.length ? JSON.stringify(payload) : "",
         egress_proxy: egressProxy.trim(),
+        hosts: hostRows.length ? JSON.stringify(hostsMap) : "",
       } as unknown as ServiceConfigMap);
       setRows(trimmed);
       setSavedAt(new Date().toLocaleTimeString());
@@ -222,6 +264,50 @@ export function Servers() {
               ))}
             </TableBody>
           </Table>
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Machines (Topology page)</div>
+            <p className="text-xs text-muted-foreground">
+              Host = the IP the servers above and the control plane live on. The label is drawn on the machine's frame;
+              extras are informational rows without a probe, comma-separated (e.g. <code>AmneziaWG · 13337/udp</code>).
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>host</TableHead>
+                  <TableHead>label</TableHead>
+                  <TableHead>extras</TableHead>
+                  <TableHead className="w-16"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {hosts.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-muted-foreground text-sm">
+                      No machines labelled — the Topology page shows bare IPs.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {hosts.map((h, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Input value={h.host} placeholder="157.22.194.55" className="font-mono" onChange={(e) => setHosts((prev) => prev.map((x, j) => (j === i ? { ...x, host: e.target.value } : x)))} />
+                    </TableCell>
+                    <TableCell>
+                      <Input value={h.label} placeholder="FirstVDS · Moscow" onChange={(e) => setHosts((prev) => prev.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
+                    </TableCell>
+                    <TableCell>
+                      <Input value={h.extras} placeholder="AmneziaWG · 13337/udp" onChange={(e) => setHosts((prev) => prev.map((x, j) => (j === i ? { ...x, extras: e.target.value } : x)))} />
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="sm" onClick={() => setHosts((prev) => prev.filter((_, j) => j !== i))} title="Remove">✕</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Button variant="outline" size="sm" onClick={() => setHosts((prev) => [...prev, { host: "", label: "", extras: "" }])}>Add machine</Button>
+          </div>
 
           <div className="space-y-1 max-w-xl">
             <label className="text-xs text-muted-foreground block">Taskless egress proxy (shown on the Topology page; empty = hidden)</label>
