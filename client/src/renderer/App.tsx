@@ -47,16 +47,17 @@ if (typeof localStorage !== "undefined" && localStorage.getItem("proxyness-mode"
 // purpose — the client never resolves DNS, so a blocked/poisoned resolver
 // can't take the proxy down (see decisions.md, "Server picker").
 //
-// "Aeza via RU" is not a second exit: it is a port-forwarding bridge on a
-// Yandex Cloud box (PRXNS-22) that hands 4443/tcp and 8443/udp straight to the
-// same Aeza server, for ISPs that drop data to the Aeza subnet (SkyNet). The
-// daemon always sends UDP to 8443 whatever port the address carries, so the
-// bridge can sit on 4443 while 443 there belongs to another site. Crypto is
-// end-to-end with Aeza either way. Serverspace (188.227.86.205) was dropped
-// in 1.46.1: the host died on 2026-09-15 and only cost cold-start timeouts.
+// "Aeza via RU" is not a second exit: it is a port-forwarding bridge on the
+// FirstVDS box in Moscow (PRXNS-22) that hands 4443/tcp and 8443/udp straight
+// to the same Aeza server, for ISPs that drop data to the Aeza subnet
+// (SkyNet). The daemon always sends UDP to 8443 whatever port the address
+// carries, so the bridge can sit on 4443 while 443 there belongs to another
+// site. Crypto is end-to-end with Aeza either way. Serverspace
+// (188.227.86.205) was dropped in 1.46.1: the host died on 2026-09-15 and
+// only cost cold-start timeouts.
 const SERVERS = [
   { id: "aeza", label: "Aeza NL", addr: "178.236.252.28:443" },
-  { id: "aeza-ru", label: "Aeza via RU", addr: "81.26.185.252:4443" },
+  { id: "aeza-ru", label: "Aeza via RU", addr: "157.22.194.55:4443" },
 ];
 const AUTO_SERVER_ID = "auto";
 const SERVER_CHOICES: { id: string; label: string; addr?: string }[] = [
