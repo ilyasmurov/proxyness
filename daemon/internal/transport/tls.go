@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"proxyness/pkg/proto"
 )
@@ -27,13 +28,17 @@ type TLSTransport struct {
 	// path) never woke up the D1 branch, and the engine sat in Reconnecting
 	// until D2 exhausted and the whole thing died. See tun/engine.go
 	// healthLoop for the detector wiring.
-	done     chan struct{}
+	done      chan struct{}
 	closeOnce sync.Once
 }
 
 func NewTLSTransport() *TLSTransport {
 	return &TLSTransport{done: make(chan struct{})}
 }
+
+// tlsSetupTimeout bounds TLS handshake + auth + machine-id exchange on a
+// fresh connection. A var so tests can shrink it.
+var tlsSetupTimeout = 10 * time.Second
 
 func (t *TLSTransport) Connect(server, key string, machineID [16]byte) error {
 	t.server = server
@@ -61,6 +66,13 @@ func (t *TLSTransport) dial() (net.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tcp dial: %w", err)
 	}
+	// The dialer only bounds the TCP connect. An ISP that lets the handshake
+	// through and then drops every data packet (SkyNet → the Aeza subnet,
+	// 2026-09-15) leaves Handshake()/ReadResult() waiting on the kernel's
+	// retransmit budget — minutes — and a multi-server ring never moves on
+	// to the next exit. Bound the whole setup, then lift the deadline for
+	// the relay proper.
+	rawConn.SetDeadline(time.Now().Add(tlsSetupTimeout))
 	conn := tls.Client(rawConn, &tls.Config{InsecureSkipVerify: true, ServerName: ""})
 	if err := conn.Handshake(); err != nil {
 		rawConn.Close()
@@ -72,7 +84,11 @@ func (t *TLSTransport) dial() (net.Conn, error) {
 		return nil, fmt.Errorf("auth: %w", err)
 	}
 	ok, err := proto.ReadResult(conn)
-	if err != nil || !ok {
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("auth: %w", err)
+	}
+	if !ok {
 		conn.Close()
 		return nil, fmt.Errorf("auth rejected")
 	}
@@ -87,6 +103,7 @@ func (t *TLSTransport) dial() (net.Conn, error) {
 		return nil, fmt.Errorf("machine id rejected")
 	}
 
+	rawConn.SetDeadline(time.Time{})
 	return conn, nil
 }
 

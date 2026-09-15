@@ -1,5 +1,12 @@
 [
   {
+    "id": "d892ac03-1cfd-47aa-a333-4c066a09ba2a",
+    "title": "Auto no longer hangs on an exit that answers the handshake and then goes silent",
+    "description": "On some ISPs the connection to an exit opens and then every packet is dropped. The app used to wait on that first server for minutes and never try the next one, so Auto sat on \"Connecting\" while picking the bridge by hand worked. TLS setup now gives up after ten seconds and moves on.",
+    "type": "fix",
+    "createdAt": "2026-09-15T14:04:03.326568+00:00"
+  },
+  {
     "id": "9f2d47ed-599e-4774-b67a-a0e0b53b8ed1",
     "title": "The list of servers now comes from the service, not the app",
     "description": "Adding an exit or a bridge, or retiring a dead one, no longer needs a new build: the app takes the server list from the config service (edited in the admin's new Servers page) on its regular poll, keeps a copy for offline starts, and falls back to the built-in list only when the service has none. Auto picks in the order the list is given.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-07T15:44:06.827123+00:00"
-  },
-  {
-    "id": "22df5123-eb70-441d-bcc1-1a3ff26798bb",
-    "title": "Tunnel: детекторы D1/D2/D3 для автоматического перехода в Reconnecting",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-07T15:42:55.294990+00:00"
   }
 ]
