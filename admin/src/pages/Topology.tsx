@@ -56,7 +56,7 @@ function layout(nodes: TopologyNode[]) {
   const exitsBottom = exitsTop + Math.max(1, exits.length) * rowGap - 30;
   const bridgesBottom = bridgesTop + Math.max(1, bridges.length) * 80;
   const controlY = Math.max(270, bridgesBottom + 90, exitsBottom - 20);
-  boxes.set("control", { x: 320, y: controlY, w: 160, h: 120 });
+  boxes.set("control", { x: 320, y: controlY, w: 220, h: 120 });
   const midY = exitsTop + (Math.max(1, exits.length) * rowGap) / 2 - 15;
   boxes.set("clients", { x: 20, y: midY - 40, w: 152, h: 80 });
   boxes.set("internet", { x: 866, y: midY - 30, w: 150, h: 60 });
@@ -64,11 +64,20 @@ function layout(nodes: TopologyNode[]) {
   if (egress) {
     const y = controlY + 100;
     boxes.set("taskless", { x: 20, y, w: 152, h: 60 });
-    boxes.set("egress", { x: 560, y, w: 160, h: 60 });
+    boxes.set("egress", { x: 560, y, w: 220, h: 60 });
     h = y + 60 + 30;
   }
   return { boxes, height: h };
 }
+
+// SVG text does not wrap or clip; keep every label inside its box by
+// trimming to what fits (≈ px per char at the given font size) with an
+// ellipsis. Widths are generous enough that the common cases never trim.
+function fit(text: string, boxW: number, pxPerChar: number, pad = 28): string {
+  const max = Math.max(4, Math.floor((boxW - pad) / pxPerChar));
+  return text.length <= max ? text : text.slice(0, max - 1) + "…";
+}
+const stripScheme = (u: string) => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
 function anchor(b: Box, side: "l" | "r" | "t" | "b") {
   switch (side) {
@@ -173,8 +182,12 @@ export function Topology() {
                   return (
                     <g key={n.id} className={`node${group ? " group" : ""}`} transform={`translate(${b.x},${b.y})`}>
                       <rect width={b.w} height={b.h} />
-                      <text className="title" x={14} y={26}>{n.label}</text>
-                      {n.sub && <text className="sub" x={14} y={44}>{n.sub}{n.latency_ms ? ` · ${n.latency_ms} ms` : ""}</text>}
+                      <text className="title" x={14} y={26}>{fit(n.label, b.w, 7.4)}</text>
+                      {n.sub && (
+                        <text className="sub" x={14} y={44}>
+                          {fit((n.kind === "egress" ? stripScheme(n.sub) : n.sub) + (n.latency_ms ? ` · ${n.latency_ms} ms` : ""), b.w, 6.2)}
+                        </text>
+                      )}
                       {n.kind === "exit" && <text className="row" x={14} y={64}>{n.devices} device{n.devices === 1 ? "" : "s"}</text>}
                       {n.kind === "clients" && <text className="row" x={14} y={64}>{n.devices} online</text>}
                       {n.kind !== "internet" && <circle className={`st ${n.state}`} cx={b.w - 14} cy={20} r={4.5} />}
@@ -183,7 +196,9 @@ export function Topology() {
                           {n.checks.map((c, i) => (
                             <g key={c.id} transform={`translate(0,${i * 20})`}>
                               <circle className={`st ${c.state}`} cx={4} cy={-3} r={3.5} />
-                              <text className="row" x={14} y={0}>{c.label}{c.id === "dns" && c.detail ? ` ${c.detail.replace("A → ", "→ ")}` : ""}</text>
+                              <text className="row" x={14} y={0}>
+                                {fit(c.id === "dns" ? (c.detail ? c.detail.replace("A → ", "DNS → ") : "DNS") : c.label + (c.latency_ms ? ` · ${c.latency_ms} ms` : ""), b.w, 6.6, 42)}
+                              </text>
                             </g>
                           ))}
                         </g>
