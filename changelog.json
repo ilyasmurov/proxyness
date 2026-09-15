@@ -1,5 +1,12 @@
 [
   {
+    "id": "d9f2fcff-9bc5-42c3-ab3d-1b4f77393102",
+    "title": "Two exit servers with automatic failover",
+    "description": "The client now knows both exits — Serverspace NL and the new Aeza NL — and defaults to Auto: the daemon dials them in order and, when the one it is on stops answering, moves to the other on the next reconnect, mid-session, without a restart. Settings → General → Proxy Server lets you pin one. The status row shows the exit actually in use.",
+    "type": "feature",
+    "createdAt": "2026-09-15T11:48:09.985069+00:00"
+  },
+  {
     "id": "bec8f8ff-87b6-48b6-ac74-e840956da334",
     "title": "UDP sessions no longer crawl for hours after a short network drop",
     "description": "A Wi-Fi hiccup of six seconds or more used to poison the UDP session for good. The sender gave up on a packet after 15 retries and threw it away, but the receiver never skips a gap in its cumulative ACK — so from that moment every packet was retried to the limit, the bandwidth and RTT estimates froze, and the tunnel limped along at a fraction of its speed until a manual reconnect. That was the \"switch Auto to UDP and it works again\" effect: the switch was just a reconnect. Now a packet left unacknowledged after 15 retries declares the session dead on both ends. The daemon rebuilds its transport in place through the usual reconnect path, and the server tells the client to reconnect right away instead of leaving it to time out.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-07T15:38:22.120523+00:00"
-  },
-  {
-    "id": "e74af52e-800e-497a-810d-e55c65b01231",
-    "title": "План имплементации: автоматический реконнект и kill switch",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-07T15:36:55.038162+00:00"
   }
 ]
