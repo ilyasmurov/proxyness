@@ -40,12 +40,16 @@ SQL="$TMP/sync.sql"
 echo "BEGIN;" > "$SQL"
 for t in $TABLES; do
   cols=$(col_list "$t"); pk=$(pk_list "$t")
-  set_clause=$(echo "$cols" | tr ',' '\n' | sed 's/^ *//' | grep -vxF -f <(echo "$pk" | tr ',' '\n' | sed 's/^ *//') | sed 's/.*/& = EXCLUDED.&/' | paste -sd, -)
+  # Non-PK columns get updated on conflict; a table whose PK is every column
+  # (site_ips, site_domains…) has nothing to update → DO NOTHING. grep exits 1
+  # on "no lines", which pipefail would otherwise turn into an abort.
+  set_clause=$({ echo "$cols" | tr ',' '\n' | sed 's/^ *//' | grep -vxF -f <(echo "$pk" | tr ',' '\n' | sed 's/^ *//') || true; } | sed 's/.*/& = EXCLUDED.&/' | paste -sd, -)
+  if [ -n "$set_clause" ]; then conflict="DO UPDATE SET $set_clause"; else conflict="DO NOTHING"; fi
   cat >> "$SQL" <<S
 CREATE TEMP TABLE in_$t (LIKE $t INCLUDING DEFAULTS);
 \\copy in_$t ($cols) FROM '$TMP/$t.csv' WITH (FORMAT csv)
 INSERT INTO $t ($cols) SELECT $cols FROM in_$t
-  ON CONFLICT ($pk) DO UPDATE SET $set_clause;
+  ON CONFLICT ($pk) $conflict;
 S
 done
 # delete orphans, children first
