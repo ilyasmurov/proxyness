@@ -39,15 +39,21 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    # Both exits get every deploy. fail-fast is off so a dead host (the
-    # 2026-09-15 Serverspace outage) cannot block the deploy to the other;
-    # the run stays red for the host that failed, which is the truth.
+    # Every host gets every deploy; fail-fast is off so one dead host cannot
+    # block the others — its leg just stays red. Targets:
+    #   aeza     — exit (VPN traffic), Aeza NL 178.236.252.28
+    #   control  — control plane on the shared Ansamblist box (FirstVDS, RU):
+    #              admin API + config service + landing + primary Postgres,
+    #              never an exit. Caddy in front → landing publishes 8082, not 80.
+    # Serverspace (VPS_HOST / VPS_SSH_KEY) was dropped on 2026-09-15 — the host
+    # went dark and its leg only painted every run red; re-add the line if it
+    # ever returns (see deploy.md runbook).
     strategy:
       fail-fast: false
       matrix:
         target:
-          - { name: serverspace, host: VPS_HOST, key: VPS_SSH_KEY }
-          - { name: aeza, host: VPS2_HOST, key: VPS2_SSH_KEY }
+          - { name: aeza, host: VPS2_HOST, key: VPS2_SSH_KEY, landing_port: 80 }
+          - { name: control, host: VPS3_HOST, key: VPS3_SSH_KEY, landing_port: 8082 }
     name: ${{ matrix.target.name }}
 
     steps:
@@ -83,5 +89,5 @@ jobs:
             docker run -d \
               --name proxyness-landing \
               --restart unless-stopped \
-              -p 80:80 \
+              -p ${{ matrix.target.landing_port }}:80 \
               ghcr.io/${{ github.repository }}-landing:latest
