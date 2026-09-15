@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, ClipboardEvent } from "react";
+import { useState, useEffect, useRef, useCallback, ClipboardEvent, useMemo } from "react";
 import { useDaemon } from "./hooks/useDaemon";
 import { useStats } from "./hooks/useStats";
 import { StatusBar } from "./components/StatusBar";
@@ -42,25 +42,50 @@ if (typeof localStorage !== "undefined" && localStorage.getItem("proxyness-mode"
   localStorage.setItem("proxyness-mode", "tun");
 }
 
+// Every exit the client knows. In Auto mode the daemon gets the whole list and
+// fails over between them; a manual pick pins one. Addresses are raw IPs on
+// purpose — the client never resolves DNS, so a blocked/poisoned resolver
+// can't take the proxy down (see decisions.md, "Server picker").
 const SERVERS = [
   { id: "serverspace", label: "Serverspace NL", addr: "188.227.86.205:443" },
+  { id: "aeza", label: "Aeza NL", addr: "178.236.252.28:443" },
+];
+const AUTO_SERVER_ID = "auto";
+const SERVER_CHOICES: { id: string; label: string; addr?: string }[] = [
+  { id: AUTO_SERVER_ID, label: "Auto" },
+  ...SERVERS,
 ];
 const STORAGE_KEY = "proxyness-key";
-const SERVER_STORAGE_KEY = "proxyness-server";
+// v2 key: the pre-1.46 "proxyness-server" only ever held the single server's
+// id, so honouring it would pin every existing install to Serverspace — the
+// exit that was dead when this shipped. A fresh key starts everyone on Auto.
+const SERVER_STORAGE_KEY = "proxyness-server-v2";
+// Last exit the daemon reported as live; Auto dials it first so a reconnect
+// goes back to the server that was working.
+const LAST_SERVER_STORAGE_KEY = "proxyness-last-server";
 const AUTOCONNECT_STORAGE_KEY = "proxyness-autoconnect-onstart";
 const autoConnectDefault = () =>
   typeof localStorage !== "undefined" && localStorage.getItem(AUTOCONNECT_STORAGE_KEY) !== "false";
-// Migrate any legacy persisted pick to the current exit. Timeweb was decommissioned in 1.45.5,
-// Aeza in 1.45.8 (migration to Serverspace). Without this, stale localStorage values would
-// fall through serverAddrFor to Serverspace but the persisted value would lie.
 if (typeof localStorage !== "undefined") {
-  const v = localStorage.getItem(SERVER_STORAGE_KEY);
-  if (v === "timeweb" || v === "aeza") {
-    localStorage.setItem(SERVER_STORAGE_KEY, "serverspace");
-  }
+  localStorage.removeItem("proxyness-server"); // pre-1.46 single-server pick, see SERVER_STORAGE_KEY
 }
-const defaultServerId = () => localStorage.getItem(SERVER_STORAGE_KEY) || "serverspace";
-const serverAddrFor = (id: string) => SERVERS.find((s) => s.id === id)?.addr || SERVERS[0].addr;
+const defaultServerId = () => {
+  const v = localStorage.getItem(SERVER_STORAGE_KEY);
+  return v && SERVER_CHOICES.some((s) => s.id === v) ? v : AUTO_SERVER_ID;
+};
+// serversFor is the dial list for a choice: the picked server alone, or every
+// server with the last one that worked first.
+const serversFor = (id: string, lastGood: string | null): string[] => {
+  if (id !== AUTO_SERVER_ID) {
+    const s = SERVERS.find((x) => x.id === id);
+    return [s?.addr ?? SERVERS[0].addr];
+  }
+  const addrs = SERVERS.map((s) => s.addr);
+  if (lastGood && addrs.includes(lastGood)) return [lastGood, ...addrs.filter((a) => a !== lastGood)];
+  return addrs;
+};
+const serverLabelFor = (addr: string) =>
+  SERVERS.find((s) => s.addr === addr)?.label ?? addr.replace(/:\d+$/, "");
 
 // ---------------------------------------------------------------------------
 // Settings Page (sidebar nav variant)
@@ -83,7 +108,7 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
   onHelperError?: (err: string) => void;
   isConnected: boolean;
   serverId: string;
-  servers: { id: string; label: string; addr: string }[];
+  servers: { id: string; label: string; addr?: string }[];
   onServerChange: (id: string) => void;
   autoConnectOnStart: boolean;
   onAutoConnectChange: (v: boolean) => void;
@@ -485,7 +510,11 @@ function SettingsPage({ version, transportMode, onTransportChange, onChangeKey, 
 export function App() {
   const [key, setKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [serverId, setServerId] = useState<string>(defaultServerId);
-  const SERVER = serverAddrFor(serverId);
+  // The exit the daemon is actually on (from /tun/status); persisted as the
+  // Auto-mode starting point. Memoised so the dep arrays below see a stable
+  // list — a fresh array per render would re-register every effect.
+  const [liveServer, setLiveServer] = useState<string | null>(() => localStorage.getItem(LAST_SERVER_STORAGE_KEY));
+  const dialServers = useMemo(() => serversFor(serverId, liveServer), [serverId, liveServer]);
   const [showSetup, setShowSetup] = useState(!key);
   const [keyError, setKeyError] = useState("");
   const [keyValidating, setKeyValidating] = useState(false);
@@ -583,14 +612,14 @@ export function App() {
           // connect() returns false on non-ok (e.g. 409 from lockDevice race
           // against a stale server-side lock on cold start). Treat that as
           // a retryable failure instead of silently leaving SOCKS5 down.
-          const ok = await connect(SERVER, key);
+          const ok = await connect(dialServers, key);
           if (!ok) throw new Error("socks5 connect failed");
-          const result = await (window as any).tunProxy?.start(SERVER, key);
+          const result = await (window as any).tunProxy?.start(dialServers, key);
           if (result && !result.ok) throw new Error(result.error);
           setTunStatus("active");
           wasConnected.current = true;
         } else {
-          const ok = await connect(SERVER, key);
+          const ok = await connect(dialServers, key);
           if (!ok) throw new Error("connect failed");
         }
         finish(null);
@@ -608,7 +637,7 @@ export function App() {
     };
 
     tryReconnect();
-  }, [key, proxyMode, connect, SERVER]);
+  }, [key, proxyMode, connect, dialServers]);
 
   // Cleanup reconnect timer on unmount
   useEffect(() => {
@@ -643,6 +672,10 @@ export function App() {
           else if (s.status === "reconnecting") next = "reconnecting";
           setTunStatus(next);
           setTunUptime(s.uptime || 0);
+          if (next === "active" && typeof s.server === "string" && s.server) {
+            setLiveServer(s.server);
+            localStorage.setItem(LAST_SERVER_STORAGE_KEY, s.server);
+          }
           const active = next === "active";
           if (s.error) setTunError(s.error);
           // Only fire client-side startReconnect on a HARD disconnect, not
@@ -712,12 +745,12 @@ export function App() {
     setProxyMode(m);
     localStorage.setItem("proxyness-mode", m);
     if (wasConnected && key) {
-      if (m === "tun") await tunConnect(SERVER, key);
-      else await connect(SERVER, key);
+      if (m === "tun") await tunConnect(dialServers, key);
+      else await connect(dialServers, key);
     }
   };
 
-  const tunConnect = useCallback(async (server: string, k: string) => {
+  const tunConnect = useCallback(async (servers: string[], k: string) => {
     setTunLoading(true);
     setTunError(null);
     try {
@@ -731,11 +764,11 @@ export function App() {
       // handshake races — e.g. the previous daemon session hasn't fully
       // released the device lock on the server yet when /connect reaches
       // it a beat too soon.
-      let socksOk = await connect(server, k);
+      let socksOk = await connect(servers, k);
       if (!socksOk) {
         console.warn("[tunConnect] first /connect failed, retrying in 800ms");
         await new Promise((r) => setTimeout(r, 800));
-        socksOk = await connect(server, k);
+        socksOk = await connect(servers, k);
       }
       if (socksOk) {
         (window as any).sysproxy?.setPacSites({ proxy_all: true });
@@ -749,7 +782,7 @@ export function App() {
       }
 
       // Start TUN for apps
-      const result = await (window as any).tunProxy?.start(server, k);
+      const result = await (window as any).tunProxy?.start(servers, k);
       if (result && !result.ok) {
         const err = result.error || "Failed to connect";
         if (isKeyInvalid(err)) {
@@ -809,21 +842,21 @@ export function App() {
       if (id === serverId) return;
       localStorage.setItem(SERVER_STORAGE_KEY, id);
       setServerId(id);
-      const nextAddr = serverAddrFor(id);
+      const next = serversFor(id, liveServer);
       if (!key) return;
       if (isConnected) {
         if (proxyMode === "tun") {
           await tunDisconnect();
           await new Promise((r) => setTimeout(r, 300));
-          await tunConnect(nextAddr, key);
+          await tunConnect(next, key);
         } else {
           await disconnect();
           await new Promise((r) => setTimeout(r, 300));
-          await connect(nextAddr, key);
+          await connect(next, key);
         }
       }
     },
-    [serverId, isConnected, key, proxyMode, tunConnect, tunDisconnect, connect, disconnect],
+    [serverId, liveServer, isConnected, key, proxyMode, tunConnect, tunDisconnect, connect, disconnect],
   );
 
   // Handle transport mode change from the StatusBar badge dropdown.
@@ -845,14 +878,14 @@ export function App() {
       if (proxyMode === "tun") {
         await tunDisconnect();
         await new Promise((r) => setTimeout(r, 300));
-        await tunConnect(SERVER, key);
+        await tunConnect(dialServers, key);
       } else {
         await disconnect();
         await new Promise((r) => setTimeout(r, 300));
-        await connect(SERVER, key);
+        await connect(dialServers, key);
       }
     },
-    [key, isConnected, proxyMode, SERVER, tunConnect, tunDisconnect, connect, disconnect],
+    [key, isConnected, proxyMode, dialServers, tunConnect, tunDisconnect, connect, disconnect],
   );
 
   // Update tray icon based on connection status
@@ -915,9 +948,9 @@ export function App() {
     app.onTrayConnect(() => {
       if (!isConnected && key) {
         if (proxyMode === "tun") {
-          tunConnect(SERVER, key);
+          tunConnect(dialServers, key);
         } else {
-          connect(SERVER, key);
+          connect(dialServers, key);
         }
       }
     });
@@ -930,7 +963,7 @@ export function App() {
         }
       }
     });
-  }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect, SERVER]);
+  }, [key, isConnected, proxyMode, connect, disconnect, tunConnect, tunDisconnect, dialServers]);
 
 
   const connectWithKey = async (k: string) => {
@@ -939,17 +972,30 @@ export function App() {
     setKeyError("");
     setKeyValidating(true);
     try {
-      const res = await fetch(
-        `http://127.0.0.1:9090/validate-key?server=${encodeURIComponent(SERVER)}&key=${encodeURIComponent(trimmed)}`
-      );
-      const body = await res.json();
-      if (!body.valid) {
+      // Ask every exit, preferred first: one being down must not block setup,
+      // and a key accepted anywhere is a real key.
+      let verdict: boolean | null = null;
+      for (const addr of serversFor(AUTO_SERVER_ID, liveServer)) {
+        try {
+          const res = await fetch(
+            `http://127.0.0.1:9090/validate-key?server=${encodeURIComponent(addr)}&key=${encodeURIComponent(trimmed)}`
+          );
+          const body = await res.json();
+          if (typeof body?.valid !== "boolean") continue; // daemon relayed "server unreachable"
+          verdict = body.valid;
+          if (verdict) break;
+        } catch {
+          // that exit (or the daemon) didn't answer — try the next one
+        }
+      }
+      if (verdict === null) {
+        setKeyError("Server unreachable");
+        return;
+      }
+      if (!verdict) {
         setKeyError("Invalid key");
         return;
       }
-    } catch {
-      setKeyError("Server unreachable");
-      return;
     } finally {
       setKeyValidating(false);
     }
@@ -1179,7 +1225,7 @@ export function App() {
                 {isConnected ? (
                   <>
                     <span style={{ fontFamily: fb, fontSize: 12, color: c.t3, animation: "pn-blur-light 0.4s cubic-bezier(0.25,1,0.5,1) 0.35s both" }}>
-                      {SERVER.replace(/:\d+$/, "")}
+                      {serverLabelFor(liveServer ?? dialServers[0])}
                     </span>
                     <span style={{
                       fontFamily: fd, fontSize: 9, fontWeight: 600, letterSpacing: 1,
@@ -1246,8 +1292,8 @@ export function App() {
                     if (proxyMode === "tun") tunDisconnect();
                     else disconnect();
                   } else if (key) {
-                    if (proxyMode === "tun") tunConnect(SERVER, key);
-                    else connect(SERVER, key);
+                    if (proxyMode === "tun") tunConnect(dialServers, key);
+                    else connect(dialServers, key);
                   }
                 }}
                 disabled={(isLoading && !reconnecting && !daemonReconnecting) || (!isConnected && !!helperError)}
@@ -1449,7 +1495,7 @@ export function App() {
           onHelperError={setHelperError}
           isConnected={isConnected}
           serverId={serverId}
-          servers={SERVERS}
+          servers={SERVER_CHOICES}
           onServerChange={handleServerChange}
           autoConnectOnStart={autoConnectOnStart}
           onAutoConnectChange={handleAutoConnectChange}

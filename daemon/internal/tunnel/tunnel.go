@@ -64,7 +64,10 @@ type Tunnel struct {
 	meter            *dstats.RateMeter
 	transport        transport.Transport
 	transportFactory TransportFactory
-	machineID        [16]byte
+	// servers is the ring of exits the client knows; reconnects walk it
+	// when the current server refuses. Nil = single server, never moves.
+	servers   *transport.ServerRing
+	machineID [16]byte
 
 	// udpRetry paces the walk back from the TLS fallback to UDP
 	// (see maybeUpgradeToUDP). It carries its own lock.
@@ -273,6 +276,35 @@ func (t *Tunnel) stopLocked() {
 		t.transport = nil
 	}
 	t.status = Disconnected
+}
+
+// SetServers hands the tunnel the ring of exit servers the client sent, so a
+// reconnect can fail over to another exit (PRXNS-20). Nil keeps the
+// single-server behaviour.
+func (t *Tunnel) SetServers(ring *transport.ServerRing) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.servers = ring
+}
+
+// GetServerAddr is the exit the tunnel is currently connected to, "" while
+// disconnected.
+func (t *Tunnel) GetServerAddr() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.status == Disconnected {
+		return ""
+	}
+	return t.serverAddr
+}
+
+// keyRejectedEverywhere mirrors tun.Engine: an invalid-key error ends the
+// reconnect loop only once every exit in the ring has rejected the key.
+func (t *Tunnel) keyRejectedEverywhere() bool {
+	t.mu.Lock()
+	ring := t.servers
+	t.mu.Unlock()
+	return ring == nil || ring.AllRejected()
 }
 
 func (t *Tunnel) GetStatus() Status {
@@ -652,6 +684,7 @@ func (t *Tunnel) maybeUpgradeToUDP() bool {
 func (t *Tunnel) tryReconnectOnce() error {
 	t.mu.Lock()
 	factory := t.transportFactory
+	ring := t.servers
 	serverAddr := t.serverAddr
 	key := t.key
 	mid := t.machineID
@@ -660,15 +693,30 @@ func (t *Tunnel) tryReconnectOnce() error {
 	if factory == nil {
 		return errors.New("no transport factory")
 	}
+	if ring != nil {
+		serverAddr = ring.Current()
+	}
 
 	tr := factory()
 	if err := tr.Connect(serverAddr, key, mid); err != nil {
 		tr.Close()
+		if ring != nil {
+			if next, moved := ring.NoteFailure(serverAddr, err); moved {
+				log.Printf("[tunnel] reconnect: %s failed (%v), next attempt dials %s", serverAddr, err, next)
+			}
+		}
 		return err
+	}
+	if ring != nil {
+		ring.NoteSuccess()
 	}
 
 	t.mu.Lock()
 	t.transport = tr
+	if t.serverAddr != serverAddr {
+		log.Printf("[tunnel] failover: connected to %s (was %s)", serverAddr, t.serverAddr)
+		t.serverAddr = serverAddr
+	}
 	t.mu.Unlock()
 	log.Printf("[tunnel] reconnected via %s", tr.Mode())
 	return nil
@@ -692,7 +740,7 @@ func (t *Tunnel) reconnectTransport() error {
 	refresh := t.refreshRoutesFn
 	t.mu.Unlock()
 
-	var lastErr error
+	var lastErr, lastRetryable error
 	consecutiveUnreach := 0
 	nextRefreshAt := fastRetryFirstRefreshAt
 	for attempt := 1; attempt <= maxReconnects; attempt++ {
@@ -724,10 +772,14 @@ func (t *Tunnel) reconnectTransport() error {
 		}
 		log.Printf("[tunnel] reconnect attempt %d failed: %v", attempt, err)
 		lastErr = err
+		if !transport.IsInvalidKey(err) {
+			lastRetryable = err
+		}
 		// Only "invalid key" is unrecoverable. "machine id rejected" stays
 		// retryable — server restarts re-bind on the next connect, post-wake
 		// fingerprint blips heal via the machineid cache (see tun/engine.go).
-		if strings.Contains(err.Error(), "invalid key") {
+		// With several exits a rejection is final only once all of them said so.
+		if transport.IsInvalidKey(err) && t.keyRejectedEverywhere() {
 			return err
 		}
 		if transport.IsNetworkUnreachable(err) {
@@ -736,6 +788,11 @@ func (t *Tunnel) reconnectTransport() error {
 			consecutiveUnreach = 0
 			nextRefreshAt = fastRetryFirstRefreshAt
 		}
+	}
+	// A lagging secondary rejecting the key while the other exit timed out is
+	// not a revoked device: hand back the retryable error (see tun.Engine).
+	if transport.IsInvalidKey(lastErr) && lastRetryable != nil && !t.keyRejectedEverywhere() {
+		return lastRetryable
 	}
 	return lastErr
 }

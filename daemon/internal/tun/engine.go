@@ -42,28 +42,31 @@ const (
 )
 
 type Engine struct {
-	mu           sync.Mutex
-	status       Status
-	serverAddr   string
-	key          string
-	rules        *Rules
-	procInfo     ProcessInfo
-	stack        *stack.Stack
-	helperAddr   string
-	helperConn   net.Conn
-	endpoint     *channel.Endpoint
-	bridgeCancel context.CancelFunc
-	bridgeDone   chan struct{} // signalled by bridge goroutines on exit; healthLoop D4 watches it
-	selfPath      string // daemon's own path — always bypassed to prevent loops
-	rawUDP        *RawUDPHandler
-	helperWriteMu sync.Mutex
-	meter         *dstats.RateMeter
+	mu               sync.Mutex
+	status           Status
+	serverAddr       string
+	key              string
+	rules            *Rules
+	procInfo         ProcessInfo
+	stack            *stack.Stack
+	helperAddr       string
+	helperConn       net.Conn
+	endpoint         *channel.Endpoint
+	bridgeCancel     context.CancelFunc
+	bridgeDone       chan struct{} // signalled by bridge goroutines on exit; healthLoop D4 watches it
+	selfPath         string        // daemon's own path — always bypassed to prevent loops
+	rawUDP           *RawUDPHandler
+	helperWriteMu    sync.Mutex
+	meter            *dstats.RateMeter
 	transport        transport.Transport
 	transportFactory func() transport.Transport
-	machineID        [16]byte
-	startTime        time.Time
-	lastError        string
-	stopHealth       chan struct{}
+	// servers is the ring of exits the client knows; reconnects walk it
+	// when the current server refuses. Nil = single server, never moves.
+	servers    *transport.ServerRing
+	machineID  [16]byte
+	startTime  time.Time
+	lastError  string
+	stopHealth chan struct{}
 
 	// udpRetry paces the walk back from the TLS fallback to UDP
 	// (see maybeUpgradeToUDP). It carries its own lock.
@@ -111,6 +114,37 @@ func (e *Engine) SetTransportFactory(factory func() transport.Transport, machine
 	defer e.mu.Unlock()
 	e.transportFactory = factory
 	e.machineID = machineID
+}
+
+// SetServers hands the engine the ring of exit servers the client sent, so a
+// reconnect can fail over to another exit (PRXNS-20). Nil keeps the
+// single-server behaviour.
+func (e *Engine) SetServers(ring *transport.ServerRing) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.servers = ring
+}
+
+// GetServerAddr is the exit the engine is currently connected to, "" while
+// inactive. After a failover this differs from what the client asked for.
+func (e *Engine) GetServerAddr() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.status == StatusInactive {
+		return ""
+	}
+	return e.serverAddr
+}
+
+// keyRejectedEverywhere is the "stop reconnecting" test for an invalid-key
+// error: final with a single server, but with a ring only once every server
+// has rejected the key — a secondary whose device table lags the primary says
+// "invalid key" for a device the primary knows (PRXNS-20).
+func (e *Engine) keyRejectedEverywhere() bool {
+	e.mu.Lock()
+	ring := e.servers
+	e.mu.Unlock()
+	return ring == nil || ring.AllRejected()
 }
 
 func (e *Engine) GetStatus() Status {
@@ -257,9 +291,14 @@ func (e *Engine) closeAllConns() {
 }
 
 type StartRequest struct {
+	// ServerAddr is the exit to dial; with Servers set it is the one the API
+	// actually reached and is what the engine records.
 	ServerAddr string `json:"server"`
-	Key        string `json:"key"`
-	HelperAddr string `json:"helper_addr"`
+	// Servers lists every exit the client knows, preferred first. The API
+	// turns it into a ServerRing for failover; empty = just ServerAddr.
+	Servers    []string `json:"servers,omitempty"`
+	Key        string   `json:"key"`
+	HelperAddr string   `json:"helper_addr"`
 }
 
 func (e *Engine) Start(req StartRequest) error {
@@ -843,6 +882,7 @@ func (e *Engine) maybeUpgradeToUDP() bool {
 func (e *Engine) tryReconnectOnce() error {
 	e.mu.Lock()
 	factory := e.transportFactory
+	ring := e.servers
 	serverAddr := e.serverAddr
 	key := e.key
 	mid := e.machineID
@@ -851,15 +891,32 @@ func (e *Engine) tryReconnectOnce() error {
 	if factory == nil {
 		return errors.New("no transport factory")
 	}
+	if ring != nil {
+		serverAddr = ring.Current()
+	}
 
 	tr := factory()
 	if err := tr.Connect(serverAddr, key, mid); err != nil {
 		tr.Close()
+		if ring != nil {
+			// A server-side failure moves the ring; ENETUNREACH does not —
+			// the link is down and no other exit would do better.
+			if next, moved := ring.NoteFailure(serverAddr, err); moved {
+				log.Printf("[tun] reconnect: %s failed (%v), next attempt dials %s", serverAddr, err, next)
+			}
+		}
 		return err
+	}
+	if ring != nil {
+		ring.NoteSuccess()
 	}
 
 	e.mu.Lock()
 	e.transport = tr
+	if e.serverAddr != serverAddr {
+		log.Printf("[tun] failover: connected to %s (was %s)", serverAddr, e.serverAddr)
+		e.serverAddr = serverAddr
+	}
 	e.mu.Unlock()
 	// New transport, clean slate — see the note in setConnected. This covers
 	// the paths where the status never left Active, so setConnected is a
@@ -899,7 +956,7 @@ func (e *Engine) reconnectTransport() error {
 	const maxReconnects = 20
 	const reconnectDelay = 3 * time.Second
 
-	var lastErr error
+	var lastErr, lastRetryable error
 	consecutiveUnreach := 0
 	nextRefreshAt := fastRetryFirstRefreshAt
 	for attempt := 1; attempt <= maxReconnects; attempt++ {
@@ -931,12 +988,16 @@ func (e *Engine) reconnectTransport() error {
 		}
 		log.Printf("[tun] reconnect attempt %d failed: %v", attempt, err)
 		lastErr = err
-		// Only "invalid key" (key revoked server-side) is unrecoverable.
+		if !transport.IsInvalidKey(err) {
+			lastRetryable = err
+		}
+		// Only "invalid key" (key revoked server-side) is unrecoverable —
+		// and with several exits only once all of them said so.
 		// "machine id rejected" stays retryable: a server restart wipes the
 		// binding and the next connect re-binds, and a post-wake fingerprint
 		// blip heals via the machineid disk cache — bailing out here used to
 		// hard-stop the engine and kill all traffic until manual reconnect.
-		if strings.Contains(err.Error(), "invalid key") {
+		if transport.IsInvalidKey(err) && e.keyRejectedEverywhere() {
 			return err
 		}
 		if transport.IsNetworkUnreachable(err) {
@@ -945,6 +1006,12 @@ func (e *Engine) reconnectTransport() error {
 			consecutiveUnreach = 0
 			nextRefreshAt = fastRetryFirstRefreshAt
 		}
+	}
+	// One exit rejecting the key while the other just timed out is a lagging
+	// secondary, not a revoked device: hand the caller the retryable error so
+	// the client keeps trying instead of reading "invalid key" and stopping.
+	if transport.IsInvalidKey(lastErr) && lastRetryable != nil && !e.keyRejectedEverywhere() {
+		return lastRetryable
 	}
 	return lastErr
 }

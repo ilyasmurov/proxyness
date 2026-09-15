@@ -5,7 +5,7 @@ import type { LocalSite } from "../sites/types";
 declare global {
   interface Window {
     tunProxy?: {
-      start: (server: string, key: string) => void;
+      start: (servers: string[], key: string) => void;
       stop: () => void;
       getStatus: () => Promise<{ status: string }>;
       getRules: () => Promise<{ mode: string; apps: string[]; no_tls_apps?: string[] }>;

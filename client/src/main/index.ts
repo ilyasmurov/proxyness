@@ -869,13 +869,15 @@ function setupIpc() {
     return await r.json(); // CatalogSite[]
   });
 
-  ipcMain.handle("tun-start", async (_e, server: string, key: string) => {
+  ipcMain.handle("tun-start", async (_e, servers: string[] | string, key: string) => {
+    const list = Array.isArray(servers) ? servers : [servers];
     try {
       const res = await fetch("http://127.0.0.1:9090/tun/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          server,
+          servers: list,
+          server: list[0],
           key,
           helper_addr: process.platform === "darwin"
             ? "/var/run/proxyness-helper.sock"

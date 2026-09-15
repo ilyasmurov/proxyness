@@ -66,7 +66,7 @@ contextBridge.exposeInMainWorld("appInfo", {
 });
 
 contextBridge.exposeInMainWorld("tunProxy", {
-  start: (server: string, key: string) => ipcRenderer.invoke("tun-start", server, key),
+  start: (servers: string[], key: string) => ipcRenderer.invoke("tun-start", servers, key),
   stop: () => ipcRenderer.invoke("tun-stop"),
   wake: () => ipcRenderer.invoke("tun-wake"),
   getStatus: () => ipcRenderer.invoke("tun-status"),

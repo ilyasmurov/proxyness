@@ -42,14 +42,41 @@ type Server struct {
 
 type ConnectRequest struct {
 	ServerAddr string `json:"server"`
-	Key        string `json:"key"`
-	Version    string `json:"version,omitempty"`
+	// Servers lists every exit the client knows, preferred first; the daemon
+	// dials them in order and fails over between them on reconnect
+	// (PRXNS-20). Empty = just ServerAddr, as before.
+	Servers []string `json:"servers,omitempty"`
+	Key     string   `json:"key"`
+	Version string   `json:"version,omitempty"`
 }
 
 type StatusResponse struct {
 	Status string `json:"status"`
 	Uptime int64  `json:"uptime"`
 	Error  string `json:"error,omitempty"`
+	// Server is the exit currently in use — after a failover it differs
+	// from the client's preferred one.
+	Server string `json:"server,omitempty"`
+}
+
+// newServerRing builds the failover ring from a request: the explicit list
+// when the client sent one, else the single legacy address.
+func newServerRing(servers []string, single string) *transport.ServerRing {
+	if len(servers) == 0 {
+		servers = []string{single}
+	}
+	return transport.NewServerRing(servers...)
+}
+
+// transportFactory returns a constructor bound to the current transport
+// mode. The engine and tunnel call it on every rebuild, and ConnectAny on
+// every candidate server.
+func (s *Server) transportFactory() func() transport.Transport {
+	return func() transport.Transport {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.createTransport()
+	}
 }
 
 func New(t *tunnel.Tunnel, te *tun.Engine, listenAddr string, meter *dstats.RateMeter) *Server {
@@ -188,23 +215,29 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	// Lock device on server before connecting
-	if err := lockDevice(req.ServerAddr, req.Key, s.sessionID); err != nil {
-		log.Printf("[api] /connect rejected (409) for key=%s: %v", shortKey(req.Key), err)
-		http.Error(w, err.Error(), http.StatusConflict)
+	ring := newServerRing(req.Servers, req.ServerAddr)
+	if ring == nil {
+		http.Error(w, "missing server", http.StatusBadRequest)
 		return
 	}
 
-	// Create and connect transport
-	s.mu.Lock()
-	tr := s.createTransport()
-	s.mu.Unlock()
-
+	// Dial the exits in the client's order; the first that accepts wins and
+	// becomes the ring's current server for later reconnects.
+	factory := s.transportFactory()
 	fp := machineid.Fingerprint()
-	if err := tr.Connect(req.ServerAddr, req.Key, fp); err != nil {
-		go unlockDevice(req.ServerAddr, req.Key, s.sessionID)
+	tr, addr, err := transport.ConnectAny(ring, factory, req.Key, fp)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Lock the device on the exit we actually reached. Server-side this is
+	// a no-op today (binding lives in the binary protocol), but a 409 still
+	// means another session holds the device.
+	if err := lockDevice(addr, req.Key, s.sessionID); err != nil {
+		tr.Close()
+		log.Printf("[api] /connect rejected (409) for key=%s: %v", shortKey(req.Key), err)
+		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
 
@@ -213,26 +246,23 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	s.tunnel.SetTransport(tr)
-	s.tunnel.SetTransportFactory(func() transport.Transport {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		return s.createTransport()
-	}, fp)
-	log.Printf("[api] transport connected: mode=%s", tr.Mode())
+	s.tunnel.SetTransportFactory(factory, fp)
+	s.tunnel.SetServers(ring)
+	log.Printf("[api] transport connected: mode=%s server=%s", tr.Mode(), addr)
 
-	if err := s.tunnel.Start(s.listenAddr, req.ServerAddr, req.Key); err != nil {
+	if err := s.tunnel.Start(s.listenAddr, addr, req.Key); err != nil {
 		tr.Close()
 		s.mu.Lock()
 		s.activeTransport = nil
 		s.mu.Unlock()
 		s.tunnel.SetTransport(nil)
-		go unlockDevice(req.ServerAddr, req.Key, s.sessionID)
+		go unlockDevice(addr, req.Key, s.sessionID)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	s.mu.Lock()
-	s.serverAddr = req.ServerAddr
+	s.serverAddr = addr
 	s.key = req.Key
 	if s.keyStore != nil {
 		if err := s.keyStore.Save(req.Key); err != nil {
@@ -251,7 +281,7 @@ func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	if req.Version != "" {
-		go reportVersion(req.ServerAddr, req.Key, req.Version)
+		go reportVersion(addr, req.Key, req.Version)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -347,6 +377,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		Status: string(s.tunnel.GetStatus()),
 		Uptime: s.tunnel.Uptime(),
 		Error:  s.tunnel.LastError(),
+		Server: s.tunnel.GetServerAddr(),
 	})
 }
 
@@ -404,13 +435,17 @@ func (s *Server) handleTUNStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	ring := newServerRing(req.Servers, req.ServerAddr)
+	if ring == nil {
+		http.Error(w, "missing server", http.StatusBadRequest)
+		return
+	}
 
-	// Create transport for the TUN engine if not already active
-	s.mu.Lock()
-	tr := s.createTransport()
-	s.mu.Unlock()
+	// Dial the exits in the client's order; the first that accepts wins.
+	factory := s.transportFactory()
 	fp := machineid.Fingerprint()
-	if err := tr.Connect(req.ServerAddr, req.Key, fp); err != nil {
+	tr, addr, err := transport.ConnectAny(ring, factory, req.Key, fp)
+	if err != nil && transport.IsNetworkUnreachable(err) {
 		// This first connect runs BEFORE the TUN is created, so it dials over
 		// the system route table. A helper that died ungracefully can leave
 		// orphaned 0.0.0.0/1+128.0.0.0/1 routes pointing at a dead utun, which
@@ -420,29 +455,22 @@ func (s *Server) handleTUNStart(w http.ResponseWriter, r *http.Request) {
 		// not started yet), so ask the helper to flush orphan routes and retry
 		// once — otherwise the client retries /tun/start forever against the
 		// same dead route.
-		if transport.IsNetworkUnreachable(err) {
-			log.Printf("[api] TUN connect ENETUNREACH, cleaning orphan routes and retrying: %v", err)
-			if cerr := tun.CleanRoutes(req.HelperAddr); cerr != nil {
-				log.Printf("[api] clean orphan routes failed: %v", cerr)
-			}
-			tr.Close()
-			s.mu.Lock()
-			tr = s.createTransport()
-			s.mu.Unlock()
-			err = tr.Connect(req.ServerAddr, req.Key, fp)
+		log.Printf("[api] TUN connect ENETUNREACH, cleaning orphan routes and retrying: %v", err)
+		if cerr := tun.CleanRoutes(req.HelperAddr); cerr != nil {
+			log.Printf("[api] clean orphan routes failed: %v", cerr)
 		}
-		if err != nil {
-			http.Error(w, fmt.Sprintf("transport connect: %v", err), http.StatusInternalServerError)
-			return
-		}
+		tr, addr, err = transport.ConnectAny(ring, factory, req.Key, fp)
 	}
+	if err != nil {
+		http.Error(w, fmt.Sprintf("transport connect: %v", err), http.StatusInternalServerError)
+		return
+	}
+	// The engine records the exit we actually reached, not the preferred one.
+	req.ServerAddr = addr
 	s.tunEngine.SetTransport(tr)
-	s.tunEngine.SetTransportFactory(func() transport.Transport {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		return s.createTransport()
-	}, fp)
-	log.Printf("[api] TUN transport connected: mode=%s", tr.Mode())
+	s.tunEngine.SetTransportFactory(factory, fp)
+	s.tunEngine.SetServers(ring)
+	log.Printf("[api] TUN transport connected: mode=%s server=%s", tr.Mode(), addr)
 
 	if err := s.tunEngine.Start(req); err != nil {
 		tr.Close()
@@ -481,6 +509,9 @@ func (s *Server) handleTUNStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if e := s.tunEngine.GetLastError(); e != "" {
 		resp["error"] = e
+	}
+	if srv := s.tunEngine.GetServerAddr(); srv != "" {
+		resp["server"] = srv
 	}
 	json.NewEncoder(w).Encode(resp)
 }

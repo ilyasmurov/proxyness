@@ -53,14 +53,16 @@ export function useDaemon() {
   }, [fetchStatus]);
 
   const connect = useCallback(
-    async (server: string, key: string): Promise<boolean> => {
+    async (servers: string[], key: string): Promise<boolean> => {
       setLoading(true);
       setError(null);
       try {
         const res = await fetch(`${API_BASE}/connect`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ server, key, version: __APP_VERSION__ }),
+          // `server` stays for older daemons; the list is what a 1.46+ daemon
+          // fails over across.
+          body: JSON.stringify({ servers, server: servers[0], key, version: __APP_VERSION__ }),
         });
         if (!res.ok) {
           const body = await res.text();
