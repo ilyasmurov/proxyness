@@ -71,8 +71,10 @@ function layout(nodes: TopologyNode[]) {
 }
 
 // SVG text does not wrap or clip; keep every label inside its box by
-// trimming to what fits (≈ px per char at the given font size) with an
-// ellipsis. Widths are generous enough that the common cases never trim.
+// trimming to what fits with an ellipsis. px-per-char values come from
+// measuring rendered Geist (getComputedTextLength, 2026-09-15): 11px sub
+// ≈5.0–5.7, 11.5px rows ≈5.2–5.8, 13px/600 titles ≈6.2–7.3 — the
+// constants sit at the upper end so a full-width string fits, never wraps.
 function fit(text: string, boxW: number, pxPerChar: number, pad = 28): string {
   const max = Math.max(4, Math.floor((boxW - pad) / pxPerChar));
   return text.length <= max ? text : text.slice(0, max - 1) + "…";
@@ -182,10 +184,10 @@ export function Topology() {
                   return (
                     <g key={n.id} className={`node${group ? " group" : ""}`} transform={`translate(${b.x},${b.y})`}>
                       <rect width={b.w} height={b.h} />
-                      <text className="title" x={14} y={26}>{fit(n.label, b.w, 7.4)}</text>
+                      <text className="title" x={14} y={26}>{fit(n.label, b.w, 7.4, 26)}</text>
                       {n.sub && (
                         <text className="sub" x={14} y={44}>
-                          {fit((n.kind === "egress" ? stripScheme(n.sub) : n.sub) + (n.latency_ms ? ` · ${n.latency_ms} ms` : ""), b.w, 6.2)}
+                          {fit((n.kind === "egress" ? stripScheme(n.sub) : n.sub) + (n.latency_ms ? ` · ${n.latency_ms} ms` : ""), b.w, 5.8, 22)}
                         </text>
                       )}
                       {n.kind === "exit" && <text className="row" x={14} y={64}>{n.devices} device{n.devices === 1 ? "" : "s"}</text>}
@@ -197,7 +199,7 @@ export function Topology() {
                             <g key={c.id} transform={`translate(0,${i * 20})`}>
                               <circle className={`st ${c.state}`} cx={4} cy={-3} r={3.5} />
                               <text className="row" x={14} y={0}>
-                                {fit(c.id === "dns" ? (c.detail ? c.detail.replace("A → ", "DNS → ") : "DNS") : c.label + (c.latency_ms ? ` · ${c.latency_ms} ms` : ""), b.w, 6.6, 42)}
+                                {fit(c.id === "dns" ? (c.detail ? c.detail.replace("A → ", "DNS → ") : "DNS") : c.label + (c.latency_ms ? ` · ${c.latency_ms} ms` : ""), b.w, 6.0, 42)}
                               </text>
                             </g>
                           ))}
