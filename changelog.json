@@ -1,5 +1,12 @@
 [
   {
+    "id": "b706995c-c97e-44f1-b8df-d3056c6bef65",
+    "title": "A bridge server for networks that block the exit",
+    "description": "Some home ISPs let a connection to our Amsterdam exit open and then drop every packet. The client now knows a bridge inside Russia that forwards traffic to the same exit, and Auto picks it when the direct route is dead. Serverspace is gone from the list: the host died on 15 September and only slowed down the first connect.",
+    "type": "improvement",
+    "createdAt": "2026-09-15T13:42:55.072872+00:00"
+  },
+  {
     "id": "d9f2fcff-9bc5-42c3-ab3d-1b4f77393102",
     "title": "Two exit servers with automatic failover",
     "description": "The client now knows both exits — Serverspace NL and the new Aeza NL — and defaults to Auto: the daemon dials them in order and, when the one it is on stops answering, moves to the other on the next reconnect, mid-session, without a restart. Settings → General → Proxy Server lets you pin one. The status row shows the exit actually in use.",
@@ -1391,12 +1398,5 @@
     "description": null,
     "type": "improvement",
     "createdAt": "2026-04-07T15:40:53.011046+00:00"
-  },
-  {
-    "id": "fd32a3f6-9394-4874-b1ce-dda4fbf145cd",
-    "title": "RateMeter: трекинг lastByteAt для детектора traffic stall",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-07T15:38:22.120523+00:00"
   }
 ]
