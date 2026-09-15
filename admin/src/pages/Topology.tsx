@@ -17,14 +17,16 @@ const css = `
 .topo .node .title{font-size:13px;font-weight:600;fill:var(--foreground)}
 .topo .node .sub{font-size:11px;fill:var(--muted-foreground)}
 .topo .node .row{font-size:11.5px;fill:var(--foreground)}
-.topo .edge path{fill:none;stroke-width:2;stroke:var(--topo-ok)}
-.topo .edge.down path{stroke:var(--topo-bad)}
-.topo .edge.unknown path{stroke:var(--topo-unk);stroke-dasharray:5 5}
+.topo .edge path{fill:none;stroke-width:2;stroke:var(--topo-ok);stroke-opacity:.35}
+.topo .edge.down path{stroke:var(--topo-bad);stroke-opacity:.9}
+.topo .edge.unknown path{stroke:var(--topo-unk);stroke-dasharray:5 5;stroke-opacity:.8}
 .topo .edge .lbl{font-size:11px;fill:var(--muted-foreground)}
 .topo .edge.down .lbl{fill:var(--topo-bad);font-weight:600}
-.topo .edge .flow{stroke-dasharray:4 8;animation:topoflow 1.2s linear infinite;stroke:var(--topo-ok);opacity:.9}
+/* base line stays faint; bright round dots run along a live link so traffic
+   is visibly moving. Dots stop on a failed, unprobed or idle link. */
+.topo .edge .flow{stroke:var(--topo-ok);stroke-opacity:1;stroke-width:3.5;stroke-linecap:round;stroke-dasharray:0.1 11;animation:topoflow .8s linear infinite}
 .topo .edge.down .flow,.topo .edge.unknown .flow,.topo .edge.idle .flow{display:none}
-@keyframes topoflow{to{stroke-dashoffset:-12}}
+@keyframes topoflow{to{stroke-dashoffset:-11.1}}
 .topo .st{fill:var(--topo-ok)} .topo .st.down{fill:var(--topo-bad)} .topo .st.unknown{fill:var(--topo-unk)}
 .topo{--topo-ok:oklch(0.72 0.19 150);--topo-bad:oklch(0.63 0.24 27);--topo-unk:oklch(0.7 0 0)}
 `;
