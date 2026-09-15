@@ -39,8 +39,19 @@ if ! docker ps -a --format '{{.Names}}' | grep -qx proxyness-pg; then
 else
   docker start proxyness-pg >/dev/null 2>&1 || true
 fi
-for i in $(seq 1 30); do docker exec proxyness-pg pg_isready -U proxyness -q 2>/dev/null && break; sleep 1; done
-docker exec proxyness-pg pg_isready -U proxyness -q || { echo "postgres not ready" >&2; exit 1; }
+# The official image runs a temporary server during first init and then
+# restarts — pg_isready answers for that throwaway instance too. Wait for a
+# real query to succeed twice in a row, 2s apart.
+ok=0
+for i in $(seq 1 60); do
+  if docker exec proxyness-pg psql -U proxyness -d proxyness -Atc 'select 1' >/dev/null 2>&1; then
+    ok=$((ok+1)); [ $ok -ge 2 ] && break
+  else
+    ok=0
+  fi
+  sleep 2
+done
+[ $ok -ge 2 ] || { echo "postgres not ready" >&2; exit 1; }
 # keep the password in step with db.env on re-runs
 docker exec proxyness-pg psql -U proxyness -d proxyness -q -c "ALTER ROLE proxyness WITH PASSWORD '$DB_PASS' CREATEDB;" >/dev/null
 docker exec -i proxyness-pg psql -U proxyness -d proxyness -q -v ON_ERROR_STOP=1 < "$SETUP_DIR/schema.sql" >/dev/null
