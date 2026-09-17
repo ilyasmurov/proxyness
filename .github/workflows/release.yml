@@ -47,6 +47,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: go-binaries-windows
+          retention-days: 3
           path: resources/
 
   # Electron apps on macOS (builds darwin Go binaries natively for CGo support)
@@ -110,6 +111,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: installers
+          retention-days: 3
           path: |
             client/release/*.pkg
             client/release/*.exe
