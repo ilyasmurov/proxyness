@@ -4,6 +4,11 @@ on:
   push:
     tags: ["config-*"]
   workflow_dispatch:
+    inputs:
+      target:
+        description: "Deploy to this matrix target only (aeza, control, timeweb-ams); empty = every host"
+        required: false
+        default: ""
 
 env:
   REGISTRY: ghcr.io
@@ -45,21 +50,27 @@ jobs:
     #   control  — control plane on the shared Ansamblist box (FirstVDS, RU):
     #              admin API + config service + landing + primary Postgres,
     #              never an exit. Caddy in front → landing publishes 8082, not 80.
+    #   timeweb-ams — exit, Timeweb Cloud Amsterdam (PRXNS-25); same CI deploy
+    #              key as aeza, hence VPS2_SSH_KEY.
     # Serverspace (VPS_HOST / VPS_SSH_KEY) was dropped on 2026-09-15 — the host
     # went dark and its leg only painted every run red; re-add the line if it
     # ever returns (see deploy.md runbook).
+    # A manual run can target one host (input `target`): that is how a new exit
+    # is brought up without restarting the containers on the others.
     strategy:
       fail-fast: false
       matrix:
         target:
           - { name: aeza, host: VPS2_HOST, key: VPS2_SSH_KEY, landing_port: 80 }
           - { name: control, host: VPS3_HOST, key: VPS3_SSH_KEY, landing_port: 8082 }
+          - { name: timeweb-ams, host: VPS4_HOST, key: VPS2_SSH_KEY, landing_port: 80 }
     name: ${{ matrix.target.name }}
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Deploy to VPS
+        if: ${{ !inputs.target || inputs.target == matrix.target.name }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets[matrix.target.host] }}
