@@ -206,12 +206,17 @@ fi
 if [ -s /root/.ssh/authorized_keys ]; then
   log "sshd: key-only root login"
   install -d /etc/ssh/sshd_config.d
-  cat > /etc/ssh/sshd_config.d/50-proxyness.conf <<'SSHD'
+  # 00-, not 50-: sshd keeps the FIRST value it reads, and provider images ship
+  # their own drop-ins (RUVDS: 50-cloud-ini.conf with PasswordAuthentication yes,
+  # which sorts before 50-proxyness.conf and silently kept passwords on).
+  rm -f /etc/ssh/sshd_config.d/50-proxyness.conf
+  cat > /etc/ssh/sshd_config.d/00-proxyness.conf <<'SSHD'
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
 SSHD
   sshd -t && (systemctl reload ssh 2>/dev/null || systemctl reload sshd)
+  sshd -T | grep -q '^passwordauthentication no' || warn "sshd still allows passwords — another drop-in wins, check /etc/ssh/sshd_config.d/"
 else
   warn "no /root/.ssh/authorized_keys — leaving password login enabled"
 fi
