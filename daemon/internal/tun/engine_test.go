@@ -363,3 +363,41 @@ func TestEngineStopCancelsInFlightReconnect(t *testing.T) {
 		t.Fatalf("Stop() did not cancel the in-flight reconnect — zombie reconnect loop (PRXNS-26)")
 	}
 }
+
+// countingTransport records OpenStream calls — asserts whether the stream
+// gate fail-fasted before reaching a (dialing) transport.
+type countingTransport struct{ openStreamCalls int }
+
+func (c *countingTransport) Connect(server, key string, machineID [16]byte) error { return nil }
+func (c *countingTransport) OpenStream(streamType byte, addr string, port uint16) (transport.Stream, error) {
+	c.openStreamCalls++
+	return nil, errors.New("countingTransport: no streams")
+}
+func (c *countingTransport) Mode() string              { return "tls" }
+func (c *countingTransport) DoneChan() <-chan struct{} { return nil }
+func (c *countingTransport) Close() error              { return nil }
+
+// PRXNS-27: once consecutive stream failures crossed the D3 threshold the
+// path is known-dead, yet every app retry still dials a fresh TLS conn
+// (each OpenStream = its own TCP+TLS handshake). A retry storm from TUN
+// burns thousands of ephemeral ports against a dead network. The engine
+// must fail-fast new streams until D3 rebuilds the transport.
+func TestEngineStreamGateFailFastWhenUnhealthy(t *testing.T) {
+	e := NewEngine(dstats.NewRateMeter())
+	ct := &countingTransport{}
+	e.mu.Lock()
+	e.status = StatusActive
+	e.transport = ct
+	e.mu.Unlock()
+	e.streamOpenFailures.Store(streamFailureThreshold)
+
+	client, serverSide := net.Pipe()
+	defer client.Close()
+	defer serverSide.Close()
+	e.proxyTCPTransport(client, ct, "1.2.3.4", 443, "")
+
+	if ct.openStreamCalls != 0 {
+		t.Fatalf("stream gate must fail-fast at %d failures, transport still dialed %d time(s)",
+			streamFailureThreshold, ct.openStreamCalls)
+	}
+}

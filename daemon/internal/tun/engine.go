@@ -88,6 +88,10 @@ type Engine struct {
 	// where transport.Alive() falsely reports "healthy" while every
 	// real stream dial fails (network went away under TUN routes).
 	streamOpenFailures atomic.Int32
+	// lastGateLogAt throttles the stream gate's log line to one per
+	// second — every refused app dial passes the gate, logging each
+	// would recreate the log storm the gate exists to stop.
+	lastGateLogAt atomic.Int64
 }
 
 // streamFailureThreshold is how many consecutive OpenStream failures
@@ -1366,7 +1370,27 @@ func (e *Engine) proxyTCP(local net.Conn, dstAddr string, dstPort uint16, appPat
 	}
 }
 
+// streamOpenGate fail-fasts new streams once consecutive failures crossed
+// the D3 threshold. Every TLS stream is its own TCP+TLS dial to the
+// server, so an app-level retry storm against a dead path burns thousands
+// of ephemeral ports before D3 (5s tick) rebuilds the transport (PRXNS-27).
+// The gate reopens as soon as a stream succeeds — the counter resets to 0.
+func (e *Engine) streamOpenGate() bool {
+	if e.streamOpenFailures.Load() < streamFailureThreshold {
+		return false
+	}
+	if now := time.Now().Unix(); now-e.lastGateLogAt.Load() >= 1 {
+		if e.lastGateLogAt.CompareAndSwap(e.lastGateLogAt.Load(), now) {
+			log.Printf("[tun] stream gate closed (failures >= %d), failing fast until D3 rebuild", streamFailureThreshold)
+		}
+	}
+	return true
+}
+
 func (e *Engine) proxyTCPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16, appPath string) {
+	if e.streamOpenGate() {
+		return
+	}
 	stream, err := tr.OpenStream(0x01, dstAddr, dstPort)
 	if err != nil {
 		e.noteStreamOpenFailure(err)
@@ -1547,6 +1571,9 @@ func (e *Engine) proxyUDP(local net.Conn, dstAddr string, dstPort uint16, appPat
 }
 
 func (e *Engine) proxyUDPTransport(local net.Conn, tr transport.Transport, dstAddr string, dstPort uint16) {
+	if e.streamOpenGate() {
+		return
+	}
 	stream, err := tr.OpenStream(0x02, dstAddr, dstPort)
 	if err != nil {
 		e.noteStreamOpenFailure(err)
