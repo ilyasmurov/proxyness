@@ -317,3 +317,49 @@ func TestEngineMaybeUpgradeToUDPSkipsNonAuto(t *testing.T) {
 		t.Fatal("retry plan armed for a non-Auto transport")
 	}
 }
+
+// failingFakeTransport always fails Connect — enough to keep
+// reconnectTransport spinning through its attempt budget.
+type failingFakeTransport struct{}
+
+func (failingFakeTransport) Connect(server, key string, machineID [16]byte) error {
+	return errors.New("failingFakeTransport: connect refused")
+}
+func (failingFakeTransport) OpenStream(streamType byte, addr string, port uint16) (transport.Stream, error) {
+	return nil, errors.New("failingFakeTransport: no streams")
+}
+func (failingFakeTransport) Mode() string              { return "tls" }
+func (failingFakeTransport) DoneChan() <-chan struct{} { return nil }
+func (failingFakeTransport) Close() error              { return nil }
+
+// PRXNS-26: Stop() during an in-flight reconnect must cancel it via
+// errReconnectStopped. stopLocked used to close(e.stopHealth) and
+// immediately nil the channel — a nil channel in the reconnect loop's
+// select never fires, so the loop kept dialing for a stopped engine,
+// eventually "reconnected" a transport nobody owned, and the health
+// loop then tripped D4 (dead bridge) into a wedged half-alive state.
+func TestEngineStopCancelsInFlightReconnect(t *testing.T) {
+	e := NewEngine(dstats.NewRateMeter())
+	e.mu.Lock()
+	e.status = StatusReconnecting
+	e.stopHealth = make(chan struct{})
+	e.transportFactory = func() transport.Transport { return failingFakeTransport{} }
+	e.mu.Unlock()
+
+	done := make(chan error, 1)
+	go func() { done <- e.reconnectTransport() }()
+
+	// Let attempt 1 fail so the loop is parked in the 3s sleep before
+	// attempt 2 — the exact window where Stop() used to be invisible.
+	time.Sleep(200 * time.Millisecond)
+	e.Stop()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, errReconnectStopped) {
+			t.Fatalf("reconnect after Stop must return errReconnectStopped, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("Stop() did not cancel the in-flight reconnect — zombie reconnect loop (PRXNS-26)")
+	}
+}

@@ -58,4 +58,3 @@ func TestRulesJSON(t *testing.T) {
 		t.Error("app1 should be proxied")
 	}
 }
-

@@ -67,6 +67,11 @@ type Engine struct {
 	startTime  time.Time
 	lastError  string
 	stopHealth chan struct{}
+	// stopClosed guards close(stopHealth) from a second stopLocked; the
+	// channel itself must never be nil'd while loops may select on it —
+	// a nil channel in a select never fires, so an in-flight reconnect
+	// would stop seeing the stop signal (PRXNS-26).
+	stopClosed bool
 
 	// udpRetry paces the walk back from the TLS fallback to UDP
 	// (see maybeUpgradeToUDP). It carries its own lock.
@@ -382,6 +387,7 @@ func (e *Engine) Start(req StartRequest) error {
 	e.startTime = time.Now()
 	e.lastError = ""
 	e.stopHealth = make(chan struct{})
+	e.stopClosed = false
 	if e.meter != nil {
 		e.meter.SeedLastByteAt()
 	}
@@ -412,9 +418,9 @@ func (e *Engine) stopLocked() error {
 	n := runtime.Stack(buf, false)
 	log.Printf("[tun] stopLocked called:\n%s", buf[:n])
 
-	if e.stopHealth != nil {
+	if e.stopHealth != nil && !e.stopClosed {
 		close(e.stopHealth)
-		e.stopHealth = nil
+		e.stopClosed = true
 	}
 
 	// Cancel bridge goroutines

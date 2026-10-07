@@ -64,10 +64,10 @@ func BuildUDPPacketInto(dst []byte, srcIP, dstIP net.IP, srcPort, dstPort uint16
 	pkt[0] = 0x45 // version=4, IHL=5
 	pkt[1] = 0
 	binary.BigEndian.PutUint16(pkt[2:4], uint16(totalLen))
-	pkt[4], pkt[5] = 0, 0 // ID
-	pkt[6], pkt[7] = 0, 0 // flags + fragment offset
-	pkt[8] = 64           // TTL
-	pkt[9] = 17           // protocol = UDP
+	pkt[4], pkt[5] = 0, 0   // ID
+	pkt[6], pkt[7] = 0, 0   // flags + fragment offset
+	pkt[8] = 64             // TTL
+	pkt[9] = 17             // protocol = UDP
 	pkt[10], pkt[11] = 0, 0 // checksum (recomputed below)
 	copy(pkt[12:16], src4)
 	copy(pkt[16:20], dst4)

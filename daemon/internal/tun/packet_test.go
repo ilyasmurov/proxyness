@@ -8,8 +8,8 @@ import (
 
 func TestParseIPv4Header_UDP(t *testing.T) {
 	pkt := make([]byte, 28)
-	pkt[0] = 0x45                                   // version=4, IHL=5 (20 bytes)
-	pkt[9] = 17                                     // protocol = UDP
+	pkt[0] = 0x45 // version=4, IHL=5 (20 bytes)
+	pkt[9] = 17   // protocol = UDP
 	copy(pkt[12:16], net.IP{10, 0, 0, 1}.To4())
 	copy(pkt[16:20], net.IP{8, 8, 8, 8}.To4())
 	pkt[20] = 0x12

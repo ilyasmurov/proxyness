@@ -11,8 +11,8 @@ import (
 func buildClientHello(host string) []byte {
 	// SNI extension body: list_len(2) + name_type(1) + name_len(2) + name
 	sni := make([]byte, 0, 5+len(host))
-	sni = append(sni, 0, 0)                          // list_len placeholder
-	sni = append(sni, 0x00)                          // name_type = host_name
+	sni = append(sni, 0, 0) // list_len placeholder
+	sni = append(sni, 0x00) // name_type = host_name
 	sni = binary.BigEndian.AppendUint16(sni, uint16(len(host)))
 	sni = append(sni, []byte(host)...)
 	binary.BigEndian.PutUint16(sni[0:2], uint16(len(sni)-2))
