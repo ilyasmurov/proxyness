@@ -1,5 +1,26 @@
 [
   {
+    "id": "18585827-90b3-46e3-a3cd-12837c5576c1",
+    "title": "Клиент macOS больше не зависает после потери TUN-моста: стоп во время переподключения теперь отменяет цикл реконнекта, а не оставляет демона в полуживом состоянии (PRXNS-26)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-10-07T21:56:51.929477+00:00"
+  },
+  {
+    "id": "873e07b3-6201-4235-8d46-ebd789dc6233",
+    "title": "Fail-fast для новых соединений при мёртвом пути: вместо тысяч TCP-диалей в никуда мгновенный отказ до перестройки транспорта — ephemeral-порты больше не выгорают (PRXNS-27)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-10-07T21:56:51.930188+00:00"
+  },
+  {
+    "id": "5aa84e0c-4be1-4cf8-ac74-783c578e4020",
+    "title": "Админ-API: незарегистрированные пути /admin/api/* отвечают 404, а не уводят браузер в цикл редиректов на внутренний адрес (PRXNS-28)",
+    "description": null,
+    "type": "fix",
+    "createdAt": "2026-10-07T21:56:51.930200+00:00"
+  },
+  {
     "id": "5b315fb8-889e-4af0-9eb2-9abdfdd36814",
     "title": "Topology map grouped by machine",
     "description": "The traffic map now draws each physical server as a dashed frame with its parts inside — the bridge and the control plane on one, the exit, its database replica and the egress proxy on the other — so you see at a glance which box a broken link belongs to. Machines get names and extra rows (AmneziaWG, for example) on the Servers page. Link labels sit on their own pills and never hide behind a card; a failed link says why in a few words, with the full error in the checks table.",
@@ -1377,26 +1398,5 @@
     "description": null,
     "type": "feature",
     "createdAt": "2026-04-07T15:53:46.821042+00:00"
-  },
-  {
-    "id": "245ef2b6-1589-4cd3-86f8-c7c09aea5a8f",
-    "title": "TUN Engine: unit-тесты для state machine и kill switch",
-    "description": null,
-    "type": "improvement",
-    "createdAt": "2026-04-07T15:52:49.928727+00:00"
-  },
-  {
-    "id": "322cf4d6-66b4-42f4-b28d-49b895ef850b",
-    "title": "TUN: kill switch — отказ новых TCP/UDP потоков в Reconnecting",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-07T15:51:11.229131+00:00"
-  },
-  {
-    "id": "0fd2246c-67bf-4abb-8099-790899e3f3a5",
-    "title": "TUN Engine: Reconnecting статус с детекторами D1/D2",
-    "description": null,
-    "type": "feature",
-    "createdAt": "2026-04-07T15:49:49.798097+00:00"
   }
 ]
