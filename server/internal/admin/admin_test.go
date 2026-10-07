@@ -183,3 +183,23 @@ func itoa(n int) string {
 func isHex(c byte) bool {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 }
+
+// PRXNS-28: unknown admin API paths must answer a plain 404 instead of
+// falling through to the landing catch-all proxy. The proxy reaches the
+// host's Caddy over plain HTTP, which answers a 308 redirect to an
+// https://<internal-host>/... URL the browser cannot reach — any version
+// skew between the SPA and the server API surface then surfaces as an
+// opaque "Failed to fetch" loop on the dashboard instead of a 404.
+func TestUnknownAdminAPIPathsAre404(t *testing.T) {
+	// No DB needed: unrouted paths must be answered by the mux itself,
+	// and setup()'s ":memory:" DSN is broken against the pgx driver.
+	h := NewHandler(nil, stats.New(), "admin", "secret", "")
+	for _, path := range []string{"/admin/api/servers", "/api/admin/does-not-exist"} {
+		req := authed(httptest.NewRequest(http.MethodGet, path, nil))
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("GET %s: expected 404, got %d (landing catch-all leak)", path, rr.Code)
+		}
+	}
+}

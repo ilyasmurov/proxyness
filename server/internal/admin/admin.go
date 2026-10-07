@@ -115,6 +115,14 @@ func NewHandler(d *db.DB, tr *stats.Tracker, user, password, configAddr string) 
 	// "/api/admin/notifications" (neither is strictly more specific — one
 	// wins on method, the other on path) and Go 1.22 ServeMux panics at
 	// registration, killing the server on boot.
+	// PRXNS-28: unknown admin API paths must 404 instead of falling into
+	// the landing catch-all below — that proxy hits the host's Caddy over
+	// plain HTTP, which answers a 308 to an internal https://<host>/... URL
+	// the browser can't follow, so any SPA/API version skew surfaces as an
+	// opaque "Failed to fetch" loop instead of a clean 404.
+	mux.HandleFunc("/admin/api/", http.NotFound)
+	mux.HandleFunc("/api/admin/", http.NotFound)
+
 	landingTarget, _ := url.Parse("http://172.17.0.1:80")
 	landingProxy := httputil.NewSingleHostReverseProxy(landingTarget)
 	mux.Handle("/", landingProxy)
