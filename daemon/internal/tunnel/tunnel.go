@@ -399,9 +399,12 @@ func (t *Tunnel) transportDone() <-chan struct{} {
 
 const (
 	reconnectDelay = 3 * time.Second
-	// 20 × 3s ≈ 60s reconnect window — long enough to ride out a wifi
-	// flap, short enough that the user gives up manually.
-	maxReconnects = 20
+	// PRXNS-29: бесконечный реконнект (0 = без лимита). Прежние 20×3с≈60с
+	// кончались «reconnect exhausted → disconnecting», и трафик уходил в
+	// открытый интернет с реальным IP. Теперь — вечный реконнект с
+	// бэкоффом 3с→30с; статус остаётся Reconnecting.
+	maxReconnects = 0
+	maxReconnectDelay = 30 * time.Second
 	// 12 × 5s = 60s D2 budget, matches reconnectTransport.
 	maxHealthFailures = 12
 	// Number of CONSECUTIVE D2 failures before engaging the kill switch.
@@ -743,7 +746,8 @@ func (t *Tunnel) reconnectTransport() error {
 	var lastErr, lastRetryable error
 	consecutiveUnreach := 0
 	nextRefreshAt := fastRetryFirstRefreshAt
-	for attempt := 1; attempt <= maxReconnects; attempt++ {
+	delay := reconnectDelay
+	for attempt := 1; maxReconnects == 0 || attempt <= maxReconnects; attempt++ {
 		select {
 		case <-t.stopHealth:
 			return errReconnectStopped
@@ -751,7 +755,12 @@ func (t *Tunnel) reconnectTransport() error {
 		}
 
 		if attempt > 1 {
-			time.Sleep(reconnectDelay)
+			time.Sleep(delay)
+			// Нарастающий бэкофф: 3с → 30с, шаг ×1.5 (PRXNS-29)
+			delay = delay * 3 / 2
+			if delay > maxReconnectDelay {
+				delay = maxReconnectDelay
+			}
 		}
 
 		if refresh != nil && consecutiveUnreach >= nextRefreshAt {

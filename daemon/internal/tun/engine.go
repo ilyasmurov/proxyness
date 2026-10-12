@@ -958,18 +958,22 @@ func (e *Engine) reconnectTransport() error {
 	}
 	e.mu.Unlock()
 
-	// 20 × 3s ≈ 60s total reconnect window — long enough to ride out a
-	// typical wifi flap, short enough that the user notices manually
-	// rather than staring at "Reconnecting…" forever for a dead server.
-	// Longer outages (laptop sleep, extended WiFi drop) are caught by
-	// the slow-poll wait in the D1/D3 branches of healthLoop.
-	const maxReconnects = 20
+	// PRXNS-29: бесконечный реконнект с бэкоффом. Прежний бюджет 20×3с≈60с
+	// кончался «reconnect exhausted → disconnecting» — TUN рвался, и весь
+	// трафик ноутбука уходил в открытый интернет с домашним IP. Для режима
+	// «инет только через проксинесс» это утечка реального IP при любом
+	// простое сервера дольше минуты. Теперь: попытки не ограничены, пауза
+	// растёт 3с → 30с (шаг ×1.5), статус остаётся Reconnecting, TUN жив.
+	// Выход — только stop или невосстановимая ошибка (ключ отозван везде).
+	const maxReconnects = 0 // 0 = без лимита (PRXNS-29)
 	const reconnectDelay = 3 * time.Second
+	const maxReconnectDelay = 30 * time.Second
 
 	var lastErr, lastRetryable error
 	consecutiveUnreach := 0
 	nextRefreshAt := fastRetryFirstRefreshAt
-	for attempt := 1; attempt <= maxReconnects; attempt++ {
+	delay := reconnectDelay
+	for attempt := 1; maxReconnects == 0 || attempt <= maxReconnects; attempt++ {
 		select {
 		case <-e.stopHealth:
 			return errReconnectStopped
@@ -977,7 +981,12 @@ func (e *Engine) reconnectTransport() error {
 		}
 
 		if attempt > 1 {
-			time.Sleep(reconnectDelay)
+			time.Sleep(delay)
+			// Нарастающий бэкофф: 3с → 30с, шаг ×1.5 (PRXNS-29)
+			delay = delay * 3 / 2
+			if delay > maxReconnectDelay {
+				delay = maxReconnectDelay
+			}
 		}
 
 		if consecutiveUnreach >= nextRefreshAt {
