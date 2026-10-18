@@ -96,6 +96,10 @@ type Engine struct {
 	// the local link went away, so flows kept across a TLS D3 rebuild may
 	// sit on a dead local address and must be swept (PRXNS-32).
 	rebuildSawUnreach atomic.Bool
+	// streakSawUnreach: one of the stream failures in the current D3 streak
+	// was ENETUNREACH. runD3 folds it into rebuildSawUnreach, so a link
+	// change that heals before the first rebuild attempt still sweeps.
+	streakSawUnreach atomic.Bool
 }
 
 // streamFailureThreshold is how many consecutive OpenStream failures
@@ -851,7 +855,15 @@ func (e *Engine) noteStreamOpenFailure(err error) {
 	if e.GetStatus() != StatusActive {
 		return
 	}
-	e.streamOpenFailures.Add(1)
+	n := e.streamOpenFailures.Add(1)
+	// A streak starts at 1 after every reset, so the flag describes the
+	// current streak only, not an ENETUNREACH from hours ago.
+	unreach := transport.IsNetworkUnreachable(err)
+	if n == 1 {
+		e.streakSawUnreach.Store(unreach)
+	} else if unreach {
+		e.streakSawUnreach.Store(true)
+	}
 }
 
 // scheduleUDPRetry arms the next TLS→UDP upgrade attempt.
@@ -1306,7 +1318,7 @@ func (e *Engine) runD3() (exit bool) {
 	log.Printf("[tun] D3: %d consecutive stream failures, forcing transport rebuild",
 		e.streamOpenFailures.Load())
 	e.streamOpenFailures.Store(0)
-	e.rebuildSawUnreach.Store(false)
+	e.rebuildSawUnreach.Store(e.streakSawUnreach.Swap(false))
 
 	e.mu.Lock()
 	tr := e.transport

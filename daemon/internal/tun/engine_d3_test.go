@@ -162,3 +162,49 @@ func TestEngineD3ClosesKeptConnsAfterLinkChange(t *testing.T) {
 		t.Fatalf("connections kept across a rebuild that hit ENETUNREACH must be closed")
 	}
 }
+
+// The link may change and heal before the first rebuild attempt: then only
+// the stream failures that tripped D3 carry the ENETUNREACH. Those count too.
+func TestEngineD3ClosesKeptConnsAfterUnreachStreak(t *testing.T) {
+	e, app, peer := newD3Engine(transport.ModeTLS, func() transport.Transport {
+		return &modeFakeTransport{mode: transport.ModeTLS}
+	})
+	defer app.Close()
+	defer peer.Close()
+	e.streamOpenFailures.Store(0)
+	unreach := errors.New("tcp dial: dial tcp 192.168.1.203:0->exit-a:443: connect: network is unreachable")
+	for i := 0; i < streamFailureThreshold; i++ {
+		e.noteStreamOpenFailure(unreach)
+	}
+
+	if exit := e.runD3(); exit {
+		t.Fatalf("runD3 must recover the transport, not stop the health loop")
+	}
+	if !connClosed(app) {
+		t.Fatalf("connections kept across a D3 tripped by ENETUNREACH streams must be closed")
+	}
+}
+
+// The flag describes the current streak only: an old ENETUNREACH followed
+// by a reset and a fresh timeout-only streak must not sweep.
+func TestEngineD3UnreachStreakDoesNotLeak(t *testing.T) {
+	e, app, peer := newD3Engine(transport.ModeTLS, func() transport.Transport {
+		return &modeFakeTransport{mode: transport.ModeTLS}
+	})
+	defer app.Close()
+	defer peer.Close()
+	e.streamOpenFailures.Store(0)
+	e.noteStreamOpenFailure(errors.New("connect: network is unreachable"))
+	e.streamOpenFailures.Store(0) // a stream succeeded
+	timeout := errors.New("tcp dial: dial tcp 192.168.1.212:0->exit-a:443: i/o timeout")
+	for i := 0; i < streamFailureThreshold; i++ {
+		e.noteStreamOpenFailure(timeout)
+	}
+
+	if exit := e.runD3(); exit {
+		t.Fatalf("runD3 must recover the transport, not stop the health loop")
+	}
+	if connClosed(app) {
+		t.Fatalf("a stale ENETUNREACH from an earlier streak must not sweep live connections")
+	}
+}
