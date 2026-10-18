@@ -102,9 +102,10 @@ func TestEngineD3ClosesConnsOnUDP(t *testing.T) {
 	}
 }
 
-// Flows kept on TLS ride the exit we just gave up on; once D3 fails over to
-// another exit they are closed so apps re-dial through the new one.
-func TestEngineD3ClosesKeptConnsAfterFailover(t *testing.T) {
+// A wave of lost SYNs is enough to move the ring with one dial timeout, so
+// failing over to another exit says nothing about flows on the old one —
+// they are kept too and die on their own if that exit is really gone.
+func TestEngineD3KeepsConnsAcrossFailoverOnTLS(t *testing.T) {
 	e, app, peer := newD3Engine(transport.ModeTLS, func() transport.Transport {
 		return &failingServerTransport{modeFakeTransport: modeFakeTransport{mode: transport.ModeTLS}, failOn: "exit-a:443"}
 	})
@@ -120,7 +121,44 @@ func TestEngineD3ClosesKeptConnsAfterFailover(t *testing.T) {
 	if got := e.GetServerAddr(); got != "exit-b:443" {
 		t.Fatalf("server after failover = %q, want exit-b:443", got)
 	}
+	if connClosed(app) {
+		t.Fatalf("a failover alone must not close live TLS connections")
+	}
+}
+
+// unreachOnceTransport fails the first Connect with ENETUNREACH (the local
+// link changed under us), then succeeds.
+type unreachOnceTransport struct {
+	modeFakeTransport
+	calls *int
+}
+
+func (u *unreachOnceTransport) Connect(server, key string, machineID [16]byte) error {
+	*u.calls++
+	if *u.calls == 1 {
+		return errors.New("tcp dial: dial tcp 192.168.1.203:0->exit-a:443: connect: network is unreachable")
+	}
+	return nil
+}
+
+// ENETUNREACH during the rebuild means the local link went away (Wi-Fi
+// switch, new DHCP address): kept flows may sit on a dead local IP, so they
+// are swept once the transport is back.
+func TestEngineD3ClosesKeptConnsAfterLinkChange(t *testing.T) {
+	calls := 0
+	e, app, peer := newD3Engine(transport.ModeTLS, func() transport.Transport {
+		return &unreachOnceTransport{modeFakeTransport: modeFakeTransport{mode: transport.ModeTLS}, calls: &calls}
+	})
+	defer app.Close()
+	defer peer.Close()
+
+	if exit := e.runD3(); exit {
+		t.Fatalf("runD3 must recover the transport, not stop the health loop")
+	}
+	if calls < 2 {
+		t.Fatalf("expected a failed and a successful reconnect, got %d Connect calls", calls)
+	}
 	if !connClosed(app) {
-		t.Fatalf("connections kept on the abandoned exit must be closed after failover")
+		t.Fatalf("connections kept across a rebuild that hit ENETUNREACH must be closed")
 	}
 }

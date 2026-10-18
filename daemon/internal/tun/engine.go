@@ -92,6 +92,10 @@ type Engine struct {
 	// second — every refused app dial passes the gate, logging each
 	// would recreate the log storm the gate exists to stop.
 	lastGateLogAt atomic.Int64
+	// rebuildSawUnreach is set when a reconnect attempt hit ENETUNREACH —
+	// the local link went away, so flows kept across a TLS D3 rebuild may
+	// sit on a dead local address and must be swept (PRXNS-32).
+	rebuildSawUnreach atomic.Bool
 }
 
 // streamFailureThreshold is how many consecutive OpenStream failures
@@ -1033,6 +1037,7 @@ func (e *Engine) reconnectTransport() error {
 			return err
 		}
 		if transport.IsNetworkUnreachable(err) {
+			e.rebuildSawUnreach.Store(true)
 			consecutiveUnreach++
 		} else {
 			consecutiveUnreach = 0
@@ -1289,30 +1294,30 @@ func (e *Engine) healthLoop() {
 // flow owns its own socket to the exit, so "three new dials failed" says
 // nothing about the flows already relaying. A home ISP that drops new SYNs
 // in waves (SkyNet CGNAT, 2026-10-18) used to turn each wave into a sweep of
-// every open connection on the laptop. On TLS the live flows are kept; they
-// are closed only if the rebuild lands on a different exit (failover), so
-// apps re-dial through the new one. UDP multiplexes all flows over the one
-// session being torn down, so it still sweeps up front.
+// every open connection on the laptop. On TLS the live flows are kept —
+// even across a failover to another exit: one dial timeout in such a wave
+// is enough to move the ring, while the flows on the old exit are healthy;
+// ones on a truly dead exit die on their own (write error, keepalive,
+// tcpIdleTimeout). They are swept only if a reconnect attempt hit
+// ENETUNREACH: the local link changed, and idle flows would otherwise sit on
+// a dead local address until keepalive. UDP multiplexes all flows over the
+// one session being torn down, so it still sweeps up front.
 func (e *Engine) runD3() (exit bool) {
 	log.Printf("[tun] D3: %d consecutive stream failures, forcing transport rebuild",
 		e.streamOpenFailures.Load())
 	e.streamOpenFailures.Store(0)
+	e.rebuildSawUnreach.Store(false)
 
 	e.mu.Lock()
 	tr := e.transport
-	prevServer := e.serverAddr
 	e.mu.Unlock()
 	keepConns := tr != nil && tr.Mode() == transport.ModeTLS
 	e.enterReconnecting(!keepConns)
 
 	recovered := func() bool {
-		if keepConns {
-			e.mu.Lock()
-			moved := e.serverAddr != prevServer
-			e.mu.Unlock()
-			if moved {
-				e.closeAllConns()
-			}
+		if keepConns && e.rebuildSawUnreach.Load() {
+			log.Printf("[tun] D3: link changed during rebuild (ENETUNREACH), closing kept connections")
+			e.closeAllConns()
 		}
 		e.setConnected()
 		return false
