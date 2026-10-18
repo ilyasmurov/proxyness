@@ -185,16 +185,29 @@ func (e *Engine) GetLastError() string {
 // every in-flight TCP/UDP conn (kill switch). Idempotent: calling twice
 // in the same state is a no-op. Caller must NOT hold e.mu.
 func (e *Engine) setReconnecting() {
+	e.enterReconnecting(true)
+}
+
+// enterReconnecting is setReconnecting with the sweep made optional. New
+// flows are refused either way (handleTCP/handleUDP check the status); with
+// sweep=false the flows already relaying keep running on their own sockets.
+// Reports whether the status actually flipped.
+func (e *Engine) enterReconnecting(sweep bool) bool {
 	e.mu.Lock()
 	if e.status != StatusActive {
 		e.mu.Unlock()
-		return
+		return false
 	}
 	e.status = StatusReconnecting
 	e.mu.Unlock()
 
+	if !sweep {
+		log.Printf("[tun] → reconnecting (kill switch engaged, live TLS connections kept)")
+		return true
+	}
 	log.Printf("[tun] → reconnecting (kill switch engaged)")
 	e.closeAllConns()
+	return true
 }
 
 // setConnected flips back to Active after recovery and reseeds the
@@ -1228,47 +1241,12 @@ func (e *Engine) healthLoop() {
 			// Reconnecting until D2 exhausted and stopped the engine.
 			// Now we mirror D1's own reconnect path directly.
 			if e.streamOpenFailures.Load() >= streamFailureThreshold {
-				log.Printf("[tun] D3: %d consecutive stream failures, forcing transport rebuild",
-					e.streamOpenFailures.Load())
-				e.streamOpenFailures.Store(0)
-				e.setReconnecting()
-
-				// If Auto chose UDP but streams keep failing, the UDP data
-				// path is likely blocked (TSPU/ISP). Try falling back to TLS
-				// within the same AutoTransport before doing a full rebuild.
-				if fell := e.tryFallbackToTLS(); fell {
-					doneCh = e.transportDone()
-					failures = 0
-					e.setConnected()
-					continue
-				}
-
-				err := e.reconnectTransport()
-				if err == nil {
-					doneCh = e.transportDone()
-					failures = 0
-					e.setConnected()
-					continue
-				}
-				if errors.Is(err, errReconnectStopped) {
+				if exit := e.runD3(); exit {
 					return
 				}
-				if transport.IsNetworkUnreachable(err) {
-					if waitErr := e.waitForNetwork(); waitErr == nil {
-						doneCh = e.transportDone()
-						failures = 0
-						e.setConnected()
-						continue
-					} else if errors.Is(waitErr, errReconnectStopped) {
-						return
-					}
-				}
-				log.Printf("[tun] D3: reconnect exhausted, stopping engine")
-				e.mu.Lock()
-				e.lastError = "Connection lost, please reconnect"
-				e.stopLocked()
-				e.mu.Unlock()
-				return
+				doneCh = e.transportDone()
+				failures = 0
+				continue
 			}
 			if err := e.healthCheck(); err != nil {
 				failures++
@@ -1300,6 +1278,73 @@ func (e *Engine) healthLoop() {
 			}
 		}
 	}
+}
+
+// runD3 handles a tripped stream-failure detector: rebuild the transport the
+// way D1 does. Returns true when the health loop must exit (stop requested
+// or the engine was stopped); false once the transport is back and the
+// status is Active again — the caller must refresh its DoneChan.
+//
+// PRXNS-32: on TLS every OpenStream is its own TCP+TLS dial and every live
+// flow owns its own socket to the exit, so "three new dials failed" says
+// nothing about the flows already relaying. A home ISP that drops new SYNs
+// in waves (SkyNet CGNAT, 2026-10-18) used to turn each wave into a sweep of
+// every open connection on the laptop. On TLS the live flows are kept; they
+// are closed only if the rebuild lands on a different exit (failover), so
+// apps re-dial through the new one. UDP multiplexes all flows over the one
+// session being torn down, so it still sweeps up front.
+func (e *Engine) runD3() (exit bool) {
+	log.Printf("[tun] D3: %d consecutive stream failures, forcing transport rebuild",
+		e.streamOpenFailures.Load())
+	e.streamOpenFailures.Store(0)
+
+	e.mu.Lock()
+	tr := e.transport
+	prevServer := e.serverAddr
+	e.mu.Unlock()
+	keepConns := tr != nil && tr.Mode() == transport.ModeTLS
+	e.enterReconnecting(!keepConns)
+
+	recovered := func() bool {
+		if keepConns {
+			e.mu.Lock()
+			moved := e.serverAddr != prevServer
+			e.mu.Unlock()
+			if moved {
+				e.closeAllConns()
+			}
+		}
+		e.setConnected()
+		return false
+	}
+
+	// If Auto chose UDP but streams keep failing, the UDP data
+	// path is likely blocked (TSPU/ISP). Try falling back to TLS
+	// within the same AutoTransport before doing a full rebuild.
+	if fell := e.tryFallbackToTLS(); fell {
+		return recovered()
+	}
+
+	err := e.reconnectTransport()
+	if err == nil {
+		return recovered()
+	}
+	if errors.Is(err, errReconnectStopped) {
+		return true
+	}
+	if transport.IsNetworkUnreachable(err) {
+		if waitErr := e.waitForNetwork(); waitErr == nil {
+			return recovered()
+		} else if errors.Is(waitErr, errReconnectStopped) {
+			return true
+		}
+	}
+	log.Printf("[tun] D3: reconnect exhausted, stopping engine")
+	e.mu.Lock()
+	e.lastError = "Connection lost, please reconnect"
+	e.stopLocked()
+	e.mu.Unlock()
+	return true
 }
 
 // healthCheck validates the ACTIVE transport rather than dialing a fresh TCP

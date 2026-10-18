@@ -1,0 +1,126 @@
+package tun
+
+import (
+	"errors"
+	"net"
+	"testing"
+	"time"
+
+	dstats "proxyness/daemon/internal/stats"
+	"proxyness/daemon/internal/transport"
+)
+
+// modeFakeTransport connects instantly (or fails for chosen servers) and
+// reports a fixed Mode — enough to drive the D3 rebuild end to end.
+type modeFakeTransport struct {
+	mode string
+}
+
+func (m *modeFakeTransport) Connect(server, key string, machineID [16]byte) error { return nil }
+func (m *modeFakeTransport) OpenStream(streamType byte, addr string, port uint16) (transport.Stream, error) {
+	return nil, errors.New("modeFakeTransport: no streams")
+}
+func (m *modeFakeTransport) Mode() string              { return m.mode }
+func (m *modeFakeTransport) DoneChan() <-chan struct{} { return nil }
+func (m *modeFakeTransport) Close() error              { return nil }
+
+// failingServerTransport fails Connect for one server address.
+type failingServerTransport struct {
+	modeFakeTransport
+	failOn string
+}
+
+func (f *failingServerTransport) Connect(server, key string, machineID [16]byte) error {
+	if server == f.failOn {
+		return errors.New("tcp dial: i/o timeout")
+	}
+	return nil
+}
+
+// newD3Engine returns an Active engine on `mode` with one tracked live conn
+// and the D3 counter already past its threshold.
+func newD3Engine(mode string, factory func() transport.Transport) (*Engine, net.Conn, net.Conn) {
+	e := NewEngine(dstats.NewRateMeter())
+	e.mu.Lock()
+	e.status = StatusActive
+	e.serverAddr = "exit-a:443"
+	e.transport = &modeFakeTransport{mode: mode}
+	e.transportFactory = factory
+	e.mu.Unlock()
+	app, peer := net.Pipe()
+	e.trackConn(app, "/Applications/Telegram.app")
+	e.streamOpenFailures.Store(streamFailureThreshold)
+	return e, app, peer
+}
+
+// connClosed tells a closed net.Pipe end from one that is merely quiet.
+func connClosed(c net.Conn) bool {
+	c.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	_, err := c.Read(make([]byte, 1))
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return false
+	}
+	return err != nil
+}
+
+// PRXNS-32: on TLS every live flow owns its own TCP+TLS socket to the exit,
+// so "three new streams failed to dial" says nothing about them. Closing them
+// on D3 turned every ISP wave of lost SYNs into "everything dropped".
+func TestEngineD3KeepsLiveConnsOnTLS(t *testing.T) {
+	e, app, peer := newD3Engine(transport.ModeTLS, func() transport.Transport {
+		return &modeFakeTransport{mode: transport.ModeTLS}
+	})
+	defer app.Close()
+	defer peer.Close()
+
+	if exit := e.runD3(); exit {
+		t.Fatalf("runD3 must recover the transport, not stop the health loop")
+	}
+	if got := e.GetStatus(); got != StatusActive {
+		t.Fatalf("status after D3 rebuild = %s, want %s", got, StatusActive)
+	}
+	if connClosed(app) {
+		t.Fatalf("D3 on a TLS transport must keep live connections open")
+	}
+}
+
+// UDP multiplexes every flow over one session that dies with the transport,
+// so its flows are closed right away, as before.
+func TestEngineD3ClosesConnsOnUDP(t *testing.T) {
+	e, app, peer := newD3Engine(transport.ModeUDP, func() transport.Transport {
+		return &modeFakeTransport{mode: transport.ModeUDP}
+	})
+	defer app.Close()
+	defer peer.Close()
+
+	if exit := e.runD3(); exit {
+		t.Fatalf("runD3 must recover the transport, not stop the health loop")
+	}
+	if !connClosed(app) {
+		t.Fatalf("D3 on a UDP transport must close live connections")
+	}
+}
+
+// Flows kept on TLS ride the exit we just gave up on; once D3 fails over to
+// another exit they are closed so apps re-dial through the new one.
+func TestEngineD3ClosesKeptConnsAfterFailover(t *testing.T) {
+	e, app, peer := newD3Engine(transport.ModeTLS, func() transport.Transport {
+		return &failingServerTransport{modeFakeTransport: modeFakeTransport{mode: transport.ModeTLS}, failOn: "exit-a:443"}
+	})
+	defer app.Close()
+	defer peer.Close()
+	e.mu.Lock()
+	e.servers = transport.NewServerRing("exit-a:443", "exit-b:443")
+	e.mu.Unlock()
+
+	if exit := e.runD3(); exit {
+		t.Fatalf("runD3 must recover the transport, not stop the health loop")
+	}
+	if got := e.GetServerAddr(); got != "exit-b:443" {
+		t.Fatalf("server after failover = %q, want exit-b:443", got)
+	}
+	if !connClosed(app) {
+		t.Fatalf("connections kept on the abandoned exit must be closed after failover")
+	}
+}
