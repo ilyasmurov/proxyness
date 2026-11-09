@@ -1,9 +1,13 @@
 package proxy
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,6 +18,7 @@ import (
 	"github.com/hashicorp/yamux"
 
 	"proxyness/pkg/proto"
+	"proxyness/server/internal/db"
 )
 
 // fakeDispatch stands in for Handler.dispatchStream (which needs a database):
@@ -123,6 +128,12 @@ type serveResult struct {
 // returns the client session, its conn and a channel with serveMux's result.
 func muxPair(t *testing.T, d *fakeDispatch) (*yamux.Session, net.Conn, chan serveResult) {
 	t.Helper()
+	return muxPairRecheck(t, d, nil)
+}
+
+// muxPairRecheck is muxPair with a device recheck wired into serveMux.
+func muxPairRecheck(t *testing.T, d *fakeDispatch, recheck func() bool) (*yamux.Session, net.Conn, chan serveResult) {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +150,7 @@ func muxPair(t *testing.T, d *fakeDispatch) (*yamux.Session, net.Conn, chan serv
 	res := make(chan serveResult, 1)
 	go func() {
 		defer sc.Close()
-		n, err := serveMux(sc, d.dispatch)
+		n, err := serveMux(sc, d.dispatch, recheck)
 		res <- serveResult{n, err}
 	}()
 	sess, err := yamux.Client(cc, muxConfig())
@@ -270,5 +281,205 @@ func TestServeMuxUnknownStreamTypeKeepsSession(t *testing.T) {
 	}
 	if d.other.Load() != 1 {
 		t.Errorf("unknown-type dispatches = %d, want 1", d.other.Load())
+	}
+}
+
+// shrinkRecheck makes sessions re-check their device every d for one test.
+func shrinkRecheck(t *testing.T, d time.Duration) {
+	t.Helper()
+	old := muxRecheckInterval
+	muxRecheckInterval = d
+	t.Cleanup(func() { muxRecheckInterval = old })
+}
+
+// When the recheck says the device is gone, serveMux closes the session: the
+// stream a client has open errors out, the client session dies, and serveMux
+// itself returns.
+func TestServeMuxClosesSessionWhenRecheckFails(t *testing.T) {
+	shrinkRecheck(t, 20*time.Millisecond)
+	tcpTarget, _ := startTargets(t)
+	d := &fakeDispatch{}
+	var calls atomic.Int64
+	var revoked atomic.Bool
+	sess, _, res := muxPairRecheck(t, d, func() bool {
+		calls.Add(1)
+		return !revoked.Load()
+	})
+	defer sess.Close()
+
+	st, err := sess.OpenStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	proto.WriteMsgType(st, proto.MsgTypeTCP)
+	proto.WriteConnect(st, "127.0.0.1", uint16(tcpTarget.Port))
+	if ok, err := proto.ReadResult(st); err != nil || !ok {
+		t.Fatalf("connect: ok=%v err=%v", ok, err)
+	}
+
+	// Still allowed: the stream works across a few recheck intervals.
+	time.Sleep(100 * time.Millisecond)
+	st.Write([]byte("x"))
+	buf := make([]byte, 5)
+	if _, err := io.ReadFull(st, buf); err != nil || string(buf) != "tcp:x" {
+		t.Fatalf("echo before revoke: %q %v", buf, err)
+	}
+
+	revoked.Store(true)
+	st.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := st.Read(make([]byte, 1)); err == nil {
+		t.Fatal("open stream read succeeded after the device was revoked")
+	}
+	select {
+	case <-sess.CloseChan():
+	case <-time.After(5 * time.Second):
+		t.Fatal("client session still alive after the device was revoked")
+	}
+	select {
+	case r := <-res:
+		if r.streams != 1 {
+			t.Errorf("serveMux served %d streams, want 1", r.streams)
+		}
+		if r.err == nil {
+			t.Error("serveMux returned no reason")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("serveMux did not return after the device was revoked")
+	}
+	if _, err := sess.OpenStream(); err == nil {
+		t.Error("OpenStream on a revoked session succeeded")
+	}
+}
+
+// A recheck that keeps saying yes never ends the session, however many
+// intervals pass.
+func TestServeMuxKeepsSessionWhileRecheckPasses(t *testing.T) {
+	shrinkRecheck(t, 20*time.Millisecond)
+	tcpTarget, _ := startTargets(t)
+	d := &fakeDispatch{}
+	var calls atomic.Int64
+	sess, _, res := muxPairRecheck(t, d, func() bool {
+		calls.Add(1)
+		return true
+	})
+	defer func() {
+		sess.Close()
+		<-res
+	}()
+
+	time.Sleep(300 * time.Millisecond) // 15 intervals
+	if n := calls.Load(); n < 5 {
+		t.Fatalf("recheck ran %d times in 15 intervals, want at least 5", n)
+	}
+	if sess.IsClosed() {
+		t.Fatal("session closed although every recheck passed")
+	}
+	select {
+	case r := <-res:
+		t.Fatalf("serveMux returned (%v) although every recheck passed", r.err)
+	default:
+	}
+	st, err := sess.OpenStream()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	proto.WriteMsgType(st, proto.MsgTypeTCP)
+	proto.WriteConnect(st, "127.0.0.1", uint16(tcpTarget.Port))
+	if ok, err := proto.ReadResult(st); err != nil || !ok {
+		t.Fatalf("connect after 15 intervals: ok=%v err=%v", ok, err)
+	}
+}
+
+// The recheck goroutine ends with the session: once serveMux has returned
+// (the client hung up, nothing revoked) recheck is never called again and no
+// goroutine is left behind.
+func TestServeMuxRecheckEndsWithSession(t *testing.T) {
+	shrinkRecheck(t, 10*time.Millisecond)
+	d := &fakeDispatch{}
+	before := runtime.NumGoroutine()
+
+	var calls atomic.Int64
+	sess, _, res := muxPairRecheck(t, d, func() bool {
+		calls.Add(1)
+		return true
+	})
+	time.Sleep(60 * time.Millisecond)
+	if calls.Load() == 0 {
+		t.Fatal("recheck never ran")
+	}
+	sess.Close()
+	select {
+	case <-res:
+	case <-time.After(5 * time.Second):
+		t.Fatal("serveMux did not return after the client closed the session")
+	}
+
+	after := calls.Load()
+	time.Sleep(100 * time.Millisecond) // 10 intervals
+	if n := calls.Load(); n != after {
+		t.Fatalf("recheck ran %d more times after serveMux returned", n-after)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for runtime.NumGoroutine() > before {
+		if time.Now().After(deadline) {
+			buf := make([]byte, 1<<16)
+			t.Fatalf("goroutines: %d before, %d after\n%s", before, runtime.NumGoroutine(), buf[:runtime.Stack(buf, true)])
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// Same for a session the recheck itself cut: serveMux has returned and the
+// recheck is not called again.
+func TestServeMuxRecheckStopsAfterRevoke(t *testing.T) {
+	shrinkRecheck(t, 10*time.Millisecond)
+	d := &fakeDispatch{}
+	var calls atomic.Int64
+	sess, _, res := muxPairRecheck(t, d, func() bool { return calls.Add(1) < 3 })
+	defer sess.Close()
+	select {
+	case <-res:
+	case <-time.After(5 * time.Second):
+		t.Fatal("serveMux did not return after the recheck failed")
+	}
+	if n := calls.Load(); n != 3 {
+		t.Fatalf("recheck ran %d times, want 3 (two passes, one fail)", n)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if n := calls.Load(); n != 3 {
+		t.Fatalf("recheck ran %d times after the session was cut", n-3)
+	}
+}
+
+// Which (device, error) pairs from GetDeviceByKey cut a live session: a
+// disabled or deleted device does, a database failure does not.
+func TestMuxRevokeReason(t *testing.T) {
+	notFound := fmt.Errorf("%w for key %q", db.ErrDeviceNotFound, "abcd")
+	cases := []struct {
+		name string
+		dev  db.Device
+		err  error
+		want string
+	}{
+		{"active device", db.Device{Active: true}, nil, ""},
+		{"disabled device", db.Device{Active: false}, nil, "disabled"},
+		{"deleted, bare sentinel", db.Device{}, db.ErrDeviceNotFound, "deleted"},
+		{"deleted, as getDeviceByKeyDB words it", db.Device{}, notFound, "deleted"},
+		{"deleted, wrapped again", db.Device{}, fmt.Errorf("lookup: %w", notFound), "deleted"},
+		{"deleted, joined", db.Device{}, errors.Join(errors.New("x"), notFound), "deleted"},
+		{"database down", db.Device{}, errors.New("get device by key: connection refused"), ""},
+		{"database error wrapped", db.Device{}, fmt.Errorf("get device by key: %w", sql.ErrConnDone), ""},
+		{"deadline exceeded", db.Device{}, context.DeadlineExceeded, ""},
+		{"error with a stale inactive device", db.Device{Active: false}, errors.New("boom"), ""},
+		{"sql.ErrNoRows is not our sentinel", db.Device{}, sql.ErrNoRows, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := muxRevokeReason(c.dev, c.err); got != c.want {
+				t.Errorf("muxRevokeReason(active=%v, %v) = %q, want %q", c.dev.Active, c.err, got, c.want)
+			}
+		})
 	}
 }

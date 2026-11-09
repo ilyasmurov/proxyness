@@ -82,7 +82,7 @@ func (h *Handler) Handle(conn net.Conn, isTLS bool) {
 		if msgType == proto.MsgTypeMux {
 			proto.WriteResult(conn, true)
 			start := time.Now()
-			streams, err := serveMux(conn, h.dispatchStream(&device, isTLS))
+			streams, err := serveMux(conn, h.dispatchStream(&device, isTLS), h.deviceStillAllowed(device.Name, matchedKey))
 			log.Printf("device %s mux session from %s closed after %s, %d streams: %v",
 				device.Name, conn.RemoteAddr(), time.Since(start).Round(time.Second), streams, err)
 			return
@@ -90,6 +90,22 @@ func (h *Handler) Handle(conn net.Conn, isTLS bool) {
 	}
 
 	h.dispatchStream(&device, isTLS)(conn, msgType)
+}
+
+// deviceStillAllowed is the recheck for one mux session: false once the
+// device behind matchedKey is disabled or deleted, true otherwise — including
+// when the lookup fails for any other reason (see muxRevokeReason). The lookup
+// goes through the device cache, so a revoke lands within about two intervals.
+func (h *Handler) deviceStillAllowed(name, matchedKey string) func() bool {
+	return func() bool {
+		dev, err := h.DB.GetDeviceByKey(matchedKey)
+		reason := muxRevokeReason(dev, err)
+		if reason == "" {
+			return true
+		}
+		log.Printf("device %s mux session closed: device %s", name, reason)
+		return false
+	}
 }
 
 // dispatchStream returns the handler for one stream that has already sent its

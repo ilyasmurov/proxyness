@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,11 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+// ErrDeviceNotFound is what GetDeviceByKey returns, wrapped, when no device
+// has the key. Anything else it returns is a database failure — callers that
+// act on "the device is gone" (a live mux session) must tell the two apart.
+var ErrDeviceNotFound = errors.New("device not found")
 
 // DB wraps a Postgres connection pool.
 type DB struct {
@@ -270,8 +276,8 @@ func (d *DB) getDeviceByKeyDB(key string) (Device, error) {
 
 	var dev Device
 	err := row.Scan(&dev.ID, &dev.UserID, &dev.UserName, &dev.Name, &dev.Key, &dev.Active, &dev.Version, &dev.CreatedAt)
-	if err == sql.ErrNoRows {
-		return Device{}, fmt.Errorf("device not found for key %q", key)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Device{}, fmt.Errorf("%w for key %q", ErrDeviceNotFound, key)
 	}
 	if err != nil {
 		return Device{}, fmt.Errorf("get device by key: %w", err)

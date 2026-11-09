@@ -2,6 +2,7 @@ package db_test
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -262,6 +263,9 @@ func TestGetDeviceByKey(t *testing.T) {
 	_, err = d.GetDeviceByKey("0000000000000000000000000000000000000000000000000000000000000000")
 	if err == nil {
 		t.Error("expected error for unknown key")
+	}
+	if !errors.Is(err, db.ErrDeviceNotFound) {
+		t.Errorf("unknown key: err = %v, want db.ErrDeviceNotFound", err)
 	}
 }
 

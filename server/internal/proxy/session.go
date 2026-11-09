@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"github.com/hashicorp/yamux"
 
 	"proxyness/pkg/proto"
+	"proxyness/server/internal/db"
 )
 
 // yamux settings for TLS-mode sessions (MsgTypeMux, PRXNS-33).
@@ -26,6 +28,28 @@ const (
 	// The default 256 KiB window caps a single stream at ~8 MB/s at 30 ms RTT.
 	muxMaxStreamWindowSize = 4 << 20
 )
+
+// muxRecheckInterval: how often a mux session re-checks its device. A var so
+// tests can shrink it.
+var muxRecheckInterval = 60 * time.Second
+
+// muxRevokeReason says why a live mux session must be cut after a device
+// re-check, or "" to keep it. Only a device that is gone (db.ErrDeviceNotFound,
+// however wrapped) or switched off ends the session. Any other error is a
+// database hiccup — the device cache holds errors for up to a minute, and a
+// short Postgres outage must not drop every client at once — so the session
+// stays.
+func muxRevokeReason(dev db.Device, err error) string {
+	switch {
+	case errors.Is(err, db.ErrDeviceNotFound):
+		return "deleted"
+	case err != nil:
+		return ""
+	case !dev.Active:
+		return "disabled"
+	}
+	return ""
+}
 
 func muxConfig() *yamux.Config {
 	cfg := yamux.DefaultConfig()
@@ -53,12 +77,27 @@ func (muxLogger) Println(v ...interface{}) { log.Printf("[proxy/mux] %s", fmt.Sp
 // goroutine that reads the stream's msg type and hands the stream to
 // dispatch — exactly what Handle does with a whole connection on the
 // per-connection path. Returns when the session ends (conn closed, keepalive
-// failed) with the number of streams it accepted and the reason; all stream
-// handlers have returned by then.
-func serveMux(conn net.Conn, dispatch func(stream net.Conn, msgType byte)) (int, error) {
+// failed, recheck said no) with the number of streams it accepted and the
+// reason; all stream handlers and the recheck goroutine have returned by then.
+//
+// Key, machine-id and active flag are checked once per session at handshake,
+// but a session can live for hours, so every muxRecheckInterval recheck is
+// asked whether the device may stay (nil: never asked). The first false
+// closes the session and with it every stream, like a disabled device used to
+// be cut by its next TLS connection.
+func serveMux(conn net.Conn, dispatch func(stream net.Conn, msgType byte), recheck func() bool) (int, error) {
 	sess, err := yamux.Server(conn, muxConfig())
 	if err != nil {
 		return 0, err
+	}
+	recheckDone := make(chan struct{})
+	if recheck != nil {
+		go func(every time.Duration) {
+			defer close(recheckDone)
+			watchDevice(sess, every, recheck)
+		}(muxRecheckInterval)
+	} else {
+		close(recheckDone)
 	}
 	var wg sync.WaitGroup
 	streams := 0
@@ -69,6 +108,7 @@ func serveMux(conn net.Conn, dispatch func(stream net.Conn, msgType byte)) (int,
 			// handlers see an error and return.
 			sess.Close()
 			wg.Wait()
+			<-recheckDone
 			return streams, err
 		}
 		streams++
@@ -82,5 +122,24 @@ func serveMux(conn net.Conn, dispatch func(stream net.Conn, msgType byte)) (int,
 			}
 			dispatch(st, msgType)
 		}()
+	}
+}
+
+// watchDevice calls recheck every interval until the session ends; a false
+// answer closes the session. It returns as soon as the session is closed, by
+// anyone.
+func watchDevice(sess *yamux.Session, every time.Duration, recheck func() bool) {
+	tick := time.NewTicker(every)
+	defer tick.Stop()
+	for {
+		select {
+		case <-sess.CloseChan():
+			return
+		case <-tick.C:
+			if !recheck() {
+				sess.Close()
+				return
+			}
+		}
 	}
 }
