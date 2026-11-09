@@ -3,6 +3,7 @@ module proxyness/daemon
 go 1.25.0
 
 require (
+	github.com/hashicorp/yamux v0.1.2
 	golang.org/x/sys v0.42.0
 	gvisor.dev/gvisor v0.0.0-20250503011706-39ed1f5ac29c
 	proxyness/pkg v0.0.0

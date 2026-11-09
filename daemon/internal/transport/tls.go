@@ -2,6 +2,7 @@ package transport
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -11,8 +12,13 @@ import (
 	"proxyness/pkg/proto"
 )
 
-// TLSTransport wraps the existing per-connection TLS approach.
-// Each OpenStream creates a new TLS connection (same as current behavior).
+// TLSTransport carries streams to the server over TLS on :443.
+//
+// Against a mux-capable server (PRXNS-33) streams run inside a small pool of
+// long-lived TLS connections, each one a yamux session (see tls_mux.go): the
+// home ISP drops new TCP connections by rate, so one TCP+TLS per stream —
+// every DNS query included — was what kept tripping D3. Against a pre-mux
+// server every OpenStream still dials its own TLS connection, as before.
 type TLSTransport struct {
 	server    string
 	key       string
@@ -20,6 +26,18 @@ type TLSTransport struct {
 	connected atomic.Bool
 	mu        sync.Mutex
 	nextID    uint32
+
+	// Snapshotted from the package vars in Connect, so goroutines a transport
+	// leaves running never read a var a later test is changing.
+	setupTimeout time.Duration
+	dialTCP      func(network, address string) (net.Conn, error)
+	limits       muxLimits
+
+	// perStream is set once the server turned out to have no mux; it holds
+	// for the rest of this transport's life (the engine builds a fresh
+	// transport on every reconnect, and that one probes again).
+	perStream atomic.Bool
+	muxPool
 	// done is closed on Close() so the engine's healthLoop D1 detector can
 	// notice a dead TLS transport via `<-DoneChan()`. Before this existed,
 	// `(*AutoTransport).DoneChan()` returned a nil channel when the active
@@ -40,31 +58,65 @@ func NewTLSTransport() *TLSTransport {
 // fresh connection. A var so tests can shrink it.
 var tlsSetupTimeout = 10 * time.Second
 
+// tlsDialTCP opens the raw TCP socket under every TLS connection. A var so
+// tests can inject dial failures (ENETUNREACH) without touching routes.
+var tlsDialTCP = protectedDialUDP
+
 func (t *TLSTransport) Connect(server, key string, machineID [16]byte) error {
 	t.server = server
 	t.key = key
 	t.machineID = machineID
+	t.setupTimeout = tlsSetupTimeout
+	t.dialTCP = tlsDialTCP
+	t.limits = currentMuxLimits()
+	t.perStream.Store(false)
 
-	// Verify server is reachable with a test auth
-	conn, err := t.dial()
-	if err != nil {
+	// The first mux session doubles as the reachability probe and stays up.
+	s, err := t.dialSession()
+	if errors.Is(err, errNoMux) {
+		t.switchToPerStream()
+		// Pre-mux server: verify it with the probe this path always used,
+		// so the engine never sees "no mux" as a failure.
+		conn, err := t.dial()
+		if err != nil {
+			return err
+		}
+		conn.Close()
+	} else if err != nil {
 		return err
 	}
-	conn.Close()
 
 	t.connected.Store(true)
+	if s != nil {
+		t.adoptSession(s)
+	}
 	return nil
 }
 
+// dial opens a ready-to-use per-stream connection: TLS, auth and machine-id
+// done, deadline lifted.
 func (t *TLSTransport) dial() (net.Conn, error) {
+	conn, rawConn, err := t.handshake()
+	if err != nil {
+		return nil, err
+	}
+	rawConn.SetDeadline(time.Time{})
+	return conn, nil
+}
+
+// handshake dials TCP+TLS and runs auth and machine-id. The setup deadline is
+// still armed on return: the caller lifts it once it is done talking setup.
+// The error texts ("tcp dial: …", "tls handshake: …", "auth rejected",
+// "machine id rejected") are what the engine matches on.
+func (t *TLSTransport) handshake() (*tls.Conn, net.Conn, error) {
 	// Use the protected dialer for the underlying TCP socket so it gets
 	// bound to the physical interface (Windows IP_UNICAST_IF / macOS
 	// IP_BOUND_IF). Without this the daemon's own TLS-to-server traffic
 	// follows the TUN default route once the engine is up — same feedback
 	// loop as the UDP transport bug fixed in 1.28.15.
-	rawConn, err := protectedDialUDP("tcp", t.server)
+	rawConn, err := t.dialTCP("tcp", t.server)
 	if err != nil {
-		return nil, fmt.Errorf("tcp dial: %w", err)
+		return nil, nil, fmt.Errorf("tcp dial: %w", err)
 	}
 	// The dialer only bounds the TCP connect. An ISP that lets the handshake
 	// through and then drops every data packet (SkyNet → the Aeza subnet,
@@ -72,46 +124,56 @@ func (t *TLSTransport) dial() (net.Conn, error) {
 	// retransmit budget — minutes — and a multi-server ring never moves on
 	// to the next exit. Bound the whole setup, then lift the deadline for
 	// the relay proper.
-	rawConn.SetDeadline(time.Now().Add(tlsSetupTimeout))
+	rawConn.SetDeadline(time.Now().Add(t.setupTimeout))
 	conn := tls.Client(rawConn, &tls.Config{InsecureSkipVerify: true, ServerName: ""})
 	if err := conn.Handshake(); err != nil {
 		rawConn.Close()
-		return nil, fmt.Errorf("tls handshake: %w", err)
+		return nil, nil, fmt.Errorf("tls handshake: %w", err)
 	}
 
 	if err := proto.WriteAuth(conn, t.key); err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("auth: %w", err)
+		return nil, nil, fmt.Errorf("auth: %w", err)
 	}
 	ok, err := proto.ReadResult(conn)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("auth: %w", err)
+		return nil, nil, fmt.Errorf("auth: %w", err)
 	}
 	if !ok {
 		conn.Close()
-		return nil, fmt.Errorf("auth rejected")
+		return nil, nil, fmt.Errorf("auth rejected")
 	}
 
 	if err := proto.WriteMachineID(conn, t.machineID); err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("machine id: %w", err)
+		return nil, nil, fmt.Errorf("machine id: %w", err)
 	}
 	ok, err = proto.ReadResult(conn)
 	if err != nil || !ok {
 		conn.Close()
-		return nil, fmt.Errorf("machine id rejected")
+		return nil, nil, fmt.Errorf("machine id rejected")
 	}
 
-	rawConn.SetDeadline(time.Time{})
-	return conn, nil
+	return conn, rawConn, nil
 }
 
 func (t *TLSTransport) OpenStream(streamType byte, addr string, port uint16) (Stream, error) {
 	if !t.connected.Load() {
 		return nil, fmt.Errorf("not connected")
 	}
+	if !t.perStream.Load() {
+		s, err := t.openMuxStream(streamType, addr, port)
+		if !errors.Is(err, errNoMux) {
+			return s, err
+		}
+		// A redial found a pre-mux server: carry on per-stream right away.
+	}
+	return t.openPerStream(streamType, addr, port)
+}
 
+// openPerStream is the pre-mux path: one TLS connection per stream.
+func (t *TLSTransport) openPerStream(streamType byte, addr string, port uint16) (Stream, error) {
 	conn, err := t.dial()
 	if err != nil {
 		return nil, err
@@ -148,9 +210,14 @@ func (t *TLSTransport) OpenStream(streamType byte, addr string, port uint16) (St
 	return &tlsStream{conn: conn, id: id}, nil
 }
 
+// Close stops new streams at once and fires DoneChan, as before. Streams
+// already open keep running (PRXNS-32: a transport rebuild must not cut live
+// connections): per-stream ones own their TLS connection, mux sessions with
+// streams drain and close after their last stream; idle sessions close now.
 func (t *TLSTransport) Close() error {
 	t.connected.Store(false)
 	t.closeOnce.Do(func() { close(t.done) })
+	t.closePool()
 	return nil
 }
 
