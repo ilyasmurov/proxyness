@@ -44,14 +44,23 @@ const (
 	// carries at least muxGrowAtStreams open streams.
 	muxMaxSessions   = 4
 	muxGrowAtStreams = 64
-	// Pause between failed background dials: 1s, 2s, 4s … 30s; reset by a
-	// successful one.
+	// Pause between failed background dials: 1s, 2s, 4s … 30s. A session
+	// that dies within muxShortLived counts as a failed dial for it; the
+	// pause resets once a session outlives muxShortLived.
 	muxRedialBackoffMin = 1 * time.Second
 	muxRedialBackoffMax = 30 * time.Second
 	// How long a TCP stream waits for the server's connect result. The server
 	// gives the target up to 10s itself.
 	muxConnectResultTimeout = 15 * time.Second
 )
+
+// muxShortLived: a session that lives shorter than this when it closes is a
+// failed dial as far as the pause goes. A server or middlebox that accepts a
+// session and drops it at once would otherwise be redialed with no pause at
+// all — every dial "succeeds" — and several new TCP connections a second is
+// the rate the home provider cuts the whole line for. A var so tests can
+// shrink it; Connect snapshots it with the other knobs.
+var muxShortLived = 15 * time.Second
 
 // The pool knobs as vars so tests can shrink them, like tlsSetupTimeout.
 // Connect snapshots them into the transport.
@@ -68,6 +77,7 @@ type muxLimits struct {
 	base, max, growAt      int
 	backoffMin, backoffMax time.Duration
 	connectResult          time.Duration
+	shortLived             time.Duration
 }
 
 func currentMuxLimits() muxLimits {
@@ -78,6 +88,7 @@ func currentMuxLimits() muxLimits {
 		backoffMin:    tlsMuxBackoffMin,
 		backoffMax:    tlsMuxBackoffMax,
 		connectResult: tlsMuxConnectResultTimeout,
+		shortLived:    muxShortLived,
 	}
 }
 
@@ -229,9 +240,13 @@ func (t *TLSTransport) sessionUp(s *muxSession) {
 // connection. It never touches done: D1 fires on Close() only.
 func (t *TLSTransport) watchSession(s *muxSession) {
 	<-s.sess.CloseChan()
+	now := time.Now()
 	t.poolMu.Lock()
 	t.removeLocked(s)
 	reason, served := s.reason, s.served
+	age := now.Sub(s.started)
+	short := t.noteSessionEndLocked(s, now)
+	pause := t.backoff
 	t.poolMu.Unlock()
 	if reason == "" {
 		reason = s.log.lastError()
@@ -242,9 +257,61 @@ func (t *TLSTransport) watchSession(s *muxSession) {
 	if reason == "" {
 		reason = "session shut down"
 	}
-	log.Printf("[tls] mux session #%d closed after %s, streams served %d: %s",
-		s.n, time.Since(s.started).Round(time.Second), served, reason)
+	if short {
+		log.Printf("[tls] mux session #%d closed after %s, streams served %d: %s (short-lived, next background try in %s)",
+			s.n, age.Round(time.Millisecond), served, reason, pause)
+	} else {
+		log.Printf("[tls] mux session #%d closed after %s, streams served %d: %s",
+			s.n, age.Round(time.Second), served, reason)
+	}
 	t.maybeGrow()
+}
+
+// noteSessionEndLocked: a session that closed before muxShortLived is a
+// failed dial for the pause (it grows like after an error); one that lived
+// that long ends the pause. Reports whether the session was short-lived. The
+// transport closing its own sessions is neither.
+func (t *TLSTransport) noteSessionEndLocked(s *muxSession, now time.Time) bool {
+	if t.closed {
+		return false
+	}
+	if now.Sub(s.started) >= t.limits.shortLived {
+		t.backoff = 0
+		return false
+	}
+	t.settleBackoffLocked(now)
+	t.growBackoffLocked(now)
+	return true
+}
+
+// growBackoffLocked is a failed dial: the pause starts at backoffMin, doubles
+// up to backoffMax, and the background dialer waits it out.
+func (t *TLSTransport) growBackoffLocked(now time.Time) {
+	t.backoff *= 2
+	if t.backoff < t.limits.backoffMin {
+		t.backoff = t.limits.backoffMin
+	}
+	if t.backoff > t.limits.backoffMax {
+		t.backoff = t.limits.backoffMax
+	}
+	t.retryAt = now.Add(t.backoff)
+}
+
+// settleBackoffLocked ends the pause when a live session has already outlived
+// muxShortLived: the server keeps sessions, so what grew the pause is over.
+// A successful dial does not reset it by itself — the chain "short session →
+// dial → short session" has to be able to grow it. Checked wherever the pause
+// is about to grow, so no timer is needed.
+func (t *TLSTransport) settleBackoffLocked(now time.Time) {
+	if t.backoff == 0 {
+		return
+	}
+	for _, s := range t.sessions {
+		if !s.gone && !s.sess.IsClosed() && now.Sub(s.started) >= t.limits.shortLived {
+			t.backoff = 0
+			return
+		}
+	}
 }
 
 func (t *TLSTransport) removeLocked(s *muxSession) {
@@ -316,17 +383,15 @@ func (t *TLSTransport) runDial(d *muxDial) {
 	adopted := false
 	switch {
 	case err == nil:
-		t.backoff = 0
+		// The pause (backoff) stays: it ends when a session outlives
+		// muxShortLived, not when one merely connects.
 		t.retryAt = time.Time{}
 		adopted = t.addLocked(s)
 	case errors.Is(err, errNoMux):
 	default:
-		if t.backoff == 0 {
-			t.backoff = t.limits.backoffMin
-		} else if t.backoff *= 2; t.backoff > t.limits.backoffMax {
-			t.backoff = t.limits.backoffMax
-		}
-		t.retryAt = time.Now().Add(t.backoff)
+		now := time.Now()
+		t.settleBackoffLocked(now)
+		t.growBackoffLocked(now)
 	}
 	backoff := t.backoff
 	t.poolMu.Unlock()

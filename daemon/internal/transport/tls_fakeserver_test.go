@@ -52,6 +52,10 @@ type fakeServer struct {
 	// dropMux: answer MsgTypeMux with ResultOK and hang up at once — a mux
 	// server that crashes right after accepting a session.
 	dropMux atomic.Bool
+	// dropMuxAfter > 0 (ns): answer MsgTypeMux with ResultOK, keep the
+	// session up for that long, then hang up — a middlebox or server that
+	// kills sessions soon after taking them.
+	dropMuxAfter atomic.Int64
 	// dropOnStream: serve the session until its first stream arrives, then
 	// hang up — the session looks healthy to the client until it is used.
 	dropOnStream atomic.Bool
@@ -190,6 +194,10 @@ func (f *fakeServer) serve(c net.Conn) {
 	}
 	proto.WriteResult(c, true)
 	if f.dropMux.Load() {
+		return
+	}
+	if d := f.dropMuxAfter.Load(); d > 0 {
+		time.Sleep(time.Duration(d))
 		return
 	}
 	sess, err := yamux.Server(c, testServerMuxConfig())

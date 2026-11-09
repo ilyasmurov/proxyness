@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/yamux"
+
 	"proxyness/pkg/proto"
 )
 
@@ -641,4 +643,161 @@ func TestTLSMuxOpenStreamDialsAtMostTwice(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A server (or a middlebox) that takes a mux session and drops it moments
+// later must not make the pool redial in a loop: every such dial "succeeds",
+// but the session is a failure for the pause, so the pause grows and the
+// line sees a handful of new TCP connections, not dozens a second — the rate
+// SkyNet cuts the whole line for (PRXNS-33).
+func TestTLSMuxShortLivedSessionsBackOff(t *testing.T) {
+	oldMin, oldMax := tlsMuxBackoffMin, tlsMuxBackoffMax
+	tlsMuxBackoffMin, tlsMuxBackoffMax = 200*time.Millisecond, 30*time.Second
+	t.Cleanup(func() { tlsMuxBackoffMin, tlsMuxBackoffMax = oldMin, oldMax })
+
+	srv := newFakeServer(t, false)
+	srv.dropMuxAfter.Store(int64(50 * time.Millisecond))
+	tr := NewTLSTransport()
+	if err := tr.Connect(srv.addr(), testKey, [16]byte{1}); err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+
+	time.Sleep(2 * time.Second) // no streams: only the background dialer runs
+	got := srv.accepted.Load()
+	t.Logf("incoming connections in 2s: %d", got)
+	if got > 6 {
+		t.Fatalf("a server that drops every session after 50ms took %d incoming connections in 2s, want ≤ 6", got)
+	}
+}
+
+// setShortLived changes muxShortLived for one test; Connect snapshots it.
+func setShortLived(t *testing.T, d time.Duration) {
+	t.Helper()
+	old := muxShortLived
+	muxShortLived = d
+	t.Cleanup(func() { muxShortLived = old })
+}
+
+// A session that outlived muxShortLived proves the server keeps sessions: when
+// it dies the next dial goes out at once and the pause is back to zero, even
+// with a long pause configured.
+func TestTLSMuxLongLivedSessionDeathRedialsWithoutPause(t *testing.T) {
+	setMuxLimits(t, 1, 1)
+	setShortLived(t, 300*time.Millisecond)
+	oldMin, oldMax := tlsMuxBackoffMin, tlsMuxBackoffMax
+	tlsMuxBackoffMin, tlsMuxBackoffMax = 30*time.Second, 30*time.Second
+	t.Cleanup(func() { tlsMuxBackoffMin, tlsMuxBackoffMax = oldMin, oldMax })
+
+	srv := newFakeServer(t, false)
+	tr := NewTLSTransport()
+	if err := tr.Connect(srv.addr(), testKey, [16]byte{1}); err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+
+	time.Sleep(450 * time.Millisecond) // older than muxShortLived
+	srv.killMuxConn(0)
+	// A short-lived death would put the next try 30s away.
+	waitFor(t, "a redial right after the long-lived session died", 3*time.Second, func() bool {
+		return srv.muxConnCount() == 2 && tr.liveSessions() == 1
+	})
+	tr.poolMu.Lock()
+	backoff, retryAt := tr.backoff, tr.retryAt
+	tr.poolMu.Unlock()
+	if backoff != 0 || !retryAt.IsZero() {
+		t.Fatalf("after a long-lived session: backoff = %s, retryAt = %v, want no pause", backoff, retryAt)
+	}
+}
+
+// The chain "short session → dial → short session" grows the pause min → ×2 →
+// max, the log says so, a successful dial alone does not reset it, and a
+// session that outlives muxShortLived does.
+func TestTLSMuxShortLivedChainGrowsPauseUntilASessionSticks(t *testing.T) {
+	logs := captureLog(t)
+	setMuxLimits(t, 1, 1)
+	setShortLived(t, 400*time.Millisecond)
+	oldMin, oldMax := tlsMuxBackoffMin, tlsMuxBackoffMax
+	tlsMuxBackoffMin, tlsMuxBackoffMax = 50*time.Millisecond, 200*time.Millisecond
+	t.Cleanup(func() { tlsMuxBackoffMin, tlsMuxBackoffMax = oldMin, oldMax })
+
+	srv := newFakeServer(t, false)
+	srv.dropMuxAfter.Store(int64(20 * time.Millisecond))
+	tr := NewTLSTransport()
+	if err := tr.Connect(srv.addr(), testKey, [16]byte{1}); err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+
+	backoff := func() time.Duration {
+		tr.poolMu.Lock()
+		defer tr.poolMu.Unlock()
+		return tr.backoff
+	}
+	// The log line comes just after the pool state is updated.
+	waitFor(t, "the pause to reach its maximum", 5*time.Second, func() bool {
+		return backoff() == 200*time.Millisecond && strings.Contains(logs.String(), "(short-lived, next background try in 200ms)")
+	})
+	out := logs.String()
+	for _, want := range []string{"(short-lived, next background try in 50ms)", "(short-lived, next background try in 100ms)", "(short-lived, next background try in 200ms)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("log has no %q:\n%s", want, out)
+		}
+	}
+
+	// The server turns healthy: the next dial sticks. Landing a session does
+	// not end the pause by itself…
+	srv.dropMuxAfter.Store(0)
+	// Sessions the fake server drops never reach muxConns, so a count of 1
+	// with one live session is the lasting one.
+	waitFor(t, "a lasting session", 5*time.Second, func() bool { return srv.muxConnCount() == 1 && tr.liveSessions() == 1 })
+	if got := backoff(); got != 200*time.Millisecond {
+		t.Fatalf("pause right after a good dial = %s, want it kept at 200ms", got)
+	}
+	// …living past muxShortLived and then dying does.
+	time.Sleep(600 * time.Millisecond)
+	srv.killMuxConn(0)
+	waitFor(t, "the pause to end", 3*time.Second, func() bool { return backoff() == 0 })
+	waitFor(t, "a redial", 3*time.Second, func() bool { return tr.liveSessions() == 1 })
+}
+
+// A live session older than muxShortLived ends a stale pause the next time it
+// would grow: the failed dial then starts again from backoffMin.
+func TestTLSMuxSettleBackoffByLiveLongSession(t *testing.T) {
+	c1, c2 := net.Pipe()
+	defer c1.Close()
+	defer c2.Close()
+	ys, err := yamuxClientForTest(c1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ys.Close()
+
+	tr := newBareTransport("127.0.0.1:1")
+	tr.limits.shortLived = time.Second
+	now := time.Now()
+	tr.sessions = []*muxSession{{sess: ys, started: now.Add(-5 * time.Second)}}
+
+	tr.backoff = 8 * time.Second
+	tr.growBackoffLocked(now) // no settle: plain growth
+	if tr.backoff != 16*time.Second {
+		t.Fatalf("plain growth: backoff = %s, want 16s", tr.backoff)
+	}
+	tr.settleBackoffLocked(now)
+	if tr.backoff != 0 {
+		t.Fatalf("a live session older than muxShortLived left backoff = %s", tr.backoff)
+	}
+	tr.sessions[0].started = now // too young to prove anything
+	tr.backoff = 8 * time.Second
+	tr.settleBackoffLocked(now)
+	if tr.backoff != 8*time.Second {
+		t.Fatalf("a young session reset backoff to %s", tr.backoff)
+	}
+}
+
+func yamuxClientForTest(c net.Conn) (*yamux.Session, error) {
+	cfg := yamux.DefaultConfig()
+	cfg.EnableKeepAlive = false
+	cfg.LogOutput = io.Discard
+	return yamux.Client(c, cfg)
 }
