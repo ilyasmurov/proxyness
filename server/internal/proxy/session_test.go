@@ -483,3 +483,24 @@ func TestMuxRevokeReason(t *testing.T) {
 		})
 	}
 }
+
+// yamux v0.1.2 closes the whole session when a keepalive ping goes unanswered
+// for ConnectionWriteTimeout, or a stream's SYN stays unacked for
+// StreamOpenTimeout. 10s would let a 10–20s stall (Wi-Fi roaming, LTE handover)
+// kill every stream at once, where a TCP per stream used to outlive ~150s.
+// Keep in pair with daemon/internal/transport (TestMuxClientConfig).
+func TestMuxConfigTimeouts(t *testing.T) {
+	cfg := muxConfig()
+	if !cfg.EnableKeepAlive || cfg.KeepAliveInterval != 10*time.Second {
+		t.Errorf("keepalive = %v every %s, want on, every 10s", cfg.EnableKeepAlive, cfg.KeepAliveInterval)
+	}
+	if cfg.ConnectionWriteTimeout != 30*time.Second {
+		t.Errorf("ConnectionWriteTimeout = %s, want 30s", cfg.ConnectionWriteTimeout)
+	}
+	if cfg.StreamOpenTimeout != 30*time.Second {
+		t.Errorf("StreamOpenTimeout = %s, want 30s", cfg.StreamOpenTimeout)
+	}
+	if cfg.MaxStreamWindowSize != 4<<20 {
+		t.Errorf("MaxStreamWindowSize = %d, want 4 MiB", cfg.MaxStreamWindowSize)
+	}
+}

@@ -20,11 +20,16 @@ import (
 // dropping the session early or capping throughput.
 const (
 	// The nginx SNI router in front of :443 drops a stream that stays silent
-	// for proxy_timeout (12h); a ping every 10s keeps the session visible and
-	// finds a dead link in ~20s (interval + write timeout).
+	// for proxy_timeout (12h); a ping every 10s keeps the session visible.
+	// yamux v0.1.2 closes the WHOLE session when a ping's pong is later than
+	// ConnectionWriteTimeout, and likewise when a stream's SYN stays unacked
+	// for StreamOpenTimeout — so these two are 30s, not 10s: a 10–20s stall
+	// (Wi-Fi roaming, LTE handover, a full uplink queue) must not cut every
+	// stream at once; a TCP per stream used to ride out ~150s. A dead link is
+	// found in ~40s (interval + write timeout).
 	muxKeepAliveInterval      = 10 * time.Second
-	muxConnectionWriteTimeout = 10 * time.Second
-	muxStreamOpenTimeout      = 10 * time.Second
+	muxConnectionWriteTimeout = 30 * time.Second
+	muxStreamOpenTimeout      = 30 * time.Second
 	// The default 256 KiB window caps a single stream at ~8 MB/s at 30 ms RTT.
 	muxMaxStreamWindowSize = 4 << 20
 )
