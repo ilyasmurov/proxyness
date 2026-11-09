@@ -3,6 +3,7 @@ package transport
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -81,10 +82,27 @@ func currentMuxLimits() muxLimits {
 }
 
 // errNoMux: the server passed auth and machine-id, then closed the connection
-// (or said no) on MsgTypeMux — a pre-PRXNS-33 server. Never reaches the
-// engine: whoever gets it switches the transport to per-stream and dials the
-// old way within the same call.
+// (EOF, with or without close_notify) or said no on MsgTypeMux — a
+// pre-PRXNS-33 server. Any other read error there (reset, broken pipe,
+// timeout) is a network failure, not this. Never reaches the engine: whoever
+// gets it switches the transport to per-stream and dials the old way within
+// the same call — unless the pool still has a live mux session, which proves
+// the server does speak mux (see runDial).
 var errNoMux = errors.New("server has no mux")
+
+// errNoMuxAlive: a dial met "no mux" while mux sessions were alive. A failed
+// dial like any other, never a reason to leave mux mode.
+var errNoMuxAlive = errors.New("mux: server closed on the mux request")
+
+// errNoLiveSession: reserveSession ran out of its dial allowance with no live
+// session to hand out.
+var errNoLiveSession = errors.New("mux: no live session")
+
+// muxDialsPerOpen caps the dials one OpenStream waits for. Retries on
+// sessions that are already live (one dying while the stream is being set up)
+// are separate and bounded by the pool size. Without the cap a server that
+// accepts a session and drops it at once cost one call up to ten dials.
+const muxDialsPerOpen = 2
 
 // muxSessionSeq numbers sessions across the daemon's life, so "up" and
 // "closed" lines pair up in daemon.log even across transport rebuilds.
@@ -124,9 +142,11 @@ type muxPool struct {
 
 // dialSession dials a fresh TLS connection, runs auth and machine-id, asks
 // for MsgTypeMux and starts a yamux client on it. Handshake errors come back
-// exactly as handshake() words them; a server that closes the connection or
-// says no on MsgTypeMux gives errNoMux; a server that says nothing within
-// setupTimeout is a network failure, not an old server.
+// exactly as handshake() words them; a server that closes the connection
+// (EOF or unexpected EOF — tls.Conn reports both a close_notify close and a
+// bare FIN as EOF) or says no on MsgTypeMux gives errNoMux; any other read
+// error — a reset, a broken pipe, no answer within setupTimeout — is a
+// network failure "mux: …", not an old server.
 func (t *TLSTransport) dialSession() (*muxSession, error) {
 	conn, rawConn, err := t.handshake()
 	if err != nil {
@@ -140,11 +160,10 @@ func (t *TLSTransport) dialSession() (*muxSession, error) {
 	ok, err := proto.ReadResult(conn)
 	if err != nil {
 		conn.Close()
-		var ne net.Error
-		if errors.As(err, &ne) && ne.Timeout() {
-			return nil, fmt.Errorf("mux: %w", err)
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return nil, errNoMux
 		}
-		return nil, errNoMux
+		return nil, fmt.Errorf("mux: %w", err)
 	}
 	if !ok {
 		conn.Close()
@@ -287,6 +306,13 @@ func (t *TLSTransport) runDial(d *muxDial) {
 
 	t.poolMu.Lock()
 	t.inflight = nil
+	if errors.Is(err, errNoMux) {
+		// "No mux" with a live mux session in the pool is a server that
+		// restarted or a middlebox that cut us, not a pre-mux server.
+		if live, _ := t.liveLocked(); live > 0 {
+			err = fmt.Errorf("%w (server said no mux while %d sessions alive)", errNoMuxAlive, live)
+		}
+	}
 	adopted := false
 	switch {
 	case err == nil:
@@ -367,9 +393,10 @@ func (t *TLSTransport) growLoop() {
 // reserveSession picks the live session with the fewest open streams and
 // counts a stream on it. With no live session it waits for a dial — the
 // in-flight one or a new one, ignoring the background pause, since a caller
-// is waiting — and returns that dial's error unchanged.
-func (t *TLSTransport) reserveSession() (*muxSession, error) {
-	for attempt := 0; ; attempt++ {
+// is waiting — and returns that dial's error unchanged. Each dial it waits
+// for is taken off *dials; with none left it gives up (errNoLiveSession).
+func (t *TLSTransport) reserveSession(dials *int) (*muxSession, error) {
+	for {
 		t.poolMu.Lock()
 		if t.closed {
 			t.poolMu.Unlock()
@@ -393,14 +420,17 @@ func (t *TLSTransport) reserveSession() (*muxSession, error) {
 			}
 			return best, nil
 		}
-		if attempt >= 2 {
+		if *dials <= 0 {
 			t.poolMu.Unlock()
-			return nil, fmt.Errorf("mux: no live session")
+			return nil, errNoLiveSession
 		}
+		*dials--
 		d := t.startDialLocked()
 		t.poolMu.Unlock()
 		<-d.done
-		if d.err != nil {
+		// errNoMuxAlive: the dial was refused, but another dial landed a
+		// session meanwhile — look again instead of failing the stream.
+		if d.err != nil && !errors.Is(d.err, errNoMuxAlive) {
 			return nil, d.err
 		}
 	}
@@ -434,11 +464,13 @@ func (t *TLSTransport) dropSession(s *muxSession, why error) {
 // openMuxStream opens a stream inside the pool. Errors are worded as on the
 // per-stream path: dial errors as is, a refused or unanswered TCP connect as
 // "connect rejected". A stream lost because its session died during setup
-// is retried on another session.
+// is retried on another session; the dials one call waits for are capped at
+// muxDialsPerOpen, however many retries it makes.
 func (t *TLSTransport) openMuxStream(streamType byte, addr string, port uint16) (Stream, error) {
 	var lastErr error
+	dials := muxDialsPerOpen
 	for attempt := 0; attempt <= t.limits.max; attempt++ {
-		s, err := t.reserveSession()
+		s, err := t.reserveSession(&dials)
 		if err != nil {
 			return nil, err
 		}

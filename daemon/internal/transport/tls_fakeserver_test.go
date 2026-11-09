@@ -34,11 +34,27 @@ const (
 // fakeServer speaks the proxy protocol over TLS on 127.0.0.1 and counts every
 // incoming TCP connection. TCP streams echo whatever the client writes; UDP
 // streams echo every UDP frame back. With noMux it behaves like a pre-PRXNS-33
-// server: MsgTypeMux is an unknown type and the connection is closed.
+// server: MsgTypeMux is an unknown type and the connection is closed — by
+// default the way the real Handle closes it (`defer conn.Close()` on a
+// tls.Conn: close_notify, then FIN); oldStyle picks other endings.
 type fakeServer struct {
 	t     *testing.T
 	ln    net.Listener
 	noMux bool
+
+	// oldStyle: how a connection that asked for MsgTypeMux ends when the
+	// server has no mux for it (noMux, or muxFirst used up).
+	oldStyle atomic.Int32
+	// muxFirst > 0: only the first muxFirst MsgTypeMux requests are served,
+	// the rest get the old-server treatment.
+	muxFirst atomic.Int64
+	muxAsked atomic.Int64
+	// dropMux: answer MsgTypeMux with ResultOK and hang up at once — a mux
+	// server that crashes right after accepting a session.
+	dropMux atomic.Bool
+	// dropOnStream: serve the session until its first stream arrives, then
+	// hang up — the session looks healthy to the client until it is used.
+	dropOnStream atomic.Bool
 
 	accepted       atomic.Int64
 	rejectMID      atomic.Bool
@@ -168,10 +184,14 @@ func (f *fakeServer) serve(c net.Conn) {
 		f.handleStream(c, msgType)
 		return
 	}
-	if f.noMux {
-		return // pre-mux server: "unknown msg type: 0x04", connection closed
+	if f.noMux || f.refuseMux() {
+		f.endOldStyle(c) // pre-mux server: "unknown msg type: 0x04", connection closed
+		return
 	}
 	proto.WriteResult(c, true)
+	if f.dropMux.Load() {
+		return
+	}
 	sess, err := yamux.Server(c, testServerMuxConfig())
 	if err != nil {
 		return
@@ -187,6 +207,9 @@ func (f *fakeServer) serve(c net.Conn) {
 		if err != nil {
 			return
 		}
+		if f.dropOnStream.Load() {
+			return
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -197,6 +220,37 @@ func (f *fakeServer) serve(c net.Conn) {
 			}
 			f.handleStream(st, t)
 		}()
+	}
+}
+
+// How a pre-mux server's connection ends after the unknown 0x04.
+type oldStyle int32
+
+const (
+	oldCloseNotify   oldStyle = iota // tls.Conn.Close(): close_notify, FIN — what Handle does
+	oldCloseNoNotify                 // FIN on the TCP socket, no close_notify
+	oldReset                         // RST (SO_LINGER 0), e.g. a middlebox or a crash
+	oldReplyFalse                    // a server that answers ResultFail
+)
+
+func (f *fakeServer) refuseMux() bool {
+	n := f.muxFirst.Load()
+	return n > 0 && f.muxAsked.Add(1) > n
+}
+
+// endOldStyle ends the connection as oldStyle says. The caller returns right
+// after, and serve's `defer c.Close()` is the tls.Conn.Close() of the real
+// Handle (close_notify) — already a no-op on a socket closed here.
+func (f *fakeServer) endOldStyle(c net.Conn) {
+	raw := c.(*tls.Conn).NetConn()
+	switch oldStyle(f.oldStyle.Load()) {
+	case oldCloseNoNotify:
+		raw.Close()
+	case oldReset:
+		raw.(*net.TCPConn).SetLinger(0)
+		raw.Close()
+	case oldReplyFalse:
+		proto.WriteResult(c, false)
 	}
 }
 

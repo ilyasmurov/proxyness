@@ -1,7 +1,11 @@
 package transport
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"os"
 	"runtime"
@@ -11,6 +15,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"proxyness/pkg/proto"
 )
 
 // The point of PRXNS-33: SkyNet drops new TCP connections by rate, so TLS mode
@@ -371,5 +377,268 @@ func TestMuxClientConfigTimeouts(t *testing.T) {
 	}
 	if cfg.MaxStreamWindowSize != 4<<20 {
 		t.Errorf("MaxStreamWindowSize = %d, want 4 MiB", cfg.MaxStreamWindowSize)
+	}
+}
+
+// newBareTransport is a TLSTransport set up the way Connect does, minus the
+// first dial and the pool.
+func newBareTransport(addr string) *TLSTransport {
+	tr := NewTLSTransport()
+	tr.server = addr
+	tr.key = testKey
+	tr.machineID = [16]byte{1}
+	tr.setupTimeout = tlsSetupTimeout
+	tr.dialTCP = tlsDialTCP
+	tr.limits = currentMuxLimits()
+	return tr
+}
+
+// captureLog collects the package's log output for one test.
+type logBuf struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *logBuf) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *logBuf) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+func captureLog(t *testing.T) *logBuf {
+	t.Helper()
+	lb := &logBuf{}
+	log.SetOutput(lb)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	return lb
+}
+
+// "No mux" means the server closed the connection on MsgTypeMux (or said no).
+// What tls.Conn reports for a close with and without close_notify is EOF or
+// ErrUnexpectedEOF, and only those. A reset is a network failure and must
+// keep its own error — otherwise one RST from a middlebox would send the
+// transport into per-stream mode.
+func TestTLSMuxOnlyEOFMeansNoMux(t *testing.T) {
+	cases := []struct {
+		name    string
+		style   oldStyle
+		noMux   bool // dialSession must report errNoMux
+		readEOF bool // the raw read after 0x04 must be EOF / ErrUnexpectedEOF
+	}{
+		{"close_notify then FIN (real Handle)", oldCloseNotify, true, true},
+		{"FIN without close_notify", oldCloseNoNotify, true, true},
+		{"server answers false", oldReplyFalse, true, false},
+		{"RST", oldReset, false, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv := newFakeServer(t, true)
+			srv.oldStyle.Store(int32(c.style))
+
+			// What tls.Conn hands the client after the 0x04.
+			tr := newBareTransport(srv.addr())
+			conn, _, err := tr.handshake()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := proto.WriteMsgType(conn, proto.MsgTypeMux); err != nil {
+				t.Fatal(err)
+			}
+			_, rerr := proto.ReadResult(conn)
+			conn.Close()
+			t.Logf("ReadResult after 0x04: %v", rerr)
+			if isEOF := errors.Is(rerr, io.EOF) || errors.Is(rerr, io.ErrUnexpectedEOF); c.readEOF && !isEOF {
+				t.Errorf("raw read error = %v, want EOF or ErrUnexpectedEOF", rerr)
+			} else if c.style == oldReset && (isEOF || rerr == nil) {
+				t.Errorf("raw read error after RST = %v, want a network error", rerr)
+			}
+
+			// What dialSession makes of it.
+			s, err := newBareTransport(srv.addr()).dialSession()
+			if s != nil {
+				s.sess.Close()
+			}
+			if c.noMux {
+				if !errors.Is(err, errNoMux) {
+					t.Fatalf("dialSession err = %v, want errNoMux", err)
+				}
+				return
+			}
+			if err == nil || errors.Is(err, errNoMux) {
+				t.Fatalf("dialSession err = %v, want a network error, not errNoMux", err)
+			}
+			if !strings.HasPrefix(err.Error(), "mux: ") {
+				t.Errorf("dialSession err = %q, want the \"mux: \" prefix", err)
+			}
+		})
+	}
+}
+
+// A close without close_notify is still a pre-mux server: Connect falls back
+// to one connection per stream, same as for the clean close.
+func TestTLSMuxOldServerWithoutCloseNotifyFallsBack(t *testing.T) {
+	srv := newFakeServer(t, true)
+	srv.oldStyle.Store(int32(oldCloseNoNotify))
+	tr := NewTLSTransport()
+	if err := tr.Connect(srv.addr(), testKey, [16]byte{1}); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer tr.Close()
+	if !tr.perStream.Load() {
+		t.Fatal("transport did not switch to per-stream mode")
+	}
+	s, err := tr.OpenStream(0x01, "example.com", 443)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := echoTCP(s, "hello"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A server that resets the connection after 0x04 is a failed dial, not an old
+// server: Connect reports it, the transport stays in mux mode and does not
+// quietly dial per-stream.
+func TestTLSMuxResetOnMuxRequestIsDialFailure(t *testing.T) {
+	srv := newFakeServer(t, true)
+	srv.oldStyle.Store(int32(oldReset))
+	tr := NewTLSTransport()
+	err := tr.Connect(srv.addr(), testKey, [16]byte{1})
+	if err == nil {
+		tr.Close()
+		t.Fatal("Connect succeeded against a server that resets on 0x04")
+	}
+	if errors.Is(err, errNoMux) || !strings.HasPrefix(err.Error(), "mux: ") {
+		t.Errorf("Connect err = %q, want a \"mux: …\" network error", err)
+	}
+	if tr.perStream.Load() {
+		t.Error("transport switched to per-stream mode on a reset")
+	}
+	if got := srv.accepted.Load(); got != 1 {
+		t.Errorf("server accepted %d connections, want 1 (no per-stream retry)", got)
+	}
+}
+
+// With a live session the pool has proof that the server speaks mux, so a
+// background dial that meets EOF on 0x04 (a deploy restarting the server, a
+// middlebox) is a failed dial with the usual pause, never a switch to
+// per-stream for the rest of the transport's life.
+func TestTLSMuxNoMuxAnswerWithLiveSessionIsDialFailure(t *testing.T) {
+	logs := captureLog(t)
+	srv := newFakeServer(t, false)
+	srv.muxFirst.Store(1) // session #1 is served, every later 0x04 gets EOF
+	tr := NewTLSTransport()
+	if err := tr.Connect(srv.addr(), testKey, [16]byte{1}); err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+
+	// The background dial for the second session hits the EOF.
+	waitFor(t, "the background dial to be refused", 5*time.Second, func() bool {
+		if srv.accepted.Load() < 2 {
+			return false
+		}
+		tr.poolMu.Lock()
+		defer tr.poolMu.Unlock()
+		return tr.inflight == nil && (tr.backoff > 0 || tr.perStream.Load())
+	})
+	if tr.perStream.Load() {
+		t.Fatal("background dial switched the transport to per-stream while a session was alive")
+	}
+	if got := tr.liveSessions(); got != 1 {
+		t.Fatalf("live sessions = %d, want 1", got)
+	}
+	// The line is written just after the pool state is updated.
+	waitFor(t, "the dial failure line in the log", 5*time.Second, func() bool {
+		out := logs.String()
+		return strings.Contains(out, "[tls] mux dial failed") && strings.Contains(out, "(server said no mux while 1 sessions alive)")
+	})
+
+	// Streams keep riding the mux session.
+	s, err := tr.OpenStream(0x01, "example.com", 443)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := echoTCP(s, "still muxed"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// …but when no session is alive (the server was rolled back to a pre-mux
+// build while the daemon ran), the same EOF does mean "old server".
+func TestTLSMuxNoMuxAnswerWithoutLiveSessionSwitchesToPerStream(t *testing.T) {
+	setMuxLimits(t, 1, 1)
+	srv := newFakeServer(t, false)
+	srv.muxFirst.Store(1)
+	tr := NewTLSTransport()
+	if err := tr.Connect(srv.addr(), testKey, [16]byte{1}); err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	srv.killMuxConn(0)
+	waitFor(t, "the pool to empty", 5*time.Second, func() bool { return tr.liveSessions() == 0 })
+
+	// The next stream needs a dial; the server now has no mux.
+	s, err := tr.OpenStream(0x01, "example.com", 443)
+	if err != nil {
+		t.Fatalf("OpenStream after the server lost its mux: %v", err)
+	}
+	defer s.Close()
+	if !tr.perStream.Load() {
+		t.Fatal("transport stayed in mux mode with no live session and no mux on the server")
+	}
+	if err := echoTCP(s, "per-stream now"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A server that accepts 0x04 and then drops the session (a crash loop) costs
+// one OpenStream at most two dials of its own. Background dials may add one
+// more while it waits; before the cap a single call made up to ten.
+func TestTLSMuxOpenStreamDialsAtMostTwice(t *testing.T) {
+	for _, mode := range []string{"drops the session at once", "drops the session on its first stream"} {
+		t.Run(mode, func(t *testing.T) {
+			setMuxLimits(t, 1, 8) // up to 9 attempts per call before the cap
+			srv := newFakeServer(t, false)
+			if strings.HasSuffix(mode, "once") {
+				srv.dropMux.Store(true)
+			} else {
+				srv.dropOnStream.Store(true)
+			}
+			tr := NewTLSTransport()
+			if err := tr.Connect(srv.addr(), testKey, [16]byte{1}); err != nil {
+				t.Fatal(err)
+			}
+			defer tr.Close()
+			// Slow dials: every dial the call waits for is countable, and the
+			// background redialer cannot run ahead of it.
+			srv.handshakeDelay.Store(int64(80 * time.Millisecond))
+
+			before := srv.accepted.Load()
+			start := time.Now()
+			s, err := tr.OpenStream(0x01, "example.com", 443)
+			took := time.Since(start)
+			dials := srv.accepted.Load() - before
+			if err == nil {
+				s.Close()
+				t.Fatal("OpenStream succeeded against a server that drops every session")
+			}
+			if errors.Is(err, errNoMux) {
+				t.Errorf("err = %v, a crash-looping mux server is not a pre-mux server", err)
+			}
+			t.Logf("OpenStream: %v after %s, %d connections", err, took.Round(time.Millisecond), dials)
+			// 2 dials of the call + at most 1 background dial started meanwhile.
+			if dials > 3 {
+				t.Errorf("one OpenStream caused %d connections, want at most 3 (2 own + 1 background)", dials)
+			}
+		})
 	}
 }
