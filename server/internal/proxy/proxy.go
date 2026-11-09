@@ -75,15 +75,36 @@ func (h *Handler) Handle(conn net.Conn, isTLS bool) {
 			log.Printf("read msg type: %v", err)
 			return
 		}
+
+		// Mux-capable clients (PRXNS-33) keep this connection as a yamux
+		// session and run every stream inside it. Only offered after
+		// machine-id, so the device binding is checked once per session.
+		if msgType == proto.MsgTypeMux {
+			proto.WriteResult(conn, true)
+			start := time.Now()
+			streams, err := serveMux(conn, h.dispatchStream(&device, isTLS))
+			log.Printf("device %s mux session from %s closed after %s, %d streams: %v",
+				device.Name, conn.RemoteAddr(), time.Since(start).Round(time.Second), streams, err)
+			return
+		}
 	}
 
-	switch msgType {
-	case proto.MsgTypeTCP:
-		h.handleTCP(conn, &device, isTLS)
-	case proto.MsgTypeUDP:
-		h.handleUDP(conn, &device, isTLS)
-	default:
-		log.Printf("unknown msg type: 0x%02x", msgType)
+	h.dispatchStream(&device, isTLS)(conn, msgType)
+}
+
+// dispatchStream returns the handler for one stream that has already sent its
+// msg type: a whole connection on the per-connection path, a yamux stream
+// inside a mux session.
+func (h *Handler) dispatchStream(device *db.Device, isTLS bool) func(net.Conn, byte) {
+	return func(conn net.Conn, msgType byte) {
+		switch msgType {
+		case proto.MsgTypeTCP:
+			h.handleTCP(conn, device, isTLS)
+		case proto.MsgTypeUDP:
+			h.handleUDP(conn, device, isTLS)
+		default:
+			log.Printf("unknown msg type: 0x%02x", msgType)
+		}
 	}
 }
 

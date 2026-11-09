@@ -3,6 +3,7 @@ module proxyness/server
 go 1.25.0
 
 require (
+	github.com/hashicorp/yamux v0.1.2
 	github.com/jackc/pgx/v5 v5.9.1
 	modernc.org/sqlite v1.48.0
 	proxyness/pkg v0.0.0-00010101000000-000000000000
